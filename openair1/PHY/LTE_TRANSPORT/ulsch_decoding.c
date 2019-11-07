@@ -30,6 +30,7 @@
 * \warning
 */
 
+//#define DEBUG_ULSCH_DECODING
 
 #include <syscall.h>
 #include "PHY/defs_eNB.h"
@@ -39,13 +40,13 @@
 #include "LAYER2/MAC/mac.h"
 #include "RRC/LTE/rrc_extern.h"
 #include "PHY_INTERFACE/phy_interface.h"
-
-#include "common/utils/LOG/vcd_signal_dumper.h"
-//#define DEBUG_ULSCH_DECODING
-#include "targets/RT/USER/rt_wrapper.h"
 #include "transport_proto.h"
+#include "common/utils/LOG/vcd_signal_dumper.h"
+
 
 extern WORKER_CONF_t get_thread_worker_conf(void);
+extern volatile int oai_exit;
+
 
 void free_eNB_ulsch(LTE_eNB_ULSCH_t *ulsch) {
   int i,r;
@@ -352,13 +353,10 @@ int ulsch_decoding_data_2thread0(td_params *tdp) {
   return(ret);
 }
 
-extern int oai_exit;
+
 void *td_thread(void *param) {
   PHY_VARS_eNB *eNB = ((td_params *)param)->eNB;
   L1_proc_t *proc  = &eNB->proc;
-  cpu_set_t cpuset;
-  CPU_ZERO(&cpuset);
-  thread_top_init("td_thread",1,200000,250000,500000);
   pthread_setname_np( pthread_self(),"td processing");
   LOG_I(PHY,"thread td created id=%ld\n", syscall(__NR_gettid));
   //wait_sync("td_thread");
@@ -764,18 +762,14 @@ unsigned int  ulsch_decoding(PHY_VARS_eNB *eNB,L1_rxtx_proc_t *proc,
   int frame = proc->frame_rx;
   int subframe = proc->subframe_rx;
   LTE_UL_eNB_HARQ_t *ulsch_harq;
-
-#if (LTE_RRC_VERSION >= MAKE_VERSION(14, 0, 0))
   LOG_D(PHY,"ue_type %d\n",ulsch->ue_type);
+
   if (ulsch->ue_type>0)     harq_pid = 0;
-  else
-#endif
-    {
-      harq_pid = subframe2harq_pid(frame_parms,proc->frame_rx,subframe);
-    }
+  else {
+    harq_pid = subframe2harq_pid(frame_parms,proc->frame_rx,subframe);
+  }
 
   VCD_SIGNAL_DUMPER_DUMP_FUNCTION_BY_NAME(VCD_SIGNAL_DUMPER_FUNCTIONS_PHY_ENB_ULSCH_DECODING0+harq_pid,1);
-
   // x1 is set in lte_gold_generic
   x2 = ((uint32_t)ulsch->rnti<<14) + ((uint32_t)subframe<<9) + frame_parms->Nid_cell; //this is c_init in 36.211 Sec 6.3.1
   ulsch_harq = ulsch->harq_processes[harq_pid];

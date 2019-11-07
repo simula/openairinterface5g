@@ -182,16 +182,27 @@ function variant__v2__basic_sim {
 }
 
 function variant__v3__phy_sim {
-    NB_PATTERN_FILES=3
+    NB_PATTERN_FILES=12
     BUILD_OPTIONS="--phy_simulators"
-    RUN_OPTIONS="./run_exec_autotests.bash -g \"01510*\" -q -np -b"
+    VM_MEMORY=8192
+    RUN_OPTIONS="./run_exec_autotests.bash -g \"01510* 015111\" -q -np -b"
 }
 
 function variant__v4__cppcheck {
     VM_MEMORY=4096
     LOG_PATTERN=cppcheck.xml
     NB_PATTERN_FILES=1
-    BUILD_OPTIONS="--enable=warning --force --xml --xml-version=2 --suppressions-list=ci-scripts/cppcheck_suppressions.list -I common/utils -I openair3/NAS/COMMON/UTIL -j4"
+    BUILD_OPTIONS="--enable=warning --force --xml --xml-version=2 -i openair1/PHY/CODING/nrLDPC_decoder/nrLDPC_decoder.c --suppressions-list=ci-scripts/cppcheck_suppressions.list -I common/utils -I openair3/NAS/COMMON/UTIL -j4"
+}
+
+function variant__v5__gnb_usrp {
+    NB_PATTERN_FILES=9
+    BUILD_OPTIONS="--gNB -w USRP"
+}
+
+function variant__v6__nr_ue_usrp {
+    NB_PATTERN_FILES=9
+    BUILD_OPTIONS="--nrUE -w USRP"
 }
 
 function variant__v7__enb_ethernet {
@@ -200,6 +211,7 @@ function variant__v7__enb_ethernet {
     NB_PATTERN_FILES=8
     BUILD_OPTIONS="--eNB"
 }
+
 function variant__v8__ue_ethernet {
     VM_MEMORY=4096
     ARCHIVES_LOC=ue_eth
@@ -213,6 +225,7 @@ function variant__v10__flexran_rtc {
     BUILD_OPTIONS="cmake . && make -j2"
     VARIANT_INFO="non-OSA"
 }
+
 function variant__v20__l1_sim {
     ARCHIVES_LOC=l1_sim
     RUN_OPTIONS="complex"
@@ -352,10 +365,11 @@ fi
 VM_TEMPLATE=ci-
 
 
-# look for default ASN1 release in cmake directives
+# look for ASN1 release in cmake directives
 # It will be the release used when building
-ASN1VEROPT=( `grep "add_list2_option(RRC_ASN1_VERSION" cmake_targets/CMakeLists.txt` )
-ASN1VER=${ASN1VEROPT[1]//\"}
+ASN1VEROPT=( `grep "set (RRC_ASN1_VERSION" cmake_targets/CMakeLists.txt` )
+ASN1VER=${ASN1VEROPT[2]//\"}
+ASN1VER=${ASN1VER//)}
 unset ASN1VEROPT
 
 # variable to identify and store the command (build, create ...)

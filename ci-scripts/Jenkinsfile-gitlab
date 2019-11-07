@@ -44,7 +44,7 @@ pipeline {
         disableConcurrentBuilds()
         timestamps()
         gitLabConnection('OAI GitLab')
-        gitlabBuilds(builds: ["Build eNb-USRP", "Build basic-sim", "Build phy-sim", "Build eNb-ethernet", "Build UE-ethernet", "Analysis with cppcheck", "Test phy-sim", "Test basic-sim", "Test L2-sim", "Test-Mono-FDD-Band7", "Test-Mono-TDD-Band40", "Test-IF4p5-FDD-Band7", "Test-IF4p5-TDD-Band40", "Test-Mono-FDD-Band13", "Test-IF4p5-TDD-Band38-Multi-RRU" , "Test-Mono-FDD-Band13-X2-HO"])
+        gitlabBuilds(builds: ["Build gNB-USRP", "Build nr-UE-USRP", "Build eNB-USRP", "Build basic-sim", "Build phy-sim", "Build eNB-ethernet", "Build UE-ethernet", "Analysis with cppcheck", "Test phy-sim", "Test basic-sim", "Test L2-sim", "Test-Mono-FDD-Band7", "Test-Mono-TDD-Band40", "Test-IF4p5-FDD-Band7", "Test-IF4p5-TDD-Band40", "Test-Mono-FDD-Band13", "Test-Mono-FDD-Band13-X2-HO", "Test-TDD-Band78-gNB-NR-UE"])
         ansiColor('xterm')
     }
 
@@ -157,6 +157,22 @@ pipeline {
             }
         }
 
+        stage ("Start VM -- gnb-usrp") {
+            steps {
+                timeout (time: 5, unit: 'MINUTES') {
+                    sh "./ci-scripts/oai-ci-vm-tool build --workspace $WORKSPACE --variant gnb-usrp --job-name ${JOB_NAME} --build-id ${BUILD_ID} --daemon"
+                }
+            }
+        }
+
+        stage ("Start VM -- nr-ue-usrp") {
+            steps {
+                timeout (time: 5, unit: 'MINUTES') {
+                    sh "./ci-scripts/oai-ci-vm-tool build --workspace $WORKSPACE --variant nr-ue-usrp --job-name ${JOB_NAME} --build-id ${BUILD_ID} --daemon"
+                }
+            }
+        }
+
         stage ("Start VM -- enb-usrp") {
             steps {
                 timeout (time: 5, unit: 'MINUTES') {
@@ -165,6 +181,14 @@ pipeline {
             }
         }
 
+        stage ("Start VM -- phy-sim") {
+            steps {
+                timeout (time: 5, unit: 'MINUTES') {
+                    sh "./ci-scripts/oai-ci-vm-tool build --workspace $WORKSPACE --variant phy-sim --job-name ${JOB_NAME} --build-id ${BUILD_ID} --daemon"
+                }
+            }
+        }
+        
         stage ("Start VM -- enb-ethernet") {
             steps {
                 timeout (time: 5, unit: 'MINUTES') {
@@ -180,15 +204,7 @@ pipeline {
                 }
             }
         }
-
-        stage ("Start VM -- phy-sim") {
-            steps {
-                timeout (time: 5, unit: 'MINUTES') {
-                    sh "./ci-scripts/oai-ci-vm-tool build --workspace $WORKSPACE --variant phy-sim --job-name ${JOB_NAME} --build-id ${BUILD_ID} --daemon"
-                }
-            }
-        }
-
+        
         stage ("Start VM -- cppcheck") {
             steps {
                 timeout (time: 5, unit: 'MINUTES') {
@@ -208,15 +224,6 @@ pipeline {
                         }
                     }
                 }
-                stage ("Build eNb-USRP") {
-                    steps {
-                        gitlabCommitStatus(name: "Build eNb-USRP") {
-                            timeout (time: 20, unit: 'MINUTES') {
-                                sh "./ci-scripts/oai-ci-vm-tool wait --workspace $WORKSPACE --variant enb-usrp --job-name ${JOB_NAME} --build-id ${BUILD_ID}"
-                            }
-                        }
-                    }
-                }
                 stage ("Build basic simulator") {
                     steps {
                         gitlabCommitStatus(name: "Build basic-sim") {
@@ -226,9 +233,45 @@ pipeline {
                         }
                     }
                 }
-                stage ("Build eNb-ethernet") {
+                stage ("Build 5G gNB-USRP") {
                     steps {
-                        gitlabCommitStatus(name: "Build eNb-ethernet") {
+                        gitlabCommitStatus(name: "Build gNB-USRP") {
+                            timeout (time: 20, unit: 'MINUTES') {
+                                sh "./ci-scripts/oai-ci-vm-tool wait --workspace $WORKSPACE --variant gnb-usrp --job-name ${JOB_NAME} --build-id ${BUILD_ID} --keep-vm-alive"
+                            }
+                        }
+                    }
+                }
+                stage ("Build 5G NR-UE-USRP") {
+                    steps {
+                        gitlabCommitStatus(name: "Build nr-UE-USRP") {
+                            timeout (time: 20, unit: 'MINUTES') {
+                                sh "./ci-scripts/oai-ci-vm-tool wait --workspace $WORKSPACE --variant nr-ue-usrp --job-name ${JOB_NAME} --build-id ${BUILD_ID} --keep-vm-alive"
+                            }
+                        }
+                    }
+                }
+                stage ("Build eNB-USRP") {
+                    steps {
+                        gitlabCommitStatus(name: "Build eNB-USRP") {
+                            timeout (time: 20, unit: 'MINUTES') {
+                                sh "./ci-scripts/oai-ci-vm-tool wait --workspace $WORKSPACE --variant enb-usrp --job-name ${JOB_NAME} --build-id ${BUILD_ID} --keep-vm-alive"
+                            }
+                        }
+                    }
+                }
+                stage ("Build physical simulators") {
+                    steps {
+                        gitlabCommitStatus(name: "Build phy-sim") {
+                            timeout (time: 20, unit: 'MINUTES') {
+                               sh "./ci-scripts/oai-ci-vm-tool wait --workspace $WORKSPACE --variant phy-sim --job-name ${JOB_NAME} --build-id ${BUILD_ID} --keep-vm-alive"
+                            }
+                        }
+                    }
+                }
+                stage ("Build eNB-ethernet") {
+                    steps {
+                        gitlabCommitStatus(name: "Build eNB-ethernet") {
                             timeout (time: 20, unit: 'MINUTES') {
                                 sh "./ci-scripts/oai-ci-vm-tool wait --workspace $WORKSPACE --variant enb-ethernet --job-name ${JOB_NAME} --build-id ${BUILD_ID} --keep-vm-alive"
                             }
@@ -244,21 +287,12 @@ pipeline {
                         }
                     }
                 }
-                stage ("Build physical simulators") {
-                    steps {
-                        gitlabCommitStatus(name: "Build phy-sim") {
-                            timeout (time: 20, unit: 'MINUTES') {
-                               sh "./ci-scripts/oai-ci-vm-tool wait --workspace $WORKSPACE --variant phy-sim --job-name ${JOB_NAME} --build-id ${BUILD_ID} --keep-vm-alive"
-                            }
-                        }
-                    }
-                }
-                stage ("Build eNb-USRP on Red Hat") {
+                stage ("Build eNB-USRP on Red Hat") {
                     when {
                         expression {doRedHatBuild}
                     }
                     steps {
-                        gitlabCommitStatus(name: "Build eNb-USRP-RHE") {
+                        gitlabCommitStatus(name: "Build eNB-USRP-RHE") {
                             script {
                                 try {
                                     withCredentials([
@@ -285,7 +319,7 @@ pipeline {
                 always {
                     script {
                         dir ('archives') {
-                            sh "zip -r -qq vm_build_logs.zip basic_sim enb_usrp phy_sim cppcheck enb_eth ue_eth red_hat"
+                            sh "zip -r -qq vm_build_logs.zip basic_sim enb_usrp phy_sim cppcheck enb_eth ue_eth gnb_usrp nrue_usrp red_hat"
                         }
                         if(fileExists('archives/vm_build_logs.zip')) {
                             archiveArtifacts artifacts: 'archives/vm_build_logs.zip'
@@ -331,7 +365,7 @@ pipeline {
                         stage ("Test physical simulators") {
                             steps {
                                 script {
-                                    timeout (time: 20, unit: 'MINUTES') {
+                                    timeout (time: 90, unit: 'MINUTES') {
                                         try {
                                             gitlabCommitStatus(name: "Test phy-sim") {
                                                 sh "./ci-scripts/oai-ci-vm-tool test --workspace $WORKSPACE --variant phy-sim --job-name ${JOB_NAME} --build-id ${BUILD_ID}"
@@ -484,45 +518,6 @@ pipeline {
                         }
                     }
                 }
-                stage ("Test X2 Handover - FDD - Band 13 - B210") {
-                    steps {
-                        script {
-                            sh "sleep 60"
-                            triggerSlaveJob ('eNB-CI-MONO-FDD-Band13-X2HO-B210', 'Test-Mono-FDD-Band13-X2-HO')
-                        }
-                    }
-                    post {
-                        always {
-                            script {
-                                finalizeSlaveJob('eNB-CI-MONO-FDD-Band13-X2HO-B210')
-                            }
-                        }
-                        failure {
-                            script {
-                                currentBuild.result = 'FAILURE'
-                            }
-                        }
-                    }
-                }
-                stage ("Test IF4p5 - TDD - Band 38 - B210 - MultiRRU") {
-                    steps {
-                        script {
-                            triggerSlaveJob ('eNB-CI-IF4p5-TDD-Band38-MultiRRU-B210', 'Test-IF4p5-TDD-Band38-Multi-RRU')
-                        }
-                    }
-                    post {
-                        always {
-                            script {
-                                finalizeSlaveJob('eNB-CI-IF4p5-TDD-Band38-MultiRRU-B210')
-                            }
-                        }
-                        failure {
-                            script {
-                                currentBuild.result = 'FAILURE'
-                            }
-                        }
-                    }
-                }
                 stage ("Test IF4p5 - TDD - Band 40 - B210") {
                     steps {
                         script {
@@ -563,6 +558,26 @@ pipeline {
                         }
                     }
                 }
+                stage ("Test X2 Handover - FDD - Band 13 - B210") {
+                    steps {
+                        script {
+                            sh "sleep 60"
+                            triggerSlaveJob ('eNB-CI-MONO-FDD-Band13-X2HO-B210', 'Test-Mono-FDD-Band13-X2-HO')
+                        }
+                    }
+                    post {
+                        always {
+                            script {
+                                finalizeSlaveJob('eNB-CI-MONO-FDD-Band13-X2HO-B210')
+                            }
+                        }
+                        failure {
+                            script {
+                                currentBuild.result = 'FAILURE'
+                            }
+                        }
+                    }
+                }
                 stage ("Test OAI UE - FDD - Band 20 - B200") {
                     steps {
                         script {
@@ -594,6 +609,25 @@ pipeline {
                         always {
                             script {
                                 finalizeSlaveJob('eNB-UE-CI-MONO-FDD-Band7-B200')
+                            }
+                        }
+                        failure {
+                            script {
+                                currentBuild.result = 'FAILURE'
+                            }
+                        }
+                    }
+                }
+                stage ("Test OAI NR UE - OAI gNB - TDD - Band 78 - N300") {
+                    steps {
+                        script {
+                            triggerSlaveJob ('gNB-nrUE-MONO-TDD-Band78-N300', 'Test-TDD-Band78-gNB-NR-UE')
+                        }
+                    }
+                    post {
+                        always {
+                            script {
+                                finalizeSlaveJob('gNB-nrUE-MONO-TDD-Band78-N300')
                             }
                         }
                         failure {

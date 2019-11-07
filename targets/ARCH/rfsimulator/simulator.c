@@ -324,11 +324,11 @@ int rfsimulator_write(openair0_device *device, openair0_timestamp timestamp, voi
     buffer_t *b=&t->buf[i];
 
     if (b->conn_sock >= 0 ) {
-      if ( abs((double)b->lastWroteTS-timestamp) > (double)CirSize)
+      if ( abs((double)b->lastWroteTS-timestamp) > (double)CirSize )
         LOG_E(HW,"Tx/Rx shift too large Tx:%lu, Rx:%lu\n", b->lastWroteTS, b->lastReceivedTS);
 
       samplesBlockHeader_t header= {t->typeStamp, nsamps, nbAnt, timestamp};
-      fullwrite(b->conn_sock,&header, sizeof(header), t);
+      fullwrite(b->conn_sock, &header, sizeof(header), t);
       sample_t tmpSamples[nsamps][nbAnt];
 
       for(int a=0; a<nbAnt; a++) {
@@ -348,7 +348,7 @@ int rfsimulator_write(openair0_device *device, openair0_timestamp timestamp, voi
   LOG_D(HW,"sent %d samples at time: %ld->%ld, energy in first antenna: %d\n",
         nsamps, timestamp, timestamp+nsamps, signal_energy(samplesVoid[0], nsamps) );
   // Let's verify we don't have incoming data
-  // This is mandatory when the opposite side don't transmit
+  // This is mandatory when the opposite side doesn't transmit
   flushInput(t, 0);
   pthread_mutex_unlock(&Sockmutex);
   return nsamps;
@@ -489,10 +489,7 @@ int rfsimulator_read(openair0_device *device, openair0_timestamp *ptimestamp, vo
         memset(samplesVoid[x],0,sampleToByte(nsamps,1));
 
       t->nextTimestamp+=nsamps;
-
-      if ( ((t->nextTimestamp/nsamps)%100) == 0)
-        LOG_W(HW,"Generated void samples for Rx: %ld\n", t->nextTimestamp);
-
+      LOG_D(HW,"Generated void samples for Rx: %ld\n", t->nextTimestamp);
       *ptimestamp = t->nextTimestamp-nsamps;
       pthread_mutex_unlock(&Sockmutex);
       return nsamps;
@@ -503,7 +500,7 @@ int rfsimulator_read(openair0_device *device, openair0_timestamp *ptimestamp, vo
     do {
       have_to_wait=false;
 
-      for ( int sock=0; sock<FD_SETSIZE; sock++) {
+      for (int sock=0; sock<FD_SETSIZE; sock++) {
         buffer_t *b=&t->buf[sock];
 
         if ( b->circularBuf) {
@@ -513,13 +510,13 @@ int rfsimulator_read(openair0_device *device, openair0_timestamp *ptimestamp, vo
                 t->nextTimestamp+nsamps);
 
           if (  b->lastReceivedTS > b->lastWroteTS ) {
-            // The caller momdem (NB, UE, ...) must send Tx in advance, so we fill TX if Rx is in advance
+            // The caller modem (NB, UE, ...) must send Tx in advance, so we fill TX if Rx is in advance
             // This occurs for example when UE is in sync mode: it doesn't transmit
             // with USRP, it seems ok: if "tx stream" is off, we may consider it actually cuts the Tx power
-            struct complex16 v= {0};
+            struct complex16 v = {0};
             void *samplesVoid[b->th.nbAnt];
 
-            for ( int i=0; i <b->th.nbAnt; i++)
+            for ( int i=0; i < b->th.nbAnt; i++)
               samplesVoid[i]=(void *)&v;
 
             rfsimulator_write(device, b->lastReceivedTS, samplesVoid, 1, b->th.nbAnt, 0);
@@ -616,6 +613,7 @@ __attribute__((__visibility__("default")))
 int device_init(openair0_device *device, openair0_config_t *openair0_cfg) {
   // to change the log level, use this on command line
   // --log_config.hw_log_level debug
+  // (for phy layer, replace "hw" by "phy")
   rfsimulator_state_t *rfsimulator = (rfsimulator_state_t *)calloc(sizeof(rfsimulator_state_t),1);
   rfsimulator_readconfig(rfsimulator);
   pthread_mutex_init(&Sockmutex, NULL);
@@ -631,6 +629,7 @@ int device_init(openair0_device *device, openair0_config_t *openair0_cfg) {
   device->trx_set_gains_func   = rfsimulator_set_gains;
   device->trx_write_func       = rfsimulator_write;
   device->trx_read_func      = rfsimulator_read;
+  device->uhd_set_thread_priority = NULL;
   /* let's pretend to be a b2x0 */
   device->type = USRP_B200_DEV;
   device->openair0_cfg=&openair0_cfg[0];
