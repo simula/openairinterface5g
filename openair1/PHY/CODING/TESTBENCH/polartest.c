@@ -215,6 +215,8 @@ if (logFlag){
   free(encoder_outputByte);
   free(channel_output);
   free(modulated_input);
+  if (logFlag)
+    fclose(logFile);
   return 0;
 #endif
 
@@ -241,8 +243,8 @@ if (logFlag){
 
 		  start_meas(&timeEncoder);
 		  if (decoder_int16==1) {
-			  polar_encoder_fast((uint64_t *)testInput, encoderOutput, 0, currentPtr);
-			  //polar_encoder_fast((uint64_t*)testInput, (uint64_t*)encoderOutput,0, currentPtr);
+			  polar_encoder_fast((uint64_t *)testInput, encoderOutput, 0, 0, currentPtr);
+			  //polar_encoder_fast((uint64_t*)testInput, (uint64_t*)encoderOutput,0,0,currentPtr);
 		  } else { //0 --> PBCH, 1 --> DCI, -1 --> UCI
 			  if (polarMessageType == 0)
 				  polar_encoder(testInput, encoderOutput, currentPtr);
@@ -278,7 +280,7 @@ if (logFlag){
       start_meas(&timeDecoder);
 
       if (decoder_int16==1) {
-    	  decoderState = polar_decoder_int16(channelOutput_int16, (uint64_t *)estimatedOutput, currentPtr);
+    	  decoderState = polar_decoder_int16(channelOutput_int16, (uint64_t *)estimatedOutput, 0, currentPtr);
       } else { //0 --> PBCH, 1 --> DCI, -1 --> UCI
     	  if (polarMessageType == 0) {
     		  decoderState = polar_decoder(channelOutput,
@@ -317,13 +319,13 @@ if (logFlag){
       if (nBitError>0) blockErrorState=1;
 #ifdef DEBUG_POLARTEST
           		  for (int i = 0; i < testArrayLength; i++)
-          			  printf("[polartest/decoderState=%d] testInput[%d]=0x%08x, estimatedOutput[%d]=0x%08x\n",decoderState, i, testInput[i], i, estimatedOutput[i]);
+          			  printf("[polartest/decoderState=%u] testInput[%d]=0x%08x, estimatedOutput[%d]=0x%08x\n",decoderState, i, testInput[i], i, estimatedOutput[i]);
 #endif
 
       //Iteration times are in microseconds.
       timeEncoderCumulative+=(timeEncoder.diff/(cpu_freq_GHz*1000.0));
       timeDecoderCumulative+=(timeDecoder.diff/(cpu_freq_GHz*1000.0));
-      if (logFlag) fprintf(logFile,",%f,%d,%d,%f,%f\n", SNR, nBitError, blockErrorState, (timeEncoder.diff/(cpu_freq_GHz*1000.0)), (timeDecoder.diff/(cpu_freq_GHz*1000.0)));
+      if (logFlag) fprintf(logFile,",%f,%d,%u,%f,%f\n", SNR, nBitError, blockErrorState, (timeEncoder.diff/(cpu_freq_GHz*1000.0)), (timeDecoder.diff/(cpu_freq_GHz*1000.0)));
 
       if (nBitError<0) {
         blockErrorCumulative++;

@@ -93,6 +93,7 @@ typedef enum {
 #define CONFIG_STRING_RU_SF_EXTENSION             "sf_extension"
 #define CONFIG_STRING_RU_END_OF_BURST_DELAY       "end_of_burst_delay"
 #define CONFIG_STRING_RU_OTA_SYNC_ENABLE          "ota_sync_enabled"
+#define CONFIG_STRING_RU_BF_WEIGHTS_LIST          "bf_weights"
 
 #define RU_LOCAL_IF_NAME_IDX          0
 #define RU_LOCAL_ADDRESS_IDX          1
@@ -118,23 +119,22 @@ typedef enum {
 #define RU_SF_EXTENSION_IDX           21
 #define RU_END_OF_BURST_DELAY_IDX     22
 #define RU_OTA_SYNC_ENABLE_IDX        23
-
-
+#define RU_BF_WEIGHTS_LIST_IDX        24
 
 /*-----------------------------------------------------------------------------------------------------------------------------------------*/
 /*                                            RU configuration parameters                                                                  */
 /*   optname                                   helpstr   paramflags    XXXptr          defXXXval                   type      numelt        */
 /*-----------------------------------------------------------------------------------------------------------------------------------------*/
 #define RUPARAMS_DESC { \
-    {CONFIG_STRING_RU_LOCAL_IF_NAME,               NULL,       0,       strptr:NULL,     defstrval:"lo",          TYPE_STRING,    0}, \
-    {CONFIG_STRING_RU_LOCAL_ADDRESS,               NULL,       0,       strptr:NULL,     defstrval:"127.0.0.2",   TYPE_STRING,    0}, \
-    {CONFIG_STRING_RU_REMOTE_ADDRESS,              NULL,       0,       strptr:NULL,     defstrval:"127.0.0.1",   TYPE_STRING,    0}, \
+    {CONFIG_STRING_RU_LOCAL_IF_NAME,               NULL,       0,       strptr:NULL,     defstrval:"lo",          TYPE_STRING,      0}, \
+    {CONFIG_STRING_RU_LOCAL_ADDRESS,               NULL,       0,       strptr:NULL,     defstrval:"127.0.0.2",   TYPE_STRING,      0}, \
+    {CONFIG_STRING_RU_REMOTE_ADDRESS,              NULL,       0,       strptr:NULL,     defstrval:"127.0.0.1",   TYPE_STRING,      0}, \
     {CONFIG_STRING_RU_LOCAL_PORTC,                 NULL,       0,       uptr:NULL,       defuintval:50000,        TYPE_UINT,        0}, \
     {CONFIG_STRING_RU_REMOTE_PORTC,                NULL,       0,       uptr:NULL,       defuintval:50000,        TYPE_UINT,        0}, \
     {CONFIG_STRING_RU_LOCAL_PORTD,                 NULL,       0,       uptr:NULL,       defuintval:50001,        TYPE_UINT,        0}, \
     {CONFIG_STRING_RU_REMOTE_PORTD,                NULL,       0,       uptr:NULL,       defuintval:50001,        TYPE_UINT,        0}, \
-    {CONFIG_STRING_RU_TRANSPORT_PREFERENCE,        NULL,       0,       strptr:NULL,     defstrval:"udp_if5",     TYPE_STRING,    0}, \
-    {CONFIG_STRING_RU_LOCAL_RF,                    NULL,       0,       strptr:NULL,     defstrval:"yes",         TYPE_STRING,    0}, \
+    {CONFIG_STRING_RU_TRANSPORT_PREFERENCE,        NULL,       0,       strptr:NULL,     defstrval:"udp_if5",     TYPE_STRING,      0}, \
+    {CONFIG_STRING_RU_LOCAL_RF,                    NULL,       0,       strptr:NULL,     defstrval:"yes",         TYPE_STRING,      0}, \
     {CONFIG_STRING_RU_NB_TX,                       NULL,       0,       uptr:NULL,       defuintval:1,            TYPE_UINT,        0}, \
     {CONFIG_STRING_RU_NB_RX,                       NULL,       0,       uptr:NULL,       defuintval:1,            TYPE_UINT,        0}, \
     {CONFIG_STRING_RU_MAX_RS_EPRE,                 NULL,       0,       iptr:NULL,       defintval:-29,           TYPE_INT,         0}, \
@@ -143,13 +143,14 @@ typedef enum {
     {CONFIG_STRING_RU_ENB_LIST,                    NULL,       0,       uptr:NULL,       defintarrayval:DEFENBS,  TYPE_INTARRAY,    1}, \
     {CONFIG_STRING_RU_ATT_TX,                      NULL,       0,       uptr:NULL,       defintval:0,             TYPE_UINT,        0}, \
     {CONFIG_STRING_RU_ATT_RX,                      NULL,       0,       uptr:NULL,       defintval:0,             TYPE_UINT,        0}, \
-    {CONFIG_STRING_RU_IS_SLAVE,                      NULL,       0,       strptr:NULL,     defstrval:"no",          TYPE_STRING,      0}, \
-    {CONFIG_STRING_RU_NBIOTRRC_LIST,                 NULL,       0,       uptr:NULL,       defintarrayval:DEFENBS,  TYPE_INTARRAY,    1}, \
+    {CONFIG_STRING_RU_IS_SLAVE,                    NULL,       0,       strptr:NULL,     defstrval:"no",          TYPE_STRING,      0}, \
+    {CONFIG_STRING_RU_NBIOTRRC_LIST,               NULL,       0,       uptr:NULL,       defintarrayval:DEFENBS,  TYPE_INTARRAY,    1}, \
     {CONFIG_STRING_RU_SDR_ADDRS,                   NULL,       0,       strptr:NULL,     defstrval:"type=b200",   TYPE_STRING,      0}, \
     {CONFIG_STRING_RU_SDR_CLK_SRC,                 NULL,       0,       strptr:NULL,     defstrval:"internal",    TYPE_STRING,      0}, \
-    {CONFIG_STRING_RU_SF_EXTENSION,                  NULL,       0,       uptr:NULL,       defuintval:312,          TYPE_UINT,        0}, \
-    {CONFIG_STRING_RU_END_OF_BURST_DELAY,            NULL,       0,       uptr:NULL,       defuintval:400,          TYPE_UINT,        0}, \
-    {CONFIG_STRING_RU_OTA_SYNC_ENABLE,               NULL,       0,       strptr:NULL,     defstrval:"no",          TYPE_STRING,      0}, \
+    {CONFIG_STRING_RU_SF_EXTENSION,                NULL,       0,       uptr:NULL,       defuintval:312,          TYPE_UINT,        0}, \
+    {CONFIG_STRING_RU_END_OF_BURST_DELAY,          NULL,       0,       uptr:NULL,       defuintval:400,          TYPE_UINT,        0}, \
+    {CONFIG_STRING_RU_OTA_SYNC_ENABLE,             NULL,       0,       strptr:NULL,     defstrval:"no",          TYPE_STRING,      0}, \
+    {CONFIG_STRING_RU_BF_WEIGHTS_LIST,             NULL,       0,       iptr:NULL,       defintarrayval:DEFBFW,   TYPE_INTARRAY,    0}, \
   }
 
 /*---------------------------------------------------------------------------------------------------------------------------------------*/
@@ -201,6 +202,8 @@ typedef enum {
 #define ENB_CONFIG_STRING_RRC_INACTIVITY_THRESHOLD      "rrc_inactivity_threshold"
 #define ENB_CONFIG_STRING_MEASUREMENT_REPORTS           "enable_measurement_reports"
 #define ENB_CONFIG_STRING_X2                            "enable_x2"
+#define ENB_CONFIG_STRING_ENB_M2                        "enable_enb_m2"
+#define ENB_CONFIG_STRING_MCE_M2                        "enable_mce_m2"
 /*-----------------------------------------------------------------------------------------------------------------------------------------*/
 /*                                            cell configuration parameters                                                                */
 /*   optname                                   helpstr   paramflags    XXXptr        defXXXval                   type           numelt     */
@@ -224,7 +227,10 @@ typedef enum {
     {ENB_CONFIG_STRING_RRC_INACTIVITY_THRESHOLD,     NULL,   0,            uptr:NULL,   defintval:0,                 TYPE_UINT,      0},  \
     {ENB_CONFIG_STRING_MEASUREMENT_REPORTS,          NULL,   0,            strptr:NULL, defstrval:NULL,              TYPE_STRING,    0},  \
     {ENB_CONFIG_STRING_X2,                           NULL,   0,            strptr:NULL, defstrval:NULL,              TYPE_STRING,    0},  \
+    {ENB_CONFIG_STRING_ENB_M2,                       NULL,   0,            strptr:NULL, defstrval:"no",              TYPE_STRING,    0},  \
+    {ENB_CONFIG_STRING_MCE_M2,                       NULL,   0,            strptr:NULL, defstrval:"no",              TYPE_STRING,    0},  \
   }
+
 #define ENB_ENB_ID_IDX                  0
 #define ENB_CELL_TYPE_IDX               1
 #define ENB_ENB_NAME_IDX                2
@@ -243,6 +249,8 @@ typedef enum {
 #define ENB_RRC_INACTIVITY_THRES_IDX    15
 #define ENB_ENABLE_MEASUREMENT_REPORTS  16
 #define ENB_ENABLE_X2                   17
+#define ENB_ENABLE_ENB_M2               18
+#define ENB_ENABLE_MCE_M2               19
 
 #define TRACKING_AREA_CODE_OKRANGE {0x0001,0xFFFD}
 #define ENBPARAMS_CHECK {                                           \
@@ -250,6 +258,8 @@ typedef enum {
     { .s5 = { NULL } },                                             \
     { .s5 = { NULL } },                                             \
     { .s2 = { config_check_intrange, TRACKING_AREA_CODE_OKRANGE } },\
+    { .s5 = { NULL } },                                             \
+    { .s5 = { NULL } },                                             \
     { .s5 = { NULL } },                                             \
     { .s5 = { NULL } },                                             \
     { .s5 = { NULL } },                                             \
@@ -294,6 +304,32 @@ typedef enum {
     { .s2 = { config_check_intrange, MCC_MNC_OKRANGES } },             \
     { .s1 = { config_check_intval,   MNC_DIGIT_LENGTH_OKVALUES, 2 } }, \
   }
+
+
+/*-------------------------------------------------------------------------------------------------------------------------------------------------*/
+#define ENB_CONFIG_STRING_MBMS_CONFIGURATION_DATA_LIST                     "mbms_configuration_data_list"
+
+#define ENB_CONFIG_STRING_MBMS_SYNC_AREA           "mbms_sync_area"
+
+#define ENB_MBMS_SYNC_AREA_IDX     0
+
+#define MBMS_CONFIG_PARAMS_DESC {                                                                  \
+/*   optname                              helpstr               paramflags XXXptr     def val          type    numelt */ \
+  {ENB_CONFIG_STRING_MBMS_SYNC_AREA           , NULL,        0, uptr:NULL, defuintval:0, TYPE_UINT, 0},    \
+}
+
+
+/*-------------------------------------------------------------------------------------------------------------------------------------------------*/
+#define ENB_CONFIG_STRING_MBMS_SERVICE_AREA_LIST                     "mbms_service_area_list"
+
+#define ENB_CONFIG_STRING_MBMS_SERVICE_AREA           "mbms_service_area"
+
+#define ENB_MBMS_SERVICE_AREA_IDX     0
+
+#define MBMSPARAMS_DESC {                                                                  \
+/*   optname                              helpstr               paramflags XXXptr     def val          type    numelt */ \
+  {ENB_CONFIG_STRING_MBMS_SERVICE_AREA, NULL,        0, uptr:NULL, defuintval:0, TYPE_UINT, 0},    \
+}
 
 
 /* component carries configuration parameters name */
@@ -538,122 +574,122 @@ typedef struct ccparams_lte_s {
 } ccparams_lte_t;
 
 #define CCPARAMS_CHECK {                             \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,                             \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
+    { { NULL } } ,						     \
+    { { NULL } } ,						     \
+    { { NULL } } ,						     \
+    { { NULL } } ,						     \
+    { { NULL } } ,						     \
+    { { NULL } } ,						     \
+    { { NULL } } ,						     \
+    { { NULL } } ,						     \
+    { { NULL } } ,						     \
+    { { NULL } } ,						     \
+    { { NULL } } ,						     \
+    { { NULL } } ,						     \
+    { { NULL } } ,						     \
+    { { NULL } } ,						     \
+    { { NULL } } ,						     \
+    { { NULL } } ,						     \
+    { { NULL } } ,						     \
+    { { NULL } } ,						     \
+    { { NULL } } ,						     \
+    { { NULL } } ,						     \
+    { { NULL } } ,						     \
+    { { NULL } } ,						     \
+    { { NULL } } ,						     \
+    { { NULL } } ,						     \
+    { { NULL } } ,						     \
+    { { NULL } } ,						     \
+    { { NULL } } ,						     \
+    { { NULL } } ,						     \
+    { { NULL } } ,						     \
+    { { NULL } } ,						     \
+    { { NULL } } ,						     \
+    { { NULL } } ,						     \
+    { { NULL } } ,						     \
+    { { NULL } } ,						     \
+    { { NULL } } ,						     \
+    { { NULL } } ,						     \
+    { { NULL } } ,						     \
+    { { NULL } } ,						     \
+    { { NULL } } ,						     \
+    { { NULL } } ,						     \
+    { { NULL } } ,						     \
+    { { NULL } } ,						     \
+    { { NULL } } ,						     \
+    { { NULL } } ,						     \
+    { { NULL } } ,						     \
+    { { NULL } } ,						     \
+    { { NULL } } ,						     \
+    { { NULL } } ,						     \
+    { { NULL } } ,						     \
+    { { NULL } } ,						     \
+    { { NULL } } ,						     \
+    { { NULL } } ,						     \
+    { { NULL } } ,						     \
+    { { NULL } } ,						     \
+    { { NULL } } ,						     \
+    { { NULL } } ,						     \
+    { { NULL } } ,						     \
+    { { NULL } } ,						     \
+    { { NULL } } ,						     \
+    { { NULL } } ,						     \
+    { { NULL } } ,                             \
+    { { NULL } } ,						     \
+    { { NULL } } ,						     \
+    { { NULL } } ,						     \
+    { { NULL } } ,						     \
+    { { NULL } } ,						     \
+    { { NULL } } ,						     \
+    { { NULL } } ,						     \
+    { { NULL } } ,						     \
     { .s1a= { config_check_modify_integer, UETIMER_T300_OKVALUES, UETIMER_T300_MODVALUES,8}} ,\
     { .s1a= { config_check_modify_integer, UETIMER_T301_OKVALUES, UETIMER_T301_MODVALUES,8}} ,\
     { .s1a= { config_check_modify_integer, UETIMER_T310_OKVALUES, UETIMER_T310_MODVALUES,7}} ,\
     { .s1a= { config_check_modify_integer, UETIMER_T311_OKVALUES, UETIMER_T311_MODVALUES,7}} ,\
     { .s1a= { config_check_modify_integer, UETIMER_N310_OKVALUES, UETIMER_N310_MODVALUES,8}} ,\
     { .s1a= { config_check_modify_integer, UETIMER_N311_OKVALUES, UETIMER_N311_MODVALUES,8}} ,\
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } } ,						     \
-    { .s5 = { NULL } }                               \
+    {  { NULL } } ,						     \
+    {  { NULL } } ,						     \
+    {  { NULL } } ,						     \
+    {  { NULL } } ,						     \
+    {  { NULL } } ,						     \
+    {  { NULL } } ,						     \
+    {  { NULL } } ,						     \
+    {  { NULL } } ,						     \
+    {  { NULL } } ,						     \
+    {  { NULL } } ,						     \
+    {  { NULL } } ,						     \
+    {  { NULL } } ,						     \
+    {  { NULL } } ,						     \
+    {  { NULL } } ,						     \
+    {  { NULL } } ,						     \
+    {  { NULL } } ,						     \
+    {  { NULL } } ,						     \
+    {  { NULL } } ,						     \
+    {  { NULL } } ,						     \
+    {  { NULL } } ,						     \
+    {  { NULL } } ,						     \
+    {  { NULL } } ,						     \
+    {  { NULL } } ,						     \
+    {  { NULL } } ,						     \
+    {  { NULL } } ,						     \
+    {  { NULL } } ,						     \
+    {  { NULL } } ,						     \
+    {  { NULL } } ,						     \
+    {  { NULL } } ,						     \
+    {  { NULL } } ,						     \
+    {  { NULL } } ,						     \
+    {  { NULL } } ,						     \
+    {  { NULL } } ,						     \
+    {  { NULL } } ,						     \
+    {  { NULL } } ,						     \
+    {  { NULL } } ,						     \
+    {  { NULL } } ,						     \
+    {  { NULL } } ,						     \
+    {  { NULL } } ,						     \
+    {  { NULL } } ,						     \
+    {  { NULL } }                               \
 }
 
 /*-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/
@@ -908,6 +944,39 @@ typedef struct srb1_params_s {
 #define ENB_X2_IPV4_ADDRESS_IDX          0
 #define ENB_X2_IPV6_ADDRESS_IDX          1
 #define ENB_X2_IP_ADDRESS_PREFERENCE_IDX 2
+
+
+/*---------------------------------------------------------------------------------------------------------------------------------------*/
+
+/* M2 configuration parameters section name */
+#define ENB_CONFIG_STRING_TARGET_MCE_M2_IP_ADDRESS                "target_mce_m2_ip_address"
+
+/* M2 configuration parameters names   */
+
+
+#define ENB_CONFIG_STRING_TARGET_MCE_M2_IPV4_ADDRESS              "ipv4"
+#define ENB_CONFIG_STRING_TARGET_MCE_M2_IPV6_ADDRESS              "ipv6"
+#define ENB_CONFIG_STRING_TARGET_MCE_M2_IP_ADDRESS_PREFERENCE     "preference"
+
+/*---------------------------------------------------------------------------------------------------------------------------------------*/
+
+
+
+/*-------------------------------------------------------------------------------------------------------------------------------------*/
+/*                                            M2 configuration parameters                                                             */
+/*   optname                                          helpstr   paramflags    XXXptr       defXXXval         type           numelt     */
+/*-------------------------------------------------------------------------------------------------------------------------------------*/
+#define M2PARAMS_DESC {  \
+{ENB_CONFIG_STRING_TARGET_MCE_M2_IPV4_ADDRESS,                   NULL,      0,         uptr:NULL,   defstrval:NULL,   TYPE_STRING,   0},          \
+{ENB_CONFIG_STRING_TARGET_MCE_M2_IPV6_ADDRESS,                   NULL,      0,         uptr:NULL,   defstrval:NULL,   TYPE_STRING,   0},          \
+{ENB_CONFIG_STRING_TARGET_MCE_M2_IP_ADDRESS_PREFERENCE,          NULL,      0,         uptr:NULL,   defstrval:NULL,   TYPE_STRING,   0},          \
+}
+
+#define ENB_M2_IPV4_ADDRESS_IDX          0
+#define ENB_M2_IPV6_ADDRESS_IDX          1
+#define ENB_M2_IP_ADDRESS_PREFERENCE_IDX 2
+/*---------------------------------------------------------------------------------------------------------------------------------------*/
+
 /*---------------------------------------------------------------------------------------------------------------------------------------*/
 /* SCTP configuration parameters section name */
 #define ENB_CONFIG_STRING_SCTP_CONFIG                    "SCTP"
@@ -941,7 +1010,10 @@ typedef struct srb1_params_s {
 #define ENB_PORT_FOR_S1U_IDX                       4
 #define ENB_IPV4_ADDR_FOR_X2C_IDX                  5
 #define ENB_PORT_FOR_X2C_IDX                       6
-
+#define ENB_IPV4_ADDR_FOR_M2C_IDX                  7
+#define ENB_PORT_FOR_M2C_IDX                       8
+#define MCE_IPV4_ADDR_FOR_M2C_IDX                  9
+#define MCE_PORT_FOR_M2C_IDX                       10
 
 /* S1 interface configuration parameters names   */
 #define ENB_CONFIG_STRING_ENB_INTERFACE_NAME_FOR_S1_MME "ENB_INTERFACE_NAME_FOR_S1_MME"
@@ -953,6 +1025,13 @@ typedef struct srb1_params_s {
 /* X2 interface configuration parameters names */
 #define ENB_CONFIG_STRING_ENB_IPV4_ADDR_FOR_X2C         "ENB_IPV4_ADDRESS_FOR_X2C"
 #define ENB_CONFIG_STRING_ENB_PORT_FOR_X2C              "ENB_PORT_FOR_X2C"
+
+/* M2 interface configuration parameters names */
+#define ENB_CONFIG_STRING_ENB_IPV4_ADDR_FOR_M2C         "ENB_IPV4_ADDRESS_FOR_M2C"
+#define ENB_CONFIG_STRING_ENB_PORT_FOR_M2C              "ENB_PORT_FOR_M2C"
+#define ENB_CONFIG_STRING_MCE_IPV4_ADDR_FOR_M2C         "MCE_IPV4_ADDRESS_FOR_M2C"
+#define ENB_CONFIG_STRING_MCE_PORT_FOR_M2C              "MCE_PORT_FOR_M2C"
+
 
 /*--------------------------------------------------------------------------------------------------------------------------------------------------*/
 /*                                            S1/X2 interface configuration parameters                                                                 */
@@ -966,6 +1045,10 @@ typedef struct srb1_params_s {
     {ENB_CONFIG_STRING_ENB_PORT_FOR_S1U,                     NULL,      0,         uptr:NULL,           defintval:2152L,     TYPE_UINT,        0},      \
     {ENB_CONFIG_STRING_ENB_IPV4_ADDR_FOR_X2C,                NULL,      0,         strptr:NULL,         defstrval:NULL,      TYPE_STRING,      0},      \
     {ENB_CONFIG_STRING_ENB_PORT_FOR_X2C,                     NULL,      0,         uptr:NULL,           defintval:0L,        TYPE_UINT,        0},      \
+    {ENB_CONFIG_STRING_ENB_IPV4_ADDR_FOR_M2C,                NULL,      0,         strptr:NULL,         defstrval:NULL,      TYPE_STRING,      0},      \
+    {ENB_CONFIG_STRING_ENB_PORT_FOR_M2C,                     NULL,      0,         uptr:NULL,           defintval:0L,        TYPE_UINT,        0},      \
+    {ENB_CONFIG_STRING_MCE_IPV4_ADDR_FOR_M2C,                NULL,      0,         strptr:NULL,         defstrval:NULL,      TYPE_STRING,      0},      \
+    {ENB_CONFIG_STRING_MCE_PORT_FOR_M2C,                     NULL,      0,         uptr:NULL,           defintval:0L,        TYPE_UINT,        0},      \
   }
 
 /*--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/
@@ -983,8 +1066,6 @@ typedef struct srb1_params_s {
 /* L1 configuration section names   */
 #define CONFIG_STRING_L1_LIST                              "L1s"
 #define CONFIG_STRING_L1_CONFIG                            "l1_config"
-
-
 
 /*----------------------------------------------------------------------------------------------------------------------------------------------------*/
 
@@ -1141,4 +1222,6 @@ typedef struct srb1_params_s {
 
 #include "enb_paramdef_emtc.h"
 #include "enb_paramdef_sidelink.h"
+#include "enb_paramdef_mce.h"
+#include "enb_paramdef_mme.h"
 #endif

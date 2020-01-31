@@ -153,13 +153,25 @@ int phy_init_nr_gNB(PHY_VARS_gNB *gNB,
     }
   }
 
+  //------------- config PUSCH DMRS parameters(to be updated from RRC)--------------//
+  gNB->dmrs_UplinkConfig.pusch_dmrs_type = pusch_dmrs_type1;
+  gNB->dmrs_UplinkConfig.pusch_dmrs_AdditionalPosition = pusch_dmrs_pos0;
+  gNB->dmrs_UplinkConfig.pusch_maxLength = pusch_len1;
+  //--------------------------------------------------------------------------------//
+
   nr_init_pdsch_dmrs(gNB, cfg->sch_config.physical_cell_id.value);
+
+  // default values until overwritten by RRCConnectionReconfiguration
+
+  for (i=0;i<MAX_NR_OF_UL_ALLOCATIONS;i++){
+    gNB->pusch_config.pusch_TimeDomainResourceAllocation[i] = (PUSCH_TimeDomainResourceAllocation_t *)malloc16(sizeof(PUSCH_TimeDomainResourceAllocation_t));
+    gNB->pusch_config.pusch_TimeDomainResourceAllocation[i]->mappingType = typeB;
+  }
 
   /// Transport init necessary for NR synchro
   init_nr_transport(gNB);
 
-  gNB->first_run_I0_measurements =
-    1; ///This flag used to be static. With multiple gNBs this does no longer work, hence we put it in the structure. However it has to be initialized with 1, which is performed here.
+  gNB->first_run_I0_measurements = 1; ///This flag used to be static. With multiple gNBs this does no longer work, hence we put it in the structure. However it has to be initialized with 1, which is performed here.
   common_vars->rxdata  = (int32_t **)malloc16(15*sizeof(int32_t*));
   common_vars->txdataF = (int32_t **)malloc16(15*sizeof(int32_t*));
   common_vars->rxdataF = (int32_t **)malloc16(15*sizeof(int32_t*));
@@ -484,29 +496,20 @@ void init_nr_transport(PHY_VARS_gNB *gNB) {
     }
   }
 
-  for (i=0; i<NUMBER_OF_NR_UE_MAX; i++) {
+  for (i=0; i<NUMBER_OF_NR_ULSCH_MAX; i++) {
 
     LOG_I(PHY,"Allocating Transport Channel Buffer for ULSCH, UE %d\n",i);
 
     for (j=0; j<2; j++) {
-      // ULSCH for RA
-      if(i==0) {
-        gNB->ulsch[i][j] = new_gNB_ulsch(MAX_LDPC_ITERATIONS, fp->N_RB_UL, 0);
-
-        if (!gNB->ulsch[i][j]) {
-          LOG_E(PHY,"Can't get gNB ulsch structures\n");
-          exit(-1);
-        }
-      }
-
       // ULSCH for data
-      gNB->ulsch[i+1][j] = new_gNB_ulsch(MAX_LDPC_ITERATIONS, fp->N_RB_UL, 0);
+      gNB->ulsch[i][j] = new_gNB_ulsch(MAX_LDPC_ITERATIONS, fp->N_RB_UL, 0);
 
-      if (!gNB->ulsch[i+1][j]) {
+      if (!gNB->ulsch[i][j]) {
         LOG_E(PHY,"Can't get gNB ulsch structures\n");
         exit(-1);
       }
 
+      /*
       LOG_I(PHY,"Initializing nFAPI for ULSCH, UE %d\n",i);
       // [hna] added here for RT implementation
       uint8_t harq_pid = 0;
@@ -516,23 +519,19 @@ void init_nr_transport(PHY_VARS_gNB *gNB) {
       rel15_ul->rnti                           = 0x1234;
       rel15_ul->ulsch_pdu_rel15.start_rb       = 0;
       rel15_ul->ulsch_pdu_rel15.number_rbs     = 50;
-      rel15_ul->ulsch_pdu_rel15.start_symbol   = 2;
-      rel15_ul->ulsch_pdu_rel15.number_symbols = 12;
-      rel15_ul->ulsch_pdu_rel15.nb_re_dmrs     = 6;
-      rel15_ul->ulsch_pdu_rel15.length_dmrs    = 1;
+      rel15_ul->ulsch_pdu_rel15.start_symbol   = 0;
+      rel15_ul->ulsch_pdu_rel15.number_symbols = 14;
+      rel15_ul->ulsch_pdu_rel15.length_dmrs    = gNB->dmrs_UplinkConfig.pusch_maxLength;
       rel15_ul->ulsch_pdu_rel15.Qm             = 2;
       rel15_ul->ulsch_pdu_rel15.R              = 679;
       rel15_ul->ulsch_pdu_rel15.mcs            = 9;
       rel15_ul->ulsch_pdu_rel15.rv             = 0;
       rel15_ul->ulsch_pdu_rel15.n_layers       = 1;
       ///////////////////////////////////////////////////
+      */
 
-      //////////////////////////////////////////////////////////////////////////
     }
 
-    // this is the transmission mode for the signalling channels
-    // this will be overwritten with the real transmission mode by the RRC once the UE is connected
-    //gNB->transmission_mode[i] = fp->nb_antenna_ports_gNB==1 ? 1 : 2;
   }
 
   gNB->dlsch_SI  = new_gNB_dlsch(1,8,NSOFT, 0, fp, cfg);

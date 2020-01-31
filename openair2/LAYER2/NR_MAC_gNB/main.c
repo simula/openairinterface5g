@@ -31,7 +31,7 @@
  */
 
 #include "mac_proto.h"
-#include "LAYER2/MAC/mac_extern.h" //temporary
+#include "LAYER2/NR_MAC_COMMON/nr_mac_extern.h"
 #include "assertions.h"
 
 #include "LAYER2/PDCP_v10.1.0/pdcp.h"
@@ -106,27 +106,32 @@ void mac_top_init_gNB(void)
 
         RC.nrmac[i]->Mod_id = i;
 
+        RC.nrmac[i]->tag = (NR_TAG_t*)malloc(sizeof(NR_TAG_t));
+        memset((void*)RC.nrmac[i]->tag,0,sizeof(NR_TAG_t));
+
 
         for (j = 0; j < MAX_NUM_CCs; j++) {
           RC.nrmac[i]->DL_req[j].dl_config_request_body.dl_config_pdu_list = RC.nrmac[i]->dl_config_pdu_list[j];
-          RC.nrmac[i]->UL_req[j].ul_config_request_body.ul_config_pdu_list = RC.nrmac[i]->ul_config_pdu_list[j];
 
-          for (int k = 0; k < 10; k++)
-            RC.nrmac[i]->UL_req_tmp[j][k].ul_config_request_body.ul_config_pdu_list =RC.nrmac[i]->ul_config_pdu_list_tmp[j][k];
+	  //FK changed UL_req to UL_tti_req, which does not contain a pointer to the pdu_list
+          //RC.nrmac[i]->UL_req[j].ul_config_request_body.ul_config_pdu_list = RC.nrmac[i]->ul_config_pdu_list[j];
+          
+          //for (int k = 0; k < 10; k++)
+          //  RC.nrmac[i]->UL_req_tmp[j][k].ul_config_request_body.ul_config_pdu_list =RC.nrmac[i]->ul_config_pdu_list_tmp[j][k];
+        
+	  RC.nrmac[i]->HI_DCI0_req[j].hi_dci0_request_body.hi_dci0_pdu_list = RC.nrmac[i]->hi_dci0_pdu_list[j];
+	  RC.nrmac[i]->TX_req[j].tx_request_body.tx_pdu_list =                RC.nrmac[i]->tx_request_pdu[j];
+	  RC.nrmac[i]->ul_handle = 0;
 
-        RC.nrmac[i]->HI_DCI0_req[j].hi_dci0_request_body.hi_dci0_pdu_list = RC.nrmac[i]->hi_dci0_pdu_list[j];
-        RC.nrmac[i]->TX_req[j].tx_request_body.tx_pdu_list =                RC.nrmac[i]->tx_request_pdu[j];
-        RC.nrmac[i]->ul_handle = 0;
-
-        // Init PDCCH structures
-        nr_init_coreset(&RC.nrmac[i]->coreset[j][1]);
-        nr_init_search_space(&RC.nrmac[i]->search_space[j][1]);
+	  // Init PDCCH structures
+	  nr_init_coreset(&RC.nrmac[i]->coreset[j][1]);
+	  nr_init_search_space(&RC.nrmac[i]->search_space[j][1]);
         }
 
 
     }//END for (i = 0; i < RC.nb_nr_macrlc_inst; i++)
 
-  AssertFatal(rlc_module_init() == 0,"Could not initialize RLC layer\n");
+  AssertFatal(rlc_module_init(1) == 0,"Could not initialize RLC layer\n");
 
   // These should be out of here later
   pdcp_layer_init();

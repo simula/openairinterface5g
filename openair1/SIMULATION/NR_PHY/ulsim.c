@@ -54,6 +54,7 @@
 #include "openair1/SIMULATION/NR_PHY/nr_unitary_defs.h"
 #include "openair1/SIMULATION/NR_PHY/nr_dummy_functions.c"
 #include "openair2/LAYER2/NR_MAC_UE/mac_proto.h"
+#include "openair2/LAYER2/NR_MAC_gNB/mac_proto.h"
 
 //#define DEBUG_ULSIM
 
@@ -63,27 +64,58 @@ RAN_CONTEXT_t RC;
 int32_t uplink_frequency_offset[MAX_NUM_CCs][4];
 
 double cpuf;
-int nfapi_mode = 0;
+uint8_t nfapi_mode = 0;
 uint16_t NB_UE_INST = 1;
 
 // dummy functions
 int8_t nr_mac_rrc_data_ind_ue(const module_id_t module_id, const int CC_id, const uint8_t gNB_index,
                               const int8_t channel, const uint8_t* pduP, const sdu_size_t pdu_len) { return 0; }
-void mac_rlc_data_ind     (
-  const module_id_t         module_idP,
-  const rnti_t              rntiP,
-  const eNB_index_t         eNB_index,
-  const frame_t             frameP,
-  const eNB_flag_t          enb_flagP,
-  const MBMS_flag_t         MBMS_flagP,
-  const logical_chan_id_t   channel_idP,
-  char                     *buffer_pP,
-  const tb_size_t           tb_sizeP,
-  num_tb_t                  num_tbP,
-  crc_t                    *crcs_pP)
-{}
+void mac_rlc_data_ind ( const module_id_t         module_idP,
+			const rnti_t              rntiP,
+			const eNB_index_t         eNB_index,
+			const frame_t             frameP,
+			const eNB_flag_t          enb_flagP,
+			const MBMS_flag_t         MBMS_flagP,
+			const logical_chan_id_t   channel_idP,
+			char                     *buffer_pP,
+			const tb_size_t           tb_sizeP,
+			num_tb_t                  num_tbP,
+			crc_t                    *crcs_pP){}
+mac_rlc_status_resp_t mac_rlc_status_ind( const module_id_t       module_idP,
+					  const rnti_t            rntiP,
+					  const eNB_index_t       eNB_index,
+					  const frame_t           frameP,
+					  const sub_frame_t 	  subframeP,
+					  const eNB_flag_t        enb_flagP,
+					  const MBMS_flag_t       MBMS_flagP,
+					  const logical_chan_id_t channel_idP,
+					  const tb_size_t         tb_sizeP,
+					  const uint32_t sourceL2Id,
+					  const uint32_t destinationL2Id)
+{mac_rlc_status_resp_t  mac_rlc_status_resp = {0}; return mac_rlc_status_resp;}
+tbs_size_t mac_rlc_data_req(  const module_id_t       module_idP,
+			      const rnti_t            rntiP,
+			      const eNB_index_t       eNB_index,
+			      const frame_t           frameP,
+			      const eNB_flag_t        enb_flagP,
+			      const MBMS_flag_t       MBMS_flagP,
+			      const logical_chan_id_t channel_idP,
+			      const tb_size_t         tb_sizeP,
+			      char             *buffer_pP,
+			      const uint32_t sourceL2Id,
+			      const uint32_t destinationL2Id )
+{return 0;}
+int generate_dlsch_header(unsigned char *mac_header,
+                          unsigned char num_sdus,
+                          unsigned short *sdu_lengths,
+                          unsigned char *sdu_lcids,
+                          unsigned char drx_cmd,
+                          unsigned short timing_advance_cmd,
+                          unsigned char *ue_cont_res_id,
+                          unsigned char short_padding,
+                          unsigned short post_padding){return 0;}
 uint64_t get_softmodem_optmask(void) {return 0;}
-int rlc_module_init (void) {return(0);}
+int rlc_module_init (int enb) {return(0);}
 void pdcp_layer_init (void) {}
 void nr_ip_over_LTE_DRB_preconfiguration(void){}
 
@@ -119,7 +151,7 @@ int main(int argc, char **argv)
   int loglvl = OAILOG_WARNING;
   uint64_t SSB_positions=0x01;
   uint16_t nb_symb_sch = 12;
-  int start_symbol = NR_SYMBOLS_PER_SLOT - nb_symb_sch;
+  int start_symbol = 0;
   uint16_t nb_rb = 50;
   uint8_t Imcs = 9;
   uint8_t precod_nbr_layers = 1;
@@ -144,7 +176,7 @@ int main(int argc, char **argv)
   //logInit();
   randominit(0);
 
-  while ((c = getopt(argc, argv, "d:f:g:h:i:j:l:m:n:p:r:s:y:z:F:M:N:P:R:S:")) != -1) {
+  while ((c = getopt(argc, argv, "d:f:g:h:i:j:l:m:n:p:r:s:y:z:F:M:N:P:R:S:L:")) != -1) {
     switch (c) {
 
       /*case 'd':
@@ -303,6 +335,10 @@ int main(int argc, char **argv)
         printf("Setting SNR1 to %f\n", snr1);
         break;
 
+    case 'L':
+      loglvl = atoi(optarg);
+      break;	
+
       default:
         case 'h':
           printf("%s -h(elp) -p(extended_prefix) -N cell_id -f output_filename -F input_filename -g channel_model -n n_frames -t Delayspread -s snr0 -S snr1 -x transmission_mode -y TXant -z RXant -i Intefrence0 -j Interference1 -A interpolation_file -C(alibration offset dB) -N CellId\n", argv[0]);
@@ -358,6 +394,10 @@ int main(int argc, char **argv)
   gNB = RC.gNB[0][0];
   //gNB_config = &gNB->gNB_config;
 
+  //memset((void *)&gNB->UL_INFO,0,sizeof(gNB->UL_INFO));
+  gNB->UL_INFO.rx_ind.rx_indication_body.rx_pdu_list = (nfapi_rx_indication_pdu_t *)malloc(NB_UE_INST*sizeof(nfapi_rx_indication_pdu_t));
+  gNB->UL_INFO.rx_ind.rx_indication_body.number_of_pdus = 0;
+
   frame_parms = &gNB->frame_parms; //to be initialized I suppose (maybe not necessary for PBCH)
   frame_parms->nb_antennas_tx = n_tx;
   frame_parms->nb_antennas_rx = n_rx;
@@ -405,23 +445,14 @@ int main(int argc, char **argv)
   }
 
   unsigned char harq_pid = 0;
-  unsigned int TBS;
-  unsigned int available_bits;
-  uint8_t nb_re_dmrs = UE->dmrs_UplinkConfig.pusch_maxLength*(UE->dmrs_UplinkConfig.pusch_dmrs_type == pusch_dmrs_type1)?6:4;
-  uint8_t length_dmrs = 1;
-  unsigned char mod_order;
-  uint16_t code_rate;
 
-  mod_order      = nr_get_Qm_ul(Imcs, 0);
-  code_rate      = nr_get_code_rate_ul(Imcs, 0);
-  available_bits = nr_get_G(nb_rb, nb_symb_sch, nb_re_dmrs, length_dmrs, mod_order, 1);
-  TBS            = nr_compute_tbs(mod_order, code_rate, nb_rb, nb_symb_sch, nb_re_dmrs*length_dmrs, 0, precod_nbr_layers);
+  NR_gNB_ULSCH_t *ulsch_gNB = gNB->ulsch[UE_id][0];
+  //nfapi_nr_ul_config_ulsch_pdu *rel15_ul = &ulsch_gNB->harq_processes[harq_pid]->ulsch_pdu;
+  nfapi_nr_ul_tti_request_t     *UL_tti_req  = &gNB->UL_tti_req;
+  nfapi_nr_pusch_pdu_t  *pusch_pdu = &UL_tti_req->pdus_list[0].pusch_pdu;
 
-  NR_gNB_ULSCH_t *ulsch_gNB = gNB->ulsch[UE_id+1][0];
-  nfapi_nr_ul_config_ulsch_pdu *rel15_ul = &ulsch_gNB->harq_processes[harq_pid]->ulsch_pdu;
-  
   NR_UE_ULSCH_t **ulsch_ue = UE->ulsch[0][0];
-  
+
   unsigned char *estimated_output_bit;
   unsigned char *test_input_bit;
   uint32_t errors_decoding   = 0;
@@ -433,7 +464,33 @@ int main(int argc, char **argv)
 
   nr_scheduled_response_t scheduled_response;
   fapi_nr_ul_config_request_t ul_config;
-  
+
+  unsigned int TBS;
+  uint16_t number_dmrs_symbols = 0;
+  unsigned int available_bits;
+  uint8_t nb_re_dmrs;
+  uint8_t length_dmrs = UE->dmrs_UplinkConfig.pusch_maxLength;
+  unsigned char mod_order;
+  uint16_t code_rate;
+
+  for (i = start_symbol; i < nb_symb_sch; i++)
+      number_dmrs_symbols += is_dmrs_symbol(i,
+                                            0,
+                                            0,
+                                            0,
+                                            0,
+                                            0,
+                                            nb_symb_sch,
+                                            &UE->dmrs_UplinkConfig,
+                                            UE->pusch_config.pusch_TimeDomainResourceAllocation[0]->mappingType,
+                                            frame_parms->ofdm_symbol_size);
+
+  mod_order      = nr_get_Qm_ul(Imcs, 0);
+  nb_re_dmrs     = ((UE->dmrs_UplinkConfig.pusch_dmrs_type == pusch_dmrs_type1) ? 6 : 4) * number_dmrs_symbols;
+  code_rate      = nr_get_code_rate_ul(Imcs, 0);
+  available_bits = nr_get_G(nb_rb, nb_symb_sch, nb_re_dmrs, length_dmrs, mod_order, 1);
+  TBS            = nr_compute_tbs(mod_order, code_rate, nb_rb, nb_symb_sch, nb_re_dmrs*length_dmrs, 0, precod_nbr_layers);
+
   printf("\n");
 
   for (SNR = snr0; SNR < snr1; SNR += snr_step) {
@@ -448,13 +505,13 @@ int main(int argc, char **argv)
       UE_proc.nr_tti_tx = slot;
       UE_proc.frame_tx = frame;
 
-      // --------- setting rel15_ul parameters for gNB --------
+      // --------- setting parameters for gNB --------
+      /*
       rel15_ul->rnti                           = n_rnti;
       rel15_ul->ulsch_pdu_rel15.start_rb       = start_rb;
       rel15_ul->ulsch_pdu_rel15.number_rbs     = nb_rb;
       rel15_ul->ulsch_pdu_rel15.start_symbol   = start_symbol;
       rel15_ul->ulsch_pdu_rel15.number_symbols = nb_symb_sch;
-      rel15_ul->ulsch_pdu_rel15.nb_re_dmrs     = nb_re_dmrs;
       rel15_ul->ulsch_pdu_rel15.length_dmrs    = length_dmrs;
       rel15_ul->ulsch_pdu_rel15.Qm             = mod_order;
       rel15_ul->ulsch_pdu_rel15.mcs            = Imcs;
@@ -463,8 +520,44 @@ int main(int argc, char **argv)
       rel15_ul->ulsch_pdu_rel15.n_layers       = precod_nbr_layers;
       rel15_ul->ulsch_pdu_rel15.R              = code_rate; 
       ///////////////////////////////////////////////////
+      */
 
-      //fapi_nr_tx_request_t tx_request;
+      UL_tti_req->sfn = frame;
+      UL_tti_req->slot = slot;
+      UL_tti_req->n_pdus = 1;
+      UL_tti_req->pdus_list[0].pdu_type = NFAPI_NR_UL_CONFIG_PUSCH_PDU_TYPE;
+      UL_tti_req->pdus_list[0].pdu_size = sizeof(nfapi_nr_pusch_pdu_t);
+      memset(pusch_pdu,0,sizeof(nfapi_nr_pusch_pdu_t));
+      
+      pusch_pdu->pdu_bit_map = PUSCH_PDU_BITMAP_PUSCH_DATA;  
+      pusch_pdu->rnti = n_rnti;
+      pusch_pdu->mcs_index = Imcs;
+      pusch_pdu->mcs_table = 0; 
+      pusch_pdu->target_code_rate = code_rate;
+      pusch_pdu->qam_mod_order = mod_order;
+      pusch_pdu->transform_precoding = 0;
+      pusch_pdu->data_scrambling_id = 0;
+      pusch_pdu->nrOfLayers = 1;
+      pusch_pdu->ul_dmrs_symb_pos = 1;
+      pusch_pdu->dmrs_config_type = 0;
+      pusch_pdu->ul_dmrs_scrambling_id =  0;
+      pusch_pdu->scid = 0;
+      pusch_pdu->resource_alloc = 1; 
+      pusch_pdu->rb_start = start_rb;
+      pusch_pdu->rb_size = nb_rb;
+      pusch_pdu->vrb_to_prb_mapping = 0;
+      pusch_pdu->frequency_hopping = 0;
+      pusch_pdu->uplink_frequency_shift_7p5khz = 0;
+      pusch_pdu->start_symbol_index = start_symbol;
+      pusch_pdu->nr_of_symbols = nb_symb_sch;
+      pusch_pdu->pusch_data.rv_index = 0;
+      pusch_pdu->pusch_data.harq_process_id = 0;
+      pusch_pdu->pusch_data.new_data_indicator = 0;
+      pusch_pdu->pusch_data.tb_size = TBS;
+      pusch_pdu->pusch_data.num_cb = 0;
+
+
+      // --------- setting parameters for UE --------
 
       scheduled_response.module_id = 0;
       scheduled_response.CC_id = 0;
@@ -497,6 +590,8 @@ int main(int argc, char **argv)
       ///////////
 
       phy_procedures_nrUE_TX(UE, &UE_proc, gNB_id, 0);
+
+      //LOG_M("txsig0.m","txs0", UE->common_vars.txdata[0],frame_length_complex_samples,1,1);
 
       ///////////
       ////////////////////////////////////////////////////
@@ -535,7 +630,9 @@ int main(int argc, char **argv)
         //----------------------------------------------------------
         phy_procedures_gNB_common_RX(gNB, frame, slot);
 
-        phy_procedures_gNB_uespec_RX(gNB, frame, slot, rel15_ul->ulsch_pdu_rel15.start_symbol, rel15_ul->ulsch_pdu_rel15.start_symbol + rel15_ul->ulsch_pdu_rel15.number_symbols);
+	//LOG_M("rxsigF0.m","rxsF0",gNB->common_vars.rxdataF[0],frame_length_complex_samples_no_prefix,1,1);
+
+        phy_procedures_gNB_uespec_RX(gNB, frame, slot);
         ////////////////////////////////////////////////////////////
 
         //----------------------------------------------------------
@@ -560,7 +657,7 @@ int main(int argc, char **argv)
         for (i = 0; i < TBS; i++) {
 
           estimated_output_bit[i] = (ulsch_gNB->harq_processes[harq_pid]->b[i/8] & (1 << (i & 7))) >> (i & 7);
-          test_input_bit[i]       = (ulsch_ue[0]->harq_processes[harq_pid]->b[i / 8] & (1 << (i & 7))) >> (i & 7);
+          test_input_bit[i]       = (ulsch_ue[0]->harq_processes[harq_pid]->b[i/8] & (1 << (i & 7))) >> (i & 7);
 
           if (estimated_output_bit[i] != test_input_bit[i]) {
             if(errors_decoding == 0)
@@ -596,31 +693,6 @@ int main(int argc, char **argv)
   }
 
   printf("\n");
-
-  for (i = 0; i < 2; i++) {
-
-    printf("----------------------\n");
-    printf("freeing codeword %d\n", i);
-    printf("----------------------\n");
-
-    printf("gNB ulsch[0][%d]\n", i); // [hna] ulsch[0] is for RA
-
-    free_gNB_ulsch(gNB->ulsch[0][i]);
-
-    printf("gNB ulsch[%d][%d]\n",UE_id+1, i);
-
-    free_gNB_ulsch(gNB->ulsch[UE_id+1][i]); // "+1" because first element in ulsch is for RA
-
-    for (sf = 0; sf < 2; sf++) {
-
-      printf("UE  ulsch[%d][0][%d]\n", sf, i);
-
-      if (UE->ulsch[sf][0][i])
-        free_nr_ue_ulsch(UE->ulsch[sf][0][i]);
-    }
-
-    printf("\n");
-  }
 
   free(test_input_bit);
   free(estimated_output_bit);

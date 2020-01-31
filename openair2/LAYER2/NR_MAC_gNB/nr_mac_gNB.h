@@ -48,17 +48,20 @@
 #include "NR_MeasConfig.h"
 
 #include "nfapi_nr_interface.h"
+#include "nfapi_nr_interface_scf.h"
 #include "NR_PHY_INTERFACE/NR_IF_Module.h"
 
 #include "COMMON/platform_constants.h"
 #include "common/ran_context.h"
 #include "LAYER2/MAC/mac.h"
 #include "LAYER2/MAC/mac_proto.h"
-#include "LAYER2/MAC/mac_extern.h"
+#include "LAYER2/NR_MAC_COMMON/nr_mac_extern.h"
 #include "PHY/defs_gNB.h"
 #include "PHY/TOOLS/time_meas.h"
 #include "targets/ARCH/COMMON/common_lib.h"
 
+
+#include "NR_TAG.h"
 
 /*! \brief gNB common channels */
 typedef struct {
@@ -106,10 +109,16 @@ typedef struct gNB_MAC_INST_s {
   /// frame counter
   frame_t                         frame;
   /// slot counter
-  int                             slot;  
+  int                             slot;
+  /// timing advance group
+  NR_TAG_t                        *tag;
   /// Pointer to IF module instance for PHY
   NR_IF_Module_t                  *if_inst;
-    /// Common cell resources
+  /// TA command
+  int                             ta_command;
+  /// MAC CE flag indicating TA length
+  int                             ta_len;
+  /// Common cell resources
   NR_COMMON_channels_t common_channels[NFAPI_CC_MAX];
   /// current PDU index (BCH,DLSCH)
   uint16_t pdu_index[NFAPI_CC_MAX];
@@ -118,16 +127,10 @@ typedef struct gNB_MAC_INST_s {
   nfapi_nr_config_request_t         config[NFAPI_CC_MAX];
   /// NFAPI DL Config Request Structure
   nfapi_nr_dl_config_request_t      DL_req[NFAPI_CC_MAX];
-  /// NFAPI UL Config Request Structure, send to L1 4 subframes before processing takes place
-  nfapi_ul_config_request_t         UL_req[NFAPI_CC_MAX];
+  /// NFAPI UL TTI Request Structure (this is from the new SCF specs)
+  nfapi_nr_ul_tti_request_t         UL_tti_req[NFAPI_CC_MAX];
   /// Preallocated DL pdu list
   nfapi_nr_dl_config_request_pdu_t  dl_config_pdu_list[NFAPI_CC_MAX][MAX_NUM_DL_PDU];
-  /// Preallocated UL pdu list
-  nfapi_ul_config_request_pdu_t     ul_config_pdu_list[NFAPI_CC_MAX][MAX_NUM_UL_PDU];
-  /// Preallocated UL pdu list for ULSCH (n+k delay)
-  nfapi_ul_config_request_pdu_t     ul_config_pdu_list_tmp[NFAPI_CC_MAX][10][MAX_NUM_UL_PDU];
-  /// NFAPI "Temporary" UL Config Request Structure, holds future UL_config requests
-  nfapi_ul_config_request_t         UL_req_tmp[NFAPI_CC_MAX][10];
   /// Preallocated HI_DCI0 pdu list
   nfapi_hi_dci0_request_pdu_t       hi_dci0_pdu_list[NFAPI_CC_MAX][MAX_NUM_HI_DCI0_PDU];
   /// NFAPI HI/DCI0 Config Request Structure
@@ -141,6 +144,7 @@ typedef struct gNB_MAC_INST_s {
   /// NFAPI search space structure
   nfapi_nr_search_space_t           search_space[NFAPI_CC_MAX][NFAPI_NR_MAX_NB_SEARCH_SPACES];
 
+  /// this is an LTE structure and needs to be urgenly updated
   UE_list_t UE_list;
 
   /// UL handle

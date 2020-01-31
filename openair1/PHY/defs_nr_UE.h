@@ -871,6 +871,16 @@ typedef struct UE_NR_SCAN_INFO_s {
   int32_t freq_offset_Hz[3][10];
 } UE_NR_SCAN_INFO_t;
 
+typedef struct NR_UL_TIME_ALIGNMENT {
+  /// flag used by MAC to inform PHY about a TA to be applied
+  unsigned char    apply_ta;
+  /// frame and slot when to apply the TA as stated in TS 38.213 setion 4.2
+  int16_t          ta_frame;
+  char             ta_slot;
+  /// TA command and TAGID received from the gNB
+  uint8_t          ta_command;
+  uint8_t          tag_id;
+} NR_UL_TIME_ALIGNMENT_t;
 
 #include "NR_IF_Module.h"
 
@@ -994,7 +1004,7 @@ typedef struct {
   uint32_t nr_gold_pbch[2][64][NR_PBCH_DMRS_LENGTH_DWORD];
 
   /// PDSCH DMRS
-  uint32_t nr_gold_pdsch[2][20][2][52];
+  uint32_t nr_gold_pdsch[2][20][2][NR_MAX_PDSCH_DMRS_INIT_LENGTH_DWORD];
 
   /// PDCCH DMRS
   uint32_t nr_gold_pdcch[7][20][3][52];
@@ -1066,9 +1076,14 @@ typedef struct {
   int              rx_offset; /// Timing offset
   int              rx_offset_diff; /// Timing adjustment for ofdm symbol0 on HW USRP
   int              time_sync_cell;
-  int              timing_advance; ///timing advance signalled from eNB
-  int              hw_timing_advance;
-  int              N_TA_offset; ///timing offset used in TDD
+
+  /// Timing Advance updates variables
+  /// Timing advance update computed from the TA command signalled from gNB
+  int                      timing_advance;
+  int                      hw_timing_advance;
+  int                      N_TA_offset; ///timing offset used in TDD
+  NR_UL_TIME_ALIGNMENT_t   ul_time_alignment[NUMBER_OF_CONNECTED_gNB_MAX];
+
   /// Flag to tell if UE is secondary user (cognitive mode)
   unsigned char    is_secondary_ue;
   /// Flag to tell if secondary eNB has channel estimates to create NULL-beams from.

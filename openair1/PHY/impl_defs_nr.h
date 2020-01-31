@@ -36,6 +36,7 @@
 
 #include <stdbool.h>
 #include "types.h"
+#include "NR_PDSCH-TimeDomainResourceAllocation.h"
 
 #ifdef DEFINE_VARIABLES_PHY_IMPLEMENTATION_DEFS_NR_H
 #define EXTERN
@@ -119,7 +120,7 @@ SystemInformationBlockType1_nr_t;
 #define NR_TDD_SET_ALL_SYMBOLS             (0x3FFF)
 
 #define NR_DOWNLINK_SLOT                   (0x01)
-#define NR_UPLINK_SLOT                     (0x02)
+#define NR_UPLINK_SLOT                     (0x03)
 
 #define FRAME_DURATION_MICRO_SEC           (10000)  /* frame duration in microsecond */
 
@@ -377,8 +378,10 @@ typedef enum {
 
 
 ////////////////////////////////////////////////////////////////////////////////################################
-#define MAX_NR_RATE_MATCH_PATTERNS 4
-#define MAX_NR_ZP_CSI_RS_RESOURCES 32
+#define MAX_NR_RATE_MATCH_PATTERNS            4
+#define MAX_NR_ZP_CSI_RS_RESOURCES           32
+#define MAX_NR_OF_DL_ALLOCATIONS             16
+#define MAX_NR_OF_UL_ALLOCATIONS            (16)
 
 typedef enum{
   dl_resourceAllocationType0 = 1,
@@ -473,6 +476,8 @@ typedef struct {
 */
   maxNrofCodeWordsScheduledByDCI_t maxNrofCodeWordsScheduledByDCI;
 
+  NR_PDSCH_TimeDomainResourceAllocation_t *pdsch_TimeDomainResourceAllocation[MAX_NR_OF_DL_ALLOCATIONS];
+
 } PDSCH_Config_t;
 
 /***********************************************************************
@@ -483,7 +488,6 @@ typedef struct {
 *
 ************************************************************************/
 
-#define MAX_NR_OF_UL_ALLOCATIONS            (16)
 
 typedef enum {
   enable_tpc_accumulation = 0,  /* by default it is enable */
@@ -537,6 +541,7 @@ typedef enum {
 typedef enum {
   pusch_dmrs_pos0 = 0,
   pusch_dmrs_pos1 = 1,
+  pusch_dmrs_pos2 = 2,
   pusch_dmrs_pos3 = 3,
 } pusch_dmrs_AdditionalPosition_t;
 typedef enum {

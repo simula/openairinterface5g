@@ -56,7 +56,7 @@ RAN_CONTEXT_t RC;
 int32_t uplink_frequency_offset[MAX_NUM_CCs][4];
 
 double cpuf;
-int nfapi_mode = 0;
+uint8_t nfapi_mode = 0;
 uint16_t NB_UE_INST = 1;
 
 // needed for some functions
@@ -621,9 +621,9 @@ int main(int argc, char **argv)
 
 	for (i = 0; i < 2; i++) {
 		printf("gNB %d\n", i);
-		free_gNB_dlsch(gNB->dlsch[0][i]);
+		free_gNB_dlsch(&(gNB->dlsch[0][i]));
 		printf("UE %d\n", i);
-		free_nr_ue_dlsch(UE->dlsch[0][0][i]);
+		free_nr_ue_dlsch(&(UE->dlsch[0][0][i]));
 	}
 
 	for (i = 0; i < 2; i++) {
