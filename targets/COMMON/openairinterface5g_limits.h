@@ -14,7 +14,8 @@
 // now , if we use --mu option in UE, compiling error will occur.
 // This problem will be fixed in the future.
 #                ifndef UESIM_EXPANSION
-#                    define NUMBER_OF_UE_MAX 4
+// TEST !!!
+#                    define NUMBER_OF_UE_MAX 16
 #                    define NUMBER_OF_NR_UE_MAX 4
 #                    define NUMBER_OF_UCI_VARS_MAX 14
 #                    define NUMBER_OF_CONNECTED_eNB_MAX 1
