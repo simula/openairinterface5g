@@ -999,10 +999,12 @@ int device_init(openair0_device *device, openair0_config_t *openair0_cfg) {
     // Example of CLI output: RX Frequency: 2539999999Hz
 
 
-    if ((status=bladerf_set_gain_mode(brf->dev, BLADERF_MODULE_RX, BLADERF_GAIN_MGC))) {
+/*
+    if ((status=bladerf_set_gain_mode(brf->dev, BLADERF_MODULE_RX, BLADERF_GAIN_MANUAL))) {
         fprintf(stderr, "[BRF] Failed to disable AGC\n");
         brf_error(status);
     }
+*/
 
     if ((status=bladerf_set_frequency(brf->dev, BLADERF_MODULE_RX, (unsigned int) openair0_cfg->rx_freq[0])) != 0) {
         fprintf(stderr,"Failed to set RX frequency: %s\n",bladerf_strerror(status));
