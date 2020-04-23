@@ -270,14 +270,17 @@ static int trx_usrp_start(openair0_device *device) {
 
   // setup GPIO for TDD, GPIO(4) = ATR_RX
   //set data direction register (DDR) to output
-  s->usrp->set_gpio_attr("FP0", "DDR", 0x7f, 0x7f);
-  //set control register to ATR
-  s->usrp->set_gpio_attr("FP0", "CTRL", 0x7f,0x7f);
+  s->usrp->set_gpio_attr("FP0", "DDR", 0xfff, 0xfff);
+  //set lower 7 bits to be controlled automatically by ATR (the rest 5 bits are controlled manually) 
+  s->usrp->set_gpio_attr("FP0", "CTRL", 0x7f,0xfff);
   //set pins 4 (RX_TX_Switch) and 6 (Shutdown PA) to 1 when the radio is only receiving (ATR_RX)
   s->usrp->set_gpio_attr("FP0", "ATR_RX", (1<<4)|(1<<6), 0x7f);
   // set pin 5 (Shutdown LNA) to 1 when the radio is transmitting and receiveing (ATR_XX)
   // (we use full duplex here, because our RX is on all the time - this might need to change later)
   s->usrp->set_gpio_attr("FP0", "ATR_XX", (1<<5), 0x7f);
+  // set the output pins to 0
+  s->usrp->set_gpio_attr("FP0", "OUT", 7<<7, 0xf80);
+
   // init recv and send streaming
   uhd::stream_cmd_t cmd(uhd::stream_cmd_t::STREAM_MODE_START_CONTINUOUS);
   LOG_I(HW,"Time in secs now: %llu \n", s->usrp->get_time_now().to_ticks(s->sample_rate));
@@ -326,10 +329,19 @@ static void trx_usrp_end(openair0_device *device) {
       @param antenna_id index of the antenna if the device has multiple antennas
       @param flags flags must be set to TRUE if timestamp parameter needs to be applied
 */
-static int trx_usrp_write(openair0_device *device, openair0_timestamp timestamp, void **buff, int nsamps, int cc, int flags) {
+static int trx_usrp_write(openair0_device *device,
+			  openair0_timestamp timestamp,
+			  void **buff,
+			  int nsamps,
+			  int cc,
+			  int flags) {
   int ret=0;
   usrp_state_t *s = (usrp_state_t *)device->priv;
   int nsamps2;  // aligned to upper 32 or 16 byte boundary
+
+  int flags_lsb = flags&0xff;
+  int flags_msb = (flags>>8)&0xff;
+    
 #if defined(__x86_64) || defined(__i386__)
   #ifdef __AVX2__
       nsamps2 = (nsamps+7)>>3;
@@ -363,39 +375,50 @@ static int trx_usrp_write(openair0_device *device, openair0_timestamp timestamp,
 
     boolean_t first_packet_state=false,last_packet_state=false;
 
-    if (flags == 2) { // start of burst
+    if (flags_lsb == 2) { // start of burst
       //      s->tx_md.start_of_burst = true;
       //      s->tx_md.end_of_burst = false;
       first_packet_state = true;
       last_packet_state  = false;
-    } else if (flags == 3) { // end of burst
+    } else if (flags_lsb == 3) { // end of burst
       //s->tx_md.start_of_burst = false;
       //s->tx_md.end_of_burst = true;
       first_packet_state = false;
       last_packet_state  = true;
-    } else if (flags == 4) { // start and end
-      //  s->tx_md.start_of_burst = true;
-      //  s->tx_md.end_of_burst = true;
+    } else if (flags_lsb == 4) { // start and end
+    //  s->tx_md.start_of_burst = true;
+    //  s->tx_md.end_of_burst = true;
       first_packet_state = true;
       last_packet_state  = true;
-    } else if (flags==1) { // middle of burst
-      //  s->tx_md.start_of_burst = false;
-      //  s->tx_md.end_of_burst = false;
+    } else if (flags_lsb==1) { // middle of burst
+    //  s->tx_md.start_of_burst = false;
+    //  s->tx_md.end_of_burst = false;
       first_packet_state = false;
       last_packet_state  = false;
-    } else if (flags==10) { // fail safe mode
-      // s->tx_md.has_time_spec = false;
-      // s->tx_md.start_of_burst = false;
-      // s->tx_md.end_of_burst = true;
-      first_packet_state = false;
-      last_packet_state  = true;
+    }
+    else if (flags_lsb==10) { // fail safe mode
+     // s->tx_md.has_time_spec = false;
+     // s->tx_md.start_of_burst = false;
+     // s->tx_md.end_of_burst = true;
+     first_packet_state = false;
+     last_packet_state  = true;
     }
 
+    
     s->tx_md.has_time_spec  = true;
     s->tx_md.start_of_burst = (s->tx_count==0) ? true : first_packet_state;
     s->tx_md.end_of_burst   = last_packet_state;
     s->tx_md.time_spec      = uhd::time_spec_t::from_ticks(timestamp, s->sample_rate);
     s->tx_count++;
+
+    // bit 3 enables gpio (for backward compatibility)
+    if (flags_msb&8) {
+      // push GPIO bits 7-9 from flags_msb
+      int gpio789=(flags_msb&7)<<7;
+      s->usrp->set_command_time(s->tx_md.time_spec);
+      s->usrp->set_gpio_attr("FP0", "OUT", gpio789, 0x380);
+      s->usrp->clear_command_time();
+    }
 
     if (cc>1) {
       std::vector<void *> buff_ptrs;
@@ -404,7 +427,11 @@ static int trx_usrp_write(openair0_device *device, openair0_timestamp timestamp,
         buff_ptrs.push_back(&(((int16_t *)buff_tx[i])[0]));
 
       ret = (int)s->tx_stream->send(buff_ptrs, nsamps, s->tx_md);
-    } else ret = (int)s->tx_stream->send(&(((int16_t *)buff_tx[0])[0]), nsamps, s->tx_md);
+    } 
+    else {
+      ret = (int)s->tx_stream->send(&(((int16_t *)buff_tx[0])[0]), nsamps, s->tx_md);
+    }
+
   if (ret != nsamps) LOG_E(HW,"[xmit] tx samples %d != %d\n",ret,nsamps);
 
   return ret;
@@ -808,22 +835,16 @@ extern "C" {
   
     if (args.find("clock_source")==std::string::npos) {
 	if (openair0_cfg[0].clock_source == internal) {
-	  //in UHD 3.14 we could use
-	  //s->usrp->set_sync_source("clock_source=internal","time_source=internal");
-	  s->usrp->set_time_source("internal");
 	  s->usrp->set_clock_source("internal");
-	  LOG_D(HW,"Setting time and clock source to internal\n");
+	  LOG_D(HW,"Setting clock source to internal\n");
 	}
 	else if (openair0_cfg[0].clock_source == external ) {
-	  //s->usrp->set_sync_source("clock_source=external","time_source=external");
-	  s->usrp->set_time_source("external");
 	  s->usrp->set_clock_source("external");
-	  LOG_D(HW,"Setting time and clock source to external\n");
+	  LOG_D(HW,"Setting clock source to external\n");
 	}
 	else if (openair0_cfg[0].clock_source==gpsdo) {
 	  s->usrp->set_clock_source("gpsdo");
-	  s->usrp->set_time_source("gpsdo");
-	  LOG_D(HW,"Setting time and clock source to gpsdo\n");
+	  LOG_D(HW,"Setting clock source to gpsdo\n");
 	}
 	else { 
 	  LOG_W(HW,"Clock source set neither in usrp_args nor on command line, using default!\n");
@@ -834,7 +855,31 @@ extern "C" {
 	  LOG_W(HW,"Clock source set in both usrp_args and in clock_source, ingnoring the latter!\n");
 	}
   }
-  
+
+    if (args.find("time_source")==std::string::npos) {
+	if (openair0_cfg[0].time_source == internal) {
+	  s->usrp->set_time_source("internal");
+	  LOG_D(HW,"Setting time source to internal\n");
+	}
+	else if (openair0_cfg[0].time_source == external ) {
+	  s->usrp->set_time_source("external");
+	  LOG_D(HW,"Setting time source to external\n");
+	}
+	else if (openair0_cfg[0].time_source==gpsdo) {
+	  s->usrp->set_time_source("gpsdo");
+	  LOG_D(HW,"Setting time source to gpsdo\n");
+	}
+	else { 
+	  LOG_W(HW,"Time source set neither in usrp_args nor on command line, using default!\n");
+	}
+    }
+    else {
+	if (openair0_cfg[0].clock_source != unset) {
+	  LOG_W(HW,"Time source set in both usrp_args and in time_source, ingnoring the latter!\n");
+	}
+  }
+
+    
   if (s->usrp->get_clock_source(0) == "gpsdo") {
     s->use_gps = 1;
   
@@ -1034,7 +1079,9 @@ extern "C" {
   //s->usrp->set_time_source("external");
   // display USRP settings
   LOG_I(HW,"Actual master clock: %fMHz...\n",s->usrp->get_master_clock_rate()/1e6);
-  sleep(1);
+  LOG_I(HW,"Actual clock source %s...\n",s->usrp->get_clock_source(0).c_str());
+  LOG_I(HW,"Actual time source %s...\n",s->usrp->get_time_source(0).c_str());
+   sleep(1);
   // create tx & rx streamer
   uhd::stream_args_t stream_args_rx("sc16", "sc16");
   int samples=openair0_cfg[0].sample_rate;
