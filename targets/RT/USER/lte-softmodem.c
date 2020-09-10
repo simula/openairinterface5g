@@ -438,9 +438,6 @@ int restart_L1L2(module_id_t enb_id) {
   }
 
   RC.ru_mask |= (1 << ru->idx);
-  /* copy the changed frame parameters to the RU */
-  /* TODO this should be done for all RUs associated to this eNB */
-  memcpy(&ru->frame_parms, &RC.eNB[enb_id][0]->frame_parms, sizeof(LTE_DL_FRAME_PARMS));
   set_function_spec_param(RC.ru[enb_id]);
   /* reset the list of connected UEs in the MAC, since in this process with
    * loose all UEs (have to reconnect) */
@@ -715,9 +712,12 @@ int main ( int argc, char **argv )
     sync_var=0;
     pthread_cond_broadcast(&sync_cond);
     pthread_mutex_unlock(&sync_mutex);
+    create_tasks_mbms(1);
     config_check_unknown_cmdlineopt(CONFIG_CHECKALLSECTIONS);
   }
-  create_tasks_mbms(1);
+  else
+    create_tasks_mbms(1);
+  //create_tasks_mbms(1);
 
   // wait for end of program
   LOG_UI(ENB_APP,"TYPE <CTRL-C> TO TERMINATE\n");
