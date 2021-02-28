@@ -271,7 +271,8 @@ typedef enum UE_STATE_e {
   RRC_RECONFIGURED,
   RRC_HO_EXECUTION,
   RRC_NR_NSA,
-  RRC_NR_NSA_RECONFIGURED
+  RRC_NR_NSA_RECONFIGURED,
+  RRC_NR_NSA_DELETED
 } UE_STATE_t;
 
 typedef enum HO_STATE_e {
@@ -545,6 +546,13 @@ typedef struct rrc_gummei_s {
   uint16_t mme_group_id;
 } rrc_gummei_t;
 
+typedef struct {
+  uint16_t ciphering_algorithms;
+  uint16_t integrity_algorithms;
+  uint16_t sk_counter;
+  uint8_t  kgNB[32];
+} lte_rrc_nr_security_t;
+
 typedef struct eNB_RRC_UE_s {
   uint8_t                            primaryCC_id;
   LTE_SCellToAddMod_r10_t            sCell_config[2];
@@ -553,7 +561,7 @@ typedef struct eNB_RRC_UE_s {
   LTE_DRB_ToAddModList_t            *DRB_configList;
   LTE_DRB_ToAddModList_t            *DRB_configList2[RRC_TRANSACTION_IDENTIFIER_NUMBER];
   LTE_DRB_ToReleaseList_t           *DRB_Release_configList2[RRC_TRANSACTION_IDENTIFIER_NUMBER];
-  uint8_t                            DRB_active[8];
+  uint8_t                            DRB_active[NB_RB_MAX -2];
   struct LTE_PhysicalConfigDedicated    *physicalConfigDedicated;
   struct LTE_SPS_Config             *sps_Config;
   LTE_MeasObjectToAddMod_t          *MeasObj[MAX_MEAS_OBJ];
@@ -591,6 +599,8 @@ typedef struct eNB_RRC_UE_s {
 
   uint8_t                            Status; // RRC status, type enum UE_STATE_t
   rnti_t                             rnti;
+  int                                gnb_rnti;     //RNTI of the UE at the gNB if in ENDC connection
+  int                                gnb_x2_assoc_id;
   uint64_t                           random_ue_identity;
 
 
@@ -611,6 +621,9 @@ typedef struct eNB_RRC_UE_s {
   rrc_gummei_t                       ue_gummei;
 
   security_capabilities_t            security_capabilities;
+
+  /* security capabilities and settings for an UE in ENDC mode */
+  lte_rrc_nr_security_t              nr_security;
 
   int                                next_hop_chain_count;
 
@@ -790,6 +803,10 @@ typedef struct eNB_RRC_INST_s {
   int num_neigh_cells;
   int num_neigh_cells_cc[MAX_NUM_CCs];
   uint32_t neigh_cells_id[MAX_NUM_NEIGH_CELLs][MAX_NUM_CCs];
+
+  // Nr scc freq band and SSB absolute frequency
+  uint32_t nr_neigh_freq_band[MAX_NUM_NEIGH_CELLs][MAX_NUM_CCs];
+  int nr_scg_ssb_freq;
 
   // other RAN parameters
   int srb1_timer_poll_retransmit;

@@ -332,7 +332,7 @@ init_SI(
     if (carrier->MBMS_flag > 0) {
       for (i = 0; i < carrier->sib2->mbsfn_SubframeConfigList->list.count; i++) {
         // SIB 2
-        //   LOG_D(RRC, "[eNB %d] mbsfn_SubframeConfigList.list.count = %ld\n", enb_mod_idP, RC.rrc[enb_mod_idP].sib2->mbsfn_SubframeConfigList->list.count);
+        //   LOG_D(RRC, "[eNB %ld] mbsfn_SubframeConfigList.list.count = %ld\n", enb_mod_idP, RC.rrc[enb_mod_idP].sib2->mbsfn_SubframeConfigList->list.count);
         LOG_D(RRC, PROTOCOL_RRC_CTXT_FMT" SIB13 contents for MBSFN subframe allocation %d/%d(partial)\n",
               PROTOCOL_RRC_CTXT_ARGS(ctxt_pP),
               i,
@@ -1132,7 +1132,7 @@ void release_UE_in_freeList(module_id_t mod_id) {
         rrc_rlc_remove_ue(&ctxt);
         pdcp_remove_UE(&ctxt);
       } else {
-        MessageDef *m = itti_alloc_new_message(TASK_RRC_ENB, F1AP_UE_CONTEXT_RELEASE_CMD);
+        MessageDef *m = itti_alloc_new_message(TASK_RRC_ENB, 0, F1AP_UE_CONTEXT_RELEASE_CMD);
         F1AP_UE_CONTEXT_RELEASE_CMD(m).rnti = rnti;
         F1AP_UE_CONTEXT_RELEASE_CMD(m).cause = F1AP_CAUSE_RADIO_NETWORK;
         F1AP_UE_CONTEXT_RELEASE_CMD(m).cause_value = 10; // 10 = F1AP_CauseRadioNetwork_normal_release
@@ -1282,10 +1282,14 @@ rrc_eNB_generate_UECapabilityEnquiry(
   uint8_t                             size;
   T(T_ENB_RRC_UE_CAPABILITY_ENQUIRY, T_INT(ctxt_pP->module_id), T_INT(ctxt_pP->frame),
     T_INT(ctxt_pP->subframe), T_INT(ctxt_pP->rnti));
+  int16_t eutra_band = RC.rrc[ctxt_pP->module_id]->configuration.eutra_band[0];
+  uint32_t nr_band = RC.rrc[ctxt_pP->module_id]->nr_neigh_freq_band[0][0];
   size = do_UECapabilityEnquiry(
            ctxt_pP,
            buffer,
-           rrc_eNB_get_next_transaction_identifier(ctxt_pP->module_id));
+           rrc_eNB_get_next_transaction_identifier(ctxt_pP->module_id),
+           eutra_band,
+           nr_band);
   LOG_I(RRC,
         PROTOCOL_RRC_CTXT_UE_FMT" Logical Channel DL-DCCH, Generate UECapabilityEnquiry (bytes %d)\n",
         PROTOCOL_RRC_CTXT_UE_ARGS(ctxt_pP),
@@ -1328,10 +1332,14 @@ rrc_eNB_generate_NR_UECapabilityEnquiry(
   uint8_t                             size;
   T(T_ENB_RRC_UE_CAPABILITY_ENQUIRY, T_INT(ctxt_pP->module_id), T_INT(ctxt_pP->frame),
     T_INT(ctxt_pP->subframe), T_INT(ctxt_pP->rnti));
+  int16_t eutra_band = RC.rrc[ctxt_pP->module_id]->configuration.eutra_band[0];
+  uint32_t nr_band = RC.rrc[ctxt_pP->module_id]->nr_neigh_freq_band[0][0];
   size = do_NR_UECapabilityEnquiry(
            ctxt_pP,
            buffer,
-           rrc_eNB_get_next_transaction_identifier(ctxt_pP->module_id));
+           rrc_eNB_get_next_transaction_identifier(ctxt_pP->module_id),
+           eutra_band,
+           nr_band);
   LOG_I(RRC,
         PROTOCOL_RRC_CTXT_UE_FMT" Logical Channel DL-DCCH, Generate NR UECapabilityEnquiry (bytes %d)\n",
         PROTOCOL_RRC_CTXT_UE_ARGS(ctxt_pP),
@@ -2165,7 +2173,7 @@ void rrc_generate_SgNBReleaseRequest(
 //-----------------------------------------------------------------------------
 {
   MessageDef      *msg;
-  msg = itti_alloc_new_message(TASK_RRC_ENB, X2AP_ENDC_SGNB_RELEASE_REQ);
+  msg = itti_alloc_new_message(TASK_RRC_ENB, 0, X2AP_ENDC_SGNB_RELEASE_REQ);
   memset(&(X2AP_ENDC_SGNB_RELEASE_REQ(msg)), 0, sizeof(x2ap_ENDC_sgnb_release_req_t));
   // X2AP_ENDC_SGNB_RELEASE_REQ(msg).MeNB_ue_x2_id = ;
   // X2AP_ENDC_SGNB_RELEASE_REQ(msg).SgNB_ue_x2_id = ;
@@ -2260,7 +2268,7 @@ rrc_eNB_generate_RRCConnectionRelease(
   pthread_mutex_unlock(&rrc_release_freelist);
 
   if (NODE_IS_CU(RC.rrc[ctxt_pP->module_id]->node_type)) {
-    MessageDef *m = itti_alloc_new_message(TASK_RRC_ENB, F1AP_UE_CONTEXT_RELEASE_CMD);
+    MessageDef *m = itti_alloc_new_message(TASK_RRC_ENB, 0, F1AP_UE_CONTEXT_RELEASE_CMD);
     F1AP_UE_CONTEXT_RELEASE_CMD(m).rnti = ctxt_pP->rnti;
     F1AP_UE_CONTEXT_RELEASE_CMD(m).cause = F1AP_CAUSE_RADIO_NETWORK;
     F1AP_UE_CONTEXT_RELEASE_CMD(m).cause_value = 10; // 10 = F1AP_CauseRadioNetwork_normal_release
@@ -3102,7 +3110,7 @@ void rrc_eNB_generate_defaultRRCConnectionReconfiguration(const protocol_ctxt_t 
       LOG_W(RRC, "drx_Configuration parameter is NULL, cannot configure local UE parameters or CDRX is deactivated\n");
     } else {
       /* Send DRX configuration to MAC task to configure timers of local UE context */
-      message_p = itti_alloc_new_message(TASK_RRC_ENB, RRC_MAC_DRX_CONFIG_REQ);
+      message_p = itti_alloc_new_message(TASK_RRC_ENB, 0, RRC_MAC_DRX_CONFIG_REQ);
       RRC_MAC_DRX_CONFIG_REQ(message_p).rnti = rnti;
       RRC_MAC_DRX_CONFIG_REQ(message_p).drx_Configuration = mac_MainConfig->drx_Config;
       itti_send_msg_to_task(TASK_MAC_ENB, module_id, message_p);
@@ -3283,12 +3291,14 @@ void rrc_eNB_generate_defaultRRCConnectionReconfiguration(const protocol_ctxt_t 
 
     MeasObj2->measObjectId = 2;
     MeasObj2->measObject.present = LTE_MeasObjectToAddMod__measObject_PR_measObjectNR_r15;
-    MeasObj2->measObject.choice.measObjectNR_r15.carrierFreq_r15 = 641272;
-    //634000; //(634000 = 3.51GHz) (640000 = 3.6GHz) (641272 = 3619.08MHz = 3600 + 30/1000*106*12/2) (642256 is for 3.6GHz and absoluteFrequencySSB = 642016)
+    MeasObj2->measObject.choice.measObjectNR_r15.carrierFreq_r15 = rrc_inst->nr_scg_ssb_freq; //641272; //634000; //(634000 = 3.51GHz) (640000 = 3.6GHz) (641272 = 3619.08MHz = 3600 + 30/1000*106*12/2) (642256 is for 3.6GHz and absoluteFrequencySSB = 642016)
     MeasObj2->measObject.choice.measObjectNR_r15.rs_ConfigSSB_r15.measTimingConfig_r15.periodicityAndOffset_r15.present = LTE_MTC_SSB_NR_r15__periodicityAndOffset_r15_PR_sf20_r15;
     MeasObj2->measObject.choice.measObjectNR_r15.rs_ConfigSSB_r15.measTimingConfig_r15.periodicityAndOffset_r15.choice.sf20_r15 = 0;
     MeasObj2->measObject.choice.measObjectNR_r15.rs_ConfigSSB_r15.measTimingConfig_r15.ssb_Duration_r15 = LTE_MTC_SSB_NR_r15__ssb_Duration_r15_sf4;
-    MeasObj2->measObject.choice.measObjectNR_r15.rs_ConfigSSB_r15.subcarrierSpacingSSB_r15 = LTE_RS_ConfigSSB_NR_r15__subcarrierSpacingSSB_r15_kHz30;
+    if (rrc_inst->nr_scg_ssb_freq > 2016666) //FR2
+      MeasObj2->measObject.choice.measObjectNR_r15.rs_ConfigSSB_r15.subcarrierSpacingSSB_r15 = LTE_RS_ConfigSSB_NR_r15__subcarrierSpacingSSB_r15_kHz120;
+    else
+      MeasObj2->measObject.choice.measObjectNR_r15.rs_ConfigSSB_r15.subcarrierSpacingSSB_r15 = LTE_RS_ConfigSSB_NR_r15__subcarrierSpacingSSB_r15_kHz30;      
     MeasObj2->measObject.choice.measObjectNR_r15.quantityConfigSet_r15 = 1;
     MeasObj2->measObject.choice.measObjectNR_r15.ext1 = calloc(1, sizeof(struct LTE_MeasObjectNR_r15__ext1));
 
@@ -3299,7 +3309,11 @@ void rrc_eNB_generate_defaultRRCConnectionReconfiguration(const protocol_ctxt_t 
     if (MeasObj2->measObject.choice.measObjectNR_r15.ext1->bandNR_r15 == NULL) exit(1);
 
     MeasObj2->measObject.choice.measObjectNR_r15.ext1->bandNR_r15->present = LTE_MeasObjectNR_r15__ext1__bandNR_r15_PR_setup;
-    MeasObj2->measObject.choice.measObjectNR_r15.ext1->bandNR_r15->choice.setup = 78;
+    if (rrc_inst->nr_scg_ssb_freq > 2016666) //FR2
+      MeasObj2->measObject.choice.measObjectNR_r15.ext1->bandNR_r15->choice.setup = 261;
+    else 
+      MeasObj2->measObject.choice.measObjectNR_r15.ext1->bandNR_r15->choice.setup = 78;
+
     ASN_SEQUENCE_ADD(&MeasObj_list->list, MeasObj2);
   }
 
@@ -3869,7 +3883,7 @@ flexran_rrc_eNB_generate_defaultRRCConnectionReconfiguration(const protocol_ctxt
       LOG_W(RRC, "drx_Configuration parameter is NULL, cannot configure local UE parameters or CDRX is deactivated\n");
     } else {
       /* Send DRX configuration to MAC task to configure timers of local UE context */
-      message_p = itti_alloc_new_message(TASK_RRC_ENB, RRC_MAC_DRX_CONFIG_REQ);
+      message_p = itti_alloc_new_message(TASK_RRC_ENB, 0, RRC_MAC_DRX_CONFIG_REQ);
       RRC_MAC_DRX_CONFIG_REQ(message_p).rnti = rnti;
       RRC_MAC_DRX_CONFIG_REQ(message_p).drx_Configuration = mac_MainConfig->drx_Config;
       itti_send_msg_to_task(TASK_MAC_ENB, module_id, message_p);
@@ -4013,7 +4027,6 @@ flexran_rrc_eNB_generate_defaultRRCConnectionReconfiguration(const protocol_ctxt
   MeasObj->measObject.choice.measObjectEUTRA.neighCellConfig.buf[0] = 0;
   MeasObj->measObject.choice.measObjectEUTRA.neighCellConfig.size = 1;
   MeasObj->measObject.choice.measObjectEUTRA.neighCellConfig.bits_unused = 6;
-  //<<<<<<< HEAD
   MeasObj->measObject.choice.measObjectEUTRA.offsetFreq = NULL;   // Default is 15 or 0dB
 
   if (rrc_inst->carrier[0].sib1->tdd_Config!=NULL) {
@@ -4413,69 +4426,11 @@ static int encode_CG_ConfigInfo(
   struct NR_RadioBearerConfig *rb_config = NULL;
   asn_enc_rval_t enc_rval;
   int RRC_OK = 1;
-  int index = 0;
   char temp_buff[ASN_MAX_ENCODE_SIZE];
-  LTE_UE_CapabilityRAT_ContainerList_t *ue_cap_rat_container_list = NULL;
-  LTE_UE_CapabilityRAT_Container_t ue_cap_rat_container_MRDC;
-  LTE_UE_CapabilityRAT_Container_t ue_cap_rat_container_nr;
+  NR_UE_CapabilityRAT_ContainerList_t *ue_cap_rat_container_list = NULL;
+  NR_UE_CapabilityRAT_Container_t *ue_cap_rat_container_MRDC = NULL;
+  NR_UE_CapabilityRAT_Container_t *ue_cap_rat_container_nr = NULL;
   int RAT_Container_count = 0;
-  rb_config = calloc(1,sizeof(struct NR_RadioBearerConfig));
-  AssertFatal(rb_config != NULL,"failed to allocate memory for rb_config");
-
-  if(ue_context_pP->ue_context.DRB_configList->list.count != 0) {
-    rb_config->drb_ToAddModList = calloc(1,sizeof(struct NR_DRB_ToAddModList ));
-    AssertFatal(rb_config->drb_ToAddModList != NULL,"failed to allocated memory for drbtoaddmodlist");
-    rb_config->drb_ToAddModList->list.count = NUMBEROF_DRBS_TOBE_ADDED;
-    rb_config->drb_ToAddModList->list.array
-      = calloc(NUMBEROF_DRBS_TOBE_ADDED, sizeof(struct NR_DRB_ToAddMod *));
-    AssertFatal( rb_config->drb_ToAddModList->list.array != NULL,
-                 "falied to allocate memory for list.array");
-
-    for(index = 0; index < NUMBEROF_DRBS_TOBE_ADDED; index++) {
-      rb_config->drb_ToAddModList->list.array[index]
-        = calloc(1,sizeof(struct NR_DRB_ToAddMod));
-      AssertFatal(rb_config->drb_ToAddModList->list.array[index] != NULL,
-                  "failed to allocate memory for drb_toaddmod");
-      rb_config->drb_ToAddModList->list.array[index]->drb_Identity
-        = ue_context_pP->ue_context.DRB_configList->list.array[index]->drb_Identity;
-
-      if(ue_context_pP->ue_context.DRB_configList->list.array[index]->eps_BearerIdentity) {
-        rb_config->drb_ToAddModList->list.array[index]->cnAssociation
-          = calloc(1,sizeof(struct NR_DRB_ToAddMod__cnAssociation));
-        AssertFatal(rb_config->drb_ToAddModList->list.array[index]->cnAssociation != NULL,
-                    "failed to allocate memory cnAssociation");
-        rb_config->drb_ToAddModList->list.array[index]->cnAssociation->present
-          = NR_DRB_ToAddMod__cnAssociation_PR_eps_BearerIdentity;
-        rb_config->drb_ToAddModList->list.array[index]->cnAssociation->choice.eps_BearerIdentity
-          = *(ue_context_pP->ue_context.DRB_configList->list.array[index]->eps_BearerIdentity);
-      }
-
-      rb_config->drb_ToAddModList->list.array[index]->pdcp_Config = calloc(1,sizeof(struct NR_PDCP_Config));
-      rb_config->drb_ToAddModList->list.array[index]->pdcp_Config->drb = calloc(1,sizeof(struct NR_PDCP_Config__drb));
-      rb_config->drb_ToAddModList->list.array[index]->pdcp_Config->drb->discardTimer = calloc(1,sizeof(long));
-      *rb_config->drb_ToAddModList->list.array[index]->pdcp_Config->drb->discardTimer
-        = *(ue_context_pP->ue_context.DRB_configList->list.array[index]->pdcp_Config->discardTimer);
-      rb_config->drb_ToAddModList->list.array[index]->pdcp_Config->drb->pdcp_SN_SizeUL = calloc(1,sizeof(long));
-      *rb_config->drb_ToAddModList->list.array[index]->pdcp_Config->drb->pdcp_SN_SizeUL
-        = NR_PDCP_Config__drb__pdcp_SN_SizeUL_len18bits;
-      rb_config->drb_ToAddModList->list.array[index]->pdcp_Config->drb->pdcp_SN_SizeDL = calloc(1,sizeof(long));
-      *rb_config->drb_ToAddModList->list.array[index]->pdcp_Config->drb->pdcp_SN_SizeDL
-        = NR_PDCP_Config__drb__pdcp_SN_SizeDL_len18bits;
-      rb_config->drb_ToAddModList->list.array[index]->pdcp_Config->drb->headerCompression.present
-        = NR_PDCP_Config__drb__headerCompression_PR_notUsed;
-      rb_config->drb_ToAddModList->list.array[index]->pdcp_Config->drb->headerCompression.choice.notUsed = 0;
-      rb_config->drb_ToAddModList->list.array[index]->pdcp_Config->t_Reordering = calloc(1,sizeof(long));
-      *rb_config->drb_ToAddModList->list.array[index]->pdcp_Config->t_Reordering
-        = NR_PDCP_Config__t_Reordering_ms0;
-    }
-
-    rb_config->securityConfig = calloc(1,sizeof(struct NR_SecurityConfig ));
-    rb_config->securityConfig->securityAlgorithmConfig = calloc(1,sizeof(struct NR_SecurityAlgorithmConfig));
-    rb_config->securityConfig->securityAlgorithmConfig->cipheringAlgorithm = NR_CipheringAlgorithm_nea0;
-    rb_config->securityConfig->securityAlgorithmConfig->integrityProtAlgorithm = NULL;
-    rb_config->securityConfig->keyToUse = calloc(1,sizeof(long));
-    *rb_config->securityConfig->keyToUse = NR_SecurityConfig__keyToUse_master;
-  }
 
   cg_configinfo = calloc(1,sizeof(struct NR_CG_ConfigInfo));
   AssertFatal(cg_configinfo != NULL,"failed to allocate memory for cg_configinfo");
@@ -4490,10 +4445,6 @@ static int encode_CG_ConfigInfo(
     = calloc(1,sizeof(struct NR_CG_ConfigInfo_IEs));
   AssertFatal(cg_configinfo->criticalExtensions.choice.c1->choice.cg_ConfigInfo != NULL,
               "failed to allocate memory for cg_configinfo_IEs");
-  cg_configinfo->criticalExtensions.choice.c1->choice.cg_ConfigInfo->ue_CapabilityInfo
-    = calloc(1,sizeof( OCTET_STRING_t));
-  AssertFatal(cg_configinfo->criticalExtensions.choice.c1->choice.cg_ConfigInfo->
-              ue_CapabilityInfo != NULL, "failed to allocate memory for ue_capabilityinfo");
 
   if(ue_context_pP->ue_context.UE_Capability_MRDC) {
     RAT_Container_count++;
@@ -4501,8 +4452,10 @@ static int encode_CG_ConfigInfo(
                                      (void *)ue_context_pP->ue_context.UE_Capability_MRDC,temp_buff,ASN_MAX_ENCODE_SIZE);
     AssertFatal(enc_rval.encoded > 0, "ASN1 message encoding failed (%s, %jd)!\n",
                 enc_rval.failed_type->name, enc_rval.encoded);
-    ue_cap_rat_container_MRDC.rat_Type = LTE_RAT_Type_eutra_nr;
-    OCTET_STRING_fromBuf(&ue_cap_rat_container_MRDC.ueCapabilityRAT_Container,
+    ue_cap_rat_container_MRDC = calloc(1, sizeof(*ue_cap_rat_container_MRDC));
+    AssertFatal(ue_cap_rat_container_MRDC != NULL,"failed to allocate memory for ue_cap_rat_container_MRDC");
+    ue_cap_rat_container_MRDC->rat_Type = NR_RAT_Type_eutra_nr;
+    OCTET_STRING_fromBuf(&ue_cap_rat_container_MRDC->ue_CapabilityRAT_Container,
                          (const char *)temp_buff,(enc_rval.encoded+7)>>3);
     memset((void *)temp_buff,0,sizeof(temp_buff));
   }
@@ -4513,44 +4466,30 @@ static int encode_CG_ConfigInfo(
                                      (void *)ue_context_pP->ue_context.UE_Capability_nr,temp_buff,ASN_MAX_ENCODE_SIZE);
     AssertFatal(enc_rval.encoded > 0, "ASN1 message encoding failed (%s, %jd)!\n",
                 enc_rval.failed_type->name, enc_rval.encoded);
-    ue_cap_rat_container_nr.rat_Type = LTE_RAT_Type_nr;
-    OCTET_STRING_fromBuf(&ue_cap_rat_container_nr.ueCapabilityRAT_Container,
+    ue_cap_rat_container_nr = calloc(1, sizeof(*ue_cap_rat_container_nr));
+    AssertFatal(ue_cap_rat_container_nr != NULL,"failed to allocate memory for ue_cap_rat_container_nr");
+    ue_cap_rat_container_nr->rat_Type = NR_RAT_Type_nr;
+    OCTET_STRING_fromBuf(&ue_cap_rat_container_nr->ue_CapabilityRAT_Container,
                          (const char *)temp_buff,(enc_rval.encoded+7)>>3);
     memset((void *)temp_buff,0,sizeof(temp_buff));
   }
 
-  ue_cap_rat_container_list = calloc(1,sizeof(LTE_UE_CapabilityRAT_ContainerList_t));
-  ue_cap_rat_container_list->list.count = RAT_Container_count;
-  ue_cap_rat_container_list->list.size = RAT_Container_count * sizeof(LTE_UE_CapabilityRAT_Container_t);
-  ue_cap_rat_container_list->list.array = calloc(RAT_Container_count,sizeof(LTE_UE_CapabilityRAT_Container_t *));
-
-  if(ue_context_pP->ue_context.UE_Capability_MRDC) {
-    ue_cap_rat_container_list->list.array[0] = calloc(1,sizeof(LTE_UE_CapabilityRAT_Container_t));
-    memcpy(ue_cap_rat_container_list->list.array[0],&ue_cap_rat_container_MRDC,sizeof(LTE_UE_CapabilityRAT_Container_t));
+  if (RAT_Container_count) {
+    cg_configinfo->criticalExtensions.choice.c1->choice.cg_ConfigInfo->ue_CapabilityInfo = calloc(1,sizeof( OCTET_STRING_t));
+    AssertFatal(cg_configinfo->criticalExtensions.choice.c1->choice.cg_ConfigInfo-> ue_CapabilityInfo != NULL, "failed to allocate memory for ue_capabilityinfo");
+    ue_cap_rat_container_list = calloc(1,sizeof(NR_UE_CapabilityRAT_ContainerList_t));
+    if (ue_cap_rat_container_MRDC != NULL)
+      ASN_SEQUENCE_ADD(&ue_cap_rat_container_list->list, ue_cap_rat_container_MRDC);
+    if (ue_cap_rat_container_nr != NULL)
+      ASN_SEQUENCE_ADD(&ue_cap_rat_container_list->list, ue_cap_rat_container_nr);
+    enc_rval = uper_encode_to_buffer(&asn_DEF_NR_UE_CapabilityRAT_ContainerList,NULL,
+                                     (void *)ue_cap_rat_container_list,temp_buff,ASN_MAX_ENCODE_SIZE);
+    AssertFatal(enc_rval.encoded > 0, "ASN1 message encoding failed (%s, %jd)!\n",
+                enc_rval.failed_type->name, enc_rval.encoded);
+    OCTET_STRING_fromBuf(cg_configinfo->criticalExtensions.choice.c1->choice.cg_ConfigInfo->ue_CapabilityInfo,
+                         (const char *)temp_buff, (enc_rval.encoded+7)>>3);
   }
 
-  if(ue_context_pP->ue_context.UE_Capability_nr) {
-    ue_cap_rat_container_list->list.array[1] = calloc(1,sizeof(LTE_UE_CapabilityRAT_Container_t));
-    memcpy(ue_cap_rat_container_list->list.array[1],&ue_cap_rat_container_nr,sizeof(LTE_UE_CapabilityRAT_Container_t));
-  }
-
-  //this xer_fprint logs can be enabled for additional debugging logs
-  //xer_fprint(stdout,&asn_DEF_LTE_UE_CapabilityRAT_ContainerList,ue_cap_rat_container_list);
-  enc_rval = uper_encode_to_buffer(&asn_DEF_LTE_UE_CapabilityRAT_ContainerList,NULL,
-                                   (void *)ue_cap_rat_container_list,temp_buff,ASN_MAX_ENCODE_SIZE);
-  AssertFatal(enc_rval.encoded > 0, "ASN1 message encoding failed (%s, %jd)!\n",
-              enc_rval.failed_type->name, enc_rval.encoded);
-  OCTET_STRING_fromBuf(cg_configinfo->criticalExtensions.choice.c1->choice.cg_ConfigInfo->ue_CapabilityInfo,
-                       (const char *)temp_buff, (enc_rval.encoded+7)>>3);
-  cg_configinfo->criticalExtensions.choice.c1->choice.cg_ConfigInfo->mcg_RB_Config
-    = calloc(1,sizeof(OCTET_STRING_t));
-  AssertFatal(cg_configinfo->criticalExtensions.choice.c1->choice.cg_ConfigInfo->
-              mcg_RB_Config != NULL, "failed to allocate memory for mcg_rb_config");
-  enc_rval = uper_encode_to_buffer(&asn_DEF_NR_RadioBearerConfig,NULL,(void *)rb_config,temp_buff,ASN_MAX_ENCODE_SIZE);
-  AssertFatal(enc_rval.encoded > 0, "ASN1 message encoding failed (%s, %jd)!\n",
-              enc_rval.failed_type->name, enc_rval.encoded);
-  OCTET_STRING_fromBuf(cg_configinfo->criticalExtensions.choice.c1->choice.cg_ConfigInfo->mcg_RB_Config,
-                       (const char *)temp_buff, (enc_rval.encoded+7)>>3);
   // this xer_fprint can be enabled for additional debugging messages
   // xer_fprint(stdout,&asn_DEF_NR_CG_ConfigInfo,(void *)cg_configinfo);
   enc_rval = uper_encode_to_buffer(&asn_DEF_NR_CG_ConfigInfo,NULL,(void *)cg_configinfo,
@@ -4560,7 +4499,7 @@ static int encode_CG_ConfigInfo(
   *enc_size = (enc_rval.encoded+7)/8;
   ASN_STRUCT_FREE(asn_DEF_NR_RadioBearerConfig,rb_config);
   ASN_STRUCT_FREE(asn_DEF_NR_CG_ConfigInfo,cg_configinfo);
-  ASN_STRUCT_FREE(asn_DEF_LTE_UE_CapabilityRAT_ContainerList,ue_cap_rat_container_list);
+  ASN_STRUCT_FREE(asn_DEF_NR_UE_CapabilityRAT_ContainerList,ue_cap_rat_container_list);
   return RRC_OK;
 }
 //-----------------------------------------------------------------------------
@@ -4628,6 +4567,7 @@ rrc_eNB_process_MeasurementReport(
 
       case 7:
         LOG_D(RRC, "NR event frame %d subframe %d\n", ctxt_pP->frame, ctxt_pP->subframe);
+        printf("NR event frame %d subframe %d\n", ctxt_pP->frame, ctxt_pP->subframe);
         break;
 
       default:
@@ -4648,19 +4588,30 @@ rrc_eNB_process_MeasurementReport(
     if ((ue_context_pP->ue_context.Status != RRC_NR_NSA) && (ue_context_pP->ue_context.Status != RRC_NR_NSA_RECONFIGURED)) {
       MessageDef      *msg;
       ue_context_pP->ue_context.Status = RRC_NR_NSA;
+      ue_context_pP->ue_context.gnb_rnti = -1;         // set when receiving X2AP_ENDC_SGNB_ADDITION_REQ_ACK
+      ue_context_pP->ue_context.gnb_x2_assoc_id = -1;  // set when receiving X2AP_ENDC_SGNB_ADDITION_REQ_ACK
 
       if(is_en_dc_supported(ue_context_pP->ue_context.UE_Capability)) {
         /** to add gNB as Secondary node CG-ConfigInfo to be added as per 36.423 r15 **/
         if(encode_CG_ConfigInfo(enc_buf,sizeof(enc_buf),ue_context_pP,&enc_size) == RRC_OK)
           LOG_I(RRC,"CG-ConfigInfo encoded successfully\n");
 
-        msg = itti_alloc_new_message(TASK_RRC_ENB, X2AP_ENDC_SGNB_ADDITION_REQ);
+        msg = itti_alloc_new_message(TASK_RRC_ENB, 0, X2AP_ENDC_SGNB_ADDITION_REQ);
         memset(&(X2AP_ENDC_SGNB_ADDITION_REQ(msg)), 0, sizeof(x2ap_ENDC_sgnb_addition_req_t));
+
         X2AP_ENDC_SGNB_ADDITION_REQ(msg).rnti = ctxt_pP->rnti;
+
+        X2AP_ENDC_SGNB_ADDITION_REQ(msg).security_capabilities.encryption_algorithms = ue_context_pP->ue_context.nr_security.ciphering_algorithms;
+        X2AP_ENDC_SGNB_ADDITION_REQ(msg).security_capabilities.integrity_algorithms = ue_context_pP->ue_context.nr_security.integrity_algorithms;
+
+        memcpy(X2AP_ENDC_SGNB_ADDITION_REQ(msg).kgnb, ue_context_pP->ue_context.nr_security.kgNB, 32);
+
         memcpy(X2AP_ENDC_SGNB_ADDITION_REQ(msg).rrc_buffer,enc_buf,enc_size);
         X2AP_ENDC_SGNB_ADDITION_REQ(msg).rrc_buffer_size = enc_size;
+
         X2AP_ENDC_SGNB_ADDITION_REQ(msg).target_physCellId
           = measResults2->measResultNeighCells->choice.measResultListEUTRA.list.array[0]->physCellId;
+
         //For the moment we have a single E-RAB which will be the one to be added to the gNB
         //Not sure how to select bearers to be added if there are multiple.
         X2AP_ENDC_SGNB_ADDITION_REQ(msg).nb_e_rabs_tobeadded = 1;
@@ -4750,7 +4701,7 @@ rrc_eNB_process_MeasurementReport(
     ue_context_pP->ue_context.Status = RRC_HO_EXECUTION;
     ue_context_pP->ue_context.handover_info->state = HO_REQUEST;
     /* HO Preparation message */
-    msg = itti_alloc_new_message(TASK_RRC_ENB, X2AP_HANDOVER_REQ);
+    msg = itti_alloc_new_message(TASK_RRC_ENB, 0, X2AP_HANDOVER_REQ);
     rrc_eNB_generate_HandoverPreparationInformation(
       ue_context_pP,
       X2AP_HANDOVER_REQ(msg).rrc_buffer,
@@ -4999,13 +4950,14 @@ void rrc_eNB_handover_ue_context_release(
   //MessageDef *msg_release_p = NULL;
   MessageDef *msg_delete_tunnels_p = NULL;
   uint32_t eNB_ue_s1ap_id = ue_context_p->ue_context.eNB_ue_s1ap_id;
-  //msg_release_p = itti_alloc_new_message(TASK_RRC_ENB, S1AP_UE_CONTEXT_RELEASE);
+  //msg_release_p = itti_alloc_new_message(TASK_RRC_ENB, 0, S1AP_UE_CONTEXT_RELEASE);
   //itti_send_msg_to_task(TASK_S1AP, ctxt_pP->module_id, msg_release_p);
   s1ap_ue_context_release(ctxt_pP->instance, ue_context_p->ue_context.eNB_ue_s1ap_id);
   //MSC_LOG_TX_MESSAGE(MSC_RRC_ENB, MSC_GTPU_ENB, NULL,0, "0 GTPV1U_ENB_DELETE_TUNNEL_REQ rnti %x ", eNB_ue_s1ap_id);
-  msg_delete_tunnels_p = itti_alloc_new_message(TASK_RRC_ENB, GTPV1U_ENB_DELETE_TUNNEL_REQ);
+  msg_delete_tunnels_p = itti_alloc_new_message(TASK_RRC_ENB, 0, GTPV1U_ENB_DELETE_TUNNEL_REQ);
   memset(&GTPV1U_ENB_DELETE_TUNNEL_REQ(msg_delete_tunnels_p), 0, sizeof(GTPV1U_ENB_DELETE_TUNNEL_REQ(msg_delete_tunnels_p)));
   GTPV1U_ENB_DELETE_TUNNEL_REQ(msg_delete_tunnels_p).rnti = ue_context_p->ue_context.rnti;
+  GTPV1U_ENB_DELETE_TUNNEL_REQ(msg_delete_tunnels_p).from_gnb = 0;
 
   for (e_rab = 0; e_rab < ue_context_p->ue_context.nb_of_e_rabs; e_rab++) {
     GTPV1U_ENB_DELETE_TUNNEL_REQ(msg_delete_tunnels_p).eps_bearer_id[GTPV1U_ENB_DELETE_TUNNEL_REQ(msg_delete_tunnels_p).num_erab++] =
@@ -5079,7 +5031,7 @@ flexran_rrc_eNB_trigger_handover (int mod_id,
     ue_context_pP->ue_context.Status = RRC_HO_EXECUTION;
     ue_context_pP->ue_context.handover_info->state = HO_REQUEST;
     /* HO Preparation message */
-    msg = itti_alloc_new_message(TASK_RRC_ENB, X2AP_HANDOVER_REQ);
+    msg = itti_alloc_new_message(TASK_RRC_ENB, 0, X2AP_HANDOVER_REQ);
     rrc_eNB_generate_HandoverPreparationInformation(
       ue_context_pP,
       X2AP_HANDOVER_REQ(msg).rrc_buffer,
@@ -5166,7 +5118,7 @@ check_handovers(
         MessageDef *msg;
         // Configure target
         ue_context_p->ue_context.handover_info->state = HO_FORWARDING;
-        msg = itti_alloc_new_message(TASK_RRC_ENB, X2AP_HANDOVER_REQ_ACK);
+        msg = itti_alloc_new_message(TASK_RRC_ENB, 0, X2AP_HANDOVER_REQ_ACK);
         rrc_eNB_generate_HO_RRCConnectionReconfiguration(ctxt_pP, ue_context_p, X2AP_HANDOVER_REQ_ACK(msg).rrc_buffer,
             &X2AP_HANDOVER_REQ_ACK(msg).rrc_buffer_size);
         rrc_eNB_configure_rbs_handover(ue_context_p,ctxt_pP);
@@ -5210,11 +5162,11 @@ check_handovers(
                 GTPV1U_ENB_DATA_FORWARDING_IND (msg_p).frame,
                 0,
                 GTPV1U_ENB_DATA_FORWARDING_IND (msg_p).eNB_index);
-              LOG_D(RRC, PROTOCOL_CTXT_FMT"[check_handovers]Received %s from %s: instance %d, rb_id %ld, muiP %d, confirmP %d, mode %d\n",
+              LOG_D(RRC, PROTOCOL_CTXT_FMT"[check_handovers]Received %s from %s: instance %ld, rb_id %ld, muiP %d, confirmP %d, mode %d\n",
                     PROTOCOL_CTXT_ARGS(&ctxt),
                     ITTI_MSG_NAME (msg_p),
                     ITTI_MSG_ORIGIN_NAME(msg_p),
-                    ITTI_MSG_INSTANCE (msg_p),
+                    ITTI_MSG_DESTINATION_INSTANCE (msg_p),
                     GTPV1U_ENB_DATA_FORWARDING_IND (msg_p).rb_id,
                     GTPV1U_ENB_DATA_FORWARDING_IND (msg_p).muip,
                     GTPV1U_ENB_DATA_FORWARDING_IND (msg_p).confirmp,
@@ -5278,11 +5230,11 @@ check_handovers(
                 GTPV1U_ENB_END_MARKER_IND (msg_p).frame,
                 0,
                 GTPV1U_ENB_END_MARKER_IND (msg_p).eNB_index);
-              LOG_I(RRC, PROTOCOL_CTXT_FMT"[check_handovers]Received %s from %s: instance %d, rb_id %ld, muiP %d, confirmP %d, mode %d\n",
+              LOG_I(RRC, PROTOCOL_CTXT_FMT"[check_handovers]Received %s from %s: instance %ld, rb_id %ld, muiP %d, confirmP %d, mode %d\n",
                     PROTOCOL_CTXT_ARGS(&ctxt),
                     ITTI_MSG_NAME (msg_p),
                     ITTI_MSG_ORIGIN_NAME(msg_p),
-                    ITTI_MSG_INSTANCE (msg_p),
+                    ITTI_MSG_DESTINATION_INSTANCE (msg_p),
                     GTPV1U_ENB_DATA_FORWARDING_IND (msg_p).rb_id,
                     GTPV1U_ENB_DATA_FORWARDING_IND (msg_p).muip,
                     GTPV1U_ENB_DATA_FORWARDING_IND (msg_p).confirmp,
@@ -6694,22 +6646,10 @@ rrc_eNB_process_RRCConnectionReconfigurationComplete(
                                   );
           }
         } else {        // remove LCHAN from MAC/PHY
-          if (ue_context_pP->ue_context.DRB_active[drb_id] == 1) {
-            // DRB has just been removed so remove RLC + PDCP for DRB
-            /*      rrc_pdcp_config_req (ctxt_pP->module_id, frameP, 1, CONFIG_ACTION_REMOVE,
-               (ue_mod_idP * NB_RB_MAX) + DRB2LCHAN[i],UNDEF_SECURITY_MODE);
-             */
-            if (!NODE_IS_CU(RC.rrc[ctxt_pP->module_id]->node_type)) {
-              rrc_rlc_config_req(ctxt_pP,
-                                 SRB_FLAG_NO,
-                                 MBMS_FLAG_NO,
-                                 CONFIG_ACTION_REMOVE,
-                                 DRB2LCHAN[i],
-                                 Rlc_info_um);
-            }
+          if (DRB_configList->list.array[i]->logicalChannelIdentity) {
+            DRB2LCHAN[i] = (uint8_t) * DRB_configList->list.array[i]->logicalChannelIdentity;
           }
 
-          ue_context_pP->ue_context.DRB_active[drb_id] = 0;
           LOG_D(RRC, PROTOCOL_RRC_CTXT_UE_FMT" RRC_eNB --- MAC_CONFIG_REQ  (DRB) ---> MAC_eNB\n",
                 PROTOCOL_RRC_CTXT_UE_ARGS(ctxt_pP));
 
@@ -6843,7 +6783,7 @@ rrc_eNB_generate_RRCConnectionSetup(
     case ngran_gNB_CU    :
       // create an ITTI message
       /* TODO: F1 IDs ar missing in RRC */
-      message_p = itti_alloc_new_message (TASK_RRC_ENB, F1AP_DL_RRC_MESSAGE);
+      message_p = itti_alloc_new_message (TASK_RRC_ENB, 0, F1AP_DL_RRC_MESSAGE);
       F1AP_DL_RRC_MESSAGE (message_p).rrc_container =  (uint8_t *)ue_p->Srb0.Tx_buffer.Payload;
       F1AP_DL_RRC_MESSAGE (message_p).rrc_container_length = ue_p->Srb0.Tx_buffer.payload_size;
       F1AP_DL_RRC_MESSAGE (message_p).gNB_CU_ue_id     = 0;
@@ -6948,6 +6888,32 @@ rrc_eNB_generate_RRCConnectionSetup(
   }
 }
 
+//-----------------------------------------------------------------------------
+void rrc_eNB_process_reconfiguration_complete_endc(const protocol_ctxt_t *const ctxt_pP,
+        rrc_eNB_ue_context_t *const ue_context_p)
+//-----------------------------------------------------------------------------
+{
+  MessageDef *msg_p;
+
+  msg_p = itti_alloc_new_message (TASK_RRC_ENB, 0, X2AP_ENDC_SGNB_RECONF_COMPLETE);
+
+  /* MeNB_ue_x2_id is unknown, set to 0.
+   * This is not correct but X2 id in the eNB is only 12 bits,
+   * so unfortunately we can't use rnti.
+   * To be corrected if needed.
+   * As of today, when stopping t_dc_prep we remove the UE
+   * from X2. To keep the id until the 'reconfiguration complete' message is received
+   * needs a rethink/rewrite of this logic. For simplicity, let's
+   * keep it as is. The only problem we can get is if/when we
+   * interoperate with a non-OAI gNB. The OAI gNB does not
+   * care about MeNB_ue_x2_id.
+   */
+  X2AP_ENDC_SGNB_RECONF_COMPLETE(msg_p).MeNB_ue_x2_id   = 0;
+  X2AP_ENDC_SGNB_RECONF_COMPLETE(msg_p).SgNB_ue_x2_id   = ue_context_p->ue_context.gnb_rnti;
+  X2AP_ENDC_SGNB_RECONF_COMPLETE(msg_p).gnb_x2_assoc_id = ue_context_p->ue_context.gnb_x2_assoc_id;
+  itti_send_msg_to_task (TASK_X2AP, ctxt_pP->instance, msg_p);
+}
+
 void setup_ngran_CU(eNB_RRC_INST *rrc) {
 }
 
@@ -7029,6 +6995,8 @@ char openair_rrc_eNB_configuration(
     openair_rrc_top_init_eNB(RC.rrc[ctxt.module_id]->carrier[CC_id].MBMS_flag,0);
   }
 
+  RC.rrc[ctxt.module_id]->nr_scg_ssb_freq = configuration->nr_scg_ssb_freq;
+
   openair_rrc_on(&ctxt);
 
   /*
@@ -7040,7 +7008,7 @@ char openair_rrc_eNB_configuration(
     LOG_W(RRC, "[inst %d] RRC->MCC/MSG->MCC %d/%d \n", ctxt.module_id, RC.rrc[ctxt.module_id]->mcc, rrc_configuration_req->mcc);
     */
   if (NODE_IS_CU(RC.rrc[ctxt.module_id]->node_type))
-    // msg_p = itti_alloc_new_message (TASK_ENB_APP, F1AP_SCTP_REQ);
+    // msg_p = itti_alloc_new_message (TASK_ENB_APP, 0, F1AP_SCTP_REQ);
     // RCconfig_CU_F1(msg_p, enb_id);
     setup_ngran_CU(RC.rrc[ctxt.module_id]);
 
@@ -7421,7 +7389,7 @@ rrc_eNB_decode_ccch(
                 if (!NODE_IS_CU(RC.rrc[ctxt_pP->module_id]->node_type)) {
                   rrc_mac_remove_ue(ctxt_pP->module_id, ue_context_p->ue_context.rnti);
                 } else {
-                  MessageDef *m = itti_alloc_new_message(TASK_RRC_ENB, F1AP_UE_CONTEXT_RELEASE_CMD);
+                  MessageDef *m = itti_alloc_new_message(TASK_RRC_ENB, 0, F1AP_UE_CONTEXT_RELEASE_CMD);
                   F1AP_UE_CONTEXT_RELEASE_CMD(m).rnti = ctxt_pP->rnti;
                   F1AP_UE_CONTEXT_RELEASE_CMD(m).cause = F1AP_CAUSE_RADIO_NETWORK;
                   F1AP_UE_CONTEXT_RELEASE_CMD(m).cause_value = 10; // 10 = F1AP_CauseRadioNetwork_normal_release
@@ -7525,7 +7493,7 @@ rrc_eNB_decode_ccch(
             if (NODE_IS_MONOLITHIC(RC.rrc[ctxt_pP->module_id]->node_type))
               rrc_mac_remove_ue(ctxt_pP->module_id,ctxt_pP->rnti);
             else if (NODE_IS_CU(RC.rrc[ctxt_pP->module_id]->node_type)) {
-              MessageDef *m = itti_alloc_new_message(TASK_RRC_ENB, F1AP_UE_CONTEXT_RELEASE_CMD);
+              MessageDef *m = itti_alloc_new_message(TASK_RRC_ENB, 0, F1AP_UE_CONTEXT_RELEASE_CMD);
               F1AP_UE_CONTEXT_RELEASE_CMD(m).rnti = ctxt_pP->rnti;
               F1AP_UE_CONTEXT_RELEASE_CMD(m).cause = F1AP_CAUSE_RADIO_NETWORK;
               F1AP_UE_CONTEXT_RELEASE_CMD(m).cause_value = 10; // 10 = F1AP_CauseRadioNetwork_normal_release
@@ -7846,9 +7814,12 @@ rrc_eNB_decode_dcch(
                           if(ul_dcch_msg->message.choice.c1.choice.rrcConnectionReconfigurationComplete.criticalExtensions.choice.rrcConnectionReconfigurationComplete_r8.
                               nonCriticalExtension->nonCriticalExtension->nonCriticalExtension->nonCriticalExtension->nonCriticalExtension->nonCriticalExtension
                               ->scg_ConfigResponseNR_r15!=NULL) {
+                            dedicated_DRB = -1;     /* put a value that does not run anything below */
                             ue_context_p->ue_context.Status = RRC_NR_NSA_RECONFIGURED;
                             /*Trigger E-RAB Modification Indication */
                             rrc_eNB_send_E_RAB_Modification_Indication(ctxt_pP, ue_context_p);
+                            /* send reconfiguration complete to gNB */
+                            rrc_eNB_process_reconfiguration_complete_endc(ctxt_pP, ue_context_p);
                           }
                         }
                       }
@@ -7906,9 +7877,10 @@ rrc_eNB_decode_dcch(
               xid = ul_dcch_msg->message.choice.c1.choice.rrcConnectionReconfigurationComplete.rrc_TransactionIdentifier;
               ue_context_p->ue_context.e_rab_release_command_flag = 0;
               //gtp tunnel delete
-              msg_delete_tunnels_p = itti_alloc_new_message(TASK_RRC_ENB, GTPV1U_ENB_DELETE_TUNNEL_REQ);
+              msg_delete_tunnels_p = itti_alloc_new_message(TASK_RRC_ENB, 0, GTPV1U_ENB_DELETE_TUNNEL_REQ);
               memset(&GTPV1U_ENB_DELETE_TUNNEL_REQ(msg_delete_tunnels_p), 0, sizeof(GTPV1U_ENB_DELETE_TUNNEL_REQ(msg_delete_tunnels_p)));
               GTPV1U_ENB_DELETE_TUNNEL_REQ(msg_delete_tunnels_p).rnti = ue_context_p->ue_context.rnti;
+              GTPV1U_ENB_DELETE_TUNNEL_REQ(msg_delete_tunnels_p).from_gnb = 0;
 
               for(i = 0; i < NB_RB_MAX; i++) {
                 if(xid == ue_context_p->ue_context.e_rab[i].xid) {
@@ -8439,6 +8411,17 @@ rrc_eNB_decode_dcch(
                       ul_dcch_msg->message.choice.messageClassExtension.choice.c2.choice.scgFailureInformationNR_r15.criticalExtensions.
                       choice.c1.choice.scgFailureInformationNR_r15.failureReportSCG_NR_r15->failureType_r15);
                 xer_fprint(stdout, &asn_DEF_LTE_UL_DCCH_Message, (void *)ul_dcch_msg);
+
+                /* TODO: scg failure indication, what to do? Let's remove the UE for now.
+                 * We could re-establish DRB?
+                 * Also, the way to remove is to start ue_release_timer_rrc and
+                 * send RRCConnectionRelease to the UE, maybe it's not good/correct.
+                 */
+                if (ue_context_p != NULL) {
+                  ue_context_p->ue_context.ue_release_timer_thres_rrc = 100;
+                  ue_context_p->ue_context.ue_release_timer_rrc = 1;
+                  rrc_eNB_generate_RRCConnectionRelease(ctxt_pP, ue_context_p);
+                }
               }
             }
           }
@@ -8576,7 +8559,7 @@ void handle_f1_setup_req(f1ap_setup_req_t *f1_setup_req) {
         // prepare F1_SETUP_RESPONSE
 
         if (msg_p == NULL) {
-          msg_p = itti_alloc_new_message (TASK_CU_F1,F1AP_SETUP_RESP);
+          msg_p = itti_alloc_new_message (TASK_CU_F1, 0,F1AP_SETUP_RESP);
         }
 
         F1AP_SETUP_RESP (msg_p).gNB_CU_name                                = rrc->node_name;
@@ -8612,7 +8595,7 @@ void handle_f1_setup_req(f1ap_setup_req_t *f1_setup_req) {
 
     if (found_cell==0) {
       AssertFatal(1==0,"No cell found\n");
-      /*msg_p = itti_alloc_new_message (TASK_CU_F1,F1AP_SETUP_FAILURE);
+      /*msg_p = itti_alloc_new_message (TASK_CU_F1, 0,F1AP_SETUP_FAILURE);
       F1AP_SETUP_RESP (msg_p).cause                             = rrc->node_name;
       F1AP_SETUP_RESP (msg_p).time_to_wait                      = rrc->node_id;
       F1AP_SETUP_RESP (msg_p).criticality_diagnostics           = rrc->node_name;*/
@@ -8801,7 +8784,7 @@ void rrc_subframe_process(protocol_ctxt_t *const ctxt_pP, const int CC_id) {
 
   if (RC.rrc[ENB_INSTANCE_TO_MODULE_ID(ctxt_pP->instance)]->configuration.enable_x2) {
     /* send a tick to x2ap */
-    msg = itti_alloc_new_message(TASK_RRC_ENB, X2AP_SUBFRAME_PROCESS);
+    msg = itti_alloc_new_message(TASK_RRC_ENB, 0, X2AP_SUBFRAME_PROCESS);
     itti_send_msg_to_task(TASK_X2AP, ctxt_pP->module_id, msg);
     check_handovers(ctxt_pP); // counter, get the value and aggregate
   }
@@ -8989,6 +8972,19 @@ void rrc_subframe_process(protocol_ctxt_t *const ctxt_pP, const int CC_id) {
       ue_to_be_removed[cur_ue]->ue_context.ue_reestablishment_timer = 0;
     }
 
+    /* remove UE from gNB if UE is in NSA mode */
+    if (ue_to_be_removed[cur_ue]->ue_context.Status == RRC_NR_NSA ||
+        ue_to_be_removed[cur_ue]->ue_context.Status == RRC_NR_NSA_RECONFIGURED) {
+      MessageDef *message_p;
+      message_p = itti_alloc_new_message(TASK_RRC_ENB, 0, X2AP_ENDC_SGNB_RELEASE_REQUEST);
+      X2AP_ENDC_SGNB_RELEASE_REQUEST(message_p).rnti = ue_to_be_removed[cur_ue]->ue_context.gnb_rnti;
+      X2AP_ENDC_SGNB_RELEASE_REQUEST(message_p).assoc_id = ue_to_be_removed[cur_ue]->ue_context.gnb_x2_assoc_id;
+      X2AP_ENDC_SGNB_RELEASE_REQUEST(message_p).cause = X2AP_CAUSE_RADIO_CONNECTION_WITH_UE_LOST;
+      itti_send_msg_to_task(TASK_X2AP, ctxt_pP->module_id, message_p);
+      /* set state to RRC_NR_NSA_DELETED to avoid sending X2AP_ENDC_SGNB_RELEASE_REQUEST again later */
+      ue_to_be_removed[cur_ue]->ue_context.Status = RRC_NR_NSA_DELETED;
+    }
+
     rrc_eNB_free_UE(ctxt_pP->module_id, ue_to_be_removed[cur_ue]);
 
     if (ue_to_be_removed[cur_ue]->ue_context.ul_failure_timer >= 20000) {
@@ -9030,6 +9026,27 @@ void rrc_subframe_process(protocol_ctxt_t *const ctxt_pP, const int CC_id) {
   (void)ref_timestamp_ms; /* remove gcc warning "unused variable" */
   (void)current_timestamp_ms; /* remove gcc warning "unused variable" */
   VCD_SIGNAL_DUMPER_DUMP_FUNCTION_BY_NAME(VCD_SIGNAL_DUMPER_FUNCTIONS_RRC_RX_TX, VCD_FUNCTION_OUT);
+}
+
+void rrc_eNB_process_ENDC_x2_setup_request(int mod_id, x2ap_ENDC_setup_req_t *m) {
+  if (RC.rrc[mod_id]->num_neigh_cells > MAX_NUM_NEIGH_CELLs) {
+    LOG_E(RRC, "Error: number of neighbouring cells is exceeded \n");
+    return;
+  }
+
+  if (m->num_cc > MAX_NUM_CCs) {
+    LOG_E(RRC, "Error: number of neighbouring cells carriers is exceeded \n");
+    return;
+  }
+
+  RC.rrc[mod_id]->num_neigh_cells++;
+  RC.rrc[mod_id]->num_neigh_cells_cc[RC.rrc[mod_id]->num_neigh_cells-1] = m->num_cc;
+
+  for (int i=0; i<m->num_cc; i++) {
+    RC.rrc[mod_id]->neigh_cells_id[RC.rrc[mod_id]->num_neigh_cells-1][i] = m->Nid_cell[i];
+    RC.rrc[mod_id]->nr_neigh_freq_band[RC.rrc[mod_id]->num_neigh_cells-1][i] = m->servedNrCell_band[i];
+  }
+
 }
 
 void rrc_eNB_process_AdditionResponseInformation(const module_id_t enb_mod_idP, x2ap_ENDC_sgnb_addition_req_ACK_t *m) {
@@ -9106,6 +9123,10 @@ void rrc_eNB_process_AdditionResponseInformation(const module_id_t enb_mod_idP, 
 
   if (ue_context) {
     ue_context->ue_context.nb_of_modify_endc_e_rabs = m->nb_e_rabs_admitted_tobeadded;
+
+    ue_context->ue_context.gnb_rnti = m->SgNB_ue_x2_id;
+    ue_context->ue_context.gnb_x2_assoc_id = m->gnb_x2_assoc_id;
+
     int j=0;
 
     while(j < m->nb_e_rabs_admitted_tobeadded) {
@@ -9143,6 +9164,54 @@ void rrc_eNB_process_AdditionResponseInformation(const module_id_t enb_mod_idP, 
   }
 }
 
+void rrc_eNB_process_ENDC_DC_prep_timeout(module_id_t module_id, x2ap_ENDC_dc_prep_timeout_t *m)
+{
+  rrc_eNB_ue_context_t *ue_context;
+
+  ue_context = rrc_eNB_get_ue_context(RC.rrc[module_id], m->rnti);
+  if (ue_context == NULL) {
+    LOG_E(RRC, "receiving DC prep timeout for unknown UE rnti %d\n", m->rnti);
+    return;
+  }
+
+  if (ue_context->ue_context.Status != RRC_NR_NSA) {
+    LOG_E(RRC, "receiving DC prep timeout for UE rnti %d not in state RRC_NR_NSA\n", m->rnti);
+    return;
+  }
+
+  LOG_I(RRC, "DC prep timeout for UE rnti %d, put back to RRC_RECONFIGURED mode\n", m->rnti);
+  ue_context->ue_context.Status = RRC_RECONFIGURED;
+}
+
+void rrc_eNB_process_ENDC_sgNB_release_required(module_id_t module_id, x2ap_ENDC_sgnb_release_required_t *m)
+{
+  rrc_eNB_ue_context_t *ue_context;
+  protocol_ctxt_t      ctxt;
+
+  ue_context = rrc_eNB_find_ue_context_from_gnb_rnti(RC.rrc[module_id], m->gnb_rnti);
+  if (ue_context == NULL) {
+    LOG_E(RRC, "receiving ENDC SgNB Release Required for unknown UE (with gNB's rnti %d)\n", m->gnb_rnti);
+    return;
+  }
+
+  /* TODO: what to do? release the UE? if yes, how? Or re-establish bearers in LTE?
+   * Or something else?
+   * The following removes the UE, maybe it's not correct at all.
+   */
+  ue_context->ue_context.ue_release_timer_thres_rrc = 100;
+  ue_context->ue_context.ue_release_timer_rrc = 1;
+
+  ue_context->ue_context.Status = RRC_NR_NSA_DELETED;
+
+  PROTOCOL_CTXT_SET_BY_INSTANCE(&ctxt,
+                                module_id,  /* TODO: should be 'instance' */
+                                ENB_FLAG_YES,
+                                ue_context->ue_context.rnti,
+                                0, 0);
+
+  rrc_eNB_generate_RRCConnectionRelease(&ctxt, ue_context);
+}
+
 //-----------------------------------------------------------------------------
 void *rrc_enb_process_itti_msg(void *notUsed) {
   MessageDef                         *msg_p;
@@ -9154,7 +9223,7 @@ void *rrc_enb_process_itti_msg(void *notUsed) {
   // Wait for a message
   itti_receive_msg(TASK_RRC_ENB, &msg_p);
   msg_name_p = ITTI_MSG_NAME(msg_p);
-  instance = ITTI_MSG_INSTANCE(msg_p);
+  instance = ITTI_MSG_DESTINATION_INSTANCE(msg_p);
 
   /* RRC_SUBFRAME_PROCESS is sent every subframe, do not log it */
   if (ITTI_MSG_ID(msg_p) != RRC_SUBFRAME_PROCESS)
@@ -9167,7 +9236,7 @@ void *rrc_enb_process_itti_msg(void *notUsed) {
       break;
 
     case MESSAGE_TEST:
-      LOG_I(RRC, "[eNB %d] Received %s\n", instance, msg_name_p);
+      LOG_I(RRC, "[eNB %ld] Received %s\n", instance, msg_name_p);
       break;
 
     /* Messages from MAC */
@@ -9178,7 +9247,7 @@ void *rrc_enb_process_itti_msg(void *notUsed) {
                                     RRC_MAC_CCCH_DATA_IND(msg_p).rnti,
                                     msg_p->ittiMsgHeader.lte_time.frame,
                                     msg_p->ittiMsgHeader.lte_time.slot);
-      LOG_I(RRC,"Decoding CCCH : inst %d, CC_id %d, ctxt %p, sib_info_p->Rx_buffer.payload_size %d\n",
+      LOG_I(RRC,"Decoding CCCH : inst %ld, CC_id %d, ctxt %p, sib_info_p->Rx_buffer.payload_size %d\n",
             instance,
             RRC_MAC_CCCH_DATA_IND(msg_p).CC_id,
             &ctxt,
@@ -9236,13 +9305,13 @@ void *rrc_enb_process_itti_msg(void *notUsed) {
       break;
 
     case S1AP_PAGING_IND:
-      LOG_D(RRC, "[eNB %d] Received Paging message from S1AP: %s\n", instance, msg_name_p);
+      LOG_D(RRC, "[eNB %ld] Received Paging message from S1AP: %s\n", instance, msg_name_p);
       rrc_eNB_process_PAGING_IND(msg_p, msg_name_p, instance);
       break;
 
     case S1AP_E_RAB_SETUP_REQ:
       rrc_eNB_process_S1AP_E_RAB_SETUP_REQ(msg_p, msg_name_p, instance);
-      LOG_D(RRC, "[eNB %d] Received the message %s\n", instance, msg_name_p);
+      LOG_D(RRC, "[eNB %ld] Received the message %s\n", instance, msg_name_p);
       break;
 
     case S1AP_E_RAB_MODIFY_REQ:
@@ -9276,7 +9345,7 @@ void *rrc_enb_process_itti_msg(void *notUsed) {
     }
 
     case S1AP_PATH_SWITCH_REQ_ACK:
-      LOG_I(RRC, "[eNB %d] received path switch ack %s\n", instance, msg_name_p);
+      LOG_I(RRC, "[eNB %ld] received path switch ack %s\n", instance, msg_name_p);
       rrc_eNB_process_S1AP_PATH_SWITCH_REQ_ACK(msg_p, msg_name_p, instance);
       break;
 
@@ -9289,7 +9358,7 @@ void *rrc_enb_process_itti_msg(void *notUsed) {
       break;
 
     case X2AP_HANDOVER_REQ:
-      LOG_I(RRC, "[eNB %d] target eNB Receives X2 HO Req %s\n", instance, msg_name_p);
+      LOG_I(RRC, "[eNB %ld] target eNB Receives X2 HO Req %s\n", instance, msg_name_p);
       rrc_eNB_process_handoverPreparationInformation(instance, &X2AP_HANDOVER_REQ(msg_p));
       break;
 
@@ -9307,7 +9376,7 @@ void *rrc_enb_process_itti_msg(void *notUsed) {
         exit(1);
       }
 
-      LOG_I(RRC, "[eNB %d] source eNB receives the X2 HO ACK %s\n", instance, msg_name_p);
+      LOG_I(RRC, "[eNB %ld] source eNB receives the X2 HO ACK %s\n", instance, msg_name_p);
       DevAssert(ue_context_p != NULL);
 
       if (ue_context_p->ue_context.handover_info->state != HO_REQUEST) abort();
@@ -9358,7 +9427,7 @@ void *rrc_enb_process_itti_msg(void *notUsed) {
     case X2AP_UE_CONTEXT_RELEASE: {
       struct rrc_eNB_ue_context_s        *ue_context_p = NULL;
       ue_context_p = rrc_eNB_get_ue_context(RC.rrc[instance], X2AP_UE_CONTEXT_RELEASE(msg_p).rnti);
-      LOG_I(RRC, "[eNB %d] source eNB receives the X2 UE CONTEXT RELEASE %s\n", instance, msg_name_p);
+      LOG_I(RRC, "[eNB %ld] source eNB receives the X2 UE CONTEXT RELEASE %s\n", instance, msg_name_p);
       DevAssert(ue_context_p != NULL);
 
       if (ue_context_p->ue_context.handover_info->state != HO_COMPLETE) abort();
@@ -9389,7 +9458,7 @@ void *rrc_enb_process_itti_msg(void *notUsed) {
 
       if (ue_context_p != NULL &&
           ue_context_p->ue_context.handover_info != NULL) {
-        LOG_I(RRC, "[eNB %d] eNB receives X2 HANDOVER CANCEL for rnti %x, cause %s [%s]\n",
+        LOG_I(RRC, "[eNB %ld] eNB receives X2 HANDOVER CANCEL for rnti %x, cause %s [%s]\n",
               instance,
               X2AP_HANDOVER_CANCEL(msg_p).rnti,
               cause,
@@ -9414,21 +9483,35 @@ void *rrc_enb_process_itti_msg(void *notUsed) {
         else
           failure_cause = "UE not in handover";
 
-        LOG_W(RRC, "[eNB %d] cannot process (%s) X2 HANDOVER CANCEL for rnti %x, cause %s, ignoring\n",
+        LOG_W(RRC, "[eNB %ld] cannot process (%s) X2 HANDOVER CANCEL for rnti %x, cause %s, ignoring\n",
               instance, failure_cause, X2AP_HANDOVER_CANCEL(msg_p).rnti, cause);
       }
 
       break;
     }
 
+    case X2AP_ENDC_SETUP_REQ:
+      rrc_eNB_process_ENDC_x2_setup_request(instance, &X2AP_ENDC_SETUP_REQ(msg_p));
+      break;
+
     case X2AP_ENDC_SGNB_ADDITION_REQ_ACK: {
       rrc_eNB_process_AdditionResponseInformation(ENB_INSTANCE_TO_MODULE_ID(instance), &X2AP_ENDC_SGNB_ADDITION_REQ_ACK(msg_p));
       break;
     }
 
+    case X2AP_ENDC_DC_PREP_TIMEOUT: {
+      rrc_eNB_process_ENDC_DC_prep_timeout(ENB_INSTANCE_TO_MODULE_ID(instance), &X2AP_ENDC_DC_PREP_TIMEOUT(msg_p));
+      break;
+    }
+
+    case X2AP_ENDC_SGNB_RELEASE_REQUIRED: {
+      rrc_eNB_process_ENDC_sgNB_release_required(ENB_INSTANCE_TO_MODULE_ID(instance), &X2AP_ENDC_SGNB_RELEASE_REQUIRED(msg_p));
+      break;
+    }
+
     /* Messages from eNB app */
     case RRC_CONFIGURATION_REQ:
-      LOG_I(RRC, "[eNB %d] Received %s : %p\n", instance, msg_name_p, &RRC_CONFIGURATION_REQ(msg_p));
+      LOG_I(RRC, "[eNB %ld] Received %s : %p\n", instance, msg_name_p, &RRC_CONFIGURATION_REQ(msg_p));
       openair_rrc_eNB_configuration(ENB_INSTANCE_TO_MODULE_ID(instance), &RRC_CONFIGURATION_REQ(msg_p));
       break;
 
@@ -9436,7 +9519,7 @@ void *rrc_enb_process_itti_msg(void *notUsed) {
     case F1AP_SETUP_REQ:
       AssertFatal(NODE_IS_CU(RC.rrc[instance]->node_type),
                   "should not receive F1AP_SETUP_REQUEST, need call by CU!\n");
-      LOG_I(RRC,"[eNB %d] Received %s : %p\n", instance, msg_name_p, &F1AP_SETUP_REQ(msg_p));
+      LOG_I(RRC,"[eNB %ld] Received %s : %p\n", instance, msg_name_p, &F1AP_SETUP_REQ(msg_p));
       handle_f1_setup_req(&F1AP_SETUP_REQ(msg_p));
       break;
 
@@ -9489,7 +9572,7 @@ void *rrc_enb_process_itti_msg(void *notUsed) {
       break;
 
     default:
-      LOG_E(RRC, "[eNB %d] Received unexpected message %s\n", instance, msg_name_p);
+      LOG_E(RRC, "[eNB %ld] Received unexpected message %s\n", instance, msg_name_p);
       break;
   }
 
@@ -9863,7 +9946,7 @@ rrc_rx_tx(
 //-----------------------------------------------------------------------------
 {
   MessageDef *message_p;
-  message_p = itti_alloc_new_message(TASK_RRC_ENB, RRC_SUBFRAME_PROCESS);
+  message_p = itti_alloc_new_message(TASK_RRC_ENB, 0, RRC_SUBFRAME_PROCESS);
   RRC_SUBFRAME_PROCESS(message_p).ctxt  = *ctxt_pP;
   RRC_SUBFRAME_PROCESS(message_p).CC_id = CC_id;
   itti_send_msg_to_task(TASK_RRC_ENB, ctxt_pP->module_id, message_p);
