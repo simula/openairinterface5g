@@ -63,8 +63,8 @@
 #include <openair2/LAYER2/MAC/mac_vars.h>
 #include <openair2/RRC/LTE/rrc_vars.h>
 
+#include <executables/softmodem-common.h>
 #include "PHY/NR_REFSIG/ul_ref_seq_nr.h"
-
 //#define DEBUG_ULSIM
 
 LCHAN_DESC DCCH_LCHAN_DESC,DTCH_DL_LCHAN_DESC,DTCH_UL_LCHAN_DESC;
@@ -198,6 +198,19 @@ int nr_derive_key(int alg_type, uint8_t alg_id,
   return 0;
 }
 
+typedef struct {
+  uint64_t       optmask;   //mask to store boolean config options
+  uint8_t        nr_dlsch_parallel; // number of threads for dlsch decoding, 0 means no parallelization
+  tpool_t        Tpool;             // thread pool 
+} nrUE_params_t;
+
+void processSlotTX(void *arg) {}
+
+nrUE_params_t nrUE_params;
+
+nrUE_params_t *get_nrUE_params(void) {
+  return &nrUE_params;
+}
 // needed for some functions
 uint16_t n_rnti = 0x1234;
 openair0_config_t openair0_cfg[MAX_CARDS];
@@ -208,6 +221,7 @@ double s_re0[122880],s_im0[122880],r_re0[122880],r_im0[122880];
 double s_re1[122880],s_im1[122880],r_re1[122880],r_im1[122880];
 double r_re2[122880],r_im2[122880];
 double r_re3[122880],r_im3[122880];
+
 
 int main(int argc, char **argv)
 {
@@ -663,13 +677,7 @@ int main(int argc, char **argv)
 
   prepare_scd(scd);
 
-  fill_default_secondaryCellGroup(scc,
-                                  scd,
-				  secondaryCellGroup,
-				  0,
-				  1,
-				  n_tx,
-				  0);
+  fill_default_secondaryCellGroup(scc, scd, secondaryCellGroup, 0, 1, n_tx, 0, 0);
 
   // xer_fprint(stdout, &asn_DEF_NR_CellGroupConfig, (const void*)secondaryCellGroup);
 
@@ -683,7 +691,7 @@ int main(int argc, char **argv)
   rrc_mac_config_req_gNB(0,0,n_tx,n_rx,pusch_tgt_snrx10,pucch_tgt_snrx10,scc,0,0,NULL);
   // UE dedicated configuration
   rrc_mac_config_req_gNB(0,0,1,1,pusch_tgt_snrx10,pucch_tgt_snrx10,NULL,1,secondaryCellGroup->spCellConfig->reconfigurationWithSync->newUE_Identity,secondaryCellGroup);
-  phy_init_nr_gNB(gNB,0,0);
+  phy_init_nr_gNB(gNB,0,1);
   N_RB_DL = gNB->frame_parms.N_RB_DL;
 
 
@@ -808,7 +816,7 @@ int main(int argc, char **argv)
   }
 
   uint8_t  length_dmrs         = pusch_len1;
-  uint16_t l_prime_mask        = get_l_prime(nb_symb_sch, mapping_type, add_pos, length_dmrs);
+  uint16_t l_prime_mask        = get_l_prime(nb_symb_sch, mapping_type, add_pos, length_dmrs, start_symbol, NR_MIB__dmrs_TypeA_Position_pos2);
   uint16_t number_dmrs_symbols = get_dmrs_symbols_in_slot(l_prime_mask, nb_symb_sch);
   uint8_t  nb_re_dmrs          = (dmrs_config_type == pusch_dmrs_type1) ? 6 : 4;
 
@@ -994,7 +1002,7 @@ int main(int argc, char **argv)
       pusch_pdu->transform_precoding = transform_precoding;
       pusch_pdu->data_scrambling_id = *scc->physCellId;
       pusch_pdu->nrOfLayers = 1;
-      pusch_pdu->ul_dmrs_symb_pos = l_prime_mask << start_symbol;
+      pusch_pdu->ul_dmrs_symb_pos = l_prime_mask;
       pusch_pdu->dmrs_config_type = dmrs_config_type;
       pusch_pdu->ul_dmrs_scrambling_id =  *scc->physCellId;
       pusch_pdu->scid = 0;
@@ -1057,7 +1065,7 @@ int main(int argc, char **argv)
       ul_config.ul_config_list[0].pusch_config_pdu.rb_start = start_rb;
       ul_config.ul_config_list[0].pusch_config_pdu.nr_of_symbols = nb_symb_sch;
       ul_config.ul_config_list[0].pusch_config_pdu.start_symbol_index = start_symbol;
-      ul_config.ul_config_list[0].pusch_config_pdu.ul_dmrs_symb_pos = l_prime_mask << start_symbol;
+      ul_config.ul_config_list[0].pusch_config_pdu.ul_dmrs_symb_pos = l_prime_mask;
       ul_config.ul_config_list[0].pusch_config_pdu.dmrs_config_type = dmrs_config_type;
       ul_config.ul_config_list[0].pusch_config_pdu.mcs_index = Imcs;
       ul_config.ul_config_list[0].pusch_config_pdu.mcs_table = mcs_table;

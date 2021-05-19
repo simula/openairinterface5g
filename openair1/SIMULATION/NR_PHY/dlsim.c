@@ -69,6 +69,8 @@
 #include <openair2/LAYER2/MAC/mac_vars.h>
 #include <openair2/RRC/LTE/rrc_vars.h>
 
+#include <executables/softmodem-common.h>
+
 LCHAN_DESC DCCH_LCHAN_DESC,DTCH_DL_LCHAN_DESC,DTCH_UL_LCHAN_DESC;
 rlc_info_t Rlc_info_um,Rlc_info_am_config;
 
@@ -202,6 +204,8 @@ int is_x2ap_enabled(void)
   return 0;
 }
 
+void processSlotTX(void *arg) {}
+
 //nFAPI P7 dummy functions
 
 int oai_nfapi_dl_tti_req(nfapi_nr_dl_tti_request_t *dl_config_req) { return(0);  }
@@ -236,13 +240,38 @@ void nr_dlsim_preprocessor(module_id_t module_id,
       sched_ctrl->active_bwp, sched_ctrl->search_space, 1 /* dedicated */);
   sched_ctrl->cce_index = 0;
 
-  sched_ctrl->rbStart = g_rbStart;
-  sched_ctrl->rbSize = g_rbSize;
-  sched_ctrl->mcs = g_mcsIndex;
-  sched_ctrl->time_domain_allocation = 2;
-  sched_ctrl->mcsTableIdx = g_mcsTableIdx;
+  NR_pdsch_semi_static_t *ps = &sched_ctrl->pdsch_semi_static;
+  const NR_ServingCellConfigCommon_t *scc = RC.nrmac[0]->common_channels[0].ServingCellConfigCommon;
+  nr_set_pdsch_semi_static(scc,
+                           UE_info->secondaryCellGroup[0],
+                           sched_ctrl->active_bwp,
+                           /* tda = */ 2,
+                           /* num_dmrs_cdm_grps_no_data = */ 1,
+                           ps);
+
+  NR_sched_pdsch_t *sched_pdsch = &sched_ctrl->sched_pdsch;
+  sched_pdsch->rbStart = g_rbStart;
+  sched_pdsch->rbSize = g_rbSize;
+  sched_pdsch->mcs = g_mcsIndex;
+  /* the following might override the table that is mandated by RRC
+   * configuration */
+  ps->mcsTableIdx = g_mcsTableIdx;
+
+  sched_pdsch->Qm = nr_get_Qm_dl(sched_pdsch->mcs, ps->mcsTableIdx);
+  sched_pdsch->R = nr_get_code_rate_dl(sched_pdsch->mcs, ps->mcsTableIdx);
+  sched_pdsch->tb_size = nr_compute_tbs(sched_pdsch->Qm,
+                                        sched_pdsch->R,
+                                        sched_pdsch->rbSize,
+                                        ps->nrOfSymbols,
+                                        ps->N_PRB_DMRS * ps->N_DMRS_SLOT,
+                                        0 /* N_PRB_oh, 0 for initialBWP */,
+                                        0 /* tb_scaling */,
+                                        1 /* nrOfLayers */)
+                         >> 3;
+
   /* the simulator assumes the HARQ PID is equal to the slot number */
-  sched_ctrl->dl_harq_pid = slot;
+  sched_pdsch->dl_harq_pid = slot;
+
   /* The scheduler uses lists to track whether a HARQ process is
    * free/busy/awaiting retransmission, and updates the HARQ process states.
    * However, in the simulation, we never get ack or nack for any HARQ process,
@@ -255,13 +284,26 @@ void nr_dlsim_preprocessor(module_id_t module_id,
   else
     add_front_nr_list(&sched_ctrl->retrans_dl_harq, slot);   // ... make PID retransmission
   sched_ctrl->harq_processes[slot].is_waiting = false;
-  AssertFatal(sched_ctrl->rbStart >= 0, "invalid rbStart %d\n", sched_ctrl->rbStart);
-  AssertFatal(sched_ctrl->rbSize > 0, "invalid rbSize %d\n", sched_ctrl->rbSize);
-  AssertFatal(sched_ctrl->mcs >= 0, "invalid sched_ctrl->mcs %d\n", sched_ctrl->mcs);
-  AssertFatal(sched_ctrl->mcsTableIdx >= 0 && sched_ctrl->mcsTableIdx <= 2, "invalid sched_ctrl->mcsTableIdx %d\n", sched_ctrl->mcsTableIdx);
-  sched_ctrl->numDmrsCdmGrpsNoData = 1;
+  AssertFatal(sched_pdsch->rbStart >= 0, "invalid rbStart %d\n", sched_pdsch->rbStart);
+  AssertFatal(sched_pdsch->rbSize > 0, "invalid rbSize %d\n", sched_pdsch->rbSize);
+  AssertFatal(sched_pdsch->mcs >= 0, "invalid mcs %d\n", sched_pdsch->mcs);
+  AssertFatal(ps->mcsTableIdx >= 0 && ps->mcsTableIdx <= 2, "invalid mcsTableIdx %d\n", ps->mcsTableIdx);
 }
 
+typedef struct {
+  uint64_t       optmask;   //mask to store boolean config options
+  uint8_t        nr_dlsch_parallel; // number of threads for dlsch decoding, 0 means no parallelization
+  tpool_t        Tpool;             // thread pool 
+} nrUE_params_t;
+
+nrUE_params_t nrUE_params;
+
+nrUE_params_t *get_nrUE_params(void) {
+  return &nrUE_params;
+}
+
+void do_nothing(void *args) {
+}
 
 int main(int argc, char **argv)
 {
@@ -634,7 +676,6 @@ int main(int argc, char **argv)
     RC.nb_nr_mac_CC[i] = 1;
   mac_top_init_gNB();
   gNB_mac = RC.nrmac[0];
-  gNB_mac->pre_processor_dl = nr_dlsim_preprocessor;
   gNB_RRC_INST rrc;
   memset((void*)&rrc,0,sizeof(rrc));
 
@@ -694,13 +735,7 @@ int main(int argc, char **argv)
 
   prepare_scd(scd);
 
-  fill_default_secondaryCellGroup(scc,
-                                  scd,
-                                  secondaryCellGroup,
-                                  0,
-                                  1,
-                                  n_tx,
-                                  0);
+  fill_default_secondaryCellGroup(scc, scd, secondaryCellGroup, 0, 1, n_tx, 0, 0);
 
   /* RRC parameter validation for secondaryCellGroup */
   fix_scd(scd);
@@ -722,7 +757,10 @@ int main(int argc, char **argv)
   rrc_mac_config_req_gNB(0,0,n_tx,1,pusch_tgt_snrx10,pucch_tgt_snrx10,scc,0,0,NULL);
   // UE dedicated configuration
   rrc_mac_config_req_gNB(0,0,n_tx,1,pusch_tgt_snrx10,pucch_tgt_snrx10,NULL,1,secondaryCellGroup->spCellConfig->reconfigurationWithSync->newUE_Identity,secondaryCellGroup);
-  phy_init_nr_gNB(gNB,0,0);
+  // reset preprocessor to the one of DLSIM after it has been set during
+  // rrc_mac_config_req_gNB
+  gNB_mac->pre_processor_dl = nr_dlsim_preprocessor;
+  phy_init_nr_gNB(gNB,0,1);
   N_RB_DL = gNB->frame_parms.N_RB_DL;
   NR_UE_info_t *UE_info = &RC.nrmac[0]->UE_info;
   UE_info->num_UEs=1;
@@ -859,6 +897,7 @@ int main(int argc, char **argv)
   unsigned int errors_bit    = 0;
   uint32_t errors_scrambling = 0;
 
+  initTpool("N", &(nrUE_params.Tpool), false);
 
   test_input_bit       = (unsigned char *) malloc16(sizeof(unsigned char) * 16 * 68 * 384);
   estimated_output_bit = (unsigned char *) malloc16(sizeof(unsigned char) * 16 * 68 * 384);
@@ -1109,7 +1148,8 @@ int main(int argc, char **argv)
         phy_procedures_nrUE_RX(UE,
                                &UE_proc,
                                0,
-                               dlsch_threads);
+                               dlsch_threads,
+                               NULL);
         
         //printf("dlsim round %d ends\n",round);
         round++;
@@ -1364,15 +1404,62 @@ void update_dmrs_config(NR_CellGroupConfig_t *scg,PHY_VARS_NR_UE *ue, int8_t* dm
   }
   else if (dmrs_arg[0] == 1) {
     mapping_type = typeB;
+  } else {
+    AssertFatal(1==0,"Incorrect Mappingtype, valid options 0-typeA, 1-typeB\n");
   }
-  /* Additional DMRS positions 0 ,1 and 2 */
-  if(dmrs_arg[1] >= 0 && dmrs_arg[1] <3 ) {
+
+  /* Additional DMRS positions 0 ,1 ,2 and 3 */
+  if(dmrs_arg[1] >= 0 && dmrs_arg[1] <4 ) {
     add_pos = dmrs_arg[1];
+  } else {
+    AssertFatal(1==0,"Incorrect Additional Position, valid options 0-pos1, 1-pos1, 2-pos2, 3-pos3\n");
   }
 
   if(scg != NULL) {
     NR_BWP_Downlink_t *bwp = scg->spCellConfig->spCellConfigDedicated->downlinkBWP_ToAddModList->list.array[0];
-    *bwp->bwp_Dedicated->pdsch_Config->choice.setup->dmrs_DownlinkForPDSCH_MappingTypeA->choice.setup->dmrs_AdditionalPosition = add_pos;
+
+    AssertFatal((bwp->bwp_Dedicated->pdsch_Config != NULL && bwp->bwp_Dedicated->pdsch_Config->choice.setup != NULL), "Base RRC reconfig structures are not allocated.\n");
+
+    if (bwp->bwp_Dedicated->pdsch_Config->choice.setup->dmrs_DownlinkForPDSCH_MappingTypeA == NULL) {
+      bwp->bwp_Dedicated->pdsch_Config->choice.setup->dmrs_DownlinkForPDSCH_MappingTypeA = calloc(1,sizeof(*bwp->bwp_Dedicated->pdsch_Config->choice.setup->dmrs_DownlinkForPDSCH_MappingTypeA));
+      bwp->bwp_Dedicated->pdsch_Config->choice.setup->dmrs_DownlinkForPDSCH_MappingTypeA->present= NR_SetupRelease_DMRS_DownlinkConfig_PR_setup;
+      bwp->bwp_Dedicated->pdsch_Config->choice.setup->dmrs_DownlinkForPDSCH_MappingTypeA->choice.setup = calloc(1,sizeof(*bwp->bwp_Dedicated->pdsch_Config->choice.setup->dmrs_DownlinkForPDSCH_MappingTypeA->choice.setup));
+      bwp->bwp_Dedicated->pdsch_Config->choice.setup->dmrs_DownlinkForPDSCH_MappingTypeA->choice.setup->dmrs_Type=NULL;//calloc(1,sizeof(*bwp->bwp_Dedicated->pdsch_Config->choice.setup->dmrs_DownlinkForPDSCH_MappingTypeA->choice.setup->dmrs_Type));
+      bwp->bwp_Dedicated->pdsch_Config->choice.setup->dmrs_DownlinkForPDSCH_MappingTypeA->choice.setup->maxLength=NULL;
+      bwp->bwp_Dedicated->pdsch_Config->choice.setup->dmrs_DownlinkForPDSCH_MappingTypeA->choice.setup->scramblingID0=NULL;
+      bwp->bwp_Dedicated->pdsch_Config->choice.setup->dmrs_DownlinkForPDSCH_MappingTypeA->choice.setup->scramblingID1=NULL;
+      bwp->bwp_Dedicated->pdsch_Config->choice.setup->dmrs_DownlinkForPDSCH_MappingTypeA->choice.setup->phaseTrackingRS=NULL;
+      bwp->bwp_Dedicated->pdsch_Config->choice.setup->dmrs_DownlinkForPDSCH_MappingTypeA->choice.setup->dmrs_AdditionalPosition = NULL;
+      printf("DLSIM: Allocated Mapping TypeA in RRC reconfig message\n");
+    } else if (bwp->bwp_Dedicated->pdsch_Config->choice.setup->dmrs_DownlinkForPDSCH_MappingTypeB == NULL) {
+      bwp->bwp_Dedicated->pdsch_Config->choice.setup->dmrs_DownlinkForPDSCH_MappingTypeB = calloc(1,sizeof(*bwp->bwp_Dedicated->pdsch_Config->choice.setup->dmrs_DownlinkForPDSCH_MappingTypeB));
+      bwp->bwp_Dedicated->pdsch_Config->choice.setup->dmrs_DownlinkForPDSCH_MappingTypeB->present= NR_SetupRelease_DMRS_DownlinkConfig_PR_setup;
+      bwp->bwp_Dedicated->pdsch_Config->choice.setup->dmrs_DownlinkForPDSCH_MappingTypeB->choice.setup = calloc(1,sizeof(*bwp->bwp_Dedicated->pdsch_Config->choice.setup->dmrs_DownlinkForPDSCH_MappingTypeB->choice.setup));
+      bwp->bwp_Dedicated->pdsch_Config->choice.setup->dmrs_DownlinkForPDSCH_MappingTypeB->choice.setup->dmrs_Type=NULL;//calloc(1,sizeof(*bwp->bwp_Dedicated->pdsch_Config->choice.setup->dmrs_DownlinkForPDSCH_MappingTypeA->choice.setup->dmrs_Type));
+      bwp->bwp_Dedicated->pdsch_Config->choice.setup->dmrs_DownlinkForPDSCH_MappingTypeB->choice.setup->maxLength=NULL;
+      bwp->bwp_Dedicated->pdsch_Config->choice.setup->dmrs_DownlinkForPDSCH_MappingTypeB->choice.setup->scramblingID0=NULL;
+      bwp->bwp_Dedicated->pdsch_Config->choice.setup->dmrs_DownlinkForPDSCH_MappingTypeB->choice.setup->scramblingID1=NULL;
+      bwp->bwp_Dedicated->pdsch_Config->choice.setup->dmrs_DownlinkForPDSCH_MappingTypeB->choice.setup->phaseTrackingRS=NULL;
+      bwp->bwp_Dedicated->pdsch_Config->choice.setup->dmrs_DownlinkForPDSCH_MappingTypeB->choice.setup->dmrs_AdditionalPosition = NULL;
+      printf("DLSIM: Allocated Mapping TypeB in RRC reconfig message\n");
+    }
+
+    struct NR_SetupRelease_DMRS_DownlinkConfig	*dmrs_MappingtypeA = bwp->bwp_Dedicated->pdsch_Config->choice.setup->dmrs_DownlinkForPDSCH_MappingTypeA;
+    struct NR_SetupRelease_DMRS_DownlinkConfig	*dmrs_MappingtypeB = bwp->bwp_Dedicated->pdsch_Config->choice.setup->dmrs_DownlinkForPDSCH_MappingTypeB;
+
+
+    NR_DMRS_DownlinkConfig_t *dmrs_config = (mapping_type == typeA) ? dmrs_MappingtypeA->choice.setup : dmrs_MappingtypeB->choice.setup;
+
+    if (add_pos != 2) { // pos0,pos1,pos3
+      if (dmrs_config->dmrs_AdditionalPosition == NULL) {
+        dmrs_config->dmrs_AdditionalPosition = calloc(1,sizeof(*dmrs_MappingtypeA->choice.setup->dmrs_AdditionalPosition));
+      }
+      *dmrs_config->dmrs_AdditionalPosition = add_pos;
+    } else { // if NULL, Value pos2
+      free(dmrs_config->dmrs_AdditionalPosition);
+      dmrs_config->dmrs_AdditionalPosition = NULL;
+    }
+
     for (int i=0;i<bwp->bwp_Common->pdsch_ConfigCommon->choice.setup->pdsch_TimeDomainAllocationList->list.count;i++) {
       bwp->bwp_Common->pdsch_ConfigCommon->choice.setup->pdsch_TimeDomainAllocationList->list.array[i]->mappingType = mapping_type; 
     }
