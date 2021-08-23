@@ -960,12 +960,6 @@ uint32_t rx_pucch(PHY_VARS_eNB *eNB,
   int16_t DTXthreshold = 10;
   /* PUCCH format3 << */
 
-  if( (UE_id<0) || (UE_id>=NUMBER_OF_UE_MAX) ) {
-    LOG_E(PHY,"illegal UE_id!!! UE_id %d\n",UE_id);
-    abort();
-    return(-1);
-  }
-
   if (first_call == 1) {
     for (i=0; i<10; i++) {
       for (j=0; j<NUMBER_OF_UE_MAX; j++) {
