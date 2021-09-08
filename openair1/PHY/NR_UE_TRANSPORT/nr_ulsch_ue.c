@@ -114,7 +114,6 @@ void nr_ue_ulsch_procedures(PHY_VARS_NR_UE *UE,
 
   NR_DL_FRAME_PARMS *frame_parms = &UE->frame_parms;
   NR_UE_PUSCH *pusch_ue = UE->pusch_vars[thread_id][gNB_id];
-  // ptrs_UplinkConfig_t *ptrs_Uplink_Config = &UE->pusch_config.dmrs_UplinkConfig.ptrs_UplinkConfig;
 
   uint8_t  num_of_codewords = 1; // tmp assumption
   int      Nid_cell = 0;
@@ -146,6 +145,9 @@ void nr_ue_ulsch_procedures(PHY_VARS_NR_UE *UE,
 
     get_num_re_dmrs(pusch_pdu, &nb_dmrs_re_per_rb, &number_dmrs_symbols);
 
+    LOG_D(PHY,"ulsch %x : start_rb %d bwp_start %d start_sc %d start_symbol %d num_symbols %d cdmgrpsnodata %d num_dmrs %d dmrs_re_per_rb %d\n",
+          rnti,start_rb,pusch_pdu->bwp_start,start_sc,start_symbol,number_of_symbols,cdm_grps_no_data,number_dmrs_symbols,nb_dmrs_re_per_rb);
+
     // TbD num_of_mod_symbols is set but never used
     N_RE_prime = NR_NB_SC_PER_RB*number_of_symbols - nb_dmrs_re_per_rb*number_dmrs_symbols - N_PRB_oh;
     harq_process_ul_ue->num_of_mod_symbols = N_RE_prime*nb_rb*num_of_codewords;
@@ -157,7 +159,7 @@ void nr_ue_ulsch_procedures(PHY_VARS_NR_UE *UE,
                               nb_dmrs_re_per_rb, number_dmrs_symbols, mod_order, Nl);
     
 
-    nr_ulsch_encoding(ulsch_ue, frame_parms, harq_pid, G);
+    nr_ulsch_encoding(UE, ulsch_ue, frame_parms, harq_pid, G);
 
     ///////////
     ////////////////////////////////////////////////////////////////////
@@ -250,14 +252,15 @@ void nr_ue_ulsch_procedures(PHY_VARS_NR_UE *UE,
   uint8_t u = 0, v = 0;
   int16_t *dmrs_seq = NULL;
 
-  if (pusch_pdu->transform_precoding == transform_precoder_enabled) { 
+  // if  transform precoding is enbaled (value 0)
+  if (pusch_pdu->transform_precoding == 0) {
 
     uint32_t nb_re_pusch=nb_rb * NR_NB_SC_PER_RB;
     uint32_t y_offset = 0;
     uint16_t num_dmrs_res_per_symbol = nb_rb*(NR_NB_SC_PER_RB/2);
     
     // Calculate index to dmrs seq array based on number of DMRS Subcarriers on this symbol
-    index = get_index_for_dmrs_lowpapr_seq(num_dmrs_res_per_symbol);    
+    index = get_index_for_dmrs_lowpapr_seq(num_dmrs_res_per_symbol);
     u = pusch_pdu->dfts_ofdm.low_papr_group_number;
     v = pusch_pdu->dfts_ofdm.low_papr_sequence_number;
     dmrs_seq = dmrs_lowpaprtype1_ul_ref_sig[u][v][index];
@@ -295,7 +298,7 @@ void nr_ue_ulsch_procedures(PHY_VARS_NR_UE *UE,
       }
       
       printf("NR_ULSCH_UE: numSym: %d, num_dmrs_sym: %d", number_of_symbols,number_dmrs_symbols);
-      for (int ll = 0; ll < (number_of_symbols-number_dmrs_symbols); ll++) {  
+      for (int ll = 0; ll < (number_of_symbols-number_dmrs_symbols); ll++) {
 
         nr_idft(&debug_symbols[offset], nb_re_pusch);
 
@@ -351,8 +354,8 @@ void nr_ue_ulsch_procedures(PHY_VARS_NR_UE *UE,
       if ((ul_dmrs_symb_pos >> l) & 0x01) {
         is_dmrs_sym = 1;
 
-   
-        if (pusch_pdu->transform_precoding == transform_precoder_disabled){ 
+        // transform precoding disabled (value 1)
+        if (pusch_pdu->transform_precoding == 1){
         
           if (dmrs_type == pusch_dmrs_type1)
             dmrs_idx = (pusch_pdu->bwp_start + start_rb)*6;
@@ -361,6 +364,7 @@ void nr_ue_ulsch_procedures(PHY_VARS_NR_UE *UE,
 
           // TODO: performance improvement, we can skip the modulation of DMRS symbols outside the bandwidth part
           // Perform this on gold sequence, not required when SC FDMA operation is done,
+	        LOG_D(PHY,"DMRS in symbol %d\n",l);
           nr_modulation(pusch_dmrs[l][0], n_dmrs*2, DMRS_MOD_ORDER, mod_dmrs); // currently only codeword 0 is modulated. Qm = 2 as DMRS is QPSK modulated
         
         } else {
@@ -368,9 +372,9 @@ void nr_ue_ulsch_procedures(PHY_VARS_NR_UE *UE,
         }
        
        
-      } else if (pusch_pdu->pdu_bit_map & PUSCH_PDU_BITMAP_PUSCH_PTRS) {       
+      } else if (pusch_pdu->pdu_bit_map & PUSCH_PDU_BITMAP_PUSCH_PTRS) {
 
-        AssertFatal(pusch_pdu->transform_precoding == transform_precoder_disabled, "PTRS NOT SUPPORTED IF TRANSFORM PRECODING IS ENABLED\n"); 
+        AssertFatal(pusch_pdu->transform_precoding == 1, "PTRS NOT SUPPORTED IF TRANSFORM PRECODING IS ENABLED\n");
 
         if(is_ptrs_symbol(l, ulsch_ue->ptrs_symbols)) {
           is_ptrs_sym = 1;
@@ -401,8 +405,8 @@ void nr_ue_ulsch_procedures(PHY_VARS_NR_UE *UE,
         }
 
         if (is_dmrs == 1) {
-
-          if (pusch_pdu->transform_precoding == transform_precoder_enabled) { 
+          // if transform precoding is enabled
+          if (pusch_pdu->transform_precoding == 0) {
           
             ((int16_t*)txdataF[ap])[(sample_offsetF)<<1] = (Wt[l_prime[0]]*Wf[k_prime]*AMP*dmrs_seq[2*dmrs_idx]) >> 15;
             ((int16_t*)txdataF[ap])[((sample_offsetF)<<1) + 1] = (Wt[l_prime[0]]*Wf[k_prime]*AMP*dmrs_seq[(2*dmrs_idx) + 1]) >> 15;
@@ -525,7 +529,8 @@ uint8_t nr_ue_pusch_common_procedures(PHY_VARS_NR_UE *UE,
       nr_normal_prefix_mod(txdataF[ap],
                            &txdata[ap][tx_offset],
                            14,
-                           frame_parms);
+                           frame_parms,
+                           slot);
     }
   }
 

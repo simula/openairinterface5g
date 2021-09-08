@@ -49,6 +49,9 @@ typedef struct {
   char *opcStr;
   char *amfStr;
   char *sqnStr;
+  char *dnnStr;
+  int  nssai_sst;
+  int  nssai_sd;
   uint8_t key[16];
   uint8_t opc[16];
   uint8_t amf[2];
@@ -66,6 +69,8 @@ typedef struct {
 /*
  * Read the configuration file, section name variable to be able to manage several UICC
  */
+uicc_t *checkUicc(int Mod_id);
 uicc_t *init_uicc(char *sectionName);
 void uicc_milenage_generate(uint8_t * autn, uicc_t *uicc);
+uicc_t * checkUicc(int Mod_id);
 #endif

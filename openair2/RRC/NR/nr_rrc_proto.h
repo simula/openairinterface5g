@@ -73,26 +73,24 @@ void rrc_add_nsa_user(gNB_RRC_INST *rrc,struct rrc_gNB_ue_context_s *ue_context_
 
 void rrc_remove_nsa_user(gNB_RRC_INST *rrc, int rnti);
 
-void fill_default_initialDownlinkBWP(NR_BWP_Downlink_t *bwp, NR_ServingCellConfigCommon_t *servingcellconfigcommon);
-
-void fill_default_coresetZero(NR_ControlResourceSet_t *coreset0, NR_ServingCellConfigCommon_t *servingcellconfigcommon);
-
-void fill_default_searchSpaceZero(NR_SearchSpace_t *ss0);
-
 void fill_default_secondaryCellGroup(NR_ServingCellConfigCommon_t *servingcellconfigcommon,
                                      NR_ServingCellConfig_t *servingcellconfigdedicated,
                                      NR_CellGroupConfig_t *secondaryCellGroup,
                                      int scg_id,
                                      int servCellIndex,
-                                     int n_physical_antenna_ports,
+                                     int dl_antenna_ports,
+                                     int do_csirs,
                                      int initial_csi_index,
                                      int uid);
+
+void config_csirs(NR_ServingCellConfigCommon_t *servingcellconfigcommon, NR_CSI_MeasConfig_t *csi_MeasConfig, int dl_antenna_ports, int do_csirs);
 
 void fill_default_reconfig(NR_ServingCellConfigCommon_t *servingcellconfigcommon,
                            NR_ServingCellConfig_t *servingcellconfigdedicated,
                            NR_RRCReconfiguration_IEs_t *reconfig,
                            NR_CellGroupConfig_t *secondaryCellGroup,
-                           int n_physical_antenna_ports,
+                           int dl_antenna_ports,
+                           int do_csirs,
                            int initial_csi_index,
                            int uid);
 
@@ -105,6 +103,21 @@ int generate_CG_Config(gNB_RRC_INST *rrc,
 		       NR_CG_Config_t *cg_Config,
 		       NR_RRCReconfiguration_t *reconfig,
 		       NR_RadioBearerConfig_t *rbconfig);
+
+void apply_macrlc_config(gNB_RRC_INST *rrc,
+                         rrc_gNB_ue_context_t         *const ue_context_pP,
+                         const protocol_ctxt_t        *const ctxt_pP );
+
+void apply_pdcp_config(rrc_gNB_ue_context_t         *const ue_context_pP,
+                       const protocol_ctxt_t        *const ctxt_pP );
+
+void
+rrc_gNB_generate_RRCSetup(
+    const protocol_ctxt_t        *const ctxt_pP,
+    rrc_gNB_ue_context_t         *const ue_context_pP,
+    OCTET_STRING_t               *masterCellGroup_from_DU,
+    NR_ServingCellConfigCommon_t *scc,
+    const int                    CC_id);
 
 int parse_CG_ConfigInfo(gNB_RRC_INST *rrc, NR_CG_ConfigInfo_t *CG_ConfigInfo, x2ap_ENDC_sgnb_addition_req_t *m);
 
@@ -177,6 +190,7 @@ int8_t nr_mac_rrc_data_ind(
 int nr_rrc_gNB_decode_ccch(protocol_ctxt_t    *const ctxt_pP,
                            const uint8_t      *buffer,
                            int                buffer_length,
+                           OCTET_STRING_t     *du_to_cu_rrc_container,
                            const int          CC_id);
 
 void
@@ -186,3 +200,8 @@ rrc_gNB_generate_dedicatedRRCReconfiguration_release(
     uint8_t                  xid,
     uint32_t                 nas_length,
     uint8_t                 *nas_buffer);
+
+void 
+rrc_gNB_generate_dedicatedRRCReconfiguration(
+    const protocol_ctxt_t     *const ctxt_pP,
+    rrc_gNB_ue_context_t      *ue_context_pP);

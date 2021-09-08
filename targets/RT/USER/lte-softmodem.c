@@ -103,9 +103,6 @@ pthread_cond_t nfapi_sync_cond;
 pthread_mutex_t nfapi_sync_mutex;
 int nfapi_sync_var=-1; //!< protected by mutex \ref nfapi_sync_mutex
 
-msc_interface_t msc_interface;
-
-
 uint16_t sf_ahead=4;
 
 pthread_cond_t sync_cond;
@@ -172,8 +169,6 @@ extern void reset_opp_meas(void);
 extern void print_opp_meas(void);
 
 
-extern void init_eNB_afterRU(void);
-
 RU_t **RCconfig_RU(int nb_RU,int nb_L1_inst,PHY_VARS_eNB ***eNB,uint64_t *ru_mask,pthread_mutex_t *ru_mutex,pthread_cond_t *ru_cond);
 
 int transmission_mode=1;
@@ -187,6 +182,7 @@ eth_params_t *eth_params;
 double cpuf;
 
 int oaisim_flag=0;
+uint8_t proto_agent_flag = 0;
 
 
 /* forward declarations */
@@ -528,6 +524,8 @@ int main ( int argc, char **argv )
   int CC_id = 0;
   int ru_id;
   int node_type = ngran_eNB;
+
+  start_background_system();
 
   if ( load_configmodule(argc,argv,0) == NULL) {
     exit_fun("[SOFTMODEM] Error, configuration module init failed\n");

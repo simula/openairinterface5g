@@ -19,23 +19,12 @@
  *      contact@openairinterface.org
  */
 
-/***************************************************************************
-                          fifo_printf_proto_extern.h  -  description
-                             -------------------
-  AUTHOR  : Lionel GAUTHIER
-  COMPANY : EURECOM
-  EMAIL   : Lionel.Gauthier@eurecom.fr
+#include <stdint.h>
 
+#ifndef _NR_PDCP_H_
+#define _NR_PDCP_H_
 
+void nr_pdcp_layer_init_ue(void);
+void nr_DRB_preconfiguration(uint16_t crnti);
 
- ***************************************************************************/
-#ifndef __FIFO_PRINTF_PROTO_EXTERN_H__
-#    define __FIFO_PRINTF_PROTO_EXTERN_H__
-#ifdef FIFO_PRINTF
-extern void     fifo_printf_init (void);
-extern void     fifo_printf_clean_up (void);
-extern int      fifo_printf (const char *fmt, ...);
-#else
-extern int      fifo_printf_null (const char *fmt, ...);
-#endif
-#endif
+#endif /* _NR_PDCP_H_ */

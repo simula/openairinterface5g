@@ -86,7 +86,7 @@ void nr_pdsch_codeword_scrambling_optim(uint8_t *in,
   for (int i=0; i<((size>>5)+((size&0x1f) > 0 ? 1 : 0)); i++) {
     in32=_mm256_movemask_epi8(_mm256_slli_epi16(((__m256i*)in)[i],7));
     out[i]=(in32^s);
-    //    printf("in[%d] %x => %x\n",i,in32,out[i]);
+    //printf("in[%d] %x => %x\n",i,in32,out[i]);
     s=lte_gold_generic(&x1, &x2, 0);
   }
 #elif defined(__SSE4__)
@@ -213,7 +213,7 @@ uint8_t nr_generate_pdsch(PHY_VARS_gNB *gNB,
       nr_pdsch_codeword_scrambling_optim(harq->f,
 					 encoded_length,
 					 q,
-					 rel15->dlDmrsScramblingId,
+					 rel15->dataScramblingId,
 					 rel15->rnti,
 					 scrambled_output[q]);
     
@@ -278,8 +278,9 @@ uint8_t nr_generate_pdsch(PHY_VARS_gNB *gNB,
     printf("PDSCH resource mapping started (start SC %d\tstart symbol %d\tN_PRB %d\tnb_re %d,nb_layers %d)\n",
 	   start_sc, rel15->StartSymbolIndex, rel15->rbSize, nb_re,rel15->nrOfLayers);
 #endif
+
     for (int ap=0; ap<rel15->nrOfLayers; ap++) {
-      
+
       // DMRS params for this ap
       get_Wt(Wt, ap, dmrs_Type);
       get_Wf(Wf, ap, dmrs_Type);
@@ -448,7 +449,7 @@ uint8_t nr_generate_pdsch(PHY_VARS_gNB *gNB,
                      (void*)&txdataF_precoding[ap][2*(l*frame_parms->ofdm_symbol_size + txdataF_offset+ k)],
                      NR_NB_SC_PER_RB*sizeof(int32_t));
             else
-              memset((void*)&txdataF[ap][rel15->StartSymbolIndex*frame_parms->ofdm_symbol_size + txdataF_offset +k],
+              memset((void*)&txdataF[ap][l*frame_parms->ofdm_symbol_size + txdataF_offset + k],
                      0,
                      NR_NB_SC_PER_RB*sizeof(int32_t));
             k += NR_NB_SC_PER_RB;

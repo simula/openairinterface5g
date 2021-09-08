@@ -673,6 +673,7 @@ typedef struct {
 #define NFAPI_NR_SLOT_INDICATION_PERIOD_NUMEROLOGY_3 125 //us
 
 typedef struct {
+  nfapi_p7_message_header_t header;
 	uint16_t sfn; //0->1023   
   uint16_t slot;//0->319
   
@@ -1492,10 +1493,11 @@ typedef struct
 
 typedef struct
 {
+  nfapi_p7_message_header_t header;
   uint16_t sfn;
   uint16_t slot;
   uint16_t number_of_pdus;
-  nfapi_nr_rx_data_pdu_t* pdu_list;
+  nfapi_nr_rx_data_pdu_t *pdu_list; 
 
 } nfapi_nr_rx_data_indication_t;
 
@@ -1518,6 +1520,7 @@ typedef struct
 
 typedef struct
 {
+  nfapi_p7_message_header_t header;
   uint16_t sfn;
   uint16_t slot;
   uint16_t number_crcs;
@@ -1571,8 +1574,7 @@ typedef struct
 {
   uint8_t  csi_part1_crc;
   uint16_t csi_part1_bit_len;
-  //! fixme
-  uint8_t*  csi_part1_payload;//uint8_t[ceil(csiPart1BitLen/8)]
+  uint8_t*  csi_part1_payload;
   
 } nfapi_nr_csi_part1_pdu_t;
 
@@ -1581,8 +1583,7 @@ typedef struct
 {
   uint8_t  csi_part2_crc;
   uint16_t csi_part2_bit_len;
-  //! fixme
-  uint8_t*  csi_part2_payload;//uint8_t[ceil(csiPart2BitLen/8)]
+  uint8_t*  csi_part2_payload;
 } nfapi_nr_csi_part2_pdu_t;
 
 //table 3-63
@@ -1655,6 +1656,7 @@ typedef struct
 
 typedef struct
 {
+  nfapi_p7_message_header_t header;
   uint16_t sfn;
   uint16_t slot;
   uint16_t num_ucis;
@@ -1691,6 +1693,7 @@ typedef struct
 
 typedef struct
 {
+  nfapi_p7_message_header_t header;
   uint16_t sfn;
   uint16_t slot;
   uint8_t number_of_pdus;
@@ -1723,6 +1726,7 @@ typedef struct{
 
 typedef struct
 {
+  nfapi_p7_message_header_t header;
   uint16_t sfn;
   uint16_t slot;
   uint8_t number_of_pdus;

@@ -240,7 +240,7 @@ static void genericWaterFall (OAIgraph_t *graph, scopeSample_t *values, const in
   for (int pix=0; pix<graph->w; pix++) {
     scopeSample_t *end=values+(pix+1)*samplesPerPixel;
     end-=2;
-    AssertFatal(end <= values+datasize,"diff : %u", end-values+datasize);
+    AssertFatal(end <= values+datasize,"diff : %ld", end-values+datasize);
     double val=0;
 
     for (scopeSample_t *s=values+(pix)*samplesPerPixel;
@@ -894,7 +894,7 @@ void phy_scope_nrUE(OAI_phy_scope_t *form,
 static void *nrUEscopeThread(void *arg) {
   PHY_VARS_NR_UE *ue=(PHY_VARS_NR_UE *)arg;
   size_t stksize;
-  pthread_attr_t atr;
+  pthread_attr_t atr={0};
   pthread_attr_getstacksize(&atr, &stksize);
   pthread_attr_setstacksize(&atr,32*1024*1024 );
   int fl_argc=1;

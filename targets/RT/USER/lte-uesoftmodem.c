@@ -86,7 +86,6 @@
 #include "lte-softmodem.h"
 
 
-msc_interface_t msc_interface;
 /* temporary compilation wokaround (UE/eNB split */
 uint16_t sf_ahead;
 
@@ -758,6 +757,7 @@ int main( int argc, char **argv ) {
   printf("sync sent\n");
   /*
     printf("About to call end_configmodule() from %s() %s:%d\n", __FUNCTION__, __FILE__, __LINE__);
+    We have to set properly PARAMFLAG_NOFREE
     end_configmodule();
     printf("Called end_configmodule() from %s() %s:%d\n", __FUNCTION__, __FILE__, __LINE__);
   */

@@ -19,19 +19,16 @@
  *      contact@openairinterface.org
  */
 
-/***************************************************************************
-                          fifo_printf.h  -  description
-                             -------------------
-  AUTHOR  : Lionel GAUTHIER
-  COMPANY : EURECOM
-  EMAIL   : Lionel.Gauthier@eurecom.fr
+#include "COMMON/platform_types.h"
+#include "common/ran_context.h"
+#include "common/utils/LOG/log.h"
+#include "NR_BCCH-BCH-Message.h"
+#include "NR_ServingCellConfigCommon.h"
+#include "NR_MIB.h"
 
+void apply_macrlc_config(gNB_RRC_INST *rrc,
+                         rrc_gNB_ue_context_t         *const ue_context_pP,
+                         const protocol_ctxt_t        *const ctxt_pP ) {
+abort();
+}
 
- ***************************************************************************/
-#ifndef __FIFO_PRINTF_H__
-#    define __FIFO_PRINTF_H__
-#    define FIFO_PRINTF_MAX_STRING_SIZE   500
-#    define FIFO_PRINTF_L1_NO              63
-#    define FIFO_PRINTF_L2_NO              62
-#    define FIFO_PRINTF_SIZE            65536
-#endif

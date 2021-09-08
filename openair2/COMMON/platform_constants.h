@@ -32,14 +32,9 @@
 #ifndef __PLATFORM_CONSTANTS_H__
 #    define __PLATFORM_CONSTANTS_H__
 
-#ifndef NO_RRC
 #include "LTE_asn_constant.h"
 #include "NR_asn_constant.h"
-#else 
-#define LTE_maxDRB 14
-#define LTE_maxDRB_NB_r13 5
 #define NR_MAXDRB 14
-#endif
 
 #ifdef JUMBO_FRAME
   #define NL_MAX_PAYLOAD 18000  /* this should cover the max mtu size*/
@@ -94,6 +89,7 @@
   #define MAX_gNB                      2
 #endif
 
+#define NUMBER_OF_NR_UCI_STATS_MAX 16
 #define MAX_MANAGED_ENB_PER_MOBILE  2
 #define MAX_MANAGED_GNB_PER_MOBILE  2
 

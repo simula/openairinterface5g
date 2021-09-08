@@ -182,9 +182,12 @@ class HTMLManagement():
 				self.htmlFile.write('     </tr>\n')
 			self.htmlFile.write('  </table>\n')
 
-			if (ADBIPAddress != 'none'):
+			if (ADBIPAddress != 'none') and (ADBIPAddress != 'modules'):
 				self.htmlFile.write('  <h2><span class="glyphicon glyphicon-phone"></span> <span class="glyphicon glyphicon-menu-right"></span> ' + str(self.htmlNb_Smartphones) + ' UE(s) is(are) connected to ADB bench server</h2>\n')
 				self.htmlFile.write('  <h2><span class="glyphicon glyphicon-phone"></span> <span class="glyphicon glyphicon-menu-right"></span> ' + str(self.htmlNb_CATM_Modules) + ' CAT-M UE(s) is(are) connected to bench server</h2>\n')
+			elif (ADBIPAddress == 'modules'):
+				self.htmlUEConnected = 1
+				self.htmlFile.write('  <h2><span class="glyphicon glyphicon-phone"></span> <span class="glyphicon glyphicon-menu-right"></span> 1 commercial module is connected to CI bench</h2>\n')
 			else:
 				self.htmlUEConnected = 1
 				self.htmlFile.write('  <h2><span class="glyphicon glyphicon-phone"></span> <span class="glyphicon glyphicon-menu-right"></span> 1 OAI UE(s) is(are) connected to CI bench</h2>\n')
@@ -365,6 +368,16 @@ class HTMLManagement():
 				self.htmlFile.write('        <td bgcolor = "lightcoral" >KO - SPGW process not found</td>\n')
 			elif (processesStatus == CONST.UE_IP_ADDRESS_ISSUE):
 				self.htmlFile.write('        <td bgcolor = "lightcoral" >KO - Could not retrieve UE IP address</td>\n')
+			elif (processesStatus == CONST.PHYSIM_IMAGE_ABSENT):
+				self.htmlFile.write('        <td bgcolor = "lightcoral" >KO - No such image oai-physim</td>\n')
+			elif (processesStatus == CONST.OC_LOGIN_FAIL):
+				self.htmlFile.write('        <td bgcolor = "lightcoral" >KO - Could not log onto cluster</td>\n')
+			elif (processesStatus == CONST.OC_PROJECT_FAIL):
+				self.htmlFile.write('        <td bgcolor = "lightcoral" >KO - Could not register into cluster project</td>\n')
+			elif (processesStatus == CONST.OC_IS_FAIL):
+				self.htmlFile.write('        <td bgcolor = "lightcoral" >KO - Could not create Image Stream</td>\n')
+			elif (processesStatus == CONST.OC_PHYSIM_DEPLOY_FAIL):
+				self.htmlFile.write('        <td bgcolor = "lightcoral" >KO - Could not properly deploy physim on cluster</td>\n')
 			else:
 				self.htmlFile.write('        <td bgcolor = "lightcoral" >' + str(status)  + '</td>\n')
 		else:
