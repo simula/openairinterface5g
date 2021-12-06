@@ -422,6 +422,13 @@ typedef struct NR_UE_harq {
 
 //! fixme : need to enhace for the multiple TB CQI report
 
+typedef struct NR_DL_bler_stats {
+  frame_t last_frame_slot;
+  float bler;
+  float rd2_bler;
+  uint8_t mcs;
+  uint64_t dlsch_rounds[8];
+} NR_DL_bler_stats_t;
 
 //
 /*! As per spec 38.214 section 5.2.1.4.2
@@ -565,6 +572,9 @@ typedef struct {
   /// per-LC status data
   mac_rlc_status_resp_t rlc_status[MAX_NUM_LCID];
 
+  /// Estimation of HARQ from BLER
+  NR_DL_bler_stats_t dl_bler_stats;
+
   int lcid_mask;
   int lcid_to_schedule;
   uint16_t ta_frame;
@@ -608,19 +618,19 @@ typedef struct {
 } NRUEcontext_t;
 
 typedef struct {
-  int lc_bytes_tx[64];
-  int lc_bytes_rx[64];
-  int dlsch_rounds[8];
-  int dlsch_errors;
-  int dlsch_total_bytes;
+  uint64_t lc_bytes_tx[64];
+  uint64_t lc_bytes_rx[64];
+  uint64_t dlsch_rounds[8];
+  uint64_t dlsch_errors;
+  uint64_t dlsch_total_bytes;
   int dlsch_current_bytes;
-  int ulsch_rounds[8];
-  int ulsch_errors;
-  int ulsch_DTX;
-  int ulsch_total_bytes_scheduled;
-  int ulsch_total_bytes_rx;
+  uint64_t ulsch_rounds[8];
+  uint64_t ulsch_errors;
+  uint32_t ulsch_DTX;
+  uint64_t ulsch_total_bytes_scheduled;
+  uint64_t ulsch_total_bytes_rx;
   int ulsch_current_bytes;
-  int pucch0_DTX;
+  uint32_t pucch0_DTX;
   int cumul_rsrp;
   uint8_t num_rsrp_meas;
 } NR_mac_stats_t;
@@ -763,6 +773,10 @@ typedef struct gNB_MAC_INST_s {
   NR_Type0_PDCCH_CSS_config_t type0_PDCCH_CSS_config[64];
 
   bool first_MIB;
+  double dl_bler_target_upper;
+  double dl_bler_target_lower;
+  double dl_rd2_bler_threshold;
+  uint8_t dl_max_mcs;
 } gNB_MAC_INST;
 
 #endif /*__LAYER2_NR_MAC_GNB_H__ */

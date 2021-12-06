@@ -573,7 +573,7 @@ void config_control_ue(NR_UE_MAC_INST_t *mac){
   struct NR_PDCCH_Config__searchSpacesToAddModList *searchSpacesToAddModList = pdcch_Config->choice.setup->searchSpacesToAddModList;
   AssertFatal(searchSpacesToAddModList != NULL, "searchSpacesToAddModList is null\n");
   AssertFatal(searchSpacesToAddModList->list.count > 0, "list of UE specifically configured Search Spaces is empty\n");
-  AssertFatal(searchSpacesToAddModList->list.count < FAPI_NR_MAX_SS_PER_CORESET, "too many searchpaces per coreset %d\n", searchSpacesToAddModList->list.count);
+  AssertFatal(searchSpacesToAddModList->list.count < FAPI_NR_MAX_SS, "too many searchpaces per coreset %d\n", searchSpacesToAddModList->list.count);
 
   struct NR_UplinkConfig__uplinkBWP_ToAddModList *uplinkBWP_ToAddModList = scd->uplinkConfig->uplinkBWP_ToAddModList;
   if (ul_bwp_id > 0) {
@@ -597,7 +597,7 @@ void config_control_ue(NR_UE_MAC_INST_t *mac){
     AssertFatal(*ss->controlResourceSetId == mac->coreset[dl_bwp_id][coreset_id - 1]->controlResourceSetId, "ss->controlResourceSetId is unknown\n");
     AssertFatal(ss->monitoringSymbolsWithinSlot != NULL, "NR_SearchSpace->monitoringSymbolsWithinSlot is null\n");
     AssertFatal(ss->monitoringSymbolsWithinSlot->buf != NULL, "NR_SearchSpace->monitoringSymbolsWithinSlot->buf is null\n");
-    mac->SSpace[dl_bwp_id][0][ss_id] = ss;
+    mac->SSpace[dl_bwp_id][ss_id] = ss;
   }
 
   // Check available CSSs in the commonSearchSpaceList (list of additional common search spaces)
@@ -610,7 +610,7 @@ void config_control_ue(NR_UE_MAC_INST_t *mac){
     AssertFatal(css->searchSpaceType != NULL, "css->searchSpaceType is null\n");
     AssertFatal(css->monitoringSymbolsWithinSlot != NULL, "css->monitoringSymbolsWithinSlot is null\n");
     AssertFatal(css->monitoringSymbolsWithinSlot->buf != NULL, "css->monitoringSymbolsWithinSlot->buf is null\n");
-    mac->SSpace[dl_bwp_id][0][ss_id] = css;
+    mac->SSpace[dl_bwp_id][ss_id] = css;
     ss_id++;
   }
 }
@@ -660,6 +660,8 @@ int nr_rrc_mac_config_req_ue(
       if (mac->scc_SIB->tdd_UL_DL_ConfigurationCommon->pattern1.nrofUplinkSymbols>0) num_slots_ul++;
       LOG_I(MAC, "Initializing ul_config_request. num_slots_ul = %d\n", num_slots_ul);
       mac->ul_config_request = (fapi_nr_ul_config_request_t *)calloc(num_slots_ul, sizeof(fapi_nr_ul_config_request_t));
+      for (int i=0; i<num_slots_ul; i++)
+        pthread_mutex_init(&(mac->ul_config_request[i].mutex_ul_config), NULL);
       // Setup the SSB to Rach Occasions mapping according to the config
       build_ssb_to_ro_map(mac);//->scc, mac->phy_config.config_req.cell_config.frame_duplex_type);
       mac->if_module->phy_config_request(&mac->phy_config);
