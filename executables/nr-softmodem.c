@@ -29,8 +29,6 @@
 #undef MALLOC //there are two conflicting definitions, so we better make sure we don't use it at all
 #include <common/utils/assertions.h>
 
-#include "msc.h"
-
 #include "PHY/types.h"
 #include "common/ran_context.h"
 
@@ -64,8 +62,6 @@ unsigned short config_frames[4] = {2,9,11,13};
 #include "common/utils/LOG/vcd_signal_dumper.h"
 #include "UTIL/OPT/opt.h"
 
-//#include "PHY/TOOLS/time_meas.h"
-
 #include "intertask_interface.h"
 
 #include "PHY/INIT/phy_init.h"
@@ -97,7 +93,7 @@ int sync_var=-1; //!< protected by mutex \ref sync_mutex.
 int config_sync_var=-1;
 
 volatile int             start_gNB = 0;
-volatile int             oai_exit = 0;
+int oai_exit = 0;
 
 static int wait_for_sync = 0;
 
@@ -365,7 +361,7 @@ int create_gNB_tasks(uint32_t gnb_nb) {
 
     //Use check on x2ap to consider the NSA scenario and check on AMF_MODE_ENABLED for the SA scenario
     if(is_x2ap_enabled() || AMF_MODE_ENABLED) {
-      if (itti_create_task (TASK_GTPV1_U, &nr_gtpv1u_gNB_task, NULL) < 0) {
+      if (itti_create_task (TASK_GTPV1_U, &gtpv1uTask, NULL) < 0) {
         LOG_E(GTPU, "Create task for GTPV1U failed\n");
         return -1;
       }
@@ -589,47 +585,20 @@ static  void wait_nfapi_init(char *thread_name) {
 }
 
 void init_pdcp(void) {
+  uint32_t pdcp_initmask = (IS_SOFTMODEM_NOS1) ?
+    PDCP_USE_NETLINK_BIT | LINK_ENB_PDCP_TO_IP_DRIVER_BIT | ENB_NAS_USE_TUN_BIT | SOFTMODEM_NOKRNMOD_BIT:
+    LINK_ENB_PDCP_TO_GTPV1U_BIT;
+  
   if (!get_softmodem_params()->nsa) {
     if (!NODE_IS_DU(RC.nrrrc[0]->node_type)) {
-      //pdcp_layer_init();
-      uint32_t pdcp_initmask = (IS_SOFTMODEM_NOS1) ?
-                              (PDCP_USE_NETLINK_BIT | LINK_ENB_PDCP_TO_IP_DRIVER_BIT) : LINK_ENB_PDCP_TO_GTPV1U_BIT;
-
-      if (IS_SOFTMODEM_NOS1) {
-        printf("IS_SOFTMODEM_NOS1 option enabled \n");
-        pdcp_initmask = pdcp_initmask | ENB_NAS_USE_TUN_BIT | SOFTMODEM_NOKRNMOD_BIT;
-      }
-
+      pdcp_layer_init();
       nr_pdcp_module_init(pdcp_initmask, 0);
-
-      if (NODE_IS_CU(RC.nrrrc[0]->node_type)) {
-        LOG_I(PDCP, "node is CU, pdcp send rlc_data_req by proto_agent \n");
-        pdcp_set_rlc_data_req_func((send_rlc_data_req_func_t)proto_agent_send_rlc_data_req);
-      } else {
-        LOG_I(PDCP, "node is gNB \n");
-        pdcp_set_rlc_data_req_func((send_rlc_data_req_func_t) rlc_data_req);
-        pdcp_set_pdcp_data_ind_func((pdcp_data_ind_func_t) pdcp_data_ind);
-      }
-    } else {
-      LOG_I(PDCP, "node is DU, rlc send pdcp_data_ind by proto_agent \n");
-      pdcp_set_pdcp_data_ind_func((pdcp_data_ind_func_t) proto_agent_send_pdcp_data_ind);
     }
   } else {
     pdcp_layer_init();
-    uint32_t pdcp_initmask = (IS_SOFTMODEM_NOS1) ?
-                             (PDCP_USE_NETLINK_BIT | LINK_ENB_PDCP_TO_IP_DRIVER_BIT) : LINK_ENB_PDCP_TO_GTPV1U_BIT;
-
-    if (IS_SOFTMODEM_NOS1) {
-      printf("IS_SOFTMODEM_NOS1 option enabled \n");
-      pdcp_initmask = pdcp_initmask | ENB_NAS_USE_TUN_BIT | SOFTMODEM_NOKRNMOD_BIT;
-    }
-
     nr_pdcp_module_init(pdcp_initmask, 0);
-    pdcp_set_rlc_data_req_func((send_rlc_data_req_func_t) rlc_data_req);
-    pdcp_set_pdcp_data_ind_func((pdcp_data_ind_func_t) pdcp_data_ind);
   }
 }
-
 
 int main( int argc, char **argv ) {
   int ru_id, CC_id = 0;
@@ -684,7 +653,6 @@ int main( int argc, char **argv ) {
   cpuf=get_cpu_freq_GHz();
   itti_init(TASK_MAX, tasks_info);
   // initialize mscgen log after ITTI
-  MSC_INIT(MSC_E_UTRAN, ADDED_QUEUES_MAX+TASK_MAX);
   init_opt();
   if(PDCP_USE_NETLINK && !IS_SOFTMODEM_NOS1) {
     netlink_init();
@@ -748,9 +716,6 @@ int main( int argc, char **argv ) {
 
   printf("NFAPI MODE:%s\n", nfapi_mode_str);
 
-  if (NFAPI_MODE==NFAPI_MODE_VNF)
-    wait_nfapi_init("main?");
-
   printf("START MAIN THREADS\n");
   // start the main threads
   number_of_cards = 1;
@@ -764,7 +729,7 @@ int main( int argc, char **argv ) {
   printf("wait_gNBs()\n");
   wait_gNBs();
   printf("About to Init RU threads RC.nb_RU:%d\n", RC.nb_RU);
-
+  int sl_ahead=6;
   if (RC.nb_RU >0) {
     printf("Initializing RU threads\n");
     init_NR_RU(get_softmodem_params()->rf_config_file);
@@ -772,7 +737,10 @@ int main( int argc, char **argv ) {
     for (ru_id=0; ru_id<RC.nb_RU; ru_id++) {
       RC.ru[ru_id]->rf_map.card=0;
       RC.ru[ru_id]->rf_map.chain=CC_id+chain_offset;
+      if (ru_id==0) sl_ahead = RC.ru[ru_id]->sl_ahead;	
+      else AssertFatal(RC.ru[ru_id]->sl_ahead != RC.ru[0]->sl_ahead,"RU %d has different sl_ahead %d than RU 0 %d\n",ru_id,RC.ru[ru_id]->sl_ahead,RC.ru[0]->sl_ahead);
     }
+    
   }
 
   config_sync_var=0;
@@ -789,6 +757,7 @@ int main( int argc, char **argv ) {
     // once all RUs are ready initialize the rest of the gNBs ((dependence on final RU parameters after configuration)
     printf("ALL RUs ready - init gNBs\n");
 
+    for (int idx=0;idx<RC.nb_nr_L1_inst;idx++) RC.gNB[idx]->if_inst->sl_ahead = sl_ahead;
     if(IS_SOFTMODEM_DOSCOPE) {
       sleep(1);
       scopeParms_t p;
@@ -815,62 +784,31 @@ int main( int argc, char **argv ) {
     pthread_mutex_unlock(&sync_mutex);
   }
 
-  printf("About to call end_configmodule() from %s() %s:%d\n", __FUNCTION__, __FILE__, __LINE__);
-
-  // We have to set PARAMFLAG_NOFREE on right paramters before re-enabling end_configmodule()
-
-  //end_configmodule();
-  printf("Called end_configmodule() from %s() %s:%d\n", __FUNCTION__, __FILE__, __LINE__);
   // wait for end of program
-  printf("TYPE <CTRL-C> TO TERMINATE\n");
-  //getchar();
   printf("Entering ITTI signals handler\n");
+  printf("TYPE <CTRL-C> TO TERMINATE\n");
   itti_wait_tasks_end();
   printf("Returned from ITTI signal handler\n");
   oai_exit=1;
   printf("oai_exit=%d\n",oai_exit);
-  // stop threads
-  /*#ifdef XFORMS
 
-      printf("waiting for XFORMS thread\n");
-
-      if (do_forms==1) {
-        pthread_join(forms_thread,&status);
-        fl_hide_form(form_stats->stats_form);
-        fl_free_form(form_stats->stats_form);
-
-          fl_hide_form(form_stats_l2->stats_form);
-          fl_free_form(form_stats_l2->stats_form);
-
-          for(UE_id=0; UE_id<scope_enb_num_ue; UE_id++) {
-      for(CC_id=0; CC_id<MAX_NUM_CCs; CC_id++) {
-        fl_hide_form(form_enb[CC_id][UE_id]->phy_scope_gNB);
-        fl_free_form(form_enb[CC_id][UE_id]->phy_scope_gNB);
-      }
-          }
-      }
-
-  #endif*/
-  printf("stopping MODEM threads\n");
   // cleanup
-  stop_gNB(NB_gNB_INST);
+  if (RC.nb_nr_L1_inst > 0)
+    stop_gNB(RC.nb_nr_L1_inst);
 
-  if (RC.nb_nr_L1_inst > 0) {
-    stop_RU(NB_RU);
-  }
+  if (RC.nb_RU > 0)
+    stop_RU(RC.nb_RU);
 
   /* release memory used by the RU/gNB threads (incomplete), after all
    * threads have been stopped (they partially use the same memory) */
-  for (int inst = 0; inst < NB_gNB_INST; inst++) {
-    //free_transport(RC.gNB[inst]);
-    phy_free_nr_gNB(RC.gNB[inst]);
-  }
-
-  for (int inst = 0; inst < NB_RU; inst++) {
+  for (int inst = 0; inst < RC.nb_RU; inst++) {
     nr_phy_free_RU(RC.ru[inst]);
   }
 
-  free_lte_top();
+  for (int inst = 0; inst < RC.nb_nr_L1_inst; inst++) {
+    phy_free_nr_gNB(RC.gNB[inst]);
+  }
+
   pthread_cond_destroy(&sync_cond);
   pthread_mutex_destroy(&sync_mutex);
   pthread_cond_destroy(&nfapi_sync_cond);
@@ -879,10 +817,7 @@ int main( int argc, char **argv ) {
 
   // *** Handle per CC_id openair0
 
-  for(ru_id=0; ru_id<NB_RU; ru_id++) {
-    if (RC.ru[ru_id]->rfdevice.trx_end_func)
-      RC.ru[ru_id]->rfdevice.trx_end_func(&RC.ru[ru_id]->rfdevice);
-
+  for(ru_id = 0; ru_id < RC.nb_RU; ru_id++) {
     if (RC.ru[ru_id]->ifdevice.trx_end_func)
       RC.ru[ru_id]->ifdevice.trx_end_func(&RC.ru[ru_id]->ifdevice);
   }

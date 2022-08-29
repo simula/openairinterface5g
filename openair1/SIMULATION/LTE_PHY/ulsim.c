@@ -58,6 +58,12 @@
 #include "common/ran_context.h"
 #include "PHY/LTE_ESTIMATION/lte_estimation.h"
 
+const char *__asan_default_options()
+{
+  /* don't do leak checking in ulsim, not finished yet */
+  return "detect_leaks=0";
+}
+
 double cpuf;
 #define inMicroS(a) (((double)(a))/(get_cpu_freq_GHz()*1000.0))
 //#define MCS_COUNT 23//added for PHY abstraction
@@ -334,10 +340,10 @@ int main(int argc, char **argv) {
   double s_re1[30720],s_im1[30720],r_re1[30720],r_im1[30720];
   double r_re2[30720],r_im2[30720];
   double r_re3[30720],r_im3[30720];
-  double *s_re[2]= {s_re0,s_re1};
-  double *s_im[2]= {s_im0,s_im1};
-  double *r_re[4]= {r_re0,r_re1,r_re2,r_re3};
-  double *r_im[4]= {r_im0,r_im1,r_im2,r_im3};
+  double *s_re[NB_ANTENNAS_TX]= {s_re0,s_re1, NULL, NULL};
+  double *s_im[NB_ANTENNAS_TX]= {s_im0,s_im1, NULL, NULL};
+  double *r_re[NB_ANTENNAS_RX]= {r_re0,r_re1,r_re2,r_re3};
+  double *r_im[NB_ANTENNAS_RX]= {r_im0,r_im1,r_im2,r_im3};
   double forgetting_factor=0.0; //in [0,1] 0 means a new channel every time, 1 means keep the same channel
   double iqim=0.0;
   int cqi_error,cqi_errors,ack_errors,cqi_crc_falsepositives,cqi_crc_falsenegatives;
@@ -352,7 +358,7 @@ int main(int argc, char **argv) {
   unsigned short input_buffer_length;
   unsigned int ret;
   unsigned int coded_bits_per_codeword,nsymb;
-  unsigned int tx_lev=0,tx_lev_dB,trials,errs[5]= {0,0,0,0,0},round_trials[4]= {0,0,0,0};
+  unsigned int tx_lev = 0, tx_lev_dB = 0, trials, errs[6] = {0}, round_trials[4] = {0};
   FILE *bler_fd=NULL;
   char bler_fname[512];
   FILE *time_meas_fd=NULL;
@@ -381,7 +387,6 @@ int main(int argc, char **argv) {
   double cpu_freq_GHz;
   int iter_trials;
   uint32_t UL_alloc_pdu;
-  int s,Kr,Kr_bytes;
   int dump_perf=0;
   static int dump_table =0;
   double effective_rate=0.0;
@@ -1227,20 +1232,21 @@ int main(int argc, char **argv) {
 
             if (n_frames==1) {
               printf("ULSCH errors found o_ACK[0]= %d\n",eNB->ulsch[0]->harq_processes[harq_pid]->o_ACK[0]);
-
+#ifdef DUMP_EACH_VALUE
+              int Kr_bytes;
               for (s=0; s<eNB->ulsch[0]->harq_processes[harq_pid]->C; s++) {
                 if (s<eNB->ulsch[0]->harq_processes[harq_pid]->Cminus)
-                  Kr = eNB->ulsch[0]->harq_processes[harq_pid]->Kminus;
+                  Kr_bytes = eNB->ulsch[0]->harq_processes[harq_pid]->Kminus;
                 else
-                  Kr = eNB->ulsch[0]->harq_processes[harq_pid]->Kplus;
-
-                Kr_bytes = Kr>>3;
+                  Kr_bytes = eNB->ulsch[0]->harq_processes[harq_pid]->Kplus;
+                Kr_bytes = Kr_bytes >> 3;
                 printf("Decoded_output (Segment %d):\n",s);
 
                 for (i=0; i<Kr_bytes; i++)
                   printf("%d : %x (%x)\n",i,eNB->ulsch[0]->harq_processes[harq_pid]->c[s][i],
                          eNB->ulsch[0]->harq_processes[harq_pid]->c[s][i]^UE->ulsch[0]->harq_processes[harq_pid]->c[s][i]);
               }
+#endif
 
               dump_ulsch(eNB,eNB->proc.frame_rx,subframe,0,round);
               round=5;

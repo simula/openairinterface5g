@@ -23,14 +23,13 @@
 #include "../../ARCH/COMMON/common_lib.h"
 //#undef MALLOC
 #include "assertions.h"
-#include "msc.h"
 #include "PHY/types.h"
 #include "PHY/defs_eNB.h"
 #include "PHY/defs_UE.h"
 #include "flexran_agent.h"
 #include "s1ap_eNB.h"
 #include "SIMULATION/ETH_TRANSPORT/proto.h"
-#include "proto_agent.h"
+#include "targets/ARCH/COMMON/common_lib.h"
 #include "executables/softmodem-common.h"
 
 
@@ -51,7 +50,6 @@
     {"debug-ue-prach",           CONFIG_HLP_DBGUEPR,    PARAMFLAG_BOOL,   uptr:NULL,                  defuintval:1,       TYPE_INT,   0},    \
     {"no-L2-connect",            CONFIG_HLP_NOL2CN,     PARAMFLAG_BOOL,   uptr:NULL,                  defuintval:1,       TYPE_INT,   0},    \
     {"calib-prach-tx",           CONFIG_HLP_CALPRACH,   PARAMFLAG_BOOL,   uptr:NULL,                  defuintval:1,       TYPE_INT,   0},    \
-    {"loop-memory",              CONFIG_HLP_UELOOP,     0,                strptr:&loopfile,           defstrval:"iqs.in", TYPE_STRING,0},    \
     {"ue-dump-frame",            CONFIG_HLP_DUMPFRAME,  PARAMFLAG_BOOL,   iptr:&dumpframe,            defintval:0,        TYPE_INT,   0},    \
   }
 #define CMDLINE_CALIBUERX_IDX                   0
@@ -109,7 +107,7 @@
     {"nums_ue_thread",    NULL,                   0,               u16ptr:&(NB_THREAD_INST),           defuintval:1,         TYPE_UINT16,   0},   \
     {"r"  ,               CONFIG_HLP_PRB,         0,               u8ptr:&(frame_parms[0]->N_RB_DL),   defintval:25,         TYPE_UINT8,    0},   \
     {"dlsch-demod-shift", CONFIG_HLP_DLSHIFT,     0,               iptr:(int32_t *)&dlsch_demod_shift, defintval:0,          TYPE_INT,      0},   \
-    {"usrp-args",         CONFIG_HLP_USRP_ARGS,   0,               strptr:(char **)&usrp_args,         defstrval:"type=b200",TYPE_STRING,   0},   \
+    {"usrp-args",         CONFIG_HLP_USRP_ARGS,   0,               strptr:&usrp_args,         defstrval:"type=b200",TYPE_STRING,   0},   \
     {"mmapped-dma",       CONFIG_HLP_DMAMAP,      PARAMFLAG_BOOL,  uptr:&mmapped_dma,                  defintval:0,          TYPE_INT,      0},   \
     {"T" ,                CONFIG_HLP_TDD,         PARAMFLAG_BOOL,  iptr:&tddflag,                      defintval:0,          TYPE_INT,      0},   \
     {"A",                 CONFIG_HLP_TADV,        0,               iptr:&(timingadv),                  defintval:0,          TYPE_INT,      0},   \
@@ -148,7 +146,7 @@ extern int rx_input_level_dBm;
 extern uint64_t num_missed_slots; // counter for the number of missed slots
 
 extern int oaisim_flag;
-extern volatile int oai_exit;
+extern int oai_exit;
 
 extern openair0_config_t openair0_cfg[MAX_CARDS];
 extern pthread_cond_t sync_cond;
@@ -216,5 +214,19 @@ extern void init_UE_standalone_thread(int ue_idx);
 extern PHY_VARS_UE *init_ue_vars(LTE_DL_FRAME_PARMS *frame_parms, uint8_t UE_id, uint8_t abstraction_flag);
 
 extern void init_bler_table(void);
-
+void feptx_ofdm_2thread(RU_t *ru,
+                        int frame,
+                        int subframe);
+void* ru_thread_control( void* param );
+void wait_eNBs(void);
+void kill_feptx_thread(RU_t *ru);
+void init_fep_thread(RU_t *ru, pthread_attr_t *attr_fep);
+void init_feptx_thread(RU_t *ru, pthread_attr_t *attr_feptx);
+void fep_full(RU_t *ru, int subframe);
+void configure_ru(int, void *arg);
+void configure_rru(int, void *arg);
+void ru_fep_full_2thread(RU_t *ru,int subframe);
+void feptx_ofdm(RU_t*ru, int frame_tx, int tti_tx);
+void feptx_prec(struct RU_t_s *ru, int frame_tx, int tti_tx);
+void fill_rf_config(RU_t *ru, char *rf_config_file);
 #endif

@@ -37,7 +37,6 @@
 #undef MALLOC //there are two conflicting definitions, so we better make sure we don't use it at all
 
 #include "assertions.h"
-#include "msc.h"
 
 #include "PHY/types.h"
 
@@ -100,7 +99,7 @@ int config_sync_var=-1;
 uint16_t runtime_phy_rx[29][6]; // SISO [MCS 0-28][RBs 0-5 : 6, 15, 25, 50, 75, 100]
 uint16_t runtime_phy_tx[29][6]; // SISO [MCS 0-28][RBs 0-5 : 6, 15, 25, 50, 75, 100]
 
-volatile int             oai_exit = 0;
+int oai_exit = 0;
 
 unsigned int                    mmapped_dma=0;
 
@@ -177,7 +176,6 @@ extern char uecap_xer[1024];
 char uecap_xer_in=0;
 
 int oaisim_flag=0;
-//threads_t threads= {-1,-1,-1,-1,-1,-1,-1,-1};
 
 /* see file openair2/LAYER2/MAC/main.c for why abstraction_flag is needed
  * this is very hackish - find a proper solution
@@ -277,7 +275,6 @@ uint16_t node_number;
 static void get_options(void) {
   int CC_id=0;
   int tddflag=0;
-  char *loopfile=NULL;
   int dumpframe=0;
   int timingadv=0;
   uint8_t nfapi_mode = NFAPI_MONOLITHIC;
@@ -293,14 +290,6 @@ static void get_options(void) {
   config_process_cmdline( cmdline_uemodeparams,sizeof(cmdline_uemodeparams)/sizeof(paramdef_t),NULL);
   config_process_cmdline( cmdline_ueparams,sizeof(cmdline_ueparams)/sizeof(paramdef_t),NULL);
   nfapi_setmode(nfapi_mode);
-
-
-  if (loopfile != NULL) {
-    printf("Input file for hardware emulation: %s",loopfile);
-    mode=loop_through_memory;
-    input_fd = fopen(loopfile,"r");
-    AssertFatal(input_fd != NULL,"Please provide a valid input file\n");
-  }
 
   get_softmodem_params()->hw_timing_advance = timingadv;
 
@@ -456,6 +445,7 @@ void init_openair0(LTE_DL_FRAME_PARMS *frame_parms,int rxgain) {
     openair0_cfg[card].num_rb_dl=frame_parms->N_RB_DL;
     openair0_cfg[card].clock_source = get_softmodem_params()->clock_source;
     openair0_cfg[card].time_source = get_softmodem_params()->timing_source;
+    openair0_cfg[card].tune_offset = get_softmodem_params()->tune_offset;
     openair0_cfg[card].tx_num_channels=min(2,frame_parms->nb_antennas_tx);
     openair0_cfg[card].rx_num_channels=min(2,frame_parms->nb_antennas_rx);
 
@@ -474,11 +464,12 @@ void init_openair0(LTE_DL_FRAME_PARMS *frame_parms,int rxgain) {
       openair0_cfg[card].tx_gain[i] = tx_gain[0][i];
       openair0_cfg[card].rx_gain[i] = rxgain - rx_gain_off;
       openair0_cfg[card].configFilename = get_softmodem_params()->rf_config_file;
-      printf("Card %d, channel %d, Setting tx_gain %f, rx_gain %f, tx_freq %f, rx_freq %f\n",
+      printf("Card %d, channel %d, Setting tx_gain %.0f, rx_gain %.0f, tx_freq %.0f, rx_freq %.0f, tune_offset %.0f\n",
              card,i, openair0_cfg[card].tx_gain[i],
              openair0_cfg[card].rx_gain[i],
              openair0_cfg[card].tx_freq[i],
-             openair0_cfg[card].rx_freq[i]);
+             openair0_cfg[card].rx_freq[i],
+             openair0_cfg[card].tune_offset);
     }
 
     if (usrp_args) openair0_cfg[card].sdr_addrs = usrp_args;
@@ -520,7 +511,7 @@ int restart_L1L2(module_id_t enb_id) {
 static void init_pdcp(int ue_id) {
   uint32_t pdcp_initmask = (!IS_SOFTMODEM_NOS1) ? LINK_ENB_PDCP_TO_GTPV1U_BIT : (LINK_ENB_PDCP_TO_GTPV1U_BIT | PDCP_USE_NETLINK_BIT | LINK_ENB_PDCP_TO_IP_DRIVER_BIT);
 
-  if (IS_SOFTMODEM_BASICSIM || IS_SOFTMODEM_RFSIM || (nfapi_getmode()==NFAPI_UE_STUB_PNF)) {
+  if (IS_SOFTMODEM_RFSIM || (nfapi_getmode()==NFAPI_UE_STUB_PNF)) {
     pdcp_initmask = pdcp_initmask | UE_NAS_USE_TUN_BIT;
   }
 
@@ -596,12 +587,6 @@ int main( int argc, char **argv ) {
   printf("ITTI init\n");
   itti_init(TASK_MAX, tasks_info);
 
-  // initialize mscgen log after ITTI
-  if (get_softmodem_params()->start_msc) {
-    load_module_shlib("msc",NULL,0,&msc_interface);
-  }
-
-  MSC_INIT(MSC_E_UTRAN, ADDED_QUEUES_MAX+TASK_MAX);
   init_opt();
   ue_id_g = (node_number == 0) ? 0 : node_number-2; //ue_id_g = 0, 1, ...,
   if(node_number == 0)

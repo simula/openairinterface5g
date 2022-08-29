@@ -35,7 +35,6 @@
 #include "f1ap_cu_rrc_message_transfer.h"
 #include "f1ap_cu_ue_context_management.h"
 #include "f1ap_cu_task.h"
-#include "proto_agent.h"
 #include <openair3/ocp-gtpu/gtp_itf.h>
 
 //Fixme: Uniq dirty DU instance, by global var, datamodel need better management
@@ -47,7 +46,7 @@ static instance_t cu_task_create_gtpu_instance_to_du(eth_params_t *IPaddrs) {
   strncpy(tmp.destinationHost, IPaddrs->remote_addr, sizeof(tmp.destinationHost)-1);
   sprintf(tmp.originService, "%d",  IPaddrs->my_portd);
   sprintf(tmp.destinationService, "%d",  IPaddrs->remote_portd);
-  return ocp_gtpv1Init(tmp);
+  return gtpv1Init(tmp);
 }
 
 static void cu_task_handle_sctp_association_ind(instance_t instance, sctp_new_association_ind_t *sctp_new_association_ind,
@@ -173,12 +172,19 @@ void *F1AP_CU_task(void *arg) {
         LOG_I(F1AP, "CU Task Received F1AP_DL_RRC_MESSAGE\n");
         CU_send_DL_RRC_MESSAGE_TRANSFER(ITTI_MSG_DESTINATION_INSTANCE(received_msg),
                                         &F1AP_DL_RRC_MESSAGE(received_msg));
+        free(F1AP_DL_RRC_MESSAGE(received_msg).rrc_container);
         break;
 
       case F1AP_UE_CONTEXT_SETUP_REQ: // from rrc
         LOG_I(F1AP, "CU Task Received F1AP_UE_CONTEXT_SETUP_REQ\n");
         CU_send_UE_CONTEXT_SETUP_REQUEST(ITTI_MSG_DESTINATION_INSTANCE(received_msg),
                                          &F1AP_UE_CONTEXT_SETUP_REQ(received_msg));
+        break;
+
+      case F1AP_UE_CONTEXT_MODIFICATION_REQ:
+        LOG_I(F1AP, "CU Task received F1AP_UE_CONTEXT_MODIFICATION_REQ\n");
+        CU_send_UE_CONTEXT_MODIFICATION_REQUEST(ITTI_MSG_DESTINATION_INSTANCE(received_msg),
+                                                &F1AP_UE_CONTEXT_MODIFICATION_REQ(received_msg));
         break;
 
       case F1AP_UE_CONTEXT_RELEASE_CMD: // from rrc

@@ -43,7 +43,6 @@
 #include "common/utils/LOG/log.h"
 #include "rrc_eNB_UE_context.h"
 #include "pdcp.h"
-#include "msc.h"
 #include "common/ran_context.h"
 
 #include "intertask_interface.h"
@@ -300,7 +299,7 @@ mac_rrc_data_ind(
   const uint8_t        *sduP,
   const sdu_size_t      sdu_lenP,
   const uint8_t         mbsfn_sync_areaP,
-  const boolean_t   brOption
+  const bool            brOption
 )
 //--------------------------------------------------------------------------
 {

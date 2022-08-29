@@ -20,13 +20,12 @@ gnb :
     feptx_prec:
     feptx_ofdm:
     feptx_total:
-    L1 Tx processing thread 0:
-    L1 Tx processing thread 1:
+    L1 Tx processing:
     DLSCH encoding:
     L1 Rx processing:
     PUSCH inner-receiver:
     PUSCH decoding:
-    DL & UL scheduling timing stats:
+    DL & UL scheduling timing:
     UL Indication:
   graph : 
     page1:
@@ -40,12 +39,11 @@ gnb :
       rt.feptx_ofdm:
       rt.feptx_total:
     page3:
-      rt.L1 Tx processing thread 0:
-      rt.L1 Tx processing thread 1:
+      rt.L1 Tx processing:
       rt.DLSCH encoding:
       rt.L1 Rx processing:
     page4:
       rt.PUSCH inner-receiver:
       rt.PUSCH decoding:
-      rt.DL & UL scheduling timing stats:
+      rt.DL & UL scheduling timing:
       rt.UL Indication:

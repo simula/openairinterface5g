@@ -31,6 +31,7 @@
 
 #undef MALLOC //there are two conflicting definitions, so we better make sure we don't use it at all
 
+#include "common/utils/nr/nr_common.h"
 #include "common/utils/assertions.h"
 #include "common/utils/system.h"
 #include "common/ran_context.h"
@@ -79,7 +80,7 @@ static int DEFBFW[] = {0x00007fff};
 #include "nfapi_interface.h"
 #include <nfapi/oai_integration/vendor_ext.h>
 
-extern volatile int oai_exit;
+extern int oai_exit;
 
 extern struct timespec timespec_sub(struct timespec lhs, struct timespec rhs);
 extern struct timespec timespec_add(struct timespec lhs, struct timespec rhs);
@@ -99,9 +100,6 @@ int attach_rru(RU_t *ru);
 int connect_rau(RU_t *ru);
 static void NRRCconfig_RU(void);
 
-uint16_t sf_ahead;
-uint16_t slot_ahead;
-uint16_t sl_ahead;
 
 extern int emulate_rf;
 extern int numerology;
@@ -372,8 +370,8 @@ void fh_if4p5_south_in(RU_t *ru,
   proc->frame_rx = f;
   proc->timestamp_rx = (proc->frame_rx * fp->samples_per_subframe * 10)  + fp->get_samples_slot_timestamp(proc->tti_rx, fp, 0);
   //  proc->timestamp_tx = proc->timestamp_rx +  (4*fp->samples_per_subframe);
-  proc->tti_tx   = (sl+(fp->slots_per_subframe*sf_ahead))%fp->slots_per_frame;
-  proc->frame_tx = (sl>(fp->slots_per_frame-1-(fp->slots_per_subframe*sf_ahead))) ? (f+1)&1023 : f;
+  proc->tti_tx   = (sl+ru->sl_ahead)%fp->slots_per_frame;
+  proc->frame_tx = (sl>(fp->slots_per_frame-1-(ru->sl_ahead))) ? (f+1)&1023 : f;
 
   if (proc->first_rx == 0) {
     if (proc->tti_rx != *slot) {
@@ -703,46 +701,60 @@ void tx_rf(RU_t *ru,int frame,int slot, uint64_t timestamp) {
   nfapi_nr_config_request_scf_t *cfg = &ru->config;
   void *txp[ru->nb_tx];
   unsigned int txs;
-  int i,txsymb=fp->symbols_per_slot;
+  int i;
   T(T_ENB_PHY_OUTPUT_SIGNAL, T_INT(0), T_INT(0), T_INT(frame), T_INT(slot),
     T_INT(0), T_BUFFER(&ru->common.txdata[0][fp->get_samples_slot_timestamp(slot,fp,0)], fp->samples_per_subframe * 4));
-  int slot_type         = nr_slot_select(cfg,frame,slot%fp->slots_per_frame);
-  int prevslot_type     = nr_slot_select(cfg,frame,(slot+(fp->slots_per_frame-1))%fp->slots_per_frame);
-  int nextslot_type     = nr_slot_select(cfg,frame,(slot+1)%fp->slots_per_frame);
   int sf_extension = 0;
   int siglen=fp->get_samples_per_slot(slot,fp);
-  int flags=1;
+  int flags = 0;
 
-  //nr_subframe_t SF_type     = nr_slot_select(cfg,slot%fp->slots_per_frame);
-  if (slot_type == NR_DOWNLINK_SLOT || slot_type == NR_MIXED_SLOT || IS_SOFTMODEM_RFSIM) {
-    if (cfg->cell_config.frame_duplex_type.value == TDD) {
-      if(slot_type == NR_MIXED_SLOT) {
-        txsymb = 0;
+  if (cfg->cell_config.frame_duplex_type.value == TDD && !get_softmodem_params()->continuous_tx) {
+    int slot_type = nr_slot_select(cfg,frame,slot%fp->slots_per_frame);
+    if(slot_type == NR_MIXED_SLOT) {
+      int txsymb = 0;
 
-        for(int symbol_count = 0; symbol_count<NR_NUMBER_OF_SYMBOLS_PER_SLOT; symbol_count++) {
-          if (cfg->tdd_table.max_tdd_periodicity_list[slot].max_num_of_symbol_per_slot_list[symbol_count].slot_config.value == 0)
-            txsymb++;
-        }
+      for(int symbol_count = 0; symbol_count<NR_NUMBER_OF_SYMBOLS_PER_SLOT; symbol_count++) {
+        if (cfg->tdd_table.max_tdd_periodicity_list[slot].max_num_of_symbol_per_slot_list[symbol_count].slot_config.value == 0)
+          txsymb++;
+      }
 
-        AssertFatal(txsymb>0,"illegal txsymb %d\n",txsymb);
+      AssertFatal(txsymb>0,"illegal txsymb %d\n",txsymb);
 
+      if (fp->slots_per_subframe == 1) {
+        if (txsymb <= 7)
+          siglen = (fp->ofdm_symbol_size + fp->nb_prefix_samples0) + (txsymb - 1) * (fp->ofdm_symbol_size + fp->nb_prefix_samples);
+        else
+          siglen = 2 * (fp->ofdm_symbol_size + fp->nb_prefix_samples0) + (txsymb - 2) * (fp->ofdm_symbol_size + fp->nb_prefix_samples);
+      } else {
         if(slot%(fp->slots_per_subframe/2))
           siglen = txsymb * (fp->ofdm_symbol_size + fp->nb_prefix_samples);
         else
           siglen = (fp->ofdm_symbol_size + fp->nb_prefix_samples0) + (txsymb - 1) * (fp->ofdm_symbol_size + fp->nb_prefix_samples);
-
-        //+ ru->end_of_burst_delay;
-        flags = 3; // end of burst
       }
 
-      if (slot_type == NR_DOWNLINK_SLOT && prevslot_type == NR_UPLINK_SLOT) {
+      //+ ru->end_of_burst_delay;
+      flags = 3; // end of burst
+    } else if (slot_type == NR_DOWNLINK_SLOT) {
+      int prevslot_type = nr_slot_select(cfg,frame,(slot+(fp->slots_per_frame-1))%fp->slots_per_frame);
+      int nextslot_type = nr_slot_select(cfg,frame,(slot+1)%fp->slots_per_frame);
+      if (prevslot_type == NR_UPLINK_SLOT) {
         flags = 2; // start of burst
         sf_extension = ru->sf_extension;
-      }
-      if (slot_type == NR_DOWNLINK_SLOT && nextslot_type == NR_UPLINK_SLOT)
+      } else if (nextslot_type == NR_UPLINK_SLOT) {
         flags = 3; // end of burst
+      } else {
+        flags = 1; // middle of burst
+      }
     }
+  } else { // FDD
+    if (proc->first_tx == 1) {
+      flags = 2; // start of burst
+    } else {
+      flags = 1; // middle of burst
+    }
+  }
 
+  if (flags) {
     if (fp->freq_range==nr_FR2) {
       // the beam index is written in bits 8-10 of the flags
       // bit 11 enables the gpio programming
@@ -798,226 +810,13 @@ void fill_rf_config(RU_t *ru, char *rf_config_file) {
   int mu = config->ssb_config.scs_common.value;
   int N_RB = config->carrier_config.dl_grid_size[config->ssb_config.scs_common.value].value;
 
-  if (mu == NR_MU_0) {
-    switch(N_RB) {
-    case 270:
-      if (fp->threequarter_fs) {
-        cfg->sample_rate=92.16e6;
-        cfg->samples_per_frame = 921600;
-        cfg->tx_bw = 50e6;
-        cfg->rx_bw = 50e6;
-      } else {
-        cfg->sample_rate=61.44e6;
-        cfg->samples_per_frame = 614400;
-        cfg->tx_bw = 50e6;
-        cfg->rx_bw = 50e6;
-      }
-    case 216:
-      if (fp->threequarter_fs) {
-        cfg->sample_rate=46.08e6;
-        cfg->samples_per_frame = 460800;
-        cfg->tx_bw = 40e6;
-        cfg->rx_bw = 40e6;
-      }
-      else {
-        cfg->sample_rate=61.44e6;
-        cfg->samples_per_frame = 614400;
-        cfg->tx_bw = 40e6;
-        cfg->rx_bw = 40e6;
-      }
-      break; 
-    case 160: //30 MHz
-    case 133: //25 MHz
-      if (fp->threequarter_fs) {
-        AssertFatal(1==0,"N_RB %d cannot use 3/4 sampling\n",N_RB);
-      }
-      else {
-        cfg->sample_rate=30.72e6;
-        cfg->samples_per_frame = 307200;
-        cfg->tx_bw = 20e6;
-        cfg->rx_bw = 20e6;
-      }
-    case 106:
-      if (fp->threequarter_fs) {
-        cfg->sample_rate=23.04e6;
-        cfg->samples_per_frame = 230400;
-        cfg->tx_bw = 20e6;
-        cfg->rx_bw = 20e6;
-      }
-      else {
-        cfg->sample_rate=30.72e6;
-        cfg->samples_per_frame = 307200;
-        cfg->tx_bw = 20e6;
-        cfg->rx_bw = 20e6;
-      }
-      break;
-    case 52:
-      if (fp->threequarter_fs) {
-        cfg->sample_rate=11.52e6;
-        cfg->samples_per_frame = 115200;
-        cfg->tx_bw = 10e6;
-        cfg->rx_bw = 10e6;
-      }
-      else {
-        cfg->sample_rate=15.36e6;
-        cfg->samples_per_frame = 153600;
-        cfg->tx_bw = 10e6;
-        cfg->rx_bw = 10e6;
-      }
-    case 25:
-      if (fp->threequarter_fs) {
-        cfg->sample_rate=5.76e6;
-        cfg->samples_per_frame = 57600;
-        cfg->tx_bw = 5e6;
-        cfg->rx_bw = 5e6;
-      }
-      else {
-        cfg->sample_rate=7.68e6;
-        cfg->samples_per_frame = 76800;
-        cfg->tx_bw = 5e6;
-        cfg->rx_bw = 5e6;
-      }
-      break;
-    default:
-      AssertFatal(0==1,"N_RB %d not yet supported for numerology %d\n",N_RB,mu);
-    }
-  } else if (mu == NR_MU_1) {
-    switch(N_RB) {
-
-    case 273:
-      if (fp->threequarter_fs) {
-        cfg->sample_rate=184.32e6;
-        cfg->samples_per_frame = 1843200;
-        cfg->tx_bw = 100e6;
-        cfg->rx_bw = 100e6;
-      } else {
-        cfg->sample_rate=122.88e6;
-        cfg->samples_per_frame = 1228800;
-        cfg->tx_bw = 100e6;
-        cfg->rx_bw = 100e6;
-      }
-      break;
-    case 217:
-      if (fp->threequarter_fs) {
-        cfg->sample_rate=92.16e6;
-        cfg->samples_per_frame = 921600;
-        cfg->tx_bw = 80e6;
-        cfg->rx_bw = 80e6;
-      } else {
-        cfg->sample_rate=122.88e6;
-        cfg->samples_per_frame = 1228800;
-        cfg->tx_bw = 80e6;
-        cfg->rx_bw = 80e6;
-      }
-      break;
-    case 162 :
-      if (fp->threequarter_fs) {
-        AssertFatal(1==0,"N_RB %d cannot use 3/4 sampling\n",N_RB);
-      }
-      else {
-        cfg->sample_rate=61.44e6;
-        cfg->samples_per_frame = 614400;
-        cfg->tx_bw = 60e6;
-        cfg->rx_bw = 60e6;
-      }
-
-      break;
-
-    case 133 :
-      if (fp->threequarter_fs) {
-	AssertFatal(1==0,"N_RB %d cannot use 3/4 sampling\n",N_RB);
-      }
-      else {
-        cfg->sample_rate=61.44e6;
-        cfg->samples_per_frame = 614400;
-        cfg->tx_bw = 50e6;
-        cfg->rx_bw = 50e6;
-      }
-
-      break;
-    case 106:
-      if (fp->threequarter_fs) {
-        cfg->sample_rate=46.08e6;
-        cfg->samples_per_frame = 460800;
-        cfg->tx_bw = 40e6;
-        cfg->rx_bw = 40e6;
-      }
-      else {
-        cfg->sample_rate=61.44e6;
-        cfg->samples_per_frame = 614400;
-        cfg->tx_bw = 40e6;
-        cfg->rx_bw = 40e6;
-      }
-     break;
-    case 51:
-      if (fp->threequarter_fs) {
-        cfg->sample_rate=23.04e6;
-        cfg->samples_per_frame = 230400;
-        cfg->tx_bw = 20e6;
-        cfg->rx_bw = 20e6;
-      }
-      else {
-        cfg->sample_rate=30.72e6;
-        cfg->samples_per_frame = 307200;
-        cfg->tx_bw = 20e6;
-        cfg->rx_bw = 20e6;
-      }
-      break;
-    case 24:
-      if (fp->threequarter_fs) {
-        cfg->sample_rate=11.52e6;
-        cfg->samples_per_frame = 115200;
-        cfg->tx_bw = 10e6;
-        cfg->rx_bw = 10e6;
-      }
-      else {
-        cfg->sample_rate=15.36e6;
-        cfg->samples_per_frame = 153600;
-        cfg->tx_bw = 10e6;
-        cfg->rx_bw = 10e6;
-      }
-      break;
-    default:
-      AssertFatal(0==1,"N_RB %d not yet supported for numerology %d\n",N_RB,mu);
-    }
-  } else if (mu == NR_MU_3) {
-    switch(N_RB) {
-      case 66:
-        if (fp->threequarter_fs) {
-          cfg->sample_rate=184.32e6;
-          cfg->samples_per_frame = 1843200;
-          cfg->tx_bw = 100e6;
-          cfg->rx_bw = 100e6;
-        } else {
-          cfg->sample_rate = 122.88e6;
-          cfg->samples_per_frame = 1228800;
-          cfg->tx_bw = 100e6;
-          cfg->rx_bw = 100e6;
-        }
-
-        break;
-
-      case 32:
-        if (fp->threequarter_fs) {
-          cfg->sample_rate=92.16e6;
-          cfg->samples_per_frame = 921600;
-          cfg->tx_bw = 50e6;
-          cfg->rx_bw = 50e6;
-        } else {
-          cfg->sample_rate=61.44e6;
-          cfg->samples_per_frame = 614400;
-          cfg->tx_bw = 50e6;
-          cfg->rx_bw = 50e6;
-        }
-
-        break;
-
-      default:
-        AssertFatal(0==1,"N_RB %d not yet supported for numerology %d\n",N_RB,mu);
-    }
-  } else {
-    AssertFatal(0 == 1,"Numerology %d not supported for the moment\n",mu);
-  }
+  get_samplerate_and_bw(mu,
+                        N_RB,
+                        fp->threequarter_fs,
+                        &cfg->sample_rate,
+                        &cfg->samples_per_frame,
+                        &cfg->tx_bw,
+                        &cfg->rx_bw);
 
   if (config->cell_config.frame_duplex_type.value==TDD)
     cfg->duplex_mode = duplex_mode_TDD;
@@ -1045,11 +844,12 @@ void fill_rf_config(RU_t *ru, char *rf_config_file) {
     cfg->tx_gain[i] = ru->att_tx;
     cfg->rx_gain[i] = ru->max_rxgain-ru->att_rx;
     cfg->configFilename = rf_config_file;
-    LOG_I(PHY, "Channel %d: setting tx_gain offset %f, rx_gain offset %f, tx_freq %lu Hz, rx_freq %lu Hz\n",
+    LOG_I(PHY, "Channel %d: setting tx_gain offset %.0f, rx_gain offset %.0f, tx_freq %.0f Hz, rx_freq %.0f Hz, tune_offset %.0f Hz\n",
           i, cfg->tx_gain[i],
           cfg->rx_gain[i],
-          (unsigned long)cfg->tx_freq[i],
-          (unsigned long)cfg->rx_freq[i]);
+          cfg->tx_freq[i],
+          cfg->rx_freq[i],
+          cfg->tune_offset);
   }
 }
 
@@ -1293,8 +1093,7 @@ void *ru_thread( void *param ) {
     }
   }
 
-  sf_ahead = (uint16_t) ceil((float)6/(0x01<<fp->numerology_index));
-  LOG_I(PHY, "Signaling main thread that RU %d is ready, sf_ahead %d\n",ru->idx,sf_ahead);
+  LOG_I(PHY, "Signaling main thread that RU %d is ready, sl_ahead %d\n",ru->idx,ru->sl_ahead);
   pthread_mutex_lock(&RC.ru_mutex);
   RC.ru_mask &= ~(1<<ru->idx);
   pthread_cond_signal(&RC.ru_cond);
@@ -1312,6 +1111,7 @@ void *ru_thread( void *param ) {
       else LOG_I(PHY,"RU %d rf device ready\n",ru->idx);
     } else LOG_I(PHY,"RU %d no rf device\n",ru->idx);
 
+    LOG_I(PHY,"RU %d RF started\n",ru->idx);
     // start trx write thread
     if(usrp_tx_thread == 1) {
       if (ru->start_write_thread) {
@@ -1379,9 +1179,12 @@ void *ru_thread( void *param ) {
       opp_enabled = opp_enabled0;
     }
     if (initial_wait == 0 && ru->rx_fhaul.trials > 1000) reset_meas(&ru->rx_fhaul);
-    proc->timestamp_tx = proc->timestamp_rx + (sf_ahead*fp->samples_per_subframe);
-    proc->frame_tx     = (proc->tti_rx > (fp->slots_per_frame-1-(fp->slots_per_subframe*sf_ahead))) ? (proc->frame_rx+1)&1023 : proc->frame_rx;
-    proc->tti_tx      = (proc->tti_rx + (fp->slots_per_subframe*sf_ahead))%fp->slots_per_frame;
+    proc->timestamp_tx = proc->timestamp_rx;
+    int sl=proc->tti_tx;
+    for (int slidx=0;slidx<ru->sl_ahead;slidx++)
+       proc->timestamp_tx += fp->get_samples_per_slot((sl+slidx)%fp->slots_per_frame,fp);
+    proc->frame_tx     = (proc->tti_rx > (fp->slots_per_frame-1-(ru->sl_ahead))) ? (proc->frame_rx+1)&1023 : proc->frame_rx;
+    proc->tti_tx      = (proc->tti_rx + ru->sl_ahead)%fp->slots_per_frame;
     LOG_D(PHY,"AFTER fh_south_in - SFN/SL:%d%d RU->proc[RX:%d.%d TX:%d.%d] RC.gNB[0]:[RX:%d%d TX(SFN):%d]\n",
           frame,slot,
           proc->frame_rx,proc->tti_rx,
@@ -1412,7 +1215,6 @@ void *ru_thread( void *param ) {
         // Do PRACH RU processing
         int prach_id=find_nr_prach_ru(ru,proc->frame_rx,proc->tti_rx,SEARCH_EXIST);
         uint8_t prachStartSymbol,N_dur;
-
         if (prach_id>=0) {
           T(T_GNB_PHY_PRACH_INPUT_SIGNAL, T_INT(proc->frame_rx), T_INT(proc->tti_rx), T_INT(0),
             T_BUFFER(&ru->common.rxdata[0][fp->get_samples_slot_timestamp(proc->tti_rx-1,fp,0)]/*-ru->N_TA_offset*/, fp->get_samples_per_slot(proc->tti_rx,fp)*4*2));
@@ -1449,7 +1251,9 @@ void *ru_thread( void *param ) {
     }
 
     // At this point, all information for subframe has been received on FH interface
-    res = pullTpool(gNB->resp_L1, gNB->threadPool);
+    res = pullTpool(&gNB->resp_L1, &gNB->threadPool);
+    if (res == NULL)
+      break; // Tpool has been stopped
     syncMsg = (processingData_L1_t *)NotifiedFifoData(res);
     syncMsg->gNB = gNB;
     syncMsg->frame_rx = proc->frame_rx;
@@ -1458,7 +1262,7 @@ void *ru_thread( void *param ) {
     syncMsg->slot_tx = proc->tti_tx;
     syncMsg->timestamp_tx = proc->timestamp_tx;
     res->key = proc->tti_rx;
-    pushTpool(gNB->threadPool, res);
+    pushTpool(&gNB->threadPool, res);
   }
 
   printf( "Exiting ru_thread \n");
@@ -1468,13 +1272,6 @@ void *ru_thread( void *param ) {
       LOG_E(HW,"Could not stop the RF device\n");
     else LOG_I(PHY,"RU %d rf device stopped\n",ru->idx);
   }
-
-  res = pullNotifiedFIFO(gNB->resp_L1);
-  delNotifiedFIFO_elt(res);
-  res = pullNotifiedFIFO(gNB->L1_tx_free);
-  delNotifiedFIFO_elt(res);
-  res = pullNotifiedFIFO(gNB->L1_tx_free);
-  delNotifiedFIFO_elt(res);
 
   ru_thread_status = 0;
   return &ru_thread_status;
@@ -1534,40 +1331,26 @@ void init_RU_proc(RU_t *ru) {
 
 }
 
+
 void kill_NR_RU_proc(int inst) {
   RU_t *ru = RC.ru[inst];
   RU_proc_t *proc = &ru->proc;
-  LOG_D(PHY, "Joining pthread_FH\n");
+
+  /* Note: it seems pthread_FH and and FEP thread below both use
+   * mutex_fep/cond_fep. Thus, we unlocked above for pthread_FH above and do
+   * the same for FEP thread below again (using broadcast() to ensure both
+   * threads get the signal). This one will also destroy the mutex and cond. */
+  pthread_mutex_lock(&proc->mutex_fep);
+  proc->instance_cnt_fep = 0;
+  pthread_cond_broadcast(&proc->cond_fep);
+  pthread_mutex_unlock( &proc->mutex_fep );
   pthread_join(proc->pthread_FH, NULL);
 
-  if (get_nprocs() >= 2) {
-    if (ru->feprx) {
-      pthread_mutex_lock(&proc->mutex_fep);
-      proc->instance_cnt_fep = 0;
-      pthread_mutex_unlock(&proc->mutex_fep);
-      pthread_cond_signal(&proc->cond_fep);
-      LOG_D(PHY, "Joining pthread_fep\n");
-      pthread_join(proc->pthread_fep, NULL);
-      pthread_mutex_destroy(&proc->mutex_fep);
-      pthread_cond_destroy(&proc->cond_fep);
-    }
+  if (ru->feprx)
+    nr_kill_feprx_thread(ru);
 
-    if (ru->feptx_ofdm) {
-      pthread_mutex_lock(&proc->mutex_feptx);
-      proc->instance_cnt_feptx = 0;
-      pthread_mutex_unlock(&proc->mutex_feptx);
-      pthread_cond_signal(&proc->cond_feptx);
-      LOG_D(PHY, "Joining pthread_feptx\n");
-      pthread_join(proc->pthread_feptx, NULL);
-      pthread_mutex_destroy(&proc->mutex_feptx);
-      pthread_cond_destroy(&proc->cond_feptx);
-    }
-  }
-
-  if (opp_enabled) {
-    LOG_D(PHY, "Joining ru_stats_thread\n");
-    pthread_join(ru->ru_stats_thread, NULL);
-  }
+  if (ru->feptx_ofdm)
+    nr_kill_feptx_thread(ru);
 }
 
 int check_capabilities(RU_t *ru,RRU_capabilities_t *cap) {
@@ -2045,6 +1828,8 @@ static void NRRCconfig_RU(void) {
         RC.ru[j]->openair0_cfg.time_source = internal;
       }
 
+      RC.ru[j]->openair0_cfg.tune_offset = get_softmodem_params()->tune_offset;
+
       if (strcmp(*(RUParamList.paramarray[j][RU_LOCAL_RF_IDX].strptr), "yes") == 0) {
         if ( !(config_isparamset(RUParamList.paramarray[j],RU_LOCAL_IF_NAME_IDX)) ) {
           RC.ru[j]->if_south                        = LOCAL_RF;
@@ -2084,9 +1869,7 @@ static void NRRCconfig_RU(void) {
 
         RC.ru[j]->max_pdschReferenceSignalPower     = *(RUParamList.paramarray[j][RU_MAX_RS_EPRE_IDX].uptr);;
         RC.ru[j]->max_rxgain                        = *(RUParamList.paramarray[j][RU_MAX_RXGAIN_IDX].uptr);
-        RC.ru[j]->num_bands                         = RUParamList.paramarray[j][RU_BAND_LIST_IDX].numelt;
         RC.ru[j]->sf_extension                      = *(RUParamList.paramarray[j][RU_SF_EXTENSION_IDX].uptr);
-        for (i=0; i<RC.ru[j]->num_bands; i++) RC.ru[j]->band[i] = RUParamList.paramarray[j][RU_BAND_LIST_IDX].iptr[i];
       } //strcmp(local_rf, "yes") == 0
       else {
         printf("RU %d: Transport %s\n",j,*(RUParamList.paramarray[j][RU_TRANSPORT_PREFERENCE_IDX].strptr));
@@ -2106,8 +1889,6 @@ static void NRRCconfig_RU(void) {
           RC.ru[j]->if_south                     = REMOTE_IF5;
           RC.ru[j]->function                     = NGFI_RAU_IF5;
           RC.ru[j]->eth_params.transp_preference = ETH_UDP_IF5_ECPRI_MODE;
-        } else if (strcmp(*(RUParamList.paramarray[j][RU_TRANSPORT_PREFERENCE_IDX].strptr), "udp_ecpri_if5") == 0) {
-          RC.ru[j]->if_south                     = REMOTE_IF5;
         } else if (strcmp(*(RUParamList.paramarray[j][RU_TRANSPORT_PREFERENCE_IDX].strptr), "raw") == 0) {
           RC.ru[j]->if_south                     = REMOTE_IF5;
           RC.ru[j]->function                     = NGFI_RAU_IF5;
@@ -2130,7 +1911,13 @@ static void NRRCconfig_RU(void) {
       RC.ru[j]->if_frequency                      = *(RUParamList.paramarray[j][RU_IF_FREQUENCY].u64ptr);
       RC.ru[j]->if_freq_offset                    = *(RUParamList.paramarray[j][RU_IF_FREQ_OFFSET].iptr);
       RC.ru[j]->do_precoding                      = *(RUParamList.paramarray[j][RU_DO_PRECODING].iptr);
-
+      RC.ru[j]->sl_ahead                          = *(RUParamList.paramarray[j][RU_SL_AHEAD].iptr);
+      RC.ru[j]->num_bands                         = RUParamList.paramarray[j][RU_BAND_LIST_IDX].numelt;
+      for (i=0; i<RC.ru[j]->num_bands; i++) RC.ru[j]->band[i] = RUParamList.paramarray[j][RU_BAND_LIST_IDX].iptr[i];
+      RC.ru[j]->openair0_cfg.nr_flag              = *(RUParamList.paramarray[j][RU_NR_FLAG].iptr);
+      RC.ru[j]->openair0_cfg.nr_band              = RC.ru[j]->band[0];
+      RC.ru[j]->openair0_cfg.nr_scs_for_raster    = *(RUParamList.paramarray[j][RU_NR_SCS_FOR_RASTER].iptr);
+      printf("[RU %d] Setting nr_flag %d, nr_band %d, nr_scs_for_raster %d\n",j,RC.ru[j]->openair0_cfg.nr_flag,RC.ru[j]->openair0_cfg.nr_band,RC.ru[j]->openair0_cfg.nr_scs_for_raster);
       if (config_isparamset(RUParamList.paramarray[j], RU_BF_WEIGHTS_LIST_IDX)) {
         RC.ru[j]->nb_bfw = RUParamList.paramarray[j][RU_BF_WEIGHTS_LIST_IDX].numelt;
 

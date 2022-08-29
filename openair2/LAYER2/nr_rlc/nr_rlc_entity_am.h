@@ -84,9 +84,6 @@ typedef struct {
   nr_rlc_sdu_segment_t *wait_end;
 
   nr_rlc_sdu_segment_t *retransmit_list;
-  nr_rlc_sdu_segment_t *retransmit_end;
-
-  nr_rlc_sdu_segment_t *ack_list;
 } nr_rlc_entity_am_t;
 
 void nr_rlc_entity_am_recv_sdu(nr_rlc_entity_t *entity,
@@ -102,5 +99,6 @@ void nr_rlc_entity_am_set_time(nr_rlc_entity_t *entity, uint64_t now);
 void nr_rlc_entity_am_discard_sdu(nr_rlc_entity_t *_entity, int sdu_id);
 void nr_rlc_entity_am_reestablishment(nr_rlc_entity_t *_entity);
 void nr_rlc_entity_am_delete(nr_rlc_entity_t *entity);
+int nr_rlc_entity_am_available_tx_space(nr_rlc_entity_t *entity);
 
 #endif /* _NR_RLC_ENTITY_AM_H_ */

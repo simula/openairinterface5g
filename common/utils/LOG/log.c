@@ -380,8 +380,8 @@ void  log_getconfig(log_t *g_log)
 }
 
 int register_log_component(char *name,
-		                   char *fext,
-						   int compidx)
+                           char *fext,
+                           int compidx)
 {
   int computed_compidx=compidx;
 
@@ -409,6 +409,16 @@ int register_log_component(char *name,
   }
 
   return computed_compidx;
+}
+
+static void unregister_all_log_components(void)
+{
+  log_component_t* lc = &g_log->log_component[0];
+  while (lc->name) {
+    free((char *)lc->name); // defined as const, but assigned through strdup()
+    free(lc->filelog_name);
+    lc++;
+  }
 }
 
 int isLogInitDone (void)
@@ -449,7 +459,6 @@ int logInit (void)
   register_log_component("OCG","",OCG);
   register_log_component("PERF","",PERF);
   register_log_component("OIP","",OIP);
-  register_log_component("MSC","log",MSC);
   register_log_component("OCM","log",OCM);
   register_log_component("HW","",HW);
   register_log_component("OSA","",OSA);
@@ -469,6 +478,7 @@ int logInit (void)
   register_log_component("NAS","log",NAS);
   register_log_component("UDP","",UDP_);
   register_log_component("GTPU","",GTPU);
+  register_log_component("SDAP","",SDAP);
   register_log_component("S1AP","",S1AP);
   register_log_component("F1AP","",F1AP);
   register_log_component("M2AP","",M2AP);
@@ -503,6 +513,12 @@ int logInit (void)
   return 0;
 }
 
+void logTerm(void)
+{
+  unregister_all_log_components();
+  free_and_zero(g_log);
+}
+
 #include <sys/syscall.h>
 static inline int log_header(log_component_t *c,
 			     char *log_buffer,
@@ -526,11 +542,11 @@ static inline int log_header(log_component_t *c,
 
   char l[32];
   if (flag & FLAG_FILE_LINE && flag & FLAG_FUNCT )
-    snprintf(l, sizeof l, "(%s:%d) ", func, line);
+    snprintf(l, sizeof l, "(%.23s:%d) ", func, line);
   else if (flag & FLAG_FILE_LINE)
     snprintf(l, sizeof l, "(%d) ", line);
   else if (flag & FLAG_FUNCT)
-    snprintf(l, sizeof l, "(%s) ", func);
+    snprintf(l, sizeof l, "(%.28s) ", func);
   else
     l[0] = 0;
 
@@ -784,15 +800,13 @@ void logClean (void)
   int i;
 
   if(isLogInitDone()) {
-    LOG_UI(PHY,"\n");
-
     for (i=MIN_LOG_COMPONENTS; i < MAX_LOG_COMPONENTS; i++) {
       close_component_filelog(i);
     }
   }
 }
 
-extern volatile int oai_exit;//extern int oai_exit;
+extern int oai_exit;
 void flush_mem_to_file(void)
 {
   int fp;

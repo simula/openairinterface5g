@@ -36,9 +36,6 @@
 */
 
 
-
-
-
 typedef struct {
   uint8_t uci_format;
   uint8_t uci_channel;
@@ -50,7 +47,14 @@ typedef struct {
   uint32_t sr;
 } fapi_nr_uci_pdu_rel15_t;
 
-    
+typedef struct {
+  uint32_t rsrp;
+  int rsrp_dBm;
+  uint8_t rank_indicator;
+  uint8_t i1;
+  uint8_t i2;
+  uint8_t cqi;
+} fapi_nr_csirs_measurements_t;
 
 typedef struct {
   /// frequency_domain_resource;
@@ -87,7 +91,7 @@ typedef struct {
   // N_CCE is L, or number of CCEs for DCI
   int N_CCE;
   uint8_t payloadSize;
-  uint8_t payloadBits[16];
+  uint8_t payloadBits[16] __attribute__((aligned(16))); // will be cast as uint64
   //fapi_nr_dci_pdu_rel15_t dci;
 } fapi_nr_dci_indication_pdu_t;
 
@@ -130,6 +134,7 @@ typedef struct {
     fapi_nr_pdsch_pdu_t pdsch_pdu;
     fapi_nr_ssb_pdu_t ssb_pdu;
     fapi_nr_sib_pdu_t sib_pdu;
+    fapi_nr_csirs_measurements_t csirs_measurements;
   };
 } fapi_nr_rx_indication_body_t;
 
@@ -308,6 +313,7 @@ typedef struct
   uint8_t  transform_precoding;
   uint16_t data_scrambling_id;
   uint8_t  nrOfLayers;
+  uint8_t  Tpmi;
   //DMRS
   uint16_t  ul_dmrs_symb_pos;
   uint8_t  dmrs_config_type;
@@ -339,7 +345,33 @@ typedef struct
 } nfapi_nr_ue_pusch_pdu_t;
 
 typedef struct {
+} fapi_nr_ul_srs_parms_v4;
 
+typedef struct {
+  uint16_t rnti;                      // UE RNTI, Value: 1->65535
+  uint32_t handle;                    // An opaque handling returned in the SRS.indication
+  uint16_t bwp_size;                  // Bandwidth part size [3GPP TS 38.213, sec 12]. Number of contiguous PRBs allocated to the BWP, Value: 1->275
+  uint16_t bwp_start;                 // Bandwidth part start RB index from reference CRB [3GPP TS 38.213, sec 12], Value: 0->274
+  uint8_t subcarrier_spacing;         // subcarrierSpacing [3GPP TS 38.211, sec 4.2], Value:0->4
+  uint8_t cyclic_prefix;              // Cyclic prefix type [3GPP TS 38.211, sec 4.2], 0: Normal; 1: Extended
+  uint8_t num_ant_ports;              // Number of antenna ports N_SRS_ap [3GPP TS 38.211, Sec 6.4.1.4.1], Value: 0 = 1 port, 1 = 2 ports, 2 = 4 ports
+  uint8_t num_symbols;                // Number of symbols N_SRS_symb [3GPP TS 38.211, Sec 6.4.1.4.1], Value: 0 = 1 symbol, 1 = 2 symbols, 2 = 4 symbols
+  uint8_t num_repetitions;            // Repetition factor R [3GPP TS 38.211, Sec 6.4.1.4.3], Value: 0 = 1, 1 = 2, 2 = 4
+  uint8_t time_start_position;        // Starting position in the time domain l_0 [3GPP TS 38.211, Sec 6.4.1.4.1], Note: the MAC undertakes the translation from startPosition to l_0, Value: 0 --> 13
+  uint8_t config_index;               // SRS bandwidth config index C_SRS [3GPP TS 38.211, Sec 6.4.1.4.3], Value: 0 --> 63
+  uint16_t sequence_id;               // SRS sequence ID n_SRS_ID [3GPP TS 38.211, Sec 6.4.1.4.2], Value: 0 --> 1023
+  uint8_t bandwidth_index;            // SRS bandwidth index B_SRS [3GPP TS 38.211, Sec 6.4.1.4.3], Value: 0 --> 3
+  uint8_t comb_size;                  // Transmission comb size K_TC [3GPP TS 38.211, Sec 6.4.1.4.2], Value: 0 = comb size 2, 1 = comb size 4, 2 = comb size 8 (Rel16)
+  uint8_t comb_offset;                // Transmission comb offset K'_TC[3GPP TS 38.211, Sec 6.4.1.4.3], Value: 0 --> 1 (combSize = 0), Value: 0 --> 3 (combSize = 1), Value: 0 --> 7 (combSize = 2)
+  uint8_t cyclic_shift;               // Cyclic shift n_CS_SRS [3GPP TS 38.211, Sec 6.4.1.4.2], Value: 0 --> 7 (combSize = 0), Value: 0 --> 11 (combSize = 1), Value: 0 --> 5 (combSize = 2)
+  uint8_t frequency_position;         // Frequency domain position n_RRC [3GPP TS 38.211, Sec 6.4.1.4.3], Value: 0 --> 67
+  uint16_t frequency_shift;           // Frequency domain shift n_shift [3GPP TS 38.211, Sec 6.4.1.4.3], Value: 0 --> 268
+  uint8_t frequency_hopping;          // Frequency hopping b_hop [3GPP TS 38.211, Sec 6.4.1.4.3], Value: 0 --> 3
+  uint8_t group_or_sequence_hopping;  // Group or sequence hopping configuration (RRC parameter groupOrSequenceHopping in SRSResource IE), Value: 0 = No hopping, 1 = Group hopping groupOrSequenceHopping, 2 = Sequence hopping
+  uint8_t resource_type;              // Type of SRS resource allocation [3GPP TS 38.211, Sec 6.4.1.4.3], Value: 0: aperiodic, 1: semi-persistent, 2: periodic
+  uint16_t t_srs;                     // SRS-Periodicity in slots [3GPP TS 38.211, Sec 6.4.1.4.4], Value: 1,2,3,4,5,8,10,16,20,32,40,64,80,160,320,640,1280,2560
+  uint16_t t_offset;                  // Slot offset value [3GPP TS 38.211, Sec 6.4.1.4.3], Value:0->2559
+  nfapi_nr_ue_ul_beamforming_t beamforming;
 } fapi_nr_ul_config_srs_pdu;
 
 typedef struct {
@@ -348,7 +380,7 @@ typedef struct {
     fapi_nr_ul_config_prach_pdu prach_config_pdu;
     fapi_nr_ul_config_pucch_pdu pucch_config_pdu;
     nfapi_nr_ue_pusch_pdu_t     pusch_config_pdu;
-    fapi_nr_ul_config_srs_pdu srs_config_pdu;
+    fapi_nr_ul_config_srs_pdu   srs_config_pdu;
   };
 } fapi_nr_ul_config_request_pdu_t;
 
@@ -407,6 +439,9 @@ typedef struct {
   uint8_t mcs;
   uint8_t ndi;
   uint8_t rv;
+  uint16_t targetCodeRate;
+  uint8_t qamModOrder;
+  uint32_t TBS;
   uint8_t tb2_mcs;
   uint8_t tb2_ndi;
   uint8_t tb2_rv;
@@ -418,7 +453,7 @@ typedef struct {
   uint8_t pucch_resource_id;
   uint8_t pdsch_to_harq_feedback_time_ind;
   uint8_t n_dmrs_cdm_groups;
-  uint8_t dmrs_ports[10];
+  uint16_t dmrs_ports;
   uint8_t n_front_load_symb;
   uint8_t tci_state;
   fapi_nr_dl_srs_config_t srs_config;
@@ -438,7 +473,9 @@ typedef struct {
   uint8_t nEpreRatioOfPDSCHToPTRS;
   /// MCS table for this DLSCH
   uint8_t mcs_table;
-
+  uint32_t tbslbrm;
+  uint8_t nscid;
+  uint16_t dlDmrsScramblingId;
   uint16_t pduBitmap;
 } fapi_nr_dl_config_dlsch_pdu_rel15_t;
 
@@ -447,11 +484,53 @@ typedef struct {
   fapi_nr_dl_config_dlsch_pdu_rel15_t dlsch_config_rel15;
 } fapi_nr_dl_config_dlsch_pdu;
 
+
+typedef struct {
+  uint8_t subcarrier_spacing;       // subcarrierSpacing [3GPP TS 38.211, sec 4.2], Value:0->4
+  uint8_t cyclic_prefix;            // Cyclic prefix type [3GPP TS 38.211, sec 4.2], 0: Normal; 1: Extended
+  uint16_t start_rb;                // PRB where this CSI resource starts related to common resource block #0 (CRB#0). Only multiples of 4 are allowed. [3GPP TS 38.331, sec 6.3.2 parameter CSIFrequencyOccupation], Value: 0 ->274
+  uint16_t nr_of_rbs;               // Number of PRBs across which this CSI resource spans. Only multiples of 4 are allowed. [3GPP TS 38.331, sec 6.3.2 parameter CSI-FrequencyOccupation], Value: 24 -> 276
+  uint8_t csi_type;                 // CSI Type [3GPP TS 38.211, sec 7.4.1.5], Value: 0:TRS; 1:CSI-RS NZP; 2:CSI-RS ZP
+  uint8_t row;                      // Row entry into the CSI Resource location table. [3GPP TS 38.211, sec 7.4.1.5.3 and table 7.4.1.5.3-1], Value: 1-18
+  uint16_t freq_domain;             // Bitmap defining the frequencyDomainAllocation [3GPP TS 38.211, sec 7.4.1.5.3] [3GPP TS 38.331 CSIResourceMapping], Value: Up to the 12 LSBs, actual size is determined by the Row parameter
+  uint8_t symb_l0;                  // The time domain location l0 and firstOFDMSymbolInTimeDomain [3GPP TS 38.211, sec 7.4.1.5.3], Value: 0->13
+  uint8_t symb_l1;                  // The time domain location l1 and firstOFDMSymbolInTimeDomain2 [3GPP TS 38.211, sec 7.4.1.5.3], Value: 2->12
+  uint8_t cdm_type;                 // The cdm-Type field [3GPP TS 38.211, sec 7.4.1.5.3 and table 7.4.1.5.3-1], Value: 0: noCDM; 1: fd-CDM2; 2: cdm4-FD2-TD2; 3: cdm8-FD2-TD4
+  uint8_t freq_density;             // The density field, p and comb offset (for dot5). [3GPP TS 38.211, sec 7.4.1.5.3 and table 7.4.1.5.3-1], Value: 0: dot5 (even RB); 1: dot5 (odd RB); 2: one; 3: three
+  uint16_t scramb_id;               // ScramblingID of the CSI-RS [3GPP TS 38.214, sec 5.2.2.3.1], Value: 0->1023
+  uint8_t power_control_offset;     // Ratio of PDSCH EPRE to NZP CSI-RSEPRE [3GPP TS 38.214, sec 5.2.2.3.1], Value: 0->23 representing -8 to 15 dB in 1dB steps; 255: L1 is configured with ProfileSSS
+  uint8_t power_control_offset_ss;  // Ratio of NZP CSI-RS EPRE to SSB/PBCH block EPRE [3GPP TS 38.214, sec 5.2.2.3.1], Values: 0: -3dB; 1: 0dB; 2: 3dB; 3: 6dB; 255: L1 is configured with ProfileSSS
+} fapi_nr_dl_config_csirs_pdu_rel15_t;
+
+
+typedef struct {
+  uint16_t bwp_size;
+  uint16_t bwp_start;
+  uint8_t  subcarrier_spacing;
+  uint16_t start_rb;
+  uint16_t nr_of_rbs;
+  uint8_t k_csiim[4];
+  uint8_t l_csiim[4];
+} fapi_nr_dl_config_csiim_pdu_rel15_t;
+
+
+typedef struct {
+  fapi_nr_dl_config_csirs_pdu_rel15_t csirs_config_rel15;
+} fapi_nr_dl_config_csirs_pdu;
+
+
+typedef struct {
+  fapi_nr_dl_config_csiim_pdu_rel15_t csiim_config_rel15;
+} fapi_nr_dl_config_csiim_pdu;
+
+
 typedef struct {
   uint8_t pdu_type;
   union {
     fapi_nr_dl_config_dci_pdu dci_config_pdu;
     fapi_nr_dl_config_dlsch_pdu dlsch_config_pdu;
+    fapi_nr_dl_config_csirs_pdu csirs_config_pdu;
+    fapi_nr_dl_config_csiim_pdu csiim_config_pdu;
   };
 } fapi_nr_dl_config_request_pdu_t;
 

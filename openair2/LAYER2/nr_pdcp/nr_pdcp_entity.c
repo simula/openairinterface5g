@@ -27,6 +27,7 @@
 
 #include "nr_pdcp_security_nea2.h"
 #include "nr_pdcp_integrity_nia2.h"
+#include "nr_pdcp_integrity_nia1.h"
 #include "nr_pdcp_sdu.h"
 
 #include "LOG/log.h"
@@ -51,7 +52,12 @@ static void nr_pdcp_entity_recv_pdu(nr_pdcp_entity_t *entity,
 
   if (entity->type != NR_PDCP_SRB && !(buffer[0] & 0x80)) {
     LOG_E(PDCP, "%s:%d:%s: fatal\n", __FILE__, __LINE__, __FUNCTION__);
-    exit(1);
+    /* TODO: This is something of a hack. The most significant bit
+       in buffer[0] should be 1 if the packet is a data packet. We are
+       processing malformed data packets if the most significant bit
+       is 0. Rather than exit(1), this hack allows us to continue for now.
+       We need to investigate why this hack is neccessary. */
+    buffer[0] |= 128;
   }
 
   if (entity->sn_size == 12) {
@@ -108,7 +114,7 @@ static void nr_pdcp_entity_recv_pdu(nr_pdcp_entity_t *entity,
 
   if (rcvd_count < entity->rx_deliv
       || nr_pdcp_sdu_in_list(entity->rx_list, rcvd_count)) {
-    LOG_W(PDCP, "discard NR PDU rcvd_count=%d\n", rcvd_count);
+    LOG_W(PDCP, "discard NR PDU rcvd_count=%d, entity->rx_deliv %d,sdu_in_list %d\n", rcvd_count,entity->rx_deliv,nr_pdcp_sdu_in_list(entity->rx_list,rcvd_count));
     return;
   }
 
@@ -235,16 +241,21 @@ static void nr_pdcp_entity_set_security(nr_pdcp_entity_t *entity,
   }
 
   if (integrity_algorithm != 0 && integrity_algorithm != -1) {
-    if (integrity_algorithm != 2) {
-      LOG_E(PDCP, "FATAL: only nia2 supported for the moment\n");
-      exit(1);
-    }
     entity->has_integrity = 1;
     if (entity->free_integrity != NULL)
       entity->free_integrity(entity->integrity_context);
-    entity->integrity_context = nr_pdcp_integrity_nia2_init(entity->integrity_key);
-    entity->integrity = nr_pdcp_integrity_nia2_integrity;
-    entity->free_integrity = nr_pdcp_integrity_nia2_free_integrity;
+    if (integrity_algorithm == 2) {
+      entity->integrity_context = nr_pdcp_integrity_nia2_init(entity->integrity_key);
+      entity->integrity = nr_pdcp_integrity_nia2_integrity;
+      entity->free_integrity = nr_pdcp_integrity_nia2_free_integrity;
+    } else if (integrity_algorithm == 1) {
+      entity->integrity_context = nr_pdcp_integrity_nia1_init(entity->integrity_key);
+      entity->integrity = nr_pdcp_integrity_nia1_integrity;
+      entity->free_integrity = nr_pdcp_integrity_nia1_free_integrity;
+    } else {
+      LOG_E(PDCP, "FATAL: only nia1 and nia2 supported for the moment\n");
+      exit(1);
+    }
   }
 
   if (ciphering_algorithm == 0) {
@@ -368,8 +379,8 @@ nr_pdcp_entity_t *new_nr_pdcp_entity(
   ret->set_security = nr_pdcp_entity_set_security;
   ret->set_time     = nr_pdcp_entity_set_time;
 
-  ret->delete = nr_pdcp_entity_delete;
-
+  ret->delete_entity = nr_pdcp_entity_delete;
+  
   ret->deliver_sdu = deliver_sdu;
   ret->deliver_sdu_data = deliver_sdu_data;
 

@@ -35,7 +35,6 @@
 #include "f1ap_du_ue_context_management.h"
 #include "f1ap_du_rrc_message_transfer.h"
 #include "f1ap_du_task.h"
-#include "proto_agent.h"
 #include <openair3/ocp-gtpu/gtp_itf.h>
 
 //Fixme: Uniq dirty DU instance, by global var, datamodel need better management
@@ -103,7 +102,7 @@ static instance_t du_create_gtpu_instance_to_cu(char *CUaddr, uint16_t CUport, c
   strncpy(tmp.destinationHost, CUaddr, sizeof(tmp.destinationHost)-1);
   sprintf(tmp.originService, "%d", DUport);
   sprintf(tmp.destinationService, "%d", CUport);
-  return ocp_gtpv1Init(tmp);
+  return gtpv1Init(tmp);
 }
 
 void *F1AP_DU_task(void *arg) {
@@ -127,7 +126,7 @@ void *F1AP_DU_task(void *arg) {
         LOG_I(F1AP, "DU Task Received F1AP_SETUP_REQ\n");
         f1ap_setup_req_t *msgSetup=&F1AP_SETUP_REQ(msg);
         createF1inst(false, myInstance, msgSetup);
-        getCxt(DUtype, myInstance)->gtpInst=du_create_gtpu_instance_to_cu(msgSetup->CU_f1_ip_address.ipv4_address,
+        getCxt(DUtype, myInstance)->gtpInst=du_create_gtpu_instance_to_cu(msgSetup->CU_f1_ip_address.ipv4_address, //"172.21.6.9", //"172.21.10.9",//"172.21.9.5", //msgSetup->CU_f1_ip_address.ipv4_address, //"192.168.18.91"
                                             msgSetup->CUport,
                                             msgSetup->DU_f1_ip_address.ipv4_address,
                                             msgSetup->DUport);
@@ -176,7 +175,7 @@ void *F1AP_DU_task(void *arg) {
         break;
 
       case F1AP_UL_RRC_MESSAGE: // to rrc
-        LOG_I(F1AP, "DU Task Received F1AP_UL_RRC_MESSAGE\n");
+        LOG_D(F1AP, "DU Task Received F1AP_UL_RRC_MESSAGE\n");
 
         if (RC.nrrrc && RC.nrrrc[0]->node_type == ngran_gNB_DU) {
           DU_send_UL_NR_RRC_MESSAGE_TRANSFER(myInstance,
@@ -190,6 +189,11 @@ void *F1AP_DU_task(void *arg) {
 
       case F1AP_UE_CONTEXT_SETUP_RESP:
         DU_send_UE_CONTEXT_SETUP_RESPONSE(myInstance, &F1AP_UE_CONTEXT_SETUP_RESP(msg));
+        break;
+
+      case F1AP_UE_CONTEXT_MODIFICATION_RESP:
+        LOG_I(F1AP, "DU task received itti message from RRC for F1AP_UE_CONTEXT_MODIFICATION_RESP message generation \n");
+        DU_send_UE_CONTEXT_MODIFICATION_RESPONSE(myInstance, &F1AP_UE_CONTEXT_MODIFICATION_RESP(msg));
         break;
 
       case F1AP_UE_CONTEXT_RELEASE_REQ: // from MAC

@@ -54,12 +54,11 @@
 #include <string.h>
 #include <math.h>
 #include "common_lib.h"
-#include "msc.h"
 #include <common/utils/LOG/log.h>
 #include "assertions.h"
 
 //#include <complex.h>
-#include "PHY/TOOLS/time_meas.h"
+#include "time_meas.h"
 #include "platform_types.h"
 #define MAX_NUM_RU_PER_eNB 64
 
@@ -100,7 +99,7 @@
 #define NB_RX_ANTENNAS_MAX 64
 
 
-typedef enum {TDD=1,FDD=0} lte_frame_type_t;
+typedef enum {TDD=1,FDD=0} frame_type_t;
 
 typedef enum {EXTENDED=1,NORMAL=0} lte_prefix_type_t;
 
@@ -598,7 +597,7 @@ typedef struct LTE_DL_FRAME_PARMS {
   /// shift of pilot position in one RB
   uint8_t nushift;
   /// Frame type (0 FDD, 1 TDD)
-  lte_frame_type_t frame_type;
+  frame_type_t frame_type;
   /// TDD subframe assignment (0-7) (default = 3) (254=RX only, 255=TX only)
   uint8_t tdd_config;
   /// TDD S-subframe configuration (0-9)
@@ -755,7 +754,7 @@ typedef struct {
   /// Position of first CCE of the dci
   int firstCCE;
   /// flag to indicate that this is a RA response
-  boolean_t ra_flag;
+  bool ra_flag;
   /// rnti
   rnti_t rnti;
   /// harq_pid
@@ -776,7 +775,7 @@ typedef struct {
   /// Position of first CCE of the dci
   int firstCCE;
   /// flag to indicate that this is a RA response
-  boolean_t ra_flag;
+  bool ra_flag;
   /// rnti
   rnti_t rnti;
   /// Format
@@ -807,7 +806,7 @@ typedef struct {
   /// Position of first CCE of the dci
   int firstCCE;
   /// flag to indicate that this is a RA response
-  boolean_t ra_flag;
+  bool ra_flag;
   /// rnti
   rnti_t rnti;
   /// Format
@@ -908,7 +907,7 @@ typedef enum {no_relay=1,unicast_relay_type1,unicast_relay_type2, multicast_rela
 
 
 
-#define MCS_COUNT 28
+#define MCS_COUNT 29
 #define MCS_TABLE_LENGTH_MAX 64
 
 
@@ -983,13 +982,14 @@ typedef uint8_t(encoder_if_t)(uint8_t *input,
                               uint8_t *output,
                               uint8_t F);
 
+extern int oai_exit;
 
 static inline void wait_sync(char *thread_name) {
   int rc;
   printf( "waiting for sync (%s,%d/%p,%p,%p)\n",thread_name,sync_var,&sync_var,&sync_cond,&sync_mutex);
   AssertFatal((rc = pthread_mutex_lock( &sync_mutex ))==0,"sync mutex lock error");
 
-  while (sync_var<0)
+  while (sync_var<0 && !oai_exit)
     pthread_cond_wait( &sync_cond, &sync_mutex );
 
   AssertFatal((rc = pthread_mutex_unlock( &sync_mutex ))==0,"sync mutex unlock error");
@@ -1012,7 +1012,7 @@ static inline int wakeup_thread(pthread_mutex_t *mutex,
   int sleep_cnt=0;
   AssertFatal((rc = pthread_mutex_lock(mutex))==0,"wakeup_thread(): error locking mutex for %s (%d %s, %p)\n", name, rc, strerror(rc), (void *)mutex);
 
-  while (*instance_cnt == 0) {
+  while (*instance_cnt == 0 && !oai_exit) {
     AssertFatal((rc = pthread_mutex_unlock(mutex))==0,"wakeup_thread(): error unlocking mutex for %s (%d %s, %p)\n", name, rc, strerror(rc), (void *)mutex);
     sleep_cnt++;
 
@@ -1047,7 +1047,7 @@ static inline int timedwait_on_condition(pthread_mutex_t *mutex,
   struct timespec now, abstime;
   AssertFatal((rc = pthread_mutex_lock(mutex))==0,"[SCHED][eNB] timedwait_on_condition(): error locking mutex for %s (%d %s, %p)\n", name, rc, strerror(rc), (void *)mutex);
 
-  while (*instance_cnt < 0) {
+  while (*instance_cnt < 0 && !oai_exit) {
     clock_gettime(CLOCK_REALTIME, &now);
     // most of the time the thread is waiting here
     // proc->instance_cnt_rxtx is -1
@@ -1074,7 +1074,7 @@ static inline int wait_on_condition(pthread_mutex_t *mutex,
   int rc;
   AssertFatal((rc = pthread_mutex_lock(mutex))==0,"[SCHED][eNB] wait_on_condition(): error locking mutex for %s (%d %s, %p)\n", name, rc, strerror(rc), (void *)mutex);
 
-  while (*instance_cnt < 0) {
+  while (*instance_cnt < 0 && !oai_exit) {
     // most of the time the thread is waiting here
     // proc->instance_cnt_rxtx is -1
     pthread_cond_wait(cond,mutex); // this unlocks mutex_rxtx while waiting and then locks it again
@@ -1092,7 +1092,7 @@ static inline int wait_on_busy_condition(pthread_mutex_t *mutex,
   int rc;
   AssertFatal((rc = pthread_mutex_lock(mutex))==0,"[SCHED][eNB] wait_on_busy_condition(): error locking mutex for %s (%d %s, %p)\n", name, rc, strerror(rc), (void *)mutex);
 
-  while (*instance_cnt == 0) {
+  while (*instance_cnt == 0 && !oai_exit) {
     // most of the time the thread will skip this
     // waits only if proc->instance_cnt_rxtx is 0
     pthread_cond_wait(cond,mutex); // this unlocks mutex_rxtx while waiting and then locks it again

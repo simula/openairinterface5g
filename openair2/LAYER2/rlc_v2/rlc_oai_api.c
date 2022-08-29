@@ -440,7 +440,7 @@ rb_found:
 	req->rnti=ue->rnti;
 	req->rab_id=rb_id+4;
 	LOG_D(RLC, "Received uplink user-plane traffic at RLC-DU to be sent to the CU, size %d \n", size);
-	itti_send_msg_to_task(OCP_GTPV1_U, DUuniqInstance, msg);      
+	itti_send_msg_to_task(TASK_GTPV1_U, DUuniqInstance, msg);      
 	return;
       }
     }
@@ -1064,4 +1064,16 @@ void du_rlc_data_req(const protocol_ctxt_t *const ctxt_pP,
 		confirmP,
 		sdu_sizeP,
 		sdu_pP, NULL, NULL);
+}
+
+/* HACK to be removed: nr_rlc_get_available_tx_space is needed by
+ * openair3/ocp-gtpu/gtp_itf.cpp which is compiled in lte-softmodem
+ * so let's put a dummy nr_rlc_get_available_tx_space here
+ */
+int nr_rlc_get_available_tx_space(
+  const rnti_t            rntiP,
+  const logical_chan_id_t channel_idP)
+{
+  abort();
+  return 0;
 }

@@ -294,6 +294,10 @@ The following features are valid for the gNB and the 5G-NR UE.
 *  NR-PUCCH 
    - Format 0 (2 bits, for ACK/NACK and SR)
    - Format 2 (up to 11 bits, mainly for CSI feedback)
+*  NR-SRS
+    - SRS signal reception
+    - Channel estimation (with T tracer real time monitoring)
+    - Power noise estimation
 *  NR-PRACH
    - Formats 0,1,2,3, A1-A3, B1-B3
 *  Highly efficient 3GPP compliant LDPC encoder and decoder (BG1 and BG2 are supported)
@@ -322,10 +326,15 @@ The following features are valid for the gNB and the 5G-NR UE.
   - phy-test scheduler (fixed allocation)
   - regular scheduler with dynamic allocation
   - HARQ procedures for uplink
+- Scheduler procedures for SRS reception
+  - Periodic SRS reception
 - MAC procedures to handle CSI measurement report
   - evalution of RSRP report
   - evaluation of CQI report
 - MAC scheduling of SR reception
+- Bandwidth part (BWP) operation
+  - Handle multiple dedicated BWPs
+  - BWP switching through RRCReconfiguration method
 
 **gNB RLC**
 - Send/Receive operations according to 38.322 Rel.16
@@ -344,6 +353,14 @@ The following features are valid for the gNB and the 5G-NR UE.
   - Radio bearer establishment/handling and association with PDCP entities
   - Interfaces with RRC, RLC 
   - Interfaces with gtp-u (data Tx/Rx over N3 and F1-U interfaces)
+
+**gNB SDAP**
+- Send/Receive operations according to 37.324 Rel.15
+  - Establishment/Handling of SDAP entities.
+  - Transfer of User Plane Data
+  - Mapping between a QoS flow and a DRB for both DL and UL
+  - Marking QoS flow ID in both DL and UL packets
+  - Reflective QoS flow to DRB mapping for UL SDAP data PDUs
 
 **gNB RRC**
 - NR RRC (38.331) Rel 16 messages using new asn1c 
@@ -394,6 +411,7 @@ The following features are valid for the gNB and the 5G-NR UE.
 - New gtp-u implementation supporting both N3 and F1-U interfaces according to 29.281 Rel.15
   - Interfaces with RRC, F1AP for tunnel creation
   - Interfaces with PDCP and RLC for data send/receive at the CU and DU respectively (F1-U interface)
+  - Interface with SDAP for data send/receive, capture of GTP-U Optional Header, GTP-U Extension Header and PDU Session Container.
 
 # OpenAirInterface 5G-NR UE Feature Set #
 
@@ -422,6 +440,10 @@ The following features are valid for the gNB and the 5G-NR UE.
    - PTRS support
    - Support for 1, 2 and 4 RX antennas
    - Support for up to 2 layers (currently limited to DMRS configuration type 2)
+* Measurements based on NR-CSIRS
+    - RI, PMI and CQI computation
+    - Support for 1 and 2 RX antennas
+    - Support for up to 2 layers
 *  NR-PUSCH (including Segmentation, LDPC encoding, rate matching, scrambling, modulation, RB mapping, etc).
    - PUSCH mapping type A and B
    - DMRS configuration type 1 and 2
@@ -433,11 +455,12 @@ The following features are valid for the gNB and the 5G-NR UE.
    - Format 0 (2 bits for ACK/NACK and SR)
    - Format 2 (up to 64 bits, mainly for CSI feedback)
    - Format 1, 3 and 4 present but old code never dested (need restructuring before verification)
-*  NR-PRACH
+* NR-SRS
+    - Generation of sequence at PHY
+    - SRS signal transmission
+* NR-PRACH
    - Formats 0,1,2,3, A1-A3, B1-B3
-*  NR-SRS
-   - Old code never dested (need restructuring before verification)
-*  SS-RSRP
+* SS-RSRP
    - RSRP measured on synchronization SSB (ok only for single SSB)
 *  Highly efficient 3GPP compliant LDPC encoder and decoder (BG1 and BG2 are supported)
 *  Highly efficient 3GPP compliant polar encoder and decoder
@@ -452,29 +475,36 @@ The following features are valid for the gNB and the 5G-NR UE.
 ## NR UE Higher Layers ##
 
 **UE MAC**
-*  Minimum system information (MSI)
+* Minimum system information (MSI)
    - MIB processing
    - Scheduling of system information block 1 (SIB1) reception
-*  Random access procedure (needs improvement, there is still not a clear separation between MAC and PHY)
+* Random access procedure (needs improvement, there is still not a clear separation between MAC and PHY)
    - Mapping SSBs to multiple ROs
    - Scheduling of PRACH
    - Processing of RAR
    - Transmission and re-transmission of Msg3
    - Msg4 and contention resolution
-*  DCI processing
+* DCI processing
    - format 10 (RA-RNTI, C-RNTI, SI-RNTI, TC-RNTI)
    - format 00 (C-RNTI, TC-RNTI)
    - format 11 (C-RNTI)
    - format 01 (C-RNTI)
-*  UCI processing
+* UCI processing
    - ACK/NACK processing
    - Triggering periodic SR
-   - CSI measurement reporting (SSB RSRP only)
-* DLSH scheduler
+   - CSI measurement reporting
+* DLSCH scheduler
    - Configuration of fapi PDU according to DCI
    - HARQ procedures
 * ULSCH scheduler
    - Configuration of fapi PDU according to DCI
+* NR-CSIRS scheduler
+  - Scheduling of NR-CSIRS reception
+  - Fill UCI for CSI measurement reporting
+* Scheduler procedures for SRS transmission
+   - Periodic SRS transmission
+* Bandwidth part (BWP) operation
+   - Operation in configured dedicated BWP through RRCSetup or RRCReconfiguration
 
 
 **UE RLC**
@@ -492,6 +522,13 @@ The following features are valid for the gNB and the 5G-NR UE.
    - Sequence number management, SDU dicard and in-order delivery
    - Radio bearer establishment/handling and association with PDCP entities
    - Interfaces with RRC, RLC 
+
+**UE SDAP**
+*  Tx/Rx operations operations according to 37.324 Rel.15
+  - Establishment/Handling of SDAP entities.
+  - Transfer of User Plane Data
+  - Reflective Mapping
+  - RRC Signaling Mapping
 
 **UE RRC**
 * Integration of RRC messages and procedures supporting UE 5G SA connection according to 38.331 Rel.16 

@@ -46,8 +46,6 @@
 #define OAI_THIRDPARTY_TP_LIBNAME        "thirdparty_transpro"
 /* name of shared library implementing the rf simulator */
 #define OAI_RFSIM_LIBNAME     "rfsimulator"
-/* name of shared library implementing the basic simulator */
-#define OAI_BASICSIM_LIBNAME  "tcp_bridge_oai"
 /* name of shared library implementing the iq player */
 #define OAI_IQPLAYER_LIBNAME  "oai_iqplayer"
 
@@ -92,6 +90,8 @@ typedef enum {
   USRP_X300_DEV,
   /*!\brief device is USRP N300/N310*/
   USRP_N300_DEV,
+  /*!\brief device is USRP X400/X410*/
+  USRP_X400_DEV,
   /*!\brief device is BLADE RF*/
   BLADERF_DEV,
   /*!\brief device is LMSSDR (SoDeRa)*/
@@ -107,7 +107,9 @@ typedef enum {
   RFSIMULATOR,
   MAX_RF_DEV_TYPE
 } dev_type_t;
-#define DEVTYPE_NAMES {"","EXMIMO","USRP B200","USRP X300","USRP N300","BLADERF","LMSSDR","IRIS","No HW","ADRV9371_ZC706","UEDv2", "RFSIMULATOR"} 
+/* list of names of devices, needs to match dev_type_t */
+extern const char* devtype_names[MAX_RF_DEV_TYPE];
+
 /*!\brief transport protocol types
  */
 typedef enum {
@@ -186,6 +188,7 @@ typedef struct {
   //! \brief Center frequency in Hz for TX.
   //! index: [0..rx_num_channels[ !!! see lte-ue.c:427 FIXME iterates over rx_num_channels
   double tx_freq[4];
+  double tune_offset;
   //! \brief memory
   //! \brief Pointer to Calibration table for RX gains
   rx_gain_calib_table_t *rx_gain_calib_table;
@@ -237,6 +240,12 @@ typedef struct {
   double tx_sample_rate;
   //! check for threequarter sampling rate
   int8_t threequarter_fs;
+  //! Flag to indicate this configuration is for NR
+  int nr_flag;
+  //! NR band number
+  int nr_band;
+  //! NR scs for raster
+  int nr_scs_for_raster;
 } openair0_config_t;
 
 /*! \brief RF mapping */
@@ -301,6 +310,8 @@ typedef struct {
   pthread_cond_t cond_write;
   /// mutex for trx write thread
   pthread_mutex_t mutex_write;
+  /// to inform the thread to exit
+  bool write_thread_exit;
 } openair0_thread_t;
 
 /*!\brief structure holds the parameters to configure USRP devices */
@@ -371,7 +382,7 @@ struct openair0_device_t {
       @param buff Buffer which holds the samples (2 dimensional)
       @param nsamps number of samples to be sent
       @param number of antennas 
-      @param flags flags must be set to TRUE if timestamp parameter needs to be applied
+      @param flags flags must be set to true if timestamp parameter needs to be applied
   */
   int (*trx_write_func)(openair0_device *device, openair0_timestamp timestamp, void **buff, int nsamps,int antenna_id, int flags);
 
@@ -381,7 +392,7 @@ struct openair0_device_t {
       @param buff Buffer which holds the samples (1 dimensional)
       @param nsamps number of samples to be sent
       @param antenna_id index of the antenna if the device has multiple anteannas
-      @param flags flags must be set to TRUE if timestamp parameter needs to be applied
+      @param flags flags must be set to true if timestamp parameter needs to be applied
   */
   int (*trx_write_func2)(openair0_device *device, openair0_timestamp timestamp, void *buff, int nsamps,int antenna_id, int flags);
 
@@ -535,7 +546,7 @@ extern "C"
 
 
 /*! \brief get device name from device type */
-char *get_devname(int devtype);
+const char *get_devname(int devtype);
 /*! \brief Initialize openair RF target. It returns 0 if OK */
 int openair0_device_load(openair0_device *device, openair0_config_t *openair0_cfg);
 /*! \brief Initialize transport protocol . It returns 0 if OK */

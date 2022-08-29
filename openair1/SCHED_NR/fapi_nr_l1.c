@@ -163,8 +163,12 @@ void nr_schedule_response(NR_Sched_Rsp_t *Sched_INFO){
 
     if (slot_type == NR_DOWNLINK_SLOT || slot_type == NR_MIXED_SLOT) {
       notifiedFIFO_elt_t *res;
-      res = pullTpool(gNB->L1_tx_free, gNB->threadPool);
+      res = pullTpool(&gNB->L1_tx_free, &gNB->threadPool);
+      if (res == NULL)
+        return; // Tpool has been stopped, nothing to process
       processingData_L1tx_t *msgTx = (processingData_L1tx_t *)NotifiedFifoData(res);
+      const time_stats_t ts = exec_time_stats_NotifiedFIFO(res);
+      merge_meas(&gNB->phy_proc_tx, &ts);
 
       msgTx->num_pdsch_slot=0;
       msgTx->num_dl_pdcch=0;
@@ -208,7 +212,7 @@ void nr_schedule_response(NR_Sched_Rsp_t *Sched_INFO){
       for (int i=0; i<number_ul_dci_pdu; i++)
         msgTx->ul_pdcch_pdu[i] = UL_dci_req->ul_dci_pdu_list[i];
 
-      pushNotifiedFIFO(gNB->L1_tx_filled,res);
+      pushNotifiedFIFO(&gNB->L1_tx_filled,res);
     }
 
     for (int i = 0; i < number_ul_tti_pdu; i++) {
@@ -225,7 +229,12 @@ void nr_schedule_response(NR_Sched_Rsp_t *Sched_INFO){
           LOG_D(PHY,"frame %d, slot %d, Got NFAPI_NR_UL_TTI_PRACH_PDU_TYPE for %d.%d\n", frame, slot, UL_tti_req->SFN, UL_tti_req->Slot);
           nfapi_nr_prach_pdu_t *prach_pdu = &UL_tti_req->pdus_list[i].prach_pdu;
           nr_fill_prach(gNB, UL_tti_req->SFN, UL_tti_req->Slot, prach_pdu);
-          if (gNB->RU_list[0]->if_south == LOCAL_RF) nr_fill_prach_ru(gNB->RU_list[0], UL_tti_req->SFN, UL_tti_req->Slot, prach_pdu);
+          if (gNB->RU_list[0]->if_south == LOCAL_RF || 
+              gNB->RU_list[0]->if_south == REMOTE_IF5) nr_fill_prach_ru(gNB->RU_list[0], UL_tti_req->SFN, UL_tti_req->Slot, prach_pdu);
+          break;
+        case NFAPI_NR_UL_CONFIG_SRS_PDU_TYPE:
+          LOG_D(PHY,"frame %d, slot %d, Got NFAPI_NR_UL_CONFIG_SRS_PDU_TYPE for %d.%d\n", frame, slot, UL_tti_req->SFN, UL_tti_req->Slot);
+          nr_fill_srs(gNB,UL_tti_req->SFN, UL_tti_req->Slot, &UL_tti_req->pdus_list[i].srs_pdu);
           break;
       }
     }
@@ -244,7 +253,6 @@ void nr_schedule_response(NR_Sched_Rsp_t *Sched_INFO){
 
     if (number_dl_pdu>0)
       oai_nfapi_dl_tti_req(DL_req);
-
   }
   stop_meas(&gNB->schedule_response_stats);
 }

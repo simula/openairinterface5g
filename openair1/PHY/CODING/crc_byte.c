@@ -72,10 +72,10 @@ unsigned int crcbit (unsigned char * inputptr,
   unsigned int i, crc = 0, c;
 
   while (octetlen-- > 0) {
-    c = (*inputptr++) << 24;
+    c = ((unsigned int)(*inputptr++)) << 24;
 
     for (i = 8; i != 0; i--) {
-      if ((1 << 31) & (c ^ crc))
+      if ((1U << 31) & (c ^ crc))
         crc = (crc << 1) ^ poly;
       else
         crc <<= 1;
@@ -244,11 +244,11 @@ crc16 (unsigned char * inptr, int bitlen)
 
   while (octetlen-- > 0) {
 
-    crc = (crc << 8) ^ (crc16Table[(*inptr++) ^ (crc >> 24)] << 16);
+    crc = (crc << 8) ^ (((uint32_t)crc16Table[(*inptr++) ^ (crc >> 24)]) << 16);
   }
 
   if (resbit > 0)
-    crc = (crc << resbit) ^ (crc16Table[((*inptr) >> (8 - resbit)) ^ (crc >> (32 - resbit))] << 16);
+    crc = (crc << resbit) ^ (((uint32_t)crc16Table[(*inptr) >> (8 - resbit) ^ (crc >> (32 - resbit))]) << 16);
 
   return crc;
 }

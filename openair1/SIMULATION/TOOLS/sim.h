@@ -253,7 +253,7 @@ typedef enum {
     {"s"      ,     CONFIG_HLP_SNR,                                     PARAMFLAG_CMDLINE_NOPREFIXENABLED,   dblptr:&snr_dB,                        defdblval:25,                    TYPE_DOUBLE, 0},\
     {"sinr_dB",     NULL,                                               0,                                   dblptr:&sinr_dB,                       defdblval:0 ,                    TYPE_DOUBLE, 0},\
     {"max_chan",    "Max number of runtime models",                     0,                                   uptr:&max_chan,                        defintval:10,                    TYPE_UINT,   0},\
-    {CHANNELMOD_MODELLIST_PARANAME, CHANNELMOD_HELP_MODELLIST,          0,                                   strptr:(char **)&modellist_name,       defstrval:"DefaultChannelList",  TYPE_STRING, 60 },\
+    {CHANNELMOD_MODELLIST_PARANAME, CHANNELMOD_HELP_MODELLIST,          0,                                   strptr:&modellist_name,       defstrval:"DefaultChannelList",  TYPE_STRING, 0},\
   }
 
 /* parameters for one model */ 
@@ -479,6 +479,7 @@ void randominit(unsigned int seed_init);
 double uniformrandom(void);
 int freq_channel(channel_desc_t *desc,uint16_t nb_rb, int16_t n_samples,int scs);
 int init_freq_channel(channel_desc_t *desc,uint16_t nb_rb,int16_t n_samples,int scs);
+void term_freq_channel(void);
 uint8_t multipath_channel_nosigconv(channel_desc_t *desc);
 void multipath_tv_channel(channel_desc_t *desc,
                           double **tx_sig_re,

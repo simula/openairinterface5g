@@ -71,7 +71,6 @@
 
 #include "pdcp.h"
 #include "plmn_data.h"
-#include "msc.h"
 #include <common/utils/system.h>
 
 #include "intertask_interface.h"
@@ -1390,16 +1389,6 @@ rrc_ue_process_radioResourceConfigDedicated(
     uint8_t *kUPenc = NULL;
     derive_key_up_enc(UE_rrc_inst[ctxt_pP->module_id].integrity_algorithm,
                       UE_rrc_inst[ctxt_pP->module_id].kenb, &kUPenc);
-    MSC_LOG_TX_MESSAGE(
-      MSC_RRC_UE,
-      MSC_PDCP_UE,
-      NULL,
-      0,
-      MSC_AS_TIME_FMT" CONFIG_REQ UE %x DRB (security %X)",
-      MSC_AS_TIME_ARGS(ctxt_pP),
-      ctxt_pP->rnti,
-      UE_rrc_inst[ctxt_pP->module_id].ciphering_algorithm |
-      (UE_rrc_inst[ctxt_pP->module_id].integrity_algorithm << 4));
     // Refresh DRBs
     rrc_pdcp_config_asn1_req(ctxt_pP,
                              (LTE_SRB_ToAddModList_t *)NULL,
@@ -3186,7 +3175,8 @@ int decode_SIB1( const protocol_ctxt_t *const ctxt_pP, const uint8_t eNB_index, 
     const size_t num_plmn_data = sizeof(plmn_data) / sizeof(plmn_data[0]);
     for (size_t plmn_ind = 0;; ++plmn_ind) {
       if (plmn_ind == num_plmn_data) {
-        LOG_E( RRC, "Did not find name from internal table for %u %u\n", mcc, mnc);
+        LOG_W( RRC, "Did not find operator name from internal table for MCC %0*d, MNC %0*d\n",
+               mccdigits, mcc, mncdigits, mnc);
         break;
       }
       if ((plmn_data[plmn_ind].mcc == mcc) && (plmn_data[plmn_ind].mnc == mnc)) {
@@ -4361,8 +4351,8 @@ void rrc_ue_generate_nrMeasurementReport(protocol_ctxt_t *const ctxt_pP, uint8_t
         AssertFatal(size >= 0, "do_nrMeasurementReport failed \n");
         LOG_I(RRC, "[UE %d] Frame %d : Generating Measurement Report for eNB %d\n",
               ctxt_pP->module_id, ctxt_pP->frame, eNB_index);
-        int result = pdcp_data_req(ctxt_pP,  SRB_FLAG_YES, DCCH, rrc_mui++, 0, size, buffer, PDCP_TRANSMISSION_MODE_DATA,NULL, NULL);
-        AssertFatal (result == TRUE, "PDCP data request failed!\n");
+        const bool result = pdcp_data_req(ctxt_pP,  SRB_FLAG_YES, DCCH, rrc_mui++, 0, size, buffer, PDCP_TRANSMISSION_MODE_DATA,NULL, NULL);
+        AssertFatal (result == true, "PDCP data request failed!\n");
       }
     }
   }
@@ -4380,7 +4370,6 @@ void rrc_ue_generate_MeasurementReport(protocol_ctxt_t *const ctxt_pP, uint8_t e
   long             nElem, nElem1;
   float            rsrp_filtered, rsrq_filtered;
   static frame_t   pframe=0;
-  int              result;
   nElem = 98;
   nElem1 = 35;
   target_eNB_offset = UE_rrc_inst[ctxt_pP->module_id].Info[0].handoverTarget; // eNB_offset of target eNB: used to obtain the mod_id of target eNB
@@ -4430,8 +4419,8 @@ void rrc_ue_generate_MeasurementReport(protocol_ctxt_t *const ctxt_pP, uint8_t e
         AssertFatal(size >= 0, "do_MeasurementReport failed \n");
         LOG_I(RRC, "[UE %d] Frame %d : Generating Measurement Report for eNB %d. Size is %zu\n",
               ctxt_pP->module_id, ctxt_pP->frame, eNB_index, size);
-        result = pdcp_data_req(ctxt_pP,  SRB_FLAG_YES, DCCH, rrc_mui++, 0, size, buffer, PDCP_TRANSMISSION_MODE_DATA,NULL, NULL);
-        AssertFatal (result == TRUE, "PDCP data request failed!\n");
+        const bool result = pdcp_data_req(ctxt_pP,  SRB_FLAG_YES, DCCH, rrc_mui++, 0, size, buffer, PDCP_TRANSMISSION_MODE_DATA,NULL, NULL);
+        AssertFatal (result == true, "PDCP data request failed!\n");
         //LOG_D(RRC, "[UE %d] Frame %d Sending MeasReport (%d bytes) through DCCH%d to PDCP \n",ue_mod_idP,frameP, size, DCCH);
       }
 

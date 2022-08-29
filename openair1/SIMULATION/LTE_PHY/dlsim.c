@@ -64,6 +64,13 @@
 void feptx_ofdm(RU_t *ru, int frame, int subframe);
 void feptx_prec(RU_t *ru, int frame, int subframe);
 
+const char *__asan_default_options()
+{
+  /* don't do leak checking in nr_ulsim, not finished yet */
+  return "detect_leaks=0";
+}
+
+
 double cpuf;
 #define inMicroS(a) (((double)(a))/(get_cpu_freq_GHz()*1000.0))
 //#define MCS_COUNT 23//added for PHY abstraction
@@ -122,7 +129,6 @@ void do_OFDM_mod_l(int32_t **txdataF, int32_t **txdata, uint16_t next_slot, LTE_
   slot_offset = (next_slot)*(frame_parms->samples_per_tti>>1);
 
   for (aa=0; aa<frame_parms->nb_antennas_tx; aa++) {
-    //    printf("Thread %d starting ... aa %d (%llu)\n",omp_get_thread_num(),aa,rdtsc());
     if (frame_parms->Ncp == 1)
       PHY_ofdm_mod(&txdataF[aa][slot_offset_F],        // input
                    &txdata[aa][slot_offset],         // output
@@ -140,7 +146,7 @@ void do_OFDM_mod_l(int32_t **txdataF, int32_t **txdata, uint16_t next_slot, LTE_
 }
 
 void DL_channel(RU_t *ru,PHY_VARS_UE *UE,uint subframe,int awgn_flag,double SNR, int tx_lev,int hold_channel,int abstx, int num_rounds, int trials, int round, channel_desc_t *eNB2UE[4],
-                double *s_re[2],double *s_im[2],double *r_re[2],double *r_im[2],FILE *csv_fd) {
+                double *s_re[NB_ANTENNAS_TX],double *s_im[NB_ANTENNAS_TX],double *r_re[NB_ANTENNAS_RX],double *r_im[NB_ANTENNAS_RX],FILE *csv_fd) {
   int i,u;
   int aa,aarx,aatx;
   double channelx,channely;
@@ -506,12 +512,16 @@ int main(int argc, char **argv) {
   int re;
   int s,Kr,Kr_bytes;
   LTE_DL_FRAME_PARMS *frame_parms;
-  double s_re0[30720*2],s_im0[30720*2],r_re0[30720*2],r_im0[30720*2];
-  double s_re1[30720*2],s_im1[30720*2],r_re1[30720*2],r_im1[30720*2];
-  double *s_re[2]= {s_re0,s_re1};
-  double *s_im[2]= {s_im0,s_im1};
-  double *r_re[2]= {r_re0,r_re1};
-  double *r_im[2]= {r_im0,r_im1};
+  double *tmpTX[4], *tmpRX[4] ;
+  for (int i = 0; i < 4; i++) {
+    tmpTX[i] = malloc(30720 * NB_ANTENNAS_TX * sizeof(*tmpTX));
+    tmpRX[i] = malloc(30720 * NB_ANTENNAS_RX * sizeof(*tmpRX));
+  }
+  double *s_re[NB_ANTENNAS_TX] = {tmpTX[0], tmpTX[1]};
+  double *s_im[NB_ANTENNAS_TX] = {tmpTX[2], tmpTX[3]};
+  double *r_re[NB_ANTENNAS_RX] = {tmpRX[0], tmpRX[1]};
+  double *r_im[NB_ANTENNAS_RX] = {tmpRX[2], tmpRX[3]};
+  
   uint8_t transmission_mode=1,n_tx_port=1,n_tx_phy=1,n_rx=2;
   int eNB_id = 0;
   unsigned char round;
@@ -1538,9 +1548,9 @@ int main(int argc, char **argv) {
               LOG_M("txsig0.m","txs0", &ru->common.txdata[0][subframe* eNB->frame_parms.samples_per_tti], eNB->frame_parms.samples_per_tti,1,1);
 
               if (transmission_mode<7) {
-                LOG_M("txsigF0.m","txsF0x", &ru->common.txdataF_BF[0][subframe*nsymb*eNB->frame_parms.ofdm_symbol_size],nsymb*eNB->frame_parms.ofdm_symbol_size,1,1);
+                LOG_M("txsigF0.m","txsF0x", &ru->common.txdataF_BF[0][0],nsymb*eNB->frame_parms.ofdm_symbol_size,1,1);
               } else if (transmission_mode == 7) {
-                LOG_M("txsigF0.m","txsF0", &ru->common.txdataF_BF[5][subframe*nsymb*eNB->frame_parms.ofdm_symbol_size],nsymb*eNB->frame_parms.ofdm_symbol_size,1,1);
+                LOG_M("txsigF0.m","txsF0", &ru->common.txdataF_BF[5][0],nsymb*eNB->frame_parms.ofdm_symbol_size,1,1);
                 LOG_M("txsigF0_BF.m","txsF0_BF", &ru->common.txdataF_BF[0][0],eNB->frame_parms.ofdm_symbol_size,1,1);
               }
             }

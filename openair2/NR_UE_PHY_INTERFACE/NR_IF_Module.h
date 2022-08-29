@@ -40,15 +40,11 @@
 #include "openair2/PHY_INTERFACE/queue_t.h"
 #include "nfapi_nr_interface_scf.h"
 #include "openair2/NR_PHY_INTERFACE/NR_IF_Module.h"
+#include "NR_Packet_Drop.h"
+
+extern slot_rnti_mcs_s slot_rnti_mcs[NUM_NFAPI_SLOT];
 
 typedef struct NR_UL_TIME_ALIGNMENT NR_UL_TIME_ALIGNMENT_t;
-
-typedef struct nr_phy_channel_params_t
-{
-    uint16_t sfn_slot;
-    float sinr;
-    // Incomplete, need all channel parameters
-} nr_phy_channel_params_t;
 
 typedef enum {
   ONLY_PUSCH,
@@ -94,6 +90,9 @@ typedef struct {
     /// dci reception indication structure
     fapi_nr_dci_indication_t *dci_ind;
 
+    /// PHY specific data structure that can be passed on to L2 via nr_downlink_indication_t and
+    /// back to L1 via the nr_scheduled_response_t 
+    void *phy_data;
 } nr_downlink_indication_t;
 
 
@@ -147,6 +146,9 @@ typedef struct {
     /// data transmission request structure
     fapi_nr_tx_request_t *tx_request;
 
+    /// PHY data structure initially passed on to L2 via the nr_downlink_indication_t and
+    /// returned to L1 via nr_scheduled_response_t
+    void *phy_data;
 } nr_scheduled_response_t;
 
 typedef struct {
@@ -240,6 +242,8 @@ void check_and_process_dci(nfapi_nr_dl_tti_request_t *dl_tti_request,
                            nfapi_nr_ul_dci_request_t *ul_dci_request,
                            nfapi_nr_ul_tti_request_t *ul_tti_request);
 
+bool sfn_slot_matcher(void *wanted, void *candidate);
+
 /**\brief done free of memory allocation by module_id and release to pointer pool.
    \param module_id module id*/
 int nr_ue_if_module_kill(uint32_t module_id);
@@ -255,6 +259,7 @@ int nr_ue_dcireq(nr_dcireq_t *dcireq);
 
 //  TODO check
 /**\brief handle BCCH-BCH message from dl_indication
+   \param phy_data        PHY structure to be filled in by the callee in the FAPI call (L1 caller -> indication to L2 -> FAPI call to L1 callee)
    \param pduP            pointer to bch pdu
    \param additional_bits corresponding to 38.212 ch.7
    \param ssb_index       SSB index within 0 - (L_ssb-1) corresponding to 38.331 ch.13 parameter i
@@ -263,6 +268,7 @@ int nr_ue_dcireq(nr_dcireq_t *dcireq);
 int handle_bcch_bch(module_id_t module_id,
                     int cc_id,
                     unsigned int gNB_index,
+                    void *phy_data,
                     uint8_t *pduP,
                     unsigned int additional_bits,
                     uint32_t ssb_index,

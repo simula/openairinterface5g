@@ -24,7 +24,6 @@
 #include "platform_types.h"
 //-----------------------------------------------------------------------------
 #include "assertions.h"
-#include "msc.h"
 #include "rlc.h"
 #include "rlc_am.h"
 #include "list.h"
@@ -329,7 +328,7 @@ rlc_am_receive_process_data_pdu (
   rlc_am_pdu_info_t*  pdu_info_p         = &((rlc_am_rx_pdu_management_t*)(tb_pP->data))->pdu_info;
   rlc_am_pdu_sn_10_t* rlc_am_pdu_sn_10_p = (rlc_am_pdu_sn_10_t*)first_byte_pP;
   rlc_am_rx_pdu_status_t pdu_status		= RLC_AM_DATA_PDU_STATUS_OK;
-  boolean_t		reassemble = false;
+  bool reassemble = false;
 
   if (rlc_am_get_data_pdu_infos(ctxt_pP,rlc_pP, rlc_am_pdu_sn_10_p, tb_size_in_bytesP, pdu_info_p) >= 0) {
 

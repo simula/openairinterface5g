@@ -39,6 +39,8 @@
 #include <stdbool.h>
 
 #include "NR_SubcarrierSpacing.h"
+#include "NR_CSI-ReportConfig.h"
+#include "openair1/SCHED_NR_UE/harq_nr.h"
 
 #define NR_SHORT_BSR_TABLE_SIZE 32
 #define NR_LONG_BSR_TABLE_SIZE 256
@@ -61,12 +63,7 @@
 #define NR_BCCH_BCH 5    // MIB
 #define CCCH_PAYLOAD_SIZE_MAX 512 
 #define RAR_PAYLOAD_SIZE_MAX  128
-#define MAX_BWP_SIZE          275
-
-typedef enum frequency_range_e {
-  FR1 = 0,
-  FR2
-} frequency_range_t;
+#define MAX_CSI_REPORTCONFIG  48
 
 #define NR_BSR_TRIGGER_NONE      (0) /* No BSR Trigger */
 #define NR_BSR_TRIGGER_REGULAR   (1) /* For Regular and ReTxBSR Expiry Triggers */
@@ -106,11 +103,10 @@ typedef struct {
 } __attribute__ ((__packed__)) NR_MAC_SUBHEADER_SHORT;
 
 typedef struct {
-  uint8_t LCID: 6;    // octet 1 [5:0]
-  uint8_t F: 1;       // octet 1 [6]
-  uint8_t R: 1;       // octet 1 [7]
-  uint8_t L1: 8;      // octet 2 [7:0]
-  uint8_t L2: 8;      // octet 3 [7:0]
+  uint8_t LCID: 6;
+  uint8_t F: 1;
+  uint8_t R: 1;
+  uint16_t L: 16;
 } __attribute__ ((__packed__)) NR_MAC_SUBHEADER_LONG;
 
 typedef struct {
@@ -118,6 +114,23 @@ typedef struct {
   uint8_t R: 2;       // octet 1 [7:6]
 } __attribute__ ((__packed__)) NR_MAC_SUBHEADER_FIXED;
 
+static inline int get_mac_len(uint8_t* pdu, int pdu_len, uint16_t *mac_ce_len, uint16_t *mac_subheader_len) {
+  if ( pdu_len < sizeof(NR_MAC_SUBHEADER_SHORT))
+    return false;
+  NR_MAC_SUBHEADER_SHORT *s = (NR_MAC_SUBHEADER_SHORT*) pdu;
+  NR_MAC_SUBHEADER_LONG *l = (NR_MAC_SUBHEADER_LONG*) pdu;
+  if (s->F && pdu_len < sizeof(NR_MAC_SUBHEADER_LONG))
+    return false;
+  if (s->F) {
+    *mac_subheader_len = sizeof(*l);
+    *mac_ce_len = ntohs(l->L);
+  } else {
+    *mac_subheader_len = sizeof(*s);
+    *mac_ce_len = s->L;
+  }
+  return true;
+}
+    
 // BSR MAC CEs
 // TS 38.321 ch. 6.1.3.1
 // Short BSR for a specific logical channel group ID
@@ -265,13 +278,28 @@ typedef struct {
 } dci_field_t;
 
 typedef struct {
+  /* The active harq sfn/slot field was created to save the
+     scheduled SFN/Slot transmission for the ACK/NAK. If we
+     do not save it, then we have to calculate it again as the
+     NRUE MAC layer already does in get_downlink_ack(). */
+  int active_dl_harq_sfn;
+  int active_dl_harq_slot;
+  int active_ul_harq_sfn_slot;
+  bool active;
+} emul_l1_harq_t;
+
+typedef struct {
   bool expected_sib;
-  bool index_has_sib[16];
+  bool index_has_sib[NR_MAX_HARQ_PROCESSES];
   bool expected_rar;
-  bool index_has_rar[16];
+  bool index_has_rar[NR_MAX_HARQ_PROCESSES];
   bool expected_dci;
-  bool index_has_dci[16];
-  int active_harq_sfn_slot;
+  bool index_has_dci[NR_MAX_HARQ_PROCESSES];
+  emul_l1_harq_t harq[NR_MAX_HARQ_PROCESSES];
+  int active_uci_sfn_slot;
+  int num_srs;
+  int num_harqs;
+  int num_csi_reports;
 } nr_emulated_l1_t;
 
 typedef struct {
@@ -479,6 +507,38 @@ typedef struct Type0_PDCCH_CSS_config_s {
   NR_SubcarrierSpacing_t scs_pdcch;
   bool active;
 } NR_Type0_PDCCH_CSS_config_t;
+
+typedef struct {
+  uint8_t nb_ssbri_cri;
+  uint8_t cri_ssbri_bitlen;
+  uint8_t rsrp_bitlen;
+  uint8_t diff_rsrp_bitlen;
+} L1_RSRP_bitlen_t;
+
+typedef struct{
+  uint8_t ri_restriction;
+  uint8_t cri_bitlen;
+  uint8_t ri_bitlen;
+  uint8_t li_bitlen[8];
+  uint8_t pmi_x1_bitlen[8];
+  uint8_t pmi_x2_bitlen[8];
+  uint8_t cqi_bitlen[8];
+} CSI_Meas_bitlen_t;
+
+typedef struct nr_csi_report {
+  NR_CSI_ReportConfig__reportQuantity_PR reportQuantity_type;
+  long periodicity;
+  uint16_t offset;
+  long ** SSB_Index_list;
+  long ** CSI_Index_list;
+//  uint8_t nb_of_nzp_csi_report;
+  uint8_t nb_of_csi_ssb_report;
+  L1_RSRP_bitlen_t CSI_report_bitlen;
+  CSI_Meas_bitlen_t csi_meas_bitlen;
+  int codebook_mode;
+  int N1;
+  int N2;
+} nr_csi_report_t;
 
 #endif /*__LAYER2_MAC_H__ */
 

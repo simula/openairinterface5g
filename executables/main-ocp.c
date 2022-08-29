@@ -71,7 +71,7 @@ pthread_cond_t sync_cond;
 pthread_mutex_t sync_mutex;
 int sync_var=-1; //!< protected by mutex \ref sync_mutex.
 int config_sync_var=-1;
-volatile int oai_exit = 0;
+int oai_exit = 0;
 double cpuf;
 THREAD_STRUCT thread_struct;
 
@@ -87,10 +87,10 @@ AGENT_RRC_xface *agent_rrc_xface[NUM_MAX_ENB]= {0};
 AGENT_MAC_xface *agent_mac_xface[NUM_MAX_ENB]= {0};
 void flexran_agent_slice_update(mid_t module_idP) {
 }
-int proto_agent_start(mod_id_t mod_id, const cudu_params_t *p) {
+int proto_agent_start(mid_t mod_id, const cudu_params_t *p) {
   return 0;
 }
-void proto_agent_stop(mod_id_t mod_id) {
+void proto_agent_stop(mid_t mod_id) {
 }
 
 static void *ru_thread( void *param );
@@ -173,7 +173,7 @@ void init_transport(PHY_VARS_eNB *eNB) {
   }
 
   for (int i=0; i<NUMBER_OF_ULSCH_MAX; i++) {
-    LOG_D(PHY,"Allocating Transport Channel Buffer for ULSCH, UE %d\n",i);
+    LOG_D(PHY,"Allocating Transport Channel Buffers for ULSCH, UE %d\n",i);
     AssertFatal((eNB->ulsch[1+i] = new_eNB_ulsch(MAX_TURBO_ITERATIONS,fp->N_RB_UL, 0)) != NULL,
                 "Can't get eNB ulsch structures\n");
     // this is the transmission mode for the signalling channels

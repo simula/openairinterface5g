@@ -90,7 +90,7 @@ typedef struct {
   /// Redundancy-version of the current sub-frame
   uint8_t rvidx;
   /// Turbo-code outputs (36-212 V8.6 2009-03, p.12
-  uint8_t d[MAX_NUM_ULSCH_SEGMENTS][(96+3+(3*6144))];
+  uint8_t *d[MAX_NUM_ULSCH_SEGMENTS];
   /// Sub-block interleaver outputs (36-212 V8.6 2009-03, p.16-17)
   uint8_t w[MAX_NUM_ULSCH_SEGMENTS][3*6144];
   /// Number of code segments (for definition see 36-212 V8.6 2009-03, p.9)
@@ -155,8 +155,6 @@ typedef struct {
   uint8_t h[MAX_NUM_CHANNEL_BITS];
   /// Scrambled "b"-sequences (for definition see 36-211 V8.6 2009-03, p.14)
   uint8_t b_tilde[MAX_NUM_CHANNEL_BITS];
-  /// Modulated "d"-sequences (for definition see 36-211 V8.6 2009-03, p.14)
-  int32_t d[MAX_NUM_RE];
   /// Transform-coded "z"-sequences (for definition see 36-211 V8.6 2009-03, p.14-15)
   int32_t z[MAX_NUM_RE];
   /// "q" sequences for CQI/PMI (for definition see 36-212 V8.6 2009-03, p.27)

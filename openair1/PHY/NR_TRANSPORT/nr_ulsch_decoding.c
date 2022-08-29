@@ -54,91 +54,66 @@
 
 //extern double cpuf;
 
-void free_gNB_ulsch(NR_gNB_ULSCH_t **ulschptr,uint8_t N_RB_UL)
+void free_gNB_ulsch(NR_gNB_ULSCH_t **ulschptr, uint16_t N_RB_UL)
 {
 
-  int i,r;
-  uint16_t a_segments = MAX_NUM_NR_ULSCH_SEGMENTS;  //number of segments to be allocated
+  uint16_t a_segments = MAX_NUM_NR_ULSCH_SEGMENTS_PER_LAYER*NR_MAX_NB_LAYERS;  //number of segments to be allocated
   NR_gNB_ULSCH_t *ulsch = *ulschptr;
-
-  if (ulsch) {
-    if (N_RB_UL != 273) {
-      a_segments = a_segments*N_RB_UL;
-      a_segments = a_segments/273 +1;
-    }  
-
-
-    for (i=0; i<NR_MAX_ULSCH_HARQ_PROCESSES; i++) {
-
-      if (ulsch->harq_processes[i]) {
-        if (ulsch->harq_processes[i]->b) {
-          free16(ulsch->harq_processes[i]->b,a_segments*1056);
-          ulsch->harq_processes[i]->b = NULL;
-        }
-        for (r=0; r<a_segments; r++) {
-          free16(ulsch->harq_processes[i]->c[r],(8448)*sizeof(uint8_t));
-          ulsch->harq_processes[i]->c[r] = NULL;
-        }
-        for (r=0; r<a_segments; r++) {
-          if (ulsch->harq_processes[i]->d[r]) {
-            free16(ulsch->harq_processes[i]->d[r],(68*384)*sizeof(int16_t));
-            ulsch->harq_processes[i]->d[r] = NULL;
-          }
-        }
-        for (r=0; r<a_segments; r++) {
-          if (ulsch->harq_processes[i]->w[r]) {
-            free16(ulsch->harq_processes[i]->w[r],(3*(6144+64))*sizeof(int16_t));
-            ulsch->harq_processes[i]->w[r] = NULL;
-          }
-        }
-        for (r=0; r<a_segments; r++) {
-          if (ulsch->harq_processes[i]->p_nrLDPC_procBuf[r]){
-            nrLDPC_free_mem(ulsch->harq_processes[i]->p_nrLDPC_procBuf[r]);
-            ulsch->harq_processes[i]->p_nrLDPC_procBuf[r] = NULL;
-          }
-        }
-        free16(ulsch->harq_processes[i],sizeof(NR_UL_gNB_HARQ_t));
-        ulsch->harq_processes[i] = NULL;
-      }
-    }
-    free16(ulsch,sizeof(NR_gNB_ULSCH_t));
-    *ulschptr = NULL;
-  }
-}
-
-
-NR_gNB_ULSCH_t *new_gNB_ulsch(uint8_t max_ldpc_iterations,uint16_t N_RB_UL, uint8_t abstraction_flag)
-{
-
-  NR_gNB_ULSCH_t *ulsch;
-  uint8_t i,r;
-  uint16_t a_segments = MAX_NUM_NR_ULSCH_SEGMENTS;  //number of segments to be allocated
 
   if (N_RB_UL != 273) {
     a_segments = a_segments*N_RB_UL;
     a_segments = a_segments/273 +1;
   }
 
-  uint16_t ulsch_bytes = a_segments*1056;  // allocated bytes per segment
-  ulsch = (NR_gNB_ULSCH_t *)malloc16_clear(sizeof(NR_gNB_ULSCH_t));
-  
-  ulsch->max_ldpc_iterations = max_ldpc_iterations;
-  ulsch->Mlimit = 4;
-  
-  for (i=0; i<NR_MAX_ULSCH_HARQ_PROCESSES; i++) {
-    
-    ulsch->harq_processes[i] = (NR_UL_gNB_HARQ_t *)malloc16_clear(sizeof(NR_UL_gNB_HARQ_t));
-    ulsch->harq_processes[i]->b = (uint8_t*)malloc16_clear(ulsch_bytes);
-    if (abstraction_flag == 0) {
-      for (r=0; r<a_segments; r++) {
-	ulsch->harq_processes[i]->p_nrLDPC_procBuf[r] = nrLDPC_init_mem();
-	ulsch->harq_processes[i]->c[r] = (uint8_t*)malloc16_clear(8448*sizeof(uint8_t));
-	ulsch->harq_processes[i]->d[r] = (int16_t*)malloc16_clear((68*384)*sizeof(int16_t));
-	ulsch->harq_processes[i]->w[r] = (int16_t*)malloc16_clear((3*(6144+64))*sizeof(int16_t));
+  for (int i=0; i<NR_MAX_ULSCH_HARQ_PROCESSES; i++) {
+    if (ulsch->harq_processes[i]) {
+      if (ulsch->harq_processes[i]->b) {
+        free_and_zero(ulsch->harq_processes[i]->b);
+        ulsch->harq_processes[i]->b = NULL;
       }
+      for (int r=0; r<a_segments; r++) {
+        free_and_zero(ulsch->harq_processes[i]->c[r]);
+        free_and_zero(ulsch->harq_processes[i]->d[r]);
+      }
+      free_and_zero(ulsch->harq_processes[i]->c);
+      free_and_zero(ulsch->harq_processes[i]->d);
+      free_and_zero(ulsch->harq_processes[i]);
+      ulsch->harq_processes[i] = NULL;
     }
   }
-  
+  free_and_zero(*ulschptr);
+}
+
+
+NR_gNB_ULSCH_t *new_gNB_ulsch(uint8_t max_ldpc_iterations, uint16_t N_RB_UL)
+{
+
+  NR_gNB_ULSCH_t *ulsch;
+  uint8_t i,r;
+  uint16_t a_segments = MAX_NUM_NR_ULSCH_SEGMENTS_PER_LAYER*NR_MAX_NB_LAYERS;  //number of segments to be allocated
+
+  if (N_RB_UL != 273) {
+    a_segments = a_segments*N_RB_UL;
+    a_segments = a_segments/273 +1;
+  }
+
+  uint32_t ulsch_bytes = a_segments*1056;  // allocated bytes per segment
+  ulsch = (NR_gNB_ULSCH_t *)malloc16_clear(sizeof(NR_gNB_ULSCH_t));
+
+  ulsch->max_ldpc_iterations = max_ldpc_iterations;
+
+  for (i=0; i<NR_MAX_ULSCH_HARQ_PROCESSES; i++) {
+
+    ulsch->harq_processes[i] = (NR_UL_gNB_HARQ_t *)malloc16_clear(sizeof(NR_UL_gNB_HARQ_t));
+    ulsch->harq_processes[i]->b = (uint8_t*)malloc16_clear(ulsch_bytes);
+    ulsch->harq_processes[i]->c = (uint8_t**)malloc16_clear(a_segments*sizeof(uint8_t *));
+    ulsch->harq_processes[i]->d = (int16_t**)malloc16_clear(a_segments*sizeof(int16_t *));
+    for (r=0; r<a_segments; r++) {
+      ulsch->harq_processes[i]->c[r] = (uint8_t*)malloc16_clear(8448*sizeof(uint8_t));
+      ulsch->harq_processes[i]->d[r] = (int16_t*)malloc16_clear((68*384)*sizeof(int16_t));
+    }
+  }
+
   return(ulsch);
 }
 
@@ -160,10 +135,8 @@ void clean_gNB_ulsch(NR_gNB_ULSCH_t *ulsch)
     ulsch->rnti_type = 0;
     ulsch->cyclicShift = 0;
     ulsch->cooperation_flag = 0;
-    ulsch->Mlimit = 0;
     ulsch->max_ldpc_iterations = 0;
     ulsch->last_iteration_cnt = 0;
-    for (i=0;i<NR_MAX_SLOTS_PER_FRAME;i++) ulsch->harq_process_id[i] = 0;
 
     for (i=0; i<NR_MAX_ULSCH_HARQ_PROCESSES; i++) {
       if (ulsch->harq_processes[i]){
@@ -193,11 +166,9 @@ void clean_gNB_ulsch(NR_gNB_ULSCH_t *ulsch)
         ulsch->harq_processes[i]->C=0;
         /// Pointers to code blocks after LDPC coding (38.212 V15.4.0 section 5.3.2)
         //int16_t *d[MAX_NUM_NR_ULSCH_SEGMENTS];
-        /// LDPC processing buffer
-        //t_nrLDPC_procBuf* p_nrLDPC_procBuf[MAX_NUM_NR_ULSCH_SEGMENTS];
         ulsch->harq_processes[i]->Z=0;
         /// code blocks after bit selection in rate matching for LDPC code (38.212 V15.4.0 section 5.4.2.1)
-        //int16_t e[MAX_NUM_NR_DLSCH_SEGMENTS][3*8448];
+        //int16_t e[MAX_NUM_NR_ULSCH_SEGMENTS][3*8448];
         ulsch->harq_processes[i]->E=0;
 
 
@@ -259,7 +230,6 @@ void nr_processULSegment(void* arg) {
   int rv_index = rdata->rv_index;
   int r_offset = rdata->r_offset;
   uint8_t kc = rdata->Kc;
-  uint32_t Tbslbrm = rdata->Tbslbrm;
   short* ulsch_llr = rdata->ulsch_llr;
   int max_ldpc_iterations = p_decoderParms->numMaxIter;
   int8_t llrProcBuf[OAI_UL_LDPC_MAX_NUM_LLR] __attribute__ ((aligned(32)));
@@ -269,8 +239,6 @@ void nr_processULSegment(void* arg) {
 
   __m128i *pv = (__m128i*)&z;
   __m128i *pl = (__m128i*)&l;
-  
-  uint8_t  Ilbrm    = 0;
 
   Kr = ulsch_harq->K;
   Kr_bytes = Kr>>3;
@@ -287,9 +255,12 @@ void nr_processULSegment(void* arg) {
 
   //////////////////////////// ulsch_llr =====> ulsch_harq->e //////////////////////////////
 
+  /// code blocks after bit selection in rate matching for LDPC code (38.212 V15.4.0 section 5.4.2.1)
+  int16_t harq_e[3*8448];
+
   nr_deinterleaving_ldpc(E,
                          Qm,
-                         ulsch_harq->e[r],
+                         harq_e,
                          ulsch_llr+r_offset);
 
   //for (int i =0; i<16; i++)
@@ -298,16 +269,7 @@ void nr_processULSegment(void* arg) {
   stop_meas(&phy_vars_gNB->ulsch_deinterleaving_stats);
 
 
-  /*LOG_D(PHY,"HARQ_PID %d Rate Matching Segment %d (coded bits %d,unpunctured/repeated bits %d, TBS %d, mod_order %d, nb_rb %d, Nl %d, rv %d, round %d)...\n",
-        harq_pid,r, G,
-        Kr*3,
-        ulsch_harq->TBS,
-        Qm,
-        nb_rb,
-        n_layers,
-        pusch_pdu->pusch_data.rv_index,
-        ulsch_harq->round);*/
-  //////////////////////////////////////////////////////////////////////////////////////////
+ //////////////////////////////////////////////////////////////////////////////////////////
 
 
   //////////////////////////////////////////////////////////////////////////////////////////
@@ -318,18 +280,17 @@ void nr_processULSegment(void* arg) {
 
   //start_meas(&phy_vars_gNB->ulsch_rate_unmatching_stats);
 
-  if (nr_rate_matching_ldpc_rx(Ilbrm,
-                               Tbslbrm,
+  if (nr_rate_matching_ldpc_rx(rdata->tbslbrm,
                                p_decoderParms->BG,
                                p_decoderParms->Z,
                                ulsch_harq->d[r],
-                               ulsch_harq->e[r],
+                               harq_e,
                                ulsch_harq->C,
                                rv_index,
                                ulsch_harq->new_rx,
                                E,
-       ulsch_harq->F,
-       Kr-ulsch_harq->F-2*(p_decoderParms->Z))==-1) {
+                               ulsch_harq->F,
+                               Kr-ulsch_harq->F-2*(p_decoderParms->Z))==-1) {
 
     stop_meas(&phy_vars_gNB->ulsch_rate_unmatching_stats);
 
@@ -382,18 +343,17 @@ void nr_processULSegment(void* arg) {
   no_iteration_ldpc = nrLDPC_decoder(p_decoderParms,
                                      (int8_t*)&pl[0],
                                      llrProcBuf,
-                                     ulsch_harq->p_nrLDPC_procBuf[r],
                                      p_procTime);
 
   if (check_crc((uint8_t*)llrProcBuf,length_dec,ulsch_harq->F,crc_type)) {
 #ifdef PRINT_CRC_CHECK
-      LOG_I(PHY, "Segment %d CRC OK, iterations %d/%d\n",r,no_iteration_ldpc,max_ldpc_iterations);
+      LOG_I(PHY,"Segment %d CRC OK, iterations %d/%d\n",r,no_iteration_ldpc,max_ldpc_iterations);
 #endif
     rdata->decodeIterations = no_iteration_ldpc;
     if (rdata->decodeIterations > p_decoderParms->numMaxIter) rdata->decodeIterations--;
   } else {
 #ifdef PRINT_CRC_CHECK
-      LOG_I(PHY, "CRC NOK\n");
+      LOG_I(PHY,"CRC NOK\n");
 #endif
     rdata->decodeIterations = max_ldpc_iterations + 1;
   }
@@ -420,7 +380,6 @@ uint32_t nr_ulsch_decoding(PHY_VARS_gNB *phy_vars_gNB,
   uint32_t r_offset;
   uint32_t offset;
   int kc;
-  int Tbslbrm;
   int E;
 
 #ifdef PRINT_CRC_CHECK
@@ -428,7 +387,7 @@ uint32_t nr_ulsch_decoding(PHY_VARS_gNB *phy_vars_gNB,
 #endif
   
 
-  NR_gNB_ULSCH_t                       *ulsch                 = phy_vars_gNB->ulsch[ULSCH_id][0];
+  NR_gNB_ULSCH_t                       *ulsch                 = phy_vars_gNB->ulsch[ULSCH_id];
   NR_gNB_PUSCH                         *pusch                 = phy_vars_gNB->pusch_vars[ULSCH_id];
   NR_UL_gNB_HARQ_t                     *harq_process          = ulsch->harq_processes[harq_pid];
 
@@ -445,18 +404,15 @@ uint32_t nr_ulsch_decoding(PHY_VARS_gNB *phy_vars_gNB,
     
   phy_vars_gNB->nbDecode = 0;
   harq_process->processedSegments = 0;
-
-  double   Coderate = 0.0;
   
   // ------------------------------------------------------------------
   uint16_t nb_rb          = pusch_pdu->rb_size;
   uint8_t Qm              = pusch_pdu->qam_mod_order;
-  uint16_t R              = pusch_pdu->target_code_rate;
   uint8_t mcs             = pusch_pdu->mcs_index;
   uint8_t n_layers        = pusch_pdu->nrOfLayers;
   // ------------------------------------------------------------------
 
-   if (!ulsch_llr) {
+  if (!ulsch_llr) {
     LOG_E(PHY,"ulsch_decoding.c: NULL ulsch_llr pointer\n");
     return 1;
   }
@@ -475,18 +431,17 @@ uint32_t nr_ulsch_decoding(PHY_VARS_gNB *phy_vars_gNB,
   if (harq_process->ndi != pusch_pdu->pusch_data.new_data_indicator) {
     harq_process->new_rx = true;
     harq_process->ndi = pusch_pdu->pusch_data.new_data_indicator;
-    LOG_E(PHY,"Missed ULSCH detection. NDI toggled but rv %d does not correspond to first reception\n",pusch_pdu->pusch_data.rv_index);
+    LOG_D(PHY,"Missed ULSCH detection. NDI toggled but rv %d does not correspond to first reception\n",pusch_pdu->pusch_data.rv_index);
   }
 
   A   = (harq_process->TBS)<<3;
 
-  LOG_D(PHY,"ULSCH Decoding, harq_pid %d TBS %d G %d mcs %d Nl %d nb_rb %d, Qm %d, n_layers %d, Coderate %d\n",harq_pid,A,G, mcs, n_layers, nb_rb, Qm, n_layers, R);
+  // target_code_rate is in 0.1 units
+  float Coderate = (float) pusch_pdu->target_code_rate / 10240.0f;
 
-  if (R<1024)
-    Coderate = (float) R /(float) 1024;
-  else
-    Coderate = (float) R /(float) 2048;
-  
+  LOG_D(PHY,"ULSCH Decoding, harq_pid %d TBS %d G %d mcs %d Nl %d nb_rb %d, Qm %d, Coderate %f RV %d round %d\n",
+        harq_pid, A, G, mcs, n_layers, nb_rb, Qm, Coderate, pusch_pdu->pusch_data.rv_index, harq_process->round);
+
   if ((A <=292) || ((A<=3824) && (Coderate <= 0.6667)) || Coderate <= 0.25){
     p_decParams->BG = 2;
     kc = 52;
@@ -554,12 +509,17 @@ uint32_t nr_ulsch_decoding(PHY_VARS_gNB *phy_vars_gNB,
                   &harq_process->F,
                   p_decParams->BG);
 
+  if (harq_process->C>MAX_NUM_NR_DLSCH_SEGMENTS_PER_LAYER*n_layers) {
+    LOG_E(PHY,"nr_segmentation.c: too many segments %d, B %d\n",harq_process->C,harq_process->B);
+    return(-1);
+  }
+
+
 #ifdef DEBUG_ULSCH_DECODING
   printf("ulsch decoding nr segmentation Z %d\n", harq_process->Z);
   if (!frame%100)
     printf("K %d C %d Z %d \n", harq_process->K, harq_process->C, harq_process->Z);
 #endif
-  Tbslbrm = nr_compute_tbslbrm(0,nb_rb,n_layers);
 
   p_decParams->Z = harq_process->Z;
 
@@ -569,7 +529,7 @@ uint32_t nr_ulsch_decoding(PHY_VARS_gNB *phy_vars_gNB,
 
   r_offset = 0;
 
-  uint16_t a_segments = MAX_NUM_NR_ULSCH_SEGMENTS;  //number of segments to be allocated
+  uint16_t a_segments = MAX_NUM_NR_ULSCH_SEGMENTS_PER_LAYER*n_layers;  //number of segments to be allocated
 
   if (nb_rb != 273) {
     a_segments = a_segments*nb_rb;
@@ -593,7 +553,7 @@ uint32_t nr_ulsch_decoding(PHY_VARS_gNB *phy_vars_gNB,
     E = nr_get_E(G, harq_process->C, Qm, n_layers, r);
 
     union ldpcReqUnion id = {.s={ulsch->rnti,frame,nr_tti_rx,0,0}};
-    notifiedFIFO_elt_t *req=newNotifiedFIFO_elt(sizeof(ldpcDecode_t), id.p, phy_vars_gNB->respDecode, nr_processULSegment_ptr);
+    notifiedFIFO_elt_t *req = newNotifiedFIFO_elt(sizeof(ldpcDecode_t), id.p, &phy_vars_gNB->respDecode, nr_processULSegment_ptr);
     ldpcDecode_t * rdata=(ldpcDecode_t *) NotifiedFifoData(req);
 
     rdata->gNB = phy_vars_gNB;
@@ -610,11 +570,11 @@ uint32_t nr_ulsch_decoding(PHY_VARS_gNB *phy_vars_gNB,
     rdata->r_offset = r_offset;
     rdata->Kr_bytes = Kr_bytes;
     rdata->rv_index = pusch_pdu->pusch_data.rv_index;
-    rdata->Tbslbrm = Tbslbrm;
     rdata->offset = offset;
     rdata->ulsch = ulsch;
     rdata->ulsch_id = ULSCH_id;
-    pushTpool(phy_vars_gNB->threadPool,req);
+    rdata->tbslbrm = pusch_pdu->maintenance_parms_v3.tbSizeLbrmBytes;
+    pushTpool(&phy_vars_gNB->threadPool, req);
     phy_vars_gNB->nbDecode++;
     LOG_D(PHY,"Added a block to decode, in pipe: %d\n",phy_vars_gNB->nbDecode);
     r_offset += E;

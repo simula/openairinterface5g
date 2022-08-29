@@ -44,7 +44,7 @@
 #include <executables/split_headers.h>
 
 extern WORKER_CONF_t get_thread_worker_conf(void);
-extern volatile int oai_exit;
+extern int oai_exit;
 
 
 
@@ -601,7 +601,8 @@ unsigned int  ulsch_decoding(PHY_VARS_eNB *eNB,
   G = G - Q_RI - Q_CQI;
   ulsch_harq->G = G;
   AssertFatal((int)G > 0,
-              "FATAL: ulsch_decoding.c G < 0 (%u) : Q_RI %u, Q_CQI %u\n",G,Q_RI,Q_CQI);
+              "FATAL: ulsch_decoding.c G < 0 (%u) : Q_RI %u, Q_CQI %u, nb_rb %u, Q_m %u, ulsch_harq->Nsymb_pusch %u, Qprime %u\n",
+              G, Q_RI, Q_CQI, nb_rb, Q_m, ulsch_harq->Nsymb_pusch, Qprime);
   H = G + Q_CQI;
   Hprime = H/Q_m;
   // Demultiplexing/Deinterleaving of PUSCH/ACK/RI/CQI

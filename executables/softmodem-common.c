@@ -45,7 +45,6 @@
 static softmodem_params_t softmodem_params;
 char *parallel_config=NULL;
 char *worker_config=NULL;
-msc_interface_t msc_interface;
 int usrp_tx_thread = 0;
 
 uint8_t nfapi_mode=0;
@@ -86,11 +85,12 @@ char *get_softmodem_function(uint64_t *sofmodemfunc_mask_ptr) {
 }
 
 void get_common_options(uint32_t execmask) {
+  int32_t stats_disabled = 0;
   uint32_t online_log_messages=0;
   uint32_t glog_level=0 ;
   uint32_t start_telnetsrv = 0, start_telnetclt = 0;
   uint32_t noS1 = 0, nokrnmod = 1, nonbiot = 0;
-  uint32_t rfsim = 0, basicsim = 0, do_forms = 0;
+  uint32_t rfsim = 0, do_forms = 0;
   char *logmem_filename = NULL;
   paramdef_t cmdline_params[] =CMDLINE_PARAMS_DESC ;
   paramdef_t cmdline_logparams[] =CMDLINE_LOGPARAMS_DESC ;
@@ -142,10 +142,6 @@ void get_common_options(uint32_t execmask) {
     set_softmodem_optmask(SOFTMODEM_RFSIM_BIT);
   }
 
-  if (basicsim) {
-    set_softmodem_optmask(SOFTMODEM_BASICSIM_BIT);
-  }
-
   if (do_forms) {
     set_softmodem_optmask(SOFTMODEM_DOSCOPE_BIT);
   }
@@ -154,6 +150,8 @@ void get_common_options(uint32_t execmask) {
 
   if(worker_config != NULL)   set_worker_conf(worker_config);
   nfapi_setmode(nfapi_mode);
+  if (stats_disabled)
+    set_softmodem_optmask(SOFTMODEM_NOSTATS_BIT);
 }
 void softmodem_printresources(int sig, telnet_printfunc_t pf) {
   struct rusage usage;

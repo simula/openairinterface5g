@@ -72,6 +72,7 @@
 #include <executables/softmodem-common.h>
 
 #include "nr_nas_msg_sim.h"
+#include <openair2/RRC/NR/nr_rrc_proto.h>
 
 NR_UE_RRC_INST_t *NR_UE_rrc_inst;
 /* NAS Attach request with IMSI */
@@ -177,27 +178,6 @@ static int nr_rrc_set_sub_state( module_id_t ue_mod_idP, Rrc_Sub_State_NR_t subS
 
   return (0);
 }
-
-extern boolean_t nr_rrc_pdcp_config_asn1_req(
-    const protocol_ctxt_t *const  ctxt_pP,
-    NR_SRB_ToAddModList_t  *const srb2add_list,
-    NR_DRB_ToAddModList_t  *const drb2add_list,
-    NR_DRB_ToReleaseList_t *const drb2release_list,
-    const uint8_t                   security_modeP,
-    uint8_t                  *const kRRCenc,
-    uint8_t                  *const kRRCint,
-    uint8_t                  *const kUPenc,
-    uint8_t                  *const kUPint
-    ,LTE_PMCH_InfoList_r9_t  *pmch_InfoList_r9
-    ,rb_id_t                 *const defaultDRB,
-    struct NR_CellGroupConfig__rlc_BearerToAddModList *rlc_bearer2add_list);
-
-extern rlc_op_status_t nr_rrc_rlc_config_asn1_req (const protocol_ctxt_t   * const ctxt_pP,
-    const NR_SRB_ToAddModList_t   * const srb2add_listP,
-    const NR_DRB_ToAddModList_t   * const drb2add_listP,
-    const NR_DRB_ToReleaseList_t  * const drb2release_listP,
-    const LTE_PMCH_InfoList_r9_t * const pmch_InfoList_r9_pP,
-    struct NR_CellGroupConfig__rlc_BearerToAddModList *rlc_bearer2add_list);
 
 // from LTE-RRC DL-DCCH RRCConnectionReconfiguration nr-secondary-cell-group-config (encoded)
 int8_t nr_rrc_ue_decode_secondary_cellgroup_config(const module_id_t module_id,
@@ -379,7 +359,8 @@ void process_nsa_message(NR_UE_RRC_INST_t *rrc, nsa_message_t nsa_message_type, 
           return;
         }
         nr_rrc_ue_process_rrcReconfiguration(module_id,RRCReconfiguration);
-        }
+        ASN_STRUCT_FREE(asn_DEF_NR_RRCReconfiguration, RRCReconfiguration);
+      }
       break;
     
     case nr_RadioBearerConfigX_r15:
@@ -412,6 +393,7 @@ void process_nsa_message(NR_UE_RRC_INST_t *rrc, nsa_message_t nsa_message_type, 
         else if ( LOG_DEBUGFLAG(DEBUG_ASN1) ) {
           xer_fprint(stdout, &asn_DEF_NR_RadioBearerConfig, (const void *) RadioBearerConfig);
         }
+        ASN_STRUCT_FREE(asn_DEF_NR_RadioBearerConfig, RadioBearerConfig);
       }
       break;
     
@@ -1338,11 +1320,11 @@ nr_rrc_ue_process_masterCellGroup(
     //TODO (perform SCell addition/modification as specified in 5.3.5.5.9)
   }
 
-  if( cellGroupConfig->ext2->bh_RLC_ChannelToReleaseList_r16 != NULL){
+  if(cellGroupConfig->ext2 != NULL && cellGroupConfig->ext2->bh_RLC_ChannelToReleaseList_r16 != NULL){
     //TODO (perform the BH RLC channel addition/modification as specified in 5.3.5.5.11)
   }
 
-  if( cellGroupConfig->ext2->bh_RLC_ChannelToAddModList_r16 != NULL){
+  if(cellGroupConfig->ext2 != NULL && cellGroupConfig->ext2->bh_RLC_ChannelToAddModList_r16 != NULL){
     //TODO (perform the BH RLC channel addition/modification as specified in 5.3.5.5.11)
   }
 }
@@ -1358,21 +1340,8 @@ static void rrc_ue_generate_RRCSetupComplete(
   uint8_t size;
   const char *nas_msg;
   int   nas_msg_length;
-  NR_UE_MAC_INST_t *mac = get_mac_inst(0);
-
-  if (mac->cg &&
-      mac->cg->spCellConfig &&
-      mac->cg->spCellConfig->spCellConfigDedicated &&
-      mac->cg->spCellConfig->spCellConfigDedicated->csi_MeasConfig)
-    AssertFatal(1==0,"2 > csi_MeasConfig is not null\n");
 
  if (AMF_MODE_ENABLED) {
-#if defined(ITTI_SIM)
-    as_nas_info_t initialNasMsg;
-    generateRegistrationRequest(&initialNasMsg, ctxt_pP->module_id);
-    nas_msg = (char*)initialNasMsg.data;
-    nas_msg_length = initialNasMsg.length;
-#else
     if (get_softmodem_params()->sa) {
       as_nas_info_t initialNasMsg;
       generateRegistrationRequest(&initialNasMsg, ctxt_pP->module_id);
@@ -1382,7 +1351,6 @@ static void rrc_ue_generate_RRCSetupComplete(
       nas_msg         = (char *) NR_UE_rrc_inst[ctxt_pP->module_id].initialNasMsg.data;
       nas_msg_length  = NR_UE_rrc_inst[ctxt_pP->module_id].initialNasMsg.length;
     }
-#endif
   } else {
     nas_msg         = nr_nas_attach_req_imsi;
     nas_msg_length  = sizeof(nr_nas_attach_req_imsi);
@@ -1406,18 +1374,6 @@ static void rrc_ue_generate_RRCSetupComplete(
                   size,
                   buffer,
                   PDCP_TRANSMISSION_MODE_CONTROL);
-
-#ifdef ITTI_SIM
-  MessageDef *message_p;
-  uint8_t *message_buffer;
-  message_buffer = itti_malloc (TASK_RRC_NRUE, TASK_RRC_GNB_SIM, size);
-  memcpy (message_buffer, buffer, size);
-  message_p = itti_alloc_new_message (TASK_RRC_NRUE, 0, UE_RRC_DCCH_DATA_IND);
-  UE_RRC_DCCH_DATA_IND (message_p).rbid = 1;
-  UE_RRC_DCCH_DATA_IND (message_p).sdu = message_buffer;
-  UE_RRC_DCCH_DATA_IND (message_p).size  = size;
-  itti_send_msg_to_task (TASK_RRC_GNB_SIM, ctxt_pP->instance, message_p);
-#endif
 }
 
 int8_t nr_rrc_ue_decode_ccch( const protocol_ctxt_t *const ctxt_pP, const NR_SRB_INFO *const Srb_info, const uint8_t gNB_index ){
@@ -1480,8 +1436,8 @@ int8_t nr_rrc_ue_decode_ccch( const protocol_ctxt_t *const ctxt_pP, const NR_SRB
 	 nr_rrc_ue_process_RadioBearerConfig(ctxt_pP,
 					     gNB_index,
 					     &dl_ccch_msg->message.choice.c1->choice.rrcSetup->criticalExtensions.choice.rrcSetup->radioBearerConfig);
-	 nr_rrc_set_state (ctxt_pP->module_id, RRC_STATE_CONNECTED);
-	 nr_rrc_set_sub_state (ctxt_pP->module_id, RRC_SUB_STATE_CONNECTED);
+	 nr_rrc_set_state (ctxt_pP->module_id, RRC_STATE_CONNECTED_NR);
+	 nr_rrc_set_sub_state (ctxt_pP->module_id, RRC_SUB_STATE_CONNECTED_NR);
 	 NR_UE_rrc_inst[ctxt_pP->module_id].Info[gNB_index].rnti = ctxt_pP->rnti;
 	 rrc_ue_generate_RRCSetupComplete(
 					  ctxt_pP,
@@ -1736,19 +1692,6 @@ int8_t nr_rrc_ue_decode_ccch( const protocol_ctxt_t *const ctxt_pP, const NR_SRB
      }
 
      LOG_T(NR_RRC, "\n");
- #ifdef ITTI_SIM
-     MessageDef *message_p;
-     uint8_t *message_buffer;
-     message_buffer = itti_malloc (TASK_RRC_NRUE,TASK_RRC_GNB_SIM,
-			(enc_rval.encoded + 7) / 8);
-     memcpy (message_buffer, buffer, (enc_rval.encoded + 7) / 8);
-
-     message_p = itti_alloc_new_message (TASK_RRC_NRUE, 0, UE_RRC_DCCH_DATA_IND);
-     GNB_RRC_DCCH_DATA_IND (message_p).rbid  = DCCH;
-     GNB_RRC_DCCH_DATA_IND (message_p).sdu   = message_buffer;
-     GNB_RRC_DCCH_DATA_IND (message_p).size    = (enc_rval.encoded + 7) / 8;
-     itti_send_msg_to_task (TASK_RRC_GNB_SIM, ctxt_pP->instance, message_p);
- #else
      rrc_data_req_nr_ue (ctxt_pP,
                       DCCH,
                       nr_rrc_mui++,
@@ -1756,7 +1699,6 @@ int8_t nr_rrc_ue_decode_ccch( const protocol_ctxt_t *const ctxt_pP, const NR_SRB
                       (enc_rval.encoded + 7) / 8,
                       buffer,
                       PDCP_TRANSMISSION_MODE_CONTROL);
- #endif
    } else
      LOG_W(NR_RRC,"securityModeCommand->criticalExtensions.present (%d) != NR_SecurityModeCommand__criticalExtensions_PR_securityModeCommand\n",
 		  securityModeCommand->criticalExtensions.present);
@@ -1802,19 +1744,6 @@ int8_t nr_rrc_ue_decode_ccch( const protocol_ctxt_t *const ctxt_pP, const NR_SRB
      //printf("\n");
      /*UE_rrc_inst[ue_mod_idP].Srb0[Idx].Tx_buffer.Payload[i] = taus()&0xff;
      UE_rrc_inst[ue_mod_idP].Srb0[Idx].Tx_buffer.payload_size =i; */
-
-#ifdef ITTI_SIM
-    MessageDef *message_p;
-    uint8_t *message_buffer;
-    message_buffer = itti_malloc (TASK_RRC_NRUE,TASK_RRC_GNB_SIM,
-          NR_UE_rrc_inst[module_id].Srb0[gNB_index].Tx_buffer.payload_size);
-    memcpy (message_buffer, (uint8_t*)NR_UE_rrc_inst[module_id].Srb0[gNB_index].Tx_buffer.Payload,
-          NR_UE_rrc_inst[module_id].Srb0[gNB_index].Tx_buffer.payload_size);
-    message_p = itti_alloc_new_message (TASK_RRC_NRUE, 0, UE_RRC_CCCH_DATA_IND);
-    GNB_RRC_CCCH_DATA_IND (message_p).sdu = message_buffer;
-    GNB_RRC_CCCH_DATA_IND (message_p).size  = NR_UE_rrc_inst[module_id].Srb0[gNB_index].Tx_buffer.payload_size;
-    itti_send_msg_to_task (TASK_RRC_GNB_SIM, gNB_index, message_p);
-#endif
   }
 }
 
@@ -2039,7 +1968,7 @@ nr_rrc_ue_establish_srb2(
    int i, cnt;
 
    if( radioBearerConfig->srb3_ToRelease != NULL){
-     if( *radioBearerConfig->srb3_ToRelease == TRUE){
+     if( *radioBearerConfig->srb3_ToRelease == true){
        //TODO (release the PDCP entity and the srb-Identity of the SRB3.)
      }
    }
@@ -2164,17 +2093,6 @@ nr_rrc_ue_establish_srb2(
      nr_derive_key_up_int(NR_UE_rrc_inst[ctxt_pP->module_id].integrityProtAlgorithm,
                           NR_UE_rrc_inst[ctxt_pP->module_id].kgnb, &kUPint);
 
-     MSC_LOG_TX_MESSAGE(
-	 MSC_RRC_UE,
-	 MSC_PDCP_UE,
-	 NULL,
-	 0,
-	 MSC_AS_TIME_FMT" CONFIG_REQ UE %x DRB (security %X)",
-	 MSC_AS_TIME_ARGS(ctxt_pP),
-	 ctxt_pP->rnti,
-	 NR_UE_rrc_inst[ctxt_pP->module_id].cipheringAlgorithm |
-	 (NR_UE_rrc_inst[ctxt_pP->module_id].integrityProtAlgorithm << 4));
-
        // Refresh DRBs
         nr_rrc_pdcp_config_asn1_req(ctxt_pP,
                                     NULL,
@@ -2241,7 +2159,7 @@ nr_rrc_ue_establish_srb2(
  //      nr_rrc_ue_process_measConfig(ctxt_pP, gNB_index, ie->measConfig);
      }
 
-     if(ie->nonCriticalExtension->masterCellGroup!=NULL) {
+     if((ie->nonCriticalExtension) && (ie->nonCriticalExtension->masterCellGroup!=NULL)) {
        nr_rrc_ue_process_masterCellGroup(
            ctxt_pP,
            gNB_index,
@@ -2254,7 +2172,7 @@ nr_rrc_ue_establish_srb2(
      }
 
      /* Check if there is dedicated NAS information to forward to NAS */
-     if (ie->nonCriticalExtension->dedicatedNAS_MessageList != NULL) {
+     if ((ie->nonCriticalExtension) && (ie->nonCriticalExtension->dedicatedNAS_MessageList != NULL)) {
        int list_count;
        uint32_t pdu_length;
        uint8_t *pdu_buffer;
@@ -2290,19 +2208,6 @@ nr_rrc_ue_establish_srb2(
 	 nr_rrc_mui,
 	 UE_MODULE_ID_TO_INSTANCE(ctxt_pP->module_id),
 	 DCCH);
- #ifdef ITTI_SIM
-   MessageDef *message_p;
-   uint8_t *message_buffer;
-   message_buffer = itti_malloc (TASK_RRC_NRUE,TASK_RRC_GNB_SIM,size);
-   memcpy (message_buffer, buffer, size);
-
-   message_p = itti_alloc_new_message (TASK_RRC_NRUE, 0, UE_RRC_DCCH_DATA_IND);
-   UE_RRC_DCCH_DATA_IND (message_p).rbid = DCCH;
-   UE_RRC_DCCH_DATA_IND (message_p).sdu = message_buffer;
-   UE_RRC_DCCH_DATA_IND (message_p).size  = size;
-   itti_send_msg_to_task (TASK_RRC_GNB_SIM, ctxt_pP->instance, message_p);
-
- #else
    rrc_data_req_nr_ue (
      ctxt_pP,
      DCCH,
@@ -2311,8 +2216,6 @@ nr_rrc_ue_establish_srb2(
      size,
      buffer,
      PDCP_TRANSMISSION_MODE_CONTROL);
- #endif
-
  }
 
  // from NR SRB1
@@ -2559,22 +2462,6 @@ nr_rrc_ue_establish_srb2(
         length = do_NR_ULInformationTransfer(&buffer, NAS_UPLINK_DATA_REQ (msg_p).nasMsg.length, NAS_UPLINK_DATA_REQ (msg_p).nasMsg.data);
         /* Transfer data to PDCP */
         PROTOCOL_CTXT_SET_BY_MODULE_ID(&ctxt, ue_mod_id, GNB_FLAG_NO, NR_UE_rrc_inst[ue_mod_id].Info[0].rnti, 0, 0,0);
-#ifdef ITTI_SIM
-        MessageDef *message_p;
-        uint8_t *message_buffer;
-        message_buffer = itti_malloc (TASK_RRC_NRUE,TASK_RRC_GNB_SIM,length);
-        memcpy (message_buffer, buffer, length);
-        
-        message_p = itti_alloc_new_message (TASK_RRC_NRUE, 0, UE_RRC_DCCH_DATA_IND);
-        if(NR_UE_rrc_inst[ue_mod_id].SRB2_config[0] == NULL) 
-          UE_RRC_DCCH_DATA_IND (message_p).rbid = DCCH;
-        else
-          UE_RRC_DCCH_DATA_IND (message_p).rbid = DCCH1;
-        UE_RRC_DCCH_DATA_IND (message_p).sdu = message_buffer;
-        UE_RRC_DCCH_DATA_IND (message_p).size  = length;
-        itti_send_msg_to_task (TASK_RRC_GNB_SIM, ctxt.instance, message_p);
-
-#else
         // check if SRB2 is created, if yes request data_req on DCCH1 (SRB2)
         if(NR_UE_rrc_inst[ue_mod_id].SRB2_config[0] == NULL) {
           rrc_data_req_nr_ue (&ctxt,
@@ -2591,7 +2478,6 @@ nr_rrc_ue_establish_srb2(
                            length, buffer,
                            PDCP_TRANSMISSION_MODE_CONTROL);
         }
-#endif
         break;
       }
 
@@ -2735,19 +2621,6 @@ nr_rrc_ue_process_ueCapabilityEnquiry(
       }
 
       LOG_I(NR_RRC, "UECapabilityInformation Encoded %zd bits (%zd bytes)\n",enc_rval.encoded,(enc_rval.encoded+7)/8);
-#ifdef ITTI_SIM
-      MessageDef *message_p;
-      uint8_t *message_buffer;
-      message_buffer = itti_malloc (TASK_RRC_NRUE,TASK_RRC_GNB_SIM,
-               (enc_rval.encoded + 7) / 8);
-      memcpy (message_buffer, buffer, (enc_rval.encoded + 7) / 8);
-
-      message_p = itti_alloc_new_message (TASK_RRC_NRUE, 0, UE_RRC_DCCH_DATA_IND);
-      GNB_RRC_DCCH_DATA_IND (message_p).rbid  = DCCH;
-      GNB_RRC_DCCH_DATA_IND (message_p).sdu   = message_buffer;
-      GNB_RRC_DCCH_DATA_IND (message_p).size  = (enc_rval.encoded + 7) / 8;
-      itti_send_msg_to_task (TASK_RRC_GNB_SIM, ctxt_pP->instance, message_p);
-#else
       rrc_data_req_nr_ue (
         ctxt_pP,
         DCCH,
@@ -2756,7 +2629,6 @@ nr_rrc_ue_process_ueCapabilityEnquiry(
         (enc_rval.encoded + 7) / 8,
         buffer,
         PDCP_TRANSMISSION_MODE_CONTROL);
-#endif
     }
   }
 }
@@ -2775,19 +2647,6 @@ nr_rrc_ue_generate_rrcReestablishmentComplete(
                                            rrcReestablishment->rrc_TransactionIdentifier);
     LOG_I(NR_RRC,"[UE %d][RAPROC] Frame %d : Logical Channel UL-DCCH (SRB1), Generating RRCReestablishmentComplete (bytes%d, gNB %d)\n",
           ctxt_pP->module_id,ctxt_pP->frame, length, gNB_index);
-#ifdef ITTI_SIM
-    MessageDef *message_p;
-    uint8_t *message_buffer;
-    message_buffer = itti_malloc (TASK_RRC_NRUE,TASK_RRC_GNB_SIM,length);
-    memcpy (message_buffer, buffer, length);
-
-    message_p = itti_alloc_new_message (TASK_RRC_NRUE, 0, UE_RRC_DCCH_DATA_IND);
-    UE_RRC_DCCH_DATA_IND (message_p).rbid = DCCH;
-    UE_RRC_DCCH_DATA_IND (message_p).sdu = message_buffer;
-    UE_RRC_DCCH_DATA_IND (message_p).size  = length;
-    itti_send_msg_to_task (TASK_RRC_GNB_SIM, ctxt_pP->instance, message_p);
-
-#endif
 }
 
 void *recv_msgs_from_lte_ue(void *args_p)
@@ -2826,7 +2685,6 @@ void start_oai_nrue_threads()
     init_queue(&nr_tx_req_queue);
     init_queue(&nr_ul_dci_req_queue);
     init_queue(&nr_ul_tti_req_queue);
-    init_queue(&nr_wait_ul_tti_req_queue);
 
     if (sem_init(&sfn_slot_semaphore, 0, 0) != 0)
     {

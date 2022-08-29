@@ -36,6 +36,27 @@
 
 const char *duplex_mode[]={"FDD","TDD"};
 
+int tables_5_3_2[5][11] = {
+  {25, 52, 79, 106, 133, 160, 216, 270, -1, -1, -1}, // 15 FR1
+  {11, 24, 38, 51, 65, 78, 106, 133, 162, 217, 273}, // 30 FR1
+  {-1, 11, 18, 24, 31, 38, 51, 65, 79, 107, 135},    // 60 FR1
+  {66, 132, 264, -1 , -1, -1, -1, -1, -1, -1, -1},   // 60 FR2
+  {32, 66, 132, 264, -1, -1, -1, -1, -1, -1, -1}     // 120FR2
+};
+
+int get_supported_band_index(int scs, int band, int n_rbs){
+
+  int scs_index = scs;
+  if (band>256)
+    scs_index++;
+  for (int i=0; i<11; i++) {
+    if(n_rbs == tables_5_3_2[scs][i])
+      return i;
+  }
+  return (-1); // not found
+}
+
+
 // Table 5.2-1 NR operating bands in FR1 & FR2 (3GPP TS 38.101)
 // Table 5.4.2.3-1 Applicable NR-ARFCN per operating band in FR1 & FR2 (3GPP TS 38.101)
 // Notes:
@@ -170,67 +191,18 @@ int PRBalloc_to_locationandbandwidth(int NPRB,int RBstart) {
   return(PRBalloc_to_locationandbandwidth0(NPRB,RBstart,275));
 }
 
-/// Target code rate tables indexed by Imcs
-/* TS 38.214 table 5.1.3.1-1 - MCS index table 1 for PDSCH */
-uint16_t nr_target_code_rate_table1[29] = {120, 157, 193, 251, 308, 379, 449, 526, 602, 679, 340, 378, 434, 490, 553, \
-                                            616, 658, 438, 466, 517, 567, 616, 666, 719, 772, 822, 873, 910, 948};
+int cce_to_reg_interleaving(const int R, int k, int n_shift, const int C, int L, const int N_regs) {
 
-/* TS 38.214 table 5.1.3.1-2 - MCS index table 2 for PDSCH */
-// Imcs values 20 and 26 have been multiplied by 2 to avoid the floating point
-uint16_t nr_target_code_rate_table2[28] = {120, 193, 308, 449, 602, 378, 434, 490, 553, 616, 658, 466, 517, 567, \
-                                            616, 666, 719, 772, 822, 873, 1365, 711, 754, 797, 841, 885, 1833, 948};
-
-/* TS 38.214 table 5.1.3.1-3 - MCS index table 3 for PDSCH */
-uint16_t nr_target_code_rate_table3[29] = {30, 40, 50, 64, 78, 99, 120, 157, 193, 251, 308, 379, 449, 526, 602, 340, \
-                                            378, 434, 490, 553, 616, 438, 466, 517, 567, 616, 666, 719, 772};
-
-uint16_t nr_tbs_table[93] = {24, 32, 40, 48, 56, 64, 72, 80, 88, 96, 104, 112, 120, 128, 136, 144, 152, 160, 168, 176, 184, 192, 208, 224, 240, 256, 272, 288, 304, 320, \
-                              336, 352, 368, 384, 408, 432, 456, 480, 504, 528, 552, 576, 608, 640, 672, 704, 736, 768, 808, 848, 888, 928, 984, 1032, 1064, 1128, 1160, 1192, 1224, 1256, \
-                              1288, 1320, 1352, 1416, 1480, 1544, 1608, 1672, 1736, 1800, 1864, 1928, 2024, 2088, 2152, 2216, 2280, 2408, 2472, 2536, 2600, 2664, 2728, 2792, 2856, 2976, \
-                              3104, 3240, 3368, 3496, 3624, 3752, 3824};
-
-uint8_t nr_get_Qm(uint8_t Imcs, uint8_t table_idx) {
-  switch(table_idx) {
-    case 1:
-      return (((Imcs<10)||(Imcs==29))?2:((Imcs<17)||(Imcs==30))?4:((Imcs<29)||(Imcs==31))?6:-1);
-    break;
-
-    case 2:
-      return (((Imcs<5)||(Imcs==28))?2:((Imcs<11)||(Imcs==29))?4:((Imcs<20)||(Imcs==30))?6:((Imcs<28)||(Imcs==31))?8:-1);
-    break;
-
-    case 3:
-      return (((Imcs<15)||(Imcs==29))?2:((Imcs<21)||(Imcs==30))?4:((Imcs<29)||(Imcs==31))?6:-1);
-    break;
-
-    default:
-      AssertFatal(0, "Invalid MCS table index %d (expected in range [1,3])\n", table_idx);
-      return(0);
-      break;
+  int f;  // interleaving function
+  if(R==0)
+    f = k;
+  else {
+    int c = k/R;
+     int r = k%R;
+     f = (r*C + c + n_shift)%(N_regs/L);
   }
+  return f;
 }
-
-uint32_t nr_get_code_rate(uint8_t Imcs, uint8_t table_idx) {
-  switch(table_idx) {
-    case 1:
-      return (nr_target_code_rate_table1[Imcs]);
-    break;
-
-    case 2:
-      return (nr_target_code_rate_table2[Imcs]);
-    break;
-
-    case 3:
-      return (nr_target_code_rate_table3[Imcs]);
-    break;
-
-    default:
-      AssertFatal(0, "Invalid MCS table index %d (expected in range [1,3])\n", table_idx);
-      return(0);
-      break;
-  }
-}
-
 
 void get_coreset_rballoc(uint8_t *FreqDomainResource,int *n_rb,int *rb_offset) {
 
@@ -316,9 +288,9 @@ int get_dmrs_port(int nl, uint16_t dmrs_ports) {
   return p;
 }
 
-lte_frame_type_t get_frame_type(uint16_t current_band, uint8_t scs_index)
+frame_type_t get_frame_type(uint16_t current_band, uint8_t scs_index)
 {
-  lte_frame_type_t current_type;
+  frame_type_t current_type;
   int32_t delta_duplex = get_delta_duplex(current_band, scs_index);
 
   if (delta_duplex == 0)
@@ -500,6 +472,235 @@ int get_subband_size(int NPRB,int size) {
  
 }
 
+void get_samplerate_and_bw(int mu,
+                           int n_rb,
+                           int8_t threequarter_fs,
+                           double *sample_rate,
+                           unsigned int *samples_per_frame,
+                           double *tx_bw,
+                           double *rx_bw) {
+
+  if (mu == 0) {
+    switch(n_rb) {
+    case 270:
+      if (threequarter_fs) {
+        *sample_rate=92.16e6;
+        *samples_per_frame = 921600;
+        *tx_bw = 50e6;
+        *rx_bw = 50e6;
+      } else {
+        *sample_rate=61.44e6;
+        *samples_per_frame = 614400;
+        *tx_bw = 50e6;
+        *rx_bw = 50e6;
+      }
+    case 216:
+      if (threequarter_fs) {
+        *sample_rate=46.08e6;
+        *samples_per_frame = 460800;
+        *tx_bw = 40e6;
+        *rx_bw = 40e6;
+      }
+      else {
+        *sample_rate=61.44e6;
+        *samples_per_frame = 614400;
+        *tx_bw = 40e6;
+        *rx_bw = 40e6;
+      }
+      break;
+    case 160: //30 MHz
+    case 133: //25 MHz
+      if (threequarter_fs) {
+        AssertFatal(1==0,"N_RB %d cannot use 3/4 sampling\n",n_rb);
+      }
+      else {
+        *sample_rate=30.72e6;
+        *samples_per_frame = 307200;
+        *tx_bw = 20e6;
+        *rx_bw = 20e6;
+      }
+    case 106:
+      if (threequarter_fs) {
+        *sample_rate=23.04e6;
+        *samples_per_frame = 230400;
+        *tx_bw = 20e6;
+        *rx_bw = 20e6;
+      }
+      else {
+        *sample_rate=30.72e6;
+        *samples_per_frame = 307200;
+        *tx_bw = 20e6;
+        *rx_bw = 20e6;
+      }
+      break;
+    case 52:
+      if (threequarter_fs) {
+        *sample_rate=11.52e6;
+        *samples_per_frame = 115200;
+        *tx_bw = 10e6;
+        *rx_bw = 10e6;
+      }
+      else {
+        *sample_rate=15.36e6;
+        *samples_per_frame = 153600;
+        *tx_bw = 10e6;
+        *rx_bw = 10e6;
+      }
+    case 25:
+      if (threequarter_fs) {
+        *sample_rate=5.76e6;
+        *samples_per_frame = 57600;
+        *tx_bw = 5e6;
+        *rx_bw = 5e6;
+      }
+      else {
+        *sample_rate=7.68e6;
+        *samples_per_frame = 76800;
+        *tx_bw = 5e6;
+        *rx_bw = 5e6;
+      }
+      break;
+    default:
+      AssertFatal(0==1,"N_RB %d not yet supported for numerology %d\n",n_rb,mu);
+    }
+  } else if (mu == 1) {
+    switch(n_rb) {
+
+    case 273:
+      if (threequarter_fs) {
+        *sample_rate=184.32e6;
+        *samples_per_frame = 1843200;
+        *tx_bw = 100e6;
+        *rx_bw = 100e6;
+      } else {
+        *sample_rate=122.88e6;
+        *samples_per_frame = 1228800;
+        *tx_bw = 100e6;
+        *rx_bw = 100e6;
+      }
+      break;
+    case 217:
+      if (threequarter_fs) {
+        *sample_rate=92.16e6;
+        *samples_per_frame = 921600;
+        *tx_bw = 80e6;
+        *rx_bw = 80e6;
+      } else {
+        *sample_rate=122.88e6;
+        *samples_per_frame = 1228800;
+        *tx_bw = 80e6;
+        *rx_bw = 80e6;
+      }
+      break;
+    case 162 :
+      if (threequarter_fs) {
+        AssertFatal(1==0,"N_RB %d cannot use 3/4 sampling\n",n_rb);
+      }
+      else {
+        *sample_rate=61.44e6;
+        *samples_per_frame = 614400;
+        *tx_bw = 60e6;
+        *rx_bw = 60e6;
+      }
+
+      break;
+
+    case 133 :
+      if (threequarter_fs) {
+	AssertFatal(1==0,"N_RB %d cannot use 3/4 sampling\n",n_rb);
+      }
+      else {
+        *sample_rate=61.44e6;
+        *samples_per_frame = 614400;
+        *tx_bw = 50e6;
+        *rx_bw = 50e6;
+      }
+
+      break;
+    case 106:
+      if (threequarter_fs) {
+        *sample_rate=46.08e6;
+        *samples_per_frame = 460800;
+        *tx_bw = 40e6;
+        *rx_bw = 40e6;
+      }
+      else {
+        *sample_rate=61.44e6;
+        *samples_per_frame = 614400;
+        *tx_bw = 40e6;
+        *rx_bw = 40e6;
+      }
+     break;
+    case 51:
+      if (threequarter_fs) {
+        *sample_rate=23.04e6;
+        *samples_per_frame = 230400;
+        *tx_bw = 20e6;
+        *rx_bw = 20e6;
+      }
+      else {
+        *sample_rate=30.72e6;
+        *samples_per_frame = 307200;
+        *tx_bw = 20e6;
+        *rx_bw = 20e6;
+      }
+      break;
+    case 24:
+      if (threequarter_fs) {
+        *sample_rate=11.52e6;
+        *samples_per_frame = 115200;
+        *tx_bw = 10e6;
+        *rx_bw = 10e6;
+      }
+      else {
+        *sample_rate=15.36e6;
+        *samples_per_frame = 153600;
+        *tx_bw = 10e6;
+        *rx_bw = 10e6;
+      }
+      break;
+    default:
+      AssertFatal(0==1,"N_RB %d not yet supported for numerology %d\n",n_rb,mu);
+    }
+  } else if (mu == 3) {
+    switch(n_rb) {
+      case 66:
+        if (threequarter_fs) {
+          *sample_rate=184.32e6;
+          *samples_per_frame = 1843200;
+          *tx_bw = 100e6;
+          *rx_bw = 100e6;
+        } else {
+          *sample_rate = 122.88e6;
+          *samples_per_frame = 1228800;
+          *tx_bw = 100e6;
+          *rx_bw = 100e6;
+        }
+
+        break;
+
+      case 32:
+        if (threequarter_fs) {
+          *sample_rate=92.16e6;
+          *samples_per_frame = 921600;
+          *tx_bw = 50e6;
+          *rx_bw = 50e6;
+        } else {
+          *sample_rate=61.44e6;
+          *samples_per_frame = 614400;
+          *tx_bw = 50e6;
+          *rx_bw = 50e6;
+        }
+
+        break;
+
+      default:
+        AssertFatal(0==1,"N_RB %d not yet supported for numerology %d\n",n_rb,mu);
+    }
+  } else {
+    AssertFatal(0 == 1,"Numerology %d not supported for the moment\n",mu);
+  }
+}
 
 // from start symbol index and nb or symbols to symbol occupation bitmap in a slot
 uint16_t SL_to_bitmap(int startSymbolIndex, int nrOfSymbols) {
@@ -522,5 +723,4 @@ void SLIV2SL(int SLIV,int *S,int *L) {
     *L=15-SLIVdiv14;
     *S=13-SLIVmod14;
   }
-
 }

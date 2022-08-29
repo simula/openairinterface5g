@@ -40,8 +40,6 @@
 
 #include "openair2/F1AP/f1ap_du_rrc_message_transfer.h"
 
-#include "openair2/LAYER2/PROTO_AGENT/proto_agent.h"
-
 extern RAN_CONTEXT_t RC;
 
 #include <stdint.h>
@@ -103,6 +101,7 @@ void nr_drb_config(struct NR_RLC_Config *rlc_Config, NR_RLC_Config_PR rlc_config
   switch (rlc_config_pr){
     case NR_RLC_Config_PR_um_Bi_Directional:
       // RLC UM Bi-directional Bearer configuration
+      LOG_I(RLC, "RLC UM Bi-directional Bearer configuration selected \n");
       rlc_Config->choice.um_Bi_Directional                            = calloc(1, sizeof(*rlc_Config->choice.um_Bi_Directional));
       rlc_Config->choice.um_Bi_Directional->ul_UM_RLC.sn_FieldLength  = calloc(1, sizeof(*rlc_Config->choice.um_Bi_Directional->ul_UM_RLC.sn_FieldLength));
       *rlc_Config->choice.um_Bi_Directional->ul_UM_RLC.sn_FieldLength = NR_SN_FieldLengthUM_size12;
@@ -125,7 +124,7 @@ void nr_drb_config(struct NR_RLC_Config *rlc_Config, NR_RLC_Config_PR rlc_config
       rlc_Config->choice.am->dl_AM_RLC.t_StatusProhibit = NR_T_StatusProhibit_ms15;
       break;
     default:
-      LOG_E (RLC, "Error in %s: RLC config type %d is not handled\n", __FUNCTION__, rlc_config_pr);
+      AssertFatal(0, "RLC config type %d not handled\n", rlc_config_pr);
       break;
     }
 
@@ -215,10 +214,12 @@ tbs_size_t mac_rlc_data_req(
   }
 
   if (rb != NULL) {
+    LOG_D(RLC, "MAC PDU to get created for channel_idP:%d \n", channel_idP);
     rb->set_time(rb, nr_rlc_current_time);
     maxsize = tb_sizeP;
     ret = rb->generate_pdu(rb, buffer_pP, maxsize);
   } else {
+    LOG_D(RLC, "MAC PDU failed to get created for channel_idP:%d \n", channel_idP);
     ret = 0;
   }
 
@@ -387,7 +388,6 @@ rlc_op_status_t rlc_data_req     (const protocol_ctxt_t *const ctxt_pP,
     rb->recv_sdu(rb, (char *)sdu_pP->data, sdu_sizeP, muiP);
   } else {
     LOG_E(RLC, "%s:%d:%s: fatal: SDU sent to unknown RB\n", __FILE__, __LINE__, __FUNCTION__);
-    exit(1);
   }
 
   nr_rlc_manager_unlock(nr_rlc_ue_manager);
@@ -395,6 +395,35 @@ rlc_op_status_t rlc_data_req     (const protocol_ctxt_t *const ctxt_pP,
   free_mem_block(sdu_pP, __func__);
 
   return RLC_OP_STATUS_OK;
+}
+
+int nr_rlc_get_available_tx_space(
+  const rnti_t            rntiP,
+  const logical_chan_id_t channel_idP)
+{
+  nr_rlc_ue_t *ue;
+  nr_rlc_entity_t *rb;
+  int ret;
+
+  nr_rlc_manager_lock(nr_rlc_ue_manager);
+  ue = nr_rlc_manager_get_ue(nr_rlc_ue_manager, rntiP);
+
+  switch (channel_idP) {
+  case 1 ... 3: rb = ue->srb[channel_idP - 1]; break;
+  case 4 ... 8: rb = ue->drb[channel_idP - 4]; break;
+  default:      rb = NULL;                     break;
+  }
+
+  if (rb != NULL) {
+    ret = rb->available_tx_space(rb);
+  } else {
+    LOG_E(RLC, "[%s] Radio Bearer (channel ID %d) is NULL for UE with rntiP %x\n", __FUNCTION__, channel_idP, rntiP);
+    ret = -1;
+  }
+
+  nr_rlc_manager_unlock(nr_rlc_ue_manager);
+
+  return ret;
 }
 
 int rlc_module_init(int enb_flag)
@@ -518,7 +547,7 @@ rb_found:
 	req->pdusession_id=rb_id;
 	LOG_D(RLC, "Received uplink user-plane traffic at RLC-DU to be sent to the CU, size %d \n", size);
 	extern instance_t DUuniqInstance;
-	itti_send_msg_to_task(OCP_GTPV1_U, DUuniqInstance, msg);
+	itti_send_msg_to_task(TASK_GTPV1_U, DUuniqInstance, msg);
 	return;
       }
     }

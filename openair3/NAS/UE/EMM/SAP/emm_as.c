@@ -61,7 +61,6 @@ Description Defines the EMMAS Service Access Point that provides
 #if  defined(NAS_BUILT_IN_UE)
 # include "nas_itti_messaging.h"
 #endif
-#include "msc.h"
 
 /****************************************************************************/
 /****************  E X T E R N A L    D E F I N I T I O N S  ****************/
@@ -680,7 +679,7 @@ static int _emm_as_cell_info_res(nas_user_t *user, const emm_as_cell_info_t *msg
 
   int AcT = NET_ACCESS_EUTRAN;
 
-  if (msg->found == TRUE) {
+  if (msg->found == true) {
     /* Get the first supported access technology */
     while (AcT != NET_ACCESS_UNAVAILABLE) {
       if (msg->rat & (1 << AcT)) {
@@ -1082,7 +1081,7 @@ static int _emm_as_data_req(const emm_data_t *emm_data, const emm_as_data_t *msg
   LOG_FUNC_IN;
   ul_info_transfer_req_t *as_msg = (ul_info_transfer_req_t *)ul_info_transfer_req_unaligned;
   int size = 0;
-  int is_encoded = FALSE;
+  bool is_encoded = false;
 
   LOG_TRACE(INFO, "EMMAS-SAP - Send AS data transfer request");
 
@@ -1115,7 +1114,7 @@ static int _emm_as_data_req(const emm_data_t *emm_data, const emm_as_data_t *msg
     default:
       /* Send other NAS messages as already encoded ESM messages */
       size = msg->NASmsg.length;
-      is_encoded = TRUE;
+      is_encoded = true;
       break;
     }
 

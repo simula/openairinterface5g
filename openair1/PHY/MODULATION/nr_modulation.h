@@ -56,7 +56,7 @@ void nr_modulation(uint32_t *in,
 
 void nr_layer_mapping(int16_t **mod_symbs,
                          uint8_t n_layers,
-                         uint16_t n_symbs,
+                         uint32_t n_symbs,
                          int16_t **tx_layers);
 
 /*! \brief Perform NR layer mapping. TS 38.211 V15.4.0 subclause 7.3.1.3
@@ -66,9 +66,9 @@ void nr_layer_mapping(int16_t **mod_symbs,
   @param[out] tx_layers, modulated symbols for each layer
 */
 
-void nr_ue_layer_mapping(NR_UE_ULSCH_t **ulsch_ue,
+void nr_ue_layer_mapping(int16_t *mod_symbs,
                          uint8_t n_layers,
-                         uint16_t n_symbs,
+                         uint32_t n_symbs,
                          int16_t **tx_layers);
 
 
@@ -135,4 +135,9 @@ int nr_layer_precoder(int16_t **datatx_F_precoding,
 		char *prec_matrix,
 		uint8_t n_layers,
 		int32_t re_offset);
+
+int nr_layer_precoder_cm(int16_t **datatx_F_precoding,
+                int *prec_matrix,
+                uint8_t n_layers,
+                int32_t re_offset);
 #endif

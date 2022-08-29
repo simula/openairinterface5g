@@ -172,7 +172,20 @@ int DU_send_F1_SETUP_REQUEST(instance_t instance) {
     MCC_MNC_TO_PLMNID(cell->mcc, cell->mnc, cell->mnc_digit_length, &servedPLMN_item->pLMN_Identity);
     // // /* - CHOICE NR-MODE-Info */
     F1AP_NR_Mode_Info_t *nR_Mode_Info= &served_cell_information->nR_Mode_Info;
+    F1AP_ProtocolExtensionContainer_154P34_t *p_154P34=calloc(1,sizeof(* p_154P34));
+    servedPLMN_item->iE_Extensions = (struct F1AP_ProtocolExtensionContainer *)p_154P34;
+    asn1cSequenceAdd(p_154P34->list, F1AP_ServedPLMNs_ItemExtIEs_t , served_plmns_itemExtIEs);
+    served_plmns_itemExtIEs->criticality = F1AP_Criticality_ignore;
+    served_plmns_itemExtIEs->id = F1AP_ProtocolIE_ID_id_TAISliceSupportList;
+    served_plmns_itemExtIEs->extensionValue.present = F1AP_ServedPLMNs_ItemExtIEs__extensionValue_PR_SliceSupportList;
+    F1AP_SliceSupportList_t *slice_support_list = &served_plmns_itemExtIEs->extensionValue.choice.SliceSupportList;
 
+    asn1cSequenceAdd(slice_support_list->list, F1AP_SliceSupportItem_t, SliceSupport_item);
+    INT8_TO_OCTET_STRING(1,&SliceSupport_item->sNSSAI.sST);
+    asn1cCalloc(SliceSupport_item->sNSSAI.sD, tmp);
+    INT24_TO_OCTET_STRING(10203,tmp);
+    //INT24_TO_OCTET_STRING(1,tmp);
+    
     if (f1ap_req(false, instance)->fdd_flag) { // FDD
       nR_Mode_Info->present = F1AP_NR_Mode_Info_PR_fDD;
       asn1cCalloc(nR_Mode_Info->choice.fDD, fDD_Info);
@@ -481,14 +494,6 @@ int DU_handle_F1_SETUP_RESPONSE(instance_t instance,
   for (int i=0; i<num_cells_to_activate; i++)
     AssertFatal(F1AP_SETUP_RESP (msg_p).cells_to_activate[i].num_SI > 0, "System Information %d is missing",i);
 
-  MSC_LOG_RX_MESSAGE(
-    MSC_F1AP_DU,
-    MSC_F1AP_CU,
-    0,
-    0,
-    MSC_AS_TIME_FMT" DU_handle_F1_SETUP_RESPONSE successfulOutcome assoc_id %d",
-    0,0,//MSC_AS_TIME_ARGS(ctxt_pP),
-    assoc_id);
   LOG_D(F1AP, "Sending F1AP_SETUP_RESP ITTI message\n");
   itti_send_msg_to_task(TASK_F1APP, GNB_MODULE_ID_TO_INSTANCE(assoc_id), msg_p);
   return 0;
@@ -910,14 +915,6 @@ int DU_handle_gNB_CU_CONFIGURATION_UPDATE(instance_t instance,
   AssertFatal(TransactionId!=-1,"TransactionId was not sent\n");
   LOG_D(F1AP,"F1AP: num_cells_to_activate %d\n",num_cells_to_activate);
   F1AP_GNB_CU_CONFIGURATION_UPDATE (msg_p).num_cells_to_activate = num_cells_to_activate;
-  MSC_LOG_RX_MESSAGE(
-    MSC_F1AP_DU,
-    MSC_F1AP_CU,
-    0,
-    0,
-    MSC_AS_TIME_FMT" DU_handle_GNB_CU_CONFIGURATION_UPDATE initiatingMessage assoc_id %d",
-    0,0,//MSC_AS_TIME_ARGS(ctxt_pP),
-    assoc_id);
   LOG_D(F1AP, "Sending F1AP_GNB_CU_CONFIGURATION_UPDATE ITTI message \n");
   itti_send_msg_to_task(TASK_F1APP, GNB_MODULE_ID_TO_INSTANCE(assoc_id), msg_p);
   return 0;

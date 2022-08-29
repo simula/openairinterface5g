@@ -85,10 +85,6 @@ end
 This tuto for 5G gNB design, with Open Cells main
 {: .text-center}
 
-# Top file: executables/ocp-gnb.c
-
-the function main() initializes the data from configuration file
-
 # The main thread is in ru_thread()
 The infinite loop:
 ## rx_rf()
@@ -105,7 +101,6 @@ raw incoming data is in buffer called "rxdata"
 ## nr_fep_full()
 "front end processing" of uplink signal  
 performs DFT on the signal  
-same function (duplicates): phy_procedures_gNB_common_RX()  
 it computes the buffer rxdataF (for frequency) from rxdata (samples over time)  
 rxdataF is the rxdata in frequency domain, phase aligned
 {: .func3}
@@ -369,7 +364,7 @@ gtpv1u_create_s1u_tunnel(), delete tunnel, ... functions are called inside the o
 # New GTP
 ## initialization
 
-ocp_gtpv1uTask(): this creates only the thread, doesn't configure anything
+gtpv1uTask(): this creates only the thread, doesn't configure anything
 gtpv1Init(): creates a listening socket to Linux for a given reception and select a local IP address
 
 ## newGtpuCreateTunnel()   

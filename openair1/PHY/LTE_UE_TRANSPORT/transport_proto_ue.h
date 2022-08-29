@@ -1272,14 +1272,6 @@ uint32_t get_TBS_DL(uint8_t mcs, uint16_t nb_rb);
     @return Transport block size */
 uint32_t get_TBS_UL(uint8_t mcs, uint16_t nb_rb);
 
-/* \brief Return bit-map of resource allocation for a given DCI rballoc (RIV format) and vrb type
-   @param N_RB_DL number of PRB on DL
-   @param indicator for even/odd slot
-   @param vrb vrb index
-   @param Ngap Gap indicator
-*/
-uint32_t get_prb(int N_RB_DL,int odd_slot,int vrb,int Ngap);
-
 /* \brief Return prb for a given vrb index
    @param vrb_type VRB type (0=localized,1=distributed)
    @param rb_alloc_dci rballoc field from DCI
@@ -1550,16 +1542,6 @@ uint64_t cqi2hex(uint32_t cqi);
 
 uint16_t computeRIV(uint16_t N_RB_DL,uint16_t RBstart,uint16_t Lcrbs);
 
-
-/** \brief  This routine extracts a single subband PMI from a bitmap coming from UCI or the pmi_extend function
-    @param N_RB_DL number of resource blocks
-    @param mimo_mode
-    @param pmi_alloc subband PMI bitmap
-    @param rb resource block for which to extract PMI
-    @returns subband PMI
-*/
-uint8_t get_pmi(uint8_t N_RB_DL,MIMO_mode_t mode, uint32_t pmi_alloc,uint16_t rb);
-
 int get_nCCE_offset_l1(int *CCE_table,
                        const unsigned char L,
                        const int nCCE,
@@ -1669,7 +1651,7 @@ uint8_t get_num_prach_tdd(module_id_t Mod_id);
   @param frame_type 0-FDD, 1-TDD
   @returns 0-1 accordingly
 */
-uint8_t get_prach_fmt(uint8_t prach_ConfigIndex,lte_frame_type_t frame_type);
+uint8_t get_prach_fmt(uint8_t prach_ConfigIndex,frame_type_t frame_type);
 
 /*!
   \brief Helper for MAC, returns frequency index of PRACH resource in TDD for a particular configuration index
@@ -1691,7 +1673,7 @@ void compute_prach_seq(uint16_t rootSequenceIndex,
                        uint8_t prach_ConfigIndex,
                        uint8_t zeroCorrelationZoneConfig,
                        uint8_t highSpeedFlag,
-                       lte_frame_type_t frame_type,
+                       frame_type_t frame_type,
                        uint32_t X_u[64][839]);
 
 

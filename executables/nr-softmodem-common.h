@@ -51,7 +51,6 @@
 #define CONFIG_HLP_UEFO          "set UE to enable estimation and compensation of frequency offset\n"
 #define CONFIG_HLP_DUMPFRAME     "dump UE received frame to rxsig_frame0.dat and exit\n"
 #define CONFIG_HLP_DLSHIFT       "dynamic shift for LLR compuation for TM3/4 (default 0)\n"
-#define CONFIG_HLP_UELOOP        "get softmodem (UE) to loop through memory instead of acquiring from HW\n"
 #define CONFIG_HLP_PHYTST        "test UE phy layer, mac disabled\n"
 #define CONFIG_HLP_DORA          "test gNB  and UE with RA procedures\n"
 #define CONFIG_HLP_DMAMAP        "sets flag for improved EXMIMO UE performance\n"
@@ -67,6 +66,7 @@
 #define CONFIG_HLP_ITTIL         "Generate ITTI analyzser logs (similar to wireshark logs but with more details)\n"
 #define CONFIG_HLP_DLMCS_PHYTEST "Set the downlink MCS for PHYTEST mode\n"
 #define CONFIG_HLP_DLNL_PHYTEST "Set the downlink nrOfLayers for PHYTEST mode\n"
+#define CONFIG_HLP_ULNL_PHYTEST "Set the uplink nrOfLayers for PHYTEST mode\n"
 #define CONFIG_HLP_STMON         "Enable processing timing measurement of lte softmodem on per subframe basis \n"
 #define CONFIG_HLP_MSLOTS        "Skip the missed slots/subframes \n"
 #define CONFIG_HLP_ULMCS_PHYTEST "Set the uplink MCS for PHYTEST mode\n"
@@ -104,7 +104,6 @@
 #define CONFIG_HLP_LOGL          "Set the global log level, valid options: (4:trace, 3:debug, 2:info, 1:warn, (0:error))\n"
 #define CONFIG_HLP_LOGV          "Set the global log verbosity \n"
 #define CONFIG_HLP_TELN          "Start embedded telnet server \n"
-#define CONFIG_HLP_MSC           "Enable the MSC tracing utility \n"
 #define CONFIG_HLP_SNR           "Set average SNR in dB (for --siml1 option)\n"
 #define CONFIG_HLP_NOS1          "Disable s1 interface\n"
 #define CONFIG_HLP_NOKRNMOD      "(noS1 only): Use tun instead of namesh module \n"
@@ -112,13 +111,11 @@
 /*                                            command line parameters for LOG utility                                             */
 /*   optname         helpstr          paramflags          XXXptr                     defXXXval            type           numelt   */
 /*--------------------------------------------------------------------------------------------------------------------------------*/
-#define START_MSC                softmodem_params.start_msc
 #define CMDLINE_LOGPARAMS_DESC_NR {  \
     {"R" ,           CONFIG_HLP_FLOG, 0,                  uptr:&online_log_messages, defintval:1,         TYPE_INT,      0},       \
     {"g" ,           CONFIG_HLP_LOGL, 0,                  uptr:&glog_level,          defintval:0,         TYPE_UINT,     0},       \
     {"G" ,           CONFIG_HLP_LOGV, 0,                  uptr:&glog_verbosity,      defintval:0,         TYPE_UINT16,   0},       \
     {"telnetsrv",    CONFIG_HLP_TELN, PARAMFLAG_BOOL,     uptr:&start_telnetsrv,     defintval:0,         TYPE_UINT,     0},       \
-    {"msc",          CONFIG_HLP_MSC,  PARAMFLAG_BOOL,     uptr:&START_MSC,           defintval:0,         TYPE_UINT,     0},       \
   }
 
 #define CMDLINE_ONLINELOG_IDX     0
@@ -141,7 +138,7 @@ extern int rx_input_level_dBm;
 extern uint64_t num_missed_slots; // counter for the number of missed slots
 
 extern int oaisim_flag;
-extern volatile int  oai_exit;
+extern int oai_exit;
 
 extern openair0_config_t openair0_cfg[MAX_CARDS];
 extern pthread_cond_t sync_cond;
