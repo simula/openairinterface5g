@@ -418,7 +418,7 @@ check_install_usrp_uhd_driver(){
             $SUDO apt-get -y install libuhd-dev libuhd3.15.0 uhd-host
             ;;
           "ubuntu18.04" | "ubuntu20.04" | "ubuntu22.04")
-            $SUDO apt-get -y install libuhd-dev libuhd4.2.0 uhd-host
+            $SUDO apt-get -y install libuhd-dev uhd-host
             ;;
         esac
     elif [[ "$OS_BASEDISTRO" == "fedora" ]]; then
