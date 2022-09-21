@@ -218,7 +218,9 @@ void rotate_cpx_vector(c16_t *x,
       xd+=4;
       y_128+=1;
     }
+#ifdef __AVX2__
   }
+#endif
 }
 
 #ifdef MAIN
