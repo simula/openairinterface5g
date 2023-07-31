@@ -30,7 +30,7 @@
  */
 
 #include "assertions.h"
-#include "targets/RT/USER/lte-softmodem.h"
+#include "executables/lte-softmodem.h"
 #include "LAYER2/MAC/mac.h"
 #include "LAYER2/MAC/mac_extern.h"
 
@@ -39,19 +39,12 @@
 #include "nfapi/oai_integration/vendor_ext.h"
 #include "common/utils/LOG/vcd_signal_dumper.h"
 #include "UTIL/OPT/opt.h"
-#include "OCG.h"
-#include "OCG_extern.h"
 
 #include "RRC/LTE/rrc_extern.h"
-#include "RRC/NR/nr_rrc_extern.h"
 #include "RRC/L2_INTERFACE/openair_rrc_L2_interface.h"
 
 //#include "LAYER2/MAC/pre_processor.c"
 #include "pdcp.h"
-
-//Agent-related headers
-#include "flexran_agent_extern.h"
-#include "flexran_agent_mac.h"
 
 /* for fair round robin SCHED */
 #include "eNB_scheduler_fairRR.h"
@@ -65,8 +58,7 @@
 
 extern RAN_CONTEXT_t RC;
 
-
-uint16_t pdcch_order_table[6] = { 31, 31, 511, 2047, 2047, 8191 };
+static const uint16_t pdcch_order_table[6] = {31, 31, 511, 2047, 2047, 8191};
 
 //-----------------------------------------------------------------------------
 /*
@@ -135,7 +127,7 @@ void schedule_SRS(module_id_t module_idP,
           UE_scheduling_control = &(UE_info->UE_sched_ctrl[UE_id]);
 
           /* Test if Active Time not running since 6+ subframes */
-          if (UE_scheduling_control->cdrx_configured == TRUE && UE_scheduling_control->in_active_time == FALSE) {
+          if (UE_scheduling_control->cdrx_configured == true && UE_scheduling_control->in_active_time == false) {
             /*
              * TODO: 6+ subframes condition not checked here
              */
@@ -204,7 +196,7 @@ void schedule_CSI(module_id_t module_idP,
     cc = &eNB->common_channels[CC_id];
 
     for (UE_id = 0; UE_id < MAX_MOBILES_PER_ENB; UE_id++) {
-      if (UE_info->active[UE_id] == FALSE) {
+      if (UE_info->active[UE_id] == false) {
         continue;
       }
 
@@ -223,9 +215,9 @@ void schedule_CSI(module_id_t module_idP,
       */
       UE_scheduling_control = &(UE_info->UE_sched_ctrl[UE_id]);
 
-      if (UE_scheduling_control->cdrx_configured == TRUE) {
+      if (UE_scheduling_control->cdrx_configured == true) {
         /* Test if CQI masking activated */
-        if (UE_scheduling_control->cqi_mask_boolean == TRUE) {
+        if (UE_scheduling_control->cqi_mask_boolean == true) {
           // CQI masking => test if onDurationTime not running since 6+ subframe
           if (UE_scheduling_control->on_duration_timer == 0) {
             /*
@@ -234,7 +226,7 @@ void schedule_CSI(module_id_t module_idP,
             continue;
           }
         } else { // No CQI masking => test if Active Time not running since 6+ subframe
-          if (UE_scheduling_control->in_active_time == FALSE) {
+          if (UE_scheduling_control->in_active_time == false) {
             /*
              * TODO: 6+ subframes condition not checked here
              */
@@ -313,6 +305,7 @@ schedule_SR (module_id_t module_idP,
   nfapi_ul_config_request_body_t *ul_req_body = NULL;
   LTE_SchedulingRequestConfig_t  *SRconfig = NULL;
   nfapi_ul_config_sr_information sr;
+  memset(&sr, 0, sizeof(sr));
 
   for (int CC_id = 0; CC_id < MAX_NUM_CCs; CC_id++) {
     eNB->UL_req[CC_id].sfn_sf = (frameP << 4) + subframeP;
@@ -472,25 +465,9 @@ check_ul_failure(module_id_t module_idP, int CC_id, int UE_id,
     // check threshold
     if (UE_info->UE_sched_ctrl[UE_id].ul_failure_timer > 4000) {
       // note: probably ul_failure_timer should be less than UE radio link failure time(see T310/N310/N311)
-      if (NODE_IS_DU(RC.rrc[module_idP]->node_type)) {
-        MessageDef *m = itti_alloc_new_message(TASK_MAC_ENB, 0, F1AP_UE_CONTEXT_RELEASE_REQ);
-        F1AP_UE_CONTEXT_RELEASE_REQ(m).rnti = rnti;
-        F1AP_UE_CONTEXT_RELEASE_REQ(m).cause = F1AP_CAUSE_RADIO_NETWORK;
-        F1AP_UE_CONTEXT_RELEASE_REQ(m).cause_value = 1; // 1 = F1AP_CauseRadioNetwork_rl_failure
-        F1AP_UE_CONTEXT_RELEASE_REQ(m).rrc_container = NULL;
-        F1AP_UE_CONTEXT_RELEASE_REQ(m).rrc_container_length = 0;
-        itti_send_msg_to_task(TASK_DU_F1, module_idP, m);
-      } else {
-        // inform RRC of failure and clear timer
-        LOG_I(MAC, "UE %d rnti %x: UL Failure after repeated PDCCH orders: Triggering RRC \n",
-              UE_id,
-              rnti);
-        mac_eNB_rrc_ul_failure(module_idP,
-                               CC_id,
-                               frameP,
-                               subframeP,
-                               rnti);
-      }
+      // inform RRC of failure and clear timer
+      LOG_I(MAC, "UE %d rnti %x: UL Failure after repeated PDCCH orders: Triggering RRC \n", UE_id, rnti);
+      mac_eNB_rrc_ul_failure(module_idP, CC_id, frameP, subframeP, rnti);
 
       UE_info->UE_sched_ctrl[UE_id].ul_failure_timer = 0;
       UE_info->UE_sched_ctrl[UE_id].ul_out_of_sync   = 1;
@@ -573,6 +550,27 @@ eNB_dlsch_ulsch_scheduler(module_id_t module_idP,
   UE_sched_ctrl_t     *UE_scheduling_control  = NULL;
   start_meas(&(eNB->eNB_scheduler));
   VCD_SIGNAL_DUMPER_DUMP_FUNCTION_BY_NAME(VCD_SIGNAL_DUMPER_FUNCTIONS_ENB_DLSCH_ULSCH_SCHEDULER, VCD_FUNCTION_IN);
+  // TODO: Better solution needed this is the first
+  // 3 indications of this function on startup
+  // 1303275.278188 [MAC]   XXX 0.0 -> 0.4 = 4
+  // 1303275.279443 [MAC]   XXX 0.4 -> 639.5 = 6391
+  // 1303275.348686 [MAC]   XXX 646.3 -> 646.3 = 0
+  int delta = (frameP * 10 + subframeP) - (eNB->frame * 10 + eNB->subframe);
+  if (delta < 0)
+  {
+    delta += 10240; // sfn_sf decimal values range from 0 to 10239
+  }
+  // If we ever see a difference this big something is very wrong
+  // This threshold is arbitrary
+  if (delta > 8500 || delta == 0) // 850 frames
+  {
+    LOG_I(MAC, "scheduler ignoring outerspace %d.%d -> %d.%d = %d\n",
+          eNB->frame, eNB->subframe, frameP, subframeP, delta);
+    return;
+  }
+  LOG_D(MAC, "Entering dlsch_ulsch scheduler %d.%d -> %d.%d = %d\n",
+        eNB->frame, eNB->subframe, frameP, subframeP, delta);
+
   eNB->frame    = frameP;
   eNB->subframe = subframeP;
 
@@ -655,8 +653,8 @@ eNB_dlsch_ulsch_scheduler(module_id_t module_idP,
       }
 
       /* Set and increment CDRX related timers */
-      if (UE_scheduling_control->cdrx_configured == TRUE) {
-        boolean_t harq_active_time_condition = FALSE;
+      if (UE_scheduling_control->cdrx_configured == true) {
+        bool harq_active_time_condition = false;
         UE_TEMPLATE *UE_template = NULL;
         unsigned long active_time_condition = 0; // variable used only for tracing purpose
 
@@ -699,7 +697,7 @@ eNB_dlsch_ulsch_scheduler(module_id_t module_idP,
             UE_scheduling_control->ul_synchronous_harq_timer[CC_id][harq_process_id]++;
 
             if (UE_scheduling_control->ul_synchronous_harq_timer[CC_id][harq_process_id] > 5) {
-              harq_active_time_condition = TRUE;
+              harq_active_time_condition = true;
               UE_scheduling_control->ul_synchronous_harq_timer[CC_id][harq_process_id] = 0;
               active_time_condition = 5; // for tracing purpose
             }
@@ -725,24 +723,24 @@ eNB_dlsch_ulsch_scheduler(module_id_t module_idP,
 
             /* When timer expires switch into short or long DRX cycle */
             if (UE_scheduling_control->drx_shortCycle_timer_thres > 0) {
-              UE_scheduling_control->in_short_drx_cycle = TRUE;
+              UE_scheduling_control->in_short_drx_cycle = true;
               UE_scheduling_control->drx_shortCycle_timer = 0;
-              UE_scheduling_control->in_long_drx_cycle = FALSE;
+              UE_scheduling_control->in_long_drx_cycle = false;
             } else {
-              UE_scheduling_control->in_long_drx_cycle = TRUE;
+              UE_scheduling_control->in_long_drx_cycle = true;
             }
           }
         }
 
         /* Short DRX Cycle */
-        if (UE_scheduling_control->in_short_drx_cycle == TRUE) {
+        if (UE_scheduling_control->in_short_drx_cycle == true) {
           UE_scheduling_control->drx_shortCycle_timer++;
 
           /* When the Short DRX cycles are over, switch to long DRX cycle */
           if (UE_scheduling_control->drx_shortCycle_timer > UE_scheduling_control->drx_shortCycle_timer_thres) {
             UE_scheduling_control->drx_shortCycle_timer = 0;
-            UE_scheduling_control->in_short_drx_cycle = FALSE;
-            UE_scheduling_control->in_long_drx_cycle = TRUE;
+            UE_scheduling_control->in_short_drx_cycle = false;
+            UE_scheduling_control->in_long_drx_cycle = true;
             UE_scheduling_control->drx_longCycle_timer = 0;
           }
         } else {
@@ -750,7 +748,7 @@ eNB_dlsch_ulsch_scheduler(module_id_t module_idP,
         }
 
         /* Long DRX Cycle */
-        if (UE_scheduling_control->in_long_drx_cycle == TRUE) {
+        if (UE_scheduling_control->in_long_drx_cycle == true) {
           UE_scheduling_control->drx_longCycle_timer++;
 
           if (UE_scheduling_control->drx_longCycle_timer > UE_scheduling_control->drx_longCycle_timer_thres) {
@@ -761,18 +759,18 @@ eNB_dlsch_ulsch_scheduler(module_id_t module_idP,
         }
 
         /* Check for error cases */
-        if ((UE_scheduling_control->in_short_drx_cycle == TRUE) && (UE_scheduling_control->in_long_drx_cycle == TRUE)) {
+        if ((UE_scheduling_control->in_short_drx_cycle == true) && (UE_scheduling_control->in_long_drx_cycle == true)) {
           LOG_E(MAC, "Error in C-DRX: UE id %d is in both short and long DRX cycle. Should not happen. Back it to long cycle only\n", UE_id);
-          UE_scheduling_control->in_short_drx_cycle = FALSE;
+          UE_scheduling_control->in_short_drx_cycle = false;
         }
 
         /* Condition to start On Duration Timer */
-        if (UE_scheduling_control->in_short_drx_cycle == TRUE && UE_scheduling_control->on_duration_timer == 0) {
+        if (UE_scheduling_control->in_short_drx_cycle == true && UE_scheduling_control->on_duration_timer == 0) {
           if (((frameP * 10) + subframeP) % (UE_scheduling_control->short_drx_cycle_duration) ==
               (UE_scheduling_control->drx_start_offset) % (UE_scheduling_control->short_drx_cycle_duration)) {
             UE_scheduling_control->on_duration_timer = 1;
           }
-        } else if (UE_scheduling_control->in_long_drx_cycle == TRUE && UE_scheduling_control->on_duration_timer == 0) {
+        } else if (UE_scheduling_control->in_long_drx_cycle == true && UE_scheduling_control->on_duration_timer == 0) {
           if (((frameP * 10) + subframeP) % (UE_scheduling_control->drx_longCycle_timer_thres) ==
               (UE_scheduling_control->drx_start_offset)) {
             UE_scheduling_control->on_duration_timer = 1;
@@ -789,7 +787,7 @@ eNB_dlsch_ulsch_scheduler(module_id_t module_idP,
         /* (a)synchronous HARQ processes handling for Active Time */
         for (int harq_process_id = 0; harq_process_id < 8; harq_process_id++) {
           if (UE_scheduling_control->drx_retransmission_timer[harq_process_id] > 0) {
-            harq_active_time_condition = TRUE;
+            harq_active_time_condition = true;
             active_time_condition = 2; // for tracing purpose
             break;
           }
@@ -800,9 +798,9 @@ eNB_dlsch_ulsch_scheduler(module_id_t module_idP,
             UE_scheduling_control->drx_inactivity_timer > 1 ||
             harq_active_time_condition ||
             UE_template->ul_SR > 0) {
-          UE_scheduling_control->in_active_time = TRUE;
+          UE_scheduling_control->in_active_time = true;
         } else {
-          UE_scheduling_control->in_active_time = FALSE;
+          UE_scheduling_control->in_active_time = false;
         }
 
         /* BEGIN VCD */
@@ -956,14 +954,12 @@ eNB_dlsch_ulsch_scheduler(module_id_t module_idP,
   } // end for loop on UE_id
 
 #if (!defined(PRE_SCD_THREAD))
-  if (!NODE_IS_DU(RC.rrc[module_idP]->node_type)) {
-    void rlc_tick(int, int);
-    PROTOCOL_CTXT_SET_BY_MODULE_ID(&ctxt, module_idP, ENB_FLAG_YES, NOT_A_RNTI, frameP, subframeP, module_idP);
-    rlc_tick(frameP, subframeP);
-    pdcp_run(&ctxt);
-    pdcp_mbms_run(&ctxt);
-    rrc_rx_tx(&ctxt, CC_id);
-  }
+  void rlc_tick(int, int);
+  PROTOCOL_CTXT_SET_BY_MODULE_ID(&ctxt, module_idP, ENB_FLAG_YES, NOT_A_RNTI, frameP, subframeP, module_idP);
+  rlc_tick(frameP, subframeP);
+  pdcp_run(&ctxt);
+  pdcp_mbms_run(&ctxt);
+  rrc_rx_tx(&ctxt, CC_id);
 #endif
 
   int do_fembms_si=0;
@@ -1064,12 +1060,6 @@ eNB_dlsch_ulsch_scheduler(module_id_t module_idP,
         LOG_E(MAC, "%s() %4d.%d ERROR ALLOCATING CCEs\n", __func__, frameP, subframeP);
     }
   }
-
-  if (flexran_agent_get_mac_xface(module_idP) && subframeP == 9) {
-    flexran_agent_slice_update(module_idP);
-  }
-  if (flexran_agent_get_mac_xface(module_idP))
-    flexran_agent_get_mac_xface(module_idP)->flexran_agent_notify_tick(module_idP);
 
   stop_meas(&(eNB->eNB_scheduler));
   VCD_SIGNAL_DUMPER_DUMP_FUNCTION_BY_NAME(VCD_SIGNAL_DUMPER_FUNCTIONS_ENB_DLSCH_ULSCH_SCHEDULER, VCD_FUNCTION_OUT);

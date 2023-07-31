@@ -32,13 +32,14 @@
 
 #include "PHY/defs_eNB.h"
 #include "PHY/LTE_TRANSPORT/transport_proto.h"
-#include "PHY/LTE_TRANSPORT/transport_extern.h"
+#include "PHY/LTE_TRANSPORT/transport_vars.h"
 #include "SCHED/sched_eNB.h"
 #include "nfapi/oai_integration/vendor_ext.h"
 #include "nfapi_pnf_interface.h"
 #include "fapi_l1.h"
 
 #include "common/ran_context.h"
+#include "openair1/PHY/LTE_TRANSPORT/dlsch_tbs_full.h"
 extern RAN_CONTEXT_t RC;
 
 int oai_nfapi_dl_config_req(nfapi_dl_config_request_t *dl_config_req);
@@ -428,7 +429,7 @@ void handle_nfapi_dlsch_pdu(PHY_VARS_eNB *eNB,int frame,int subframe,L1_rxtx_pro
   }
 }
 
-int16_t to_beta_offset_harqack[16]= {16,20,25,32,40,50,64,80,101,127,160,248,400,640,1008,8};
+static const int16_t to_beta_offset_harqack[16] = {16, 20, 25, 32, 40, 50, 64, 80, 101, 127, 160, 248, 400, 640, 1008, 8};
 
 void handle_ulsch_harq_pdu(
   PHY_VARS_eNB                           *eNB,
@@ -456,8 +457,8 @@ void handle_ulsch_harq_pdu(
   }
 }
 
-uint16_t to_beta_offset_ri[16]= {9,13,16,20,25,32,40,50,64,80,101,127,160,0,0,0};
-uint16_t to_beta_offset_cqi[16]= {0,0,9,10,11,13,14,16,18,20,23,25,28,32,40,50};
+static const uint16_t to_beta_offset_ri[16] = {9, 13, 16, 20, 25, 32, 40, 50, 64, 80, 101, 127, 160, 0, 0, 0};
+static const uint16_t to_beta_offset_cqi[16] = {0, 0, 9, 10, 11, 13, 14, 16, 18, 20, 23, 25, 28, 32, 40, 50};
 
 void handle_ulsch_cqi_ri_pdu(PHY_VARS_eNB *eNB,int UE_id,nfapi_ul_config_request_pdu_t *ul_config_pdu,uint16_t frame,uint8_t subframe) {
   nfapi_ul_config_cqi_ri_information_rel9_t *rel9 = &ul_config_pdu->ulsch_cqi_ri_pdu.cqi_ri_information.cqi_ri_information_rel9;
@@ -859,7 +860,7 @@ void schedule_response(Sched_Rsp_t *Sched_INFO, void *arg) {
         //      handle_nfapi_mch_dl_pdu(eNB,dl_config_pdu);
 	//AssertFatal(1==0,"OK\n");
         nfapi_dl_config_mch_pdu_rel8_t *mch_pdu_rel8 = &dl_config_pdu->mch_pdu.mch_pdu_rel8;
-	uint16_t pdu_index = mch_pdu_rel8->pdu_index;
+	int16_t pdu_index = mch_pdu_rel8->pdu_index;
 	uint16_t tx_pdus = TX_req->tx_request_body.number_of_pdus;
 	uint16_t invalid_pdu = pdu_index == -1;
 	uint8_t *sdu = invalid_pdu ? NULL : pdu_index >= tx_pdus ? NULL : TX_req->tx_request_body.tx_pdu_list[pdu_index].segments[0].segment_data;
@@ -883,7 +884,7 @@ void schedule_response(Sched_Rsp_t *Sched_INFO, void *arg) {
 
       case NFAPI_DL_CONFIG_DLSCH_PDU_TYPE: {
         nfapi_dl_config_dlsch_pdu_rel8_t *dlsch_pdu_rel8 = &dl_config_pdu->dlsch_pdu.dlsch_pdu_rel8;
-        uint16_t pdu_index = dlsch_pdu_rel8->pdu_index;
+        int16_t pdu_index = dlsch_pdu_rel8->pdu_index;
         uint16_t tx_pdus = TX_req->tx_request_body.number_of_pdus;
         uint16_t invalid_pdu = pdu_index == -1;
         uint8_t *sdu = invalid_pdu ? NULL : pdu_index >= tx_pdus ? NULL : TX_req->tx_request_body.tx_pdu_list[pdu_index].segments[0].segment_data;
@@ -1013,7 +1014,7 @@ void schedule_response(Sched_Rsp_t *Sched_INFO, void *arg) {
         UL_req->ul_config_request_body.number_of_pdus=0;
         number_ul_pdu=0;
       }else if (RC.mac[Mod_id]->scheduler_mode == SCHED_MODE_FAIR_RR) {
-        if(ulsch_pdu_num <= RC.rrc[Mod_id]->configuration.radioresourceconfig[CC_id].ue_multiple_max){
+        if(ulsch_pdu_num <= fp->ue_multiple_max){
           UL_req->sfn_sf = frame << 4 | subframe;
           oai_nfapi_ul_config_req(UL_req);
           UL_req->ul_config_request_body.number_of_pdus=0;

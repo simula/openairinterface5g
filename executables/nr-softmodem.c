@@ -29,8 +29,6 @@
 #undef MALLOC //there are two conflicting definitions, so we better make sure we don't use it at all
 #include <common/utils/assertions.h>
 
-#include "msc.h"
-
 #include "PHY/types.h"
 #include "common/ran_context.h"
 
@@ -41,19 +39,17 @@
 #undef MALLOC //there are two conflicting definitions, so we better make sure we don't use it at all
 //#undef FRAME_LENGTH_COMPLEX_SAMPLES //there are two conflicting definitions, so we better make sure we don't use it at all
 
-#include "../../ARCH/COMMON/common_lib.h"
-#include "../../ARCH/ETHERNET/USERSPACE/LIB/if_defs.h"
+#include "radio/COMMON/common_lib.h"
+#include "radio/ETHERNET/if_defs.h"
 
 //#undef FRAME_LENGTH_COMPLEX_SAMPLES //there are two conflicting definitions, so we better make sure we don't use it at all
 
 #include "PHY/phy_vars.h"
-#include "SCHED/sched_common_vars.h"
-#include "LAYER2/MAC/mac_vars.h"
 #include "RRC/LTE/rrc_vars.h"
 #include "PHY_INTERFACE/phy_interface_vars.h"
 #include "gnb_config.h"
 #include "SIMULATION/TOOLS/sim.h"
-#include <targets/RT/USER/lte-softmodem.h>
+#include "executables/lte-softmodem.h"
 
 #ifdef SMBV
 #include "PHY/TOOLS/smbv.h"
@@ -63,22 +59,16 @@ unsigned short config_frames[4] = {2,9,11,13};
 #include "common/utils/LOG/log.h"
 #include "common/utils/LOG/vcd_signal_dumper.h"
 #include "UTIL/OPT/opt.h"
-
-//#include "PHY/TOOLS/time_meas.h"
-
-#ifndef OPENAIR2
-  #include "UTIL/OTG/otg_vars.h"
-#endif
+#include "LAYER2/nr_pdcp/nr_pdcp_oai_api.h"
 
 #include "intertask_interface.h"
 
-#include "PHY/INIT/phy_init.h"
+#include "PHY/INIT/nr_phy_init.h"
 
 #include "system.h"
 #include <openair2/GNB_APP/gnb_app.h>
 #include "PHY/TOOLS/phy_scope_interface.h"
 #include "PHY/TOOLS/nr_phy_scope.h"
-#include "stats.h"
 #include "nr-softmodem.h"
 #include "executables/softmodem-common.h"
 #include "executables/thread-common.h"
@@ -88,6 +78,15 @@ unsigned short config_frames[4] = {2,9,11,13};
 #include "gnb_paramdef.h"
 #include <openair3/ocp-gtpu/gtp_itf.h>
 #include "nfapi/oai_integration/vendor_ext.h"
+#include "gnb_config.h"
+#include "openair2/E1AP/e1ap_common.h"
+#include "openair2/E1AP/e1ap_api.h"
+
+#ifdef E2_AGENT
+#include "openair2/E2AP/flexric/src/agent/e2_agent_api.h"
+#include "openair2/E2AP/RAN_FUNCTION/init_ran_func.h"
+#endif
+
 
 pthread_cond_t nfapi_sync_cond;
 pthread_mutex_t nfapi_sync_mutex;
@@ -101,7 +100,9 @@ int sync_var=-1; //!< protected by mutex \ref sync_mutex.
 int config_sync_var=-1;
 
 volatile int             start_gNB = 0;
-volatile int             oai_exit = 0;
+int oai_exit = 0;
+
+int NB_UE_INST = 0;
 
 static int wait_for_sync = 0;
 
@@ -115,15 +116,10 @@ int32_t uplink_frequency_offset[MAX_NUM_CCs][4];
 
 //Temp fix for inexistent NR upper layer
 unsigned char NB_gNB_INST = 1;
+char *uecap_file;
 
-
-int UE_scan = 1;
-int UE_scan_carrier = 0;
 runmode_t mode = normal_txrx;
 static double snr_dB=20;
-
-FILE *input_fd=NULL;
-
 
 #if MAX_NUM_CCs == 1
 rx_gain_t rx_gain_mode[MAX_NUM_CCs][4] = {{max_gain,max_gain,max_gain,max_gain}};
@@ -164,18 +160,7 @@ int otg_enabled;
 uint32_t timing_advance = 0;
 uint64_t num_missed_slots=0; // counter for the number of missed slots
 
-#include <executables/split_headers.h>
 #include <SIMULATION/ETH_TRANSPORT/proto.h>
-
-int split73=0;
-void sendFs6Ul(PHY_VARS_eNB *eNB, int UE_id, int harq_pid, int segmentID, int16_t *data, int dataLen, int r_offset) {
-  AssertFatal(false, "Must not be called in this context\n");
-}
-void sendFs6Ulharq(enum pckType type, int UEid, PHY_VARS_eNB *eNB, LTE_eNB_UCI *uci, int frame, int subframe, uint8_t *harq_ack, uint8_t tdd_mapping_mode, uint16_t tdd_multiplexing_mask,
-                   uint16_t rnti, int32_t stat) {
-  AssertFatal(false, "Must not be called in this context\n");
-}
-
 
 extern void reset_opp_meas(void);
 extern void print_opp_meas(void);
@@ -197,8 +182,12 @@ openair0_config_t openair0_cfg[MAX_CARDS];
 
 double cpuf;
 
-extern char uecap_xer[1024];
-char uecap_xer_in=0;
+/* hack: pdcp_run() is required by 4G scheduler which is compiled into
+ * nr-softmodem because of linker issues */
+void pdcp_run(const protocol_ctxt_t *const ctxt_pP)
+{
+  abort();
+}
 
 /* see file openair2/LAYER2/MAC/main.c for why abstraction_flag is needed
  * this is very hackish - find a proper solution
@@ -273,8 +262,8 @@ unsigned int build_rfdc(int dcoff_i_rxfe, int dcoff_q_rxfe) {
 #define KBLU  "\x1B[34m"
 #define RESET "\033[0m"
 
-
-void exit_function(const char *file, const char *function, const int line, const char *s) {
+void exit_function(const char *file, const char *function, const int line, const char *s, const int assert)
+{
   int ru_id;
 
   if (s != NULL) {
@@ -298,22 +287,70 @@ void exit_function(const char *file, const char *function, const int line, const
     }
   }
 
-  sleep(1); //allow lte-softmodem threads to exit first
-  exit(1);
+  if (assert) {
+    abort();
+  } else {
+    sleep(1); // allow nr-softmodem threads to exit first
+    exit(EXIT_SUCCESS);
+  }
 }
 
 
 
-int create_gNB_tasks(uint32_t gnb_nb) {
+static int create_gNB_tasks(void) {
+  uint32_t                        gnb_nb = RC.nb_nr_inst; 
+  uint32_t                        gnb_id_start = 0;
+  uint32_t                        gnb_id_end = gnb_id_start + gnb_nb;
   LOG_D(GNB_APP, "%s(gnb_nb:%d)\n", __FUNCTION__, gnb_nb);
   itti_wait_ready(1);
+  LOG_I(PHY, "%s() Task ready initialize structures\n", __FUNCTION__);
+
+  RCconfig_NR_L1();
+  RCconfig_nr_prs();
+
+  if (RC.nb_nr_macrlc_inst>0) RCconfig_nr_macrlc();
+
+  LOG_I(PHY, "%s() RC.nb_nr_L1_inst:%d\n", __FUNCTION__, RC.nb_nr_L1_inst);
+
+  if (RC.nb_nr_L1_inst>0) AssertFatal(l1_north_init_gNB()==0,"could not initialize L1 north interface\n");
+
+  AssertFatal (gnb_nb <= RC.nb_nr_inst,
+               "Number of gNB is greater than gNB defined in configuration file (%d/%d)!",
+               gnb_nb, RC.nb_nr_inst);
+
+  LOG_I(GNB_APP,"Allocating gNB_RRC_INST for %d instances\n",RC.nb_nr_inst);
+
+  RC.nrrrc = (gNB_RRC_INST **)malloc(RC.nb_nr_inst*sizeof(gNB_RRC_INST *));
+  LOG_I(PHY, "%s() RC.nb_nr_inst:%d RC.nrrrc:%p\n", __FUNCTION__, RC.nb_nr_inst, RC.nrrrc);
+  ngran_node_t node_type = get_node_type();
+  for (int gnb_id = gnb_id_start; (gnb_id < gnb_id_end) ; gnb_id++) {
+    RC.nrrrc[gnb_id] = (gNB_RRC_INST*)calloc(1,sizeof(gNB_RRC_INST));
+    LOG_I(PHY, "%s() Creating RRC instance RC.nrrrc[%d]:%p (%d of %d)\n", __FUNCTION__, gnb_id, RC.nrrrc[gnb_id], gnb_id+1, gnb_id_end);
+    configure_nr_rrc(gnb_id);
+  }
+
+  if (RC.nb_nr_inst > 0 &&
+      !get_softmodem_params()->nsa &&
+      !(node_type == ngran_gNB_DU))  {
+    // we start pdcp in both cuup (for drb) and cucp (for srb)
+    init_pdcp();
+  }
+
+  if (is_x2ap_enabled() ) { //&& !NODE_IS_DU(node_type)
+	  LOG_I(X2AP, "X2AP enabled \n");
+	  __attribute__((unused)) uint32_t x2_register_gnb_pending = gNB_app_register_x2 (gnb_id_start, gnb_id_end);
+  }
+
+  /* For the CU case the gNB registration with the AMF might have to take place after the F1 setup, as the PLMN info
+     * can originate from the DU. Add check on whether x2ap is enabled to account for ENDC NSA scenario.*/
+  if ((get_softmodem_params()->sa || is_x2ap_enabled()) &&
+      !NODE_IS_DU(node_type)) {
+    /* Try to register each gNB */
+    //registered_gnb = 0;
+    __attribute__((unused)) uint32_t register_gnb_pending = gNB_app_register (gnb_id_start, gnb_id_end);
+  }
 
   if (gnb_nb > 0) {
-    /* Last task to create, others task must be ready before its start */
-    /*if (itti_create_task (TASK_GNB_APP, gNB_app_task, NULL) < 0) {
-      LOG_E(GNB_APP, "Create task for gNB APP failed\n");
-      return -1;
-    }*/
     if(itti_create_task(TASK_SCTP, sctp_eNB_task, NULL) < 0) {
       LOG_E(SCTP, "Create task for SCTP failed\n");
       return -1;
@@ -328,48 +365,32 @@ int create_gNB_tasks(uint32_t gnb_nb) {
     }
   }
 
-  paramdef_t NETParams[]  =  GNBNETPARAMS_DESC;
-  char aprefix[MAX_OPTNAME_SIZE*2 + 8];
-  sprintf(aprefix,"%s.[%i].%s",GNB_CONFIG_STRING_GNB_LIST,0,GNB_CONFIG_STRING_NETWORK_INTERFACES_CONFIG);
-  config_get( NETParams,sizeof(NETParams)/sizeof(paramdef_t),aprefix);
+  if (get_softmodem_params()->sa &&
+      !NODE_IS_DU(node_type)) {
 
-  for(int i = GNB_INTERFACE_NAME_FOR_NG_AMF_IDX; i <= GNB_IPV4_ADDRESS_FOR_NG_AMF_IDX; i++) {
-    if( NETParams[i].strptr == NULL) {
-      LOG_E(NGAP, "No configuration in the file.\n");
-      NGAP_CONF_MODE = 0;
-    } else {
-      LOG_D(NGAP, "Configuration in the file: %s.\n",*NETParams[i].strptr);
-    }
-  }
-
-  if (AMF_MODE_ENABLED) {
-    if (gnb_nb > 0) {
-      /*
-      if (itti_create_task (TASK_SCTP, sctp_eNB_task, NULL) < 0) {
-        LOG_E(SCTP, "Create task for SCTP failed\n");
-        return -1;
-      }
-      */
-      if(NGAP_CONF_MODE) {
-        if (itti_create_task (TASK_NGAP, ngap_gNB_task, NULL) < 0) {
-          LOG_E(NGAP, "Create task for NGAP failed\n");
-          return -1;
-        }
+    char*             gnb_ipv4_address_for_NGU      = NULL;
+    uint32_t          gnb_port_for_NGU              = 0;
+    char*             gnb_ipv4_address_for_S1U      = NULL;
+    uint32_t          gnb_port_for_S1U              = 0;
+    paramdef_t NETParams[]  =  GNBNETPARAMS_DESC;
+    char aprefix[MAX_OPTNAME_SIZE*2 + 8];
+    sprintf(aprefix,"%s.[%i].%s",GNB_CONFIG_STRING_GNB_LIST,0,GNB_CONFIG_STRING_NETWORK_INTERFACES_CONFIG);
+    config_get( NETParams,sizeof(NETParams)/sizeof(paramdef_t),aprefix);
+    
+    for(int i = GNB_INTERFACE_NAME_FOR_NG_AMF_IDX; i <= GNB_IPV4_ADDRESS_FOR_NG_AMF_IDX; i++) {
+      if( NETParams[i].strptr == NULL) {
+        LOG_E(NGAP, "No AMF configuration in the file.\n");
+        exit(1);
       } else {
-        LOG_E(NGAP, "Ngap task not created\n");
+        LOG_D(NGAP, "Configuration in the file: %s.\n",*NETParams[i].strptr);
       }
-
-      if(!emulate_rf) {
-        if (itti_create_task (TASK_UDP, udp_eNB_task, NULL) < 0) {
-          LOG_E(UDP_, "Create task for UDP failed\n");
-          return -1;
-        }
-      }
-
-      /*if (itti_create_task (TASK_GTPV1_U, &nr_gtpv1u_gNB_task, NULL) < 0) {
-        LOG_E(GTPU, "Create task for GTPV1U failed\n");
+    }
+    
+    if (gnb_nb > 0) {
+      if (itti_create_task (TASK_NGAP, ngap_gNB_task, NULL) < 0) {
+        LOG_E(NGAP, "Create task for NGAP failed\n");
         return -1;
-      }*/
+      }
     }
   }
 
@@ -379,16 +400,27 @@ int create_gNB_tasks(uint32_t gnb_nb) {
       return -1;
     }
 
-    LOG_I(NR_RRC,"Creating NR RRC gNB Task\n");
-
+    LOG_I(NR_RRC, "Creating NR RRC gNB Task, that will also create TASKS\n");
     if (itti_create_task (TASK_RRC_GNB, rrc_gnb_task, NULL) < 0) {
       LOG_E(NR_RRC, "Create task for NR RRC gNB failed\n");
       return -1;
     }
 
-    //Use check on x2ap to consider the NSA scenario and check on AMF_MODE_ENABLED for the SA scenario
-    if(is_x2ap_enabled() || AMF_MODE_ENABLED) {
-      if (itti_create_task (TASK_GTPV1_U, &nr_gtpv1u_gNB_task, NULL) < 0) {
+    // If CU
+    if (node_type == ngran_gNB_CU || node_type == ngran_gNB) {
+      MessageDef *msg = RCconfig_NR_CU_E1(false);
+      instance_t inst = 0;
+      createE1inst(UPtype, inst, &E1AP_SETUP_REQ(msg));
+      cuup_init_n3(inst);
+      itti_free(TASK_UNKNOWN, msg);
+      getCxtE1(inst)->same_process = true;
+      ;
+      RC.nrrrc[gnb_id_start]->e1_inst = inst; // stupid instance !!!*/
+    }
+
+    //Use check on x2ap to consider the NSA scenario 
+    if((is_x2ap_enabled() || get_softmodem_params()->sa) && (node_type != ngran_gNB_CUCP)) {
+      if (itti_create_task (TASK_GTPV1_U, &gtpv1uTask, NULL) < 0) {
         LOG_E(GTPU, "Create task for GTPV1U failed\n");
         return -1;
       }
@@ -513,92 +545,12 @@ void wait_gNBs(void) {
 void terminate_task(task_id_t task_id, module_id_t mod_id) {
   LOG_I(GNB_APP, "sending TERMINATE_MESSAGE to task %s (%d)\n", itti_get_task_name(task_id), task_id);
   MessageDef *msg;
-  msg = itti_alloc_new_message (ENB_APP, 0, TERMINATE_MESSAGE);
+  msg = itti_alloc_new_message (TASK_ENB_APP, 0, TERMINATE_MESSAGE);
   itti_send_msg_to_task (task_id, ENB_MODULE_ID_TO_INSTANCE(mod_id), msg);
 }
 
 //extern void  free_transport(PHY_VARS_gNB *);
 extern void  nr_phy_free_RU(RU_t *);
-
-int stop_L1L2(module_id_t gnb_id) {
-  LOG_W(GNB_APP, "stopping nr-softmodem\n");
-  oai_exit = 1;
-
-  if (!RC.ru) {
-    LOG_F(GNB_APP, "no RU configured\n");
-    return -1;
-  }
-
-  /* stop trx devices, multiple carrier currently not supported by RU */
-  if (RC.ru[gnb_id]) {
-    if (RC.ru[gnb_id]->rfdevice.trx_stop_func) {
-      RC.ru[gnb_id]->rfdevice.trx_stop_func(&RC.ru[gnb_id]->rfdevice);
-      LOG_I(GNB_APP, "turned off RU rfdevice\n");
-    } else {
-      LOG_W(GNB_APP, "can not turn off rfdevice due to missing trx_stop_func callback, proceeding anyway!\n");
-    }
-
-    if (RC.ru[gnb_id]->ifdevice.trx_stop_func) {
-      RC.ru[gnb_id]->ifdevice.trx_stop_func(&RC.ru[gnb_id]->ifdevice);
-      LOG_I(GNB_APP, "turned off RU ifdevice\n");
-    } else {
-      LOG_W(GNB_APP, "can not turn off ifdevice due to missing trx_stop_func callback, proceeding anyway!\n");
-    }
-  } else {
-    LOG_W(GNB_APP, "no RU found for index %d\n", gnb_id);
-    return -1;
-  }
-
-  /* these tasks need to pick up new configuration */
-  terminate_task(TASK_RRC_ENB, gnb_id);
-  LOG_I(GNB_APP, "calling kill_gNB_proc() for instance %d\n", gnb_id);
-  kill_gNB_proc(gnb_id);
-  LOG_I(GNB_APP, "calling kill_NR_RU_proc() for instance %d\n", gnb_id);
-  kill_NR_RU_proc(gnb_id);
-  oai_exit = 0;
-  //free_transport(RC.gNB[gnb_id]);
-  phy_free_nr_gNB(RC.gNB[gnb_id]);
-  nr_phy_free_RU(RC.ru[gnb_id]);
-  free_lte_top();
-  return 0;
-}
-
-/*
- * Restart the nr-softmodem after it has been soft-stopped with stop_L1L2()
- */
-int restart_L1L2(module_id_t gnb_id) {
-  RU_t *ru = RC.ru[gnb_id];
-  MessageDef *msg_p = NULL;
-  LOG_W(GNB_APP, "restarting nr-softmodem\n");
-  /* block threads */
-  sync_var = -1;
-  RC.gNB[gnb_id]->configured = 0;
-  RC.ru_mask |= (1 << ru->idx);
-  set_function_spec_param(RC.ru[gnb_id]);
-  LOG_I(GNB_APP, "attempting to create ITTI tasks\n");
-  // No more rrc thread, as many race conditions are hidden behind
-  rrc_enb_init();
-  itti_mark_task_ready(TASK_RRC_ENB);
-  /* pass a reconfiguration request which will configure everything down to
-   * RC.eNB[i][j]->frame_parms, too */
-  msg_p = itti_alloc_new_message(TASK_ENB_APP, 0, RRC_CONFIGURATION_REQ);
-  RRC_CONFIGURATION_REQ(msg_p) = RC.rrc[gnb_id]->configuration;
-  itti_send_msg_to_task(TASK_RRC_ENB, ENB_MODULE_ID_TO_INSTANCE(gnb_id), msg_p);
-  /* TODO XForms might need to be restarted, but it is currently (09/02/18)
-   * broken, so we cannot test it */
-  wait_gNBs();
-  init_RU_proc(ru);
-  ru->rf_map.card = 0;
-  ru->rf_map.chain = 0; /* CC_id + chain_offset;*/
-  wait_RUs();
-  init_eNB_afterRU();
-  printf("Sending sync to all threads\n");
-  pthread_mutex_lock(&sync_mutex);
-  sync_var=0;
-  pthread_cond_broadcast(&sync_cond);
-  pthread_mutex_unlock(&sync_mutex);
-  return 0;
-}
 
 static  void wait_nfapi_init(char *thread_name) {
   printf( "waiting for NFAPI PNF connection and population of global structure (%s)\n",thread_name);
@@ -612,32 +564,15 @@ static  void wait_nfapi_init(char *thread_name) {
 }
 
 void init_pdcp(void) {
-  if (!NODE_IS_DU(RC.nrrrc[0]->node_type)) {
-    // pdcp_layer_init();
-    uint32_t pdcp_initmask = (IS_SOFTMODEM_NOS1) ?
-                             (PDCP_USE_NETLINK_BIT | LINK_ENB_PDCP_TO_IP_DRIVER_BIT) : LINK_ENB_PDCP_TO_GTPV1U_BIT;
-
-    if (IS_SOFTMODEM_NOS1) {
-      printf("IS_SOFTMODEM_NOS1 option enabled \n");
-      pdcp_initmask = pdcp_initmask | ENB_NAS_USE_TUN_BIT | SOFTMODEM_NOKRNMOD_BIT;
-    }
-
-    pdcp_module_init(pdcp_initmask);
-
-    if (NODE_IS_CU(RC.nrrrc[0]->node_type)) {
-      LOG_I(PDCP, "node is CU, pdcp send rlc_data_req by proto_agent \n");
-      pdcp_set_rlc_data_req_func((send_rlc_data_req_func_t)proto_agent_send_rlc_data_req);
-    } else {
-      LOG_I(PDCP, "node is gNB \n");
-      pdcp_set_rlc_data_req_func((send_rlc_data_req_func_t) rlc_data_req);
-      pdcp_set_pdcp_data_ind_func((pdcp_data_ind_func_t) pdcp_data_ind);
-    }
-  } else {
-    LOG_I(PDCP, "node is DU, rlc send pdcp_data_ind by proto_agent \n");
-    pdcp_set_pdcp_data_ind_func((pdcp_data_ind_func_t) proto_agent_send_pdcp_data_ind);
+  uint32_t pdcp_initmask = (IS_SOFTMODEM_NOS1) ?
+    PDCP_USE_NETLINK_BIT | LINK_ENB_PDCP_TO_IP_DRIVER_BIT | ENB_NAS_USE_TUN_BIT | SOFTMODEM_NOKRNMOD_BIT:
+    LINK_ENB_PDCP_TO_GTPV1U_BIT;
+  
+  if (!NODE_IS_DU(get_node_type())) {
+    nr_pdcp_layer_init();
+    nr_pdcp_module_init(pdcp_initmask, 0);
   }
 }
-
 
 int main( int argc, char **argv ) {
   int ru_id, CC_id = 0;
@@ -657,9 +592,11 @@ int main( int argc, char **argv ) {
   memset(&openair0_cfg[0],0,sizeof(openair0_config_t)*MAX_CARDS);
   memset(tx_max_power,0,sizeof(int)*MAX_NUM_CCs);
   logInit();
-  configure_linux();
+  set_latency_target();
   printf("Reading in command-line options\n");
   get_options ();
+
+  EPC_MODE_ENABLED = !IS_SOFTMODEM_NOS1;
 
   if (CONFIG_ISFLAGSET(CONFIG_ABORT) ) {
     fprintf(stderr,"Getting configuration failed\n");
@@ -667,8 +604,6 @@ int main( int argc, char **argv ) {
   }
 
   openair0_cfg[0].threequarter_fs = threequarter_fs;
-  AMF_MODE_ENABLED = get_softmodem_params()->sa;
-  NGAP_CONF_MODE   = get_softmodem_params()->sa;
 
   if (get_softmodem_params()->do_ra)
     AssertFatal(get_softmodem_params()->phy_test == 0,"RA and phy_test are mutually exclusive\n");
@@ -690,17 +625,13 @@ int main( int argc, char **argv ) {
   cpuf=get_cpu_freq_GHz();
   itti_init(TASK_MAX, tasks_info);
   // initialize mscgen log after ITTI
-  MSC_INIT(MSC_E_UTRAN, ADDED_QUEUES_MAX+TASK_MAX);
   init_opt();
-#ifdef PDCP_USE_NETLINK
-
-  if(!IS_SOFTMODEM_NOS1)
+  if(PDCP_USE_NETLINK && !IS_SOFTMODEM_NOS1) {
     netlink_init();
-
-#if defined(PDCP_USE_NETLINK_QUEUES)
-  pdcp_netlink_init();
-#endif
-#endif
+    if (get_softmodem_params()->nsa) {
+      init_pdcp();
+    }
+  }
 #ifndef PACKAGE_VERSION
 #  define PACKAGE_VERSION "UNKNOWN-EXPERIMENTAL"
 #endif
@@ -710,15 +641,11 @@ int main( int argc, char **argv ) {
     RCconfig_NR_L1();
 
   // don't create if node doesn't connect to RRC/S1/GTP
-  AssertFatal(create_gNB_tasks(1) == 0,"cannot create ITTI tasks\n");
-  /* Start the agent. If it is turned off in the configuration, it won't start */
-  /*
-  RCconfig_nr_flexran();
-
-  for (i = 0; i < RC.nb_nr_L1_inst; i++) {
-    flexran_agent_start(i);
+  if (NFAPI_MODE != NFAPI_MODE_PNF) {
+    int ret = create_gNB_tasks();
+    AssertFatal(ret == 0, "cannot create ITTI tasks\n");
   }
-  */
+
   // init UE_PF_PO and mutex lock
   pthread_mutex_init(&ue_pf_po_mutex, NULL);
   memset (&UE_PF_PO[0][0], 0, sizeof(UE_PF_PO_t)*NUMBER_OF_UE_MAX*MAX_NUM_CCs);
@@ -733,31 +660,6 @@ int main( int argc, char **argv ) {
     pthread_mutex_init(&sync_mutex, NULL);
   }
 
-  const char *nfapi_mode_str = "<UNKNOWN>";
-
-  switch(NFAPI_MODE) {
-    case 0:
-      nfapi_mode_str = "MONOLITHIC";
-      break;
-
-    case 1:
-      nfapi_mode_str = "PNF";
-      break;
-
-    case 2:
-      nfapi_mode_str = "VNF";
-      break;
-
-    default:
-      nfapi_mode_str = "<UNKNOWN NFAPI MODE>";
-      break;
-  }
-
-  printf("NFAPI MODE:%s\n", nfapi_mode_str);
-
-  if (NFAPI_MODE==NFAPI_MODE_VNF)
-    wait_nfapi_init("main?");
-
   printf("START MAIN THREADS\n");
   // start the main threads
   number_of_cards = 1;
@@ -771,7 +673,7 @@ int main( int argc, char **argv ) {
   printf("wait_gNBs()\n");
   wait_gNBs();
   printf("About to Init RU threads RC.nb_RU:%d\n", RC.nb_RU);
-
+  int sl_ahead=6;
   if (RC.nb_RU >0) {
     printf("Initializing RU threads\n");
     init_NR_RU(get_softmodem_params()->rf_config_file);
@@ -779,10 +681,62 @@ int main( int argc, char **argv ) {
     for (ru_id=0; ru_id<RC.nb_RU; ru_id++) {
       RC.ru[ru_id]->rf_map.card=0;
       RC.ru[ru_id]->rf_map.chain=CC_id+chain_offset;
+      if (ru_id==0) sl_ahead = RC.ru[ru_id]->sl_ahead;	
+      else AssertFatal(RC.ru[ru_id]->sl_ahead != RC.ru[0]->sl_ahead,"RU %d has different sl_ahead %d than RU 0 %d\n",ru_id,RC.ru[ru_id]->sl_ahead,RC.ru[0]->sl_ahead);
     }
+    
   }
 
   config_sync_var=0;
+
+
+
+
+#ifdef E2_AGENT
+
+//////////////////////////////////
+//////////////////////////////////
+//// Init the E2 Agent
+
+  sm_io_ag_ran_t io = init_ran_func_ag();
+  
+  // OAI Wrapper 
+  e2_agent_args_t oai_args = RCconfig_NR_E2agent();
+  AssertFatal(oai_args.sm_dir != NULL , "Please, specify the directory where the SMs are located in the config file, i.e., e2_agent = {near_ric_ip_addr = \"127.0.0.1\"; sm_dir = \"/usr/local/lib/flexric/\");} ");
+  AssertFatal(oai_args.ip != NULL , "Please, specify the IP address of the nearRT-RIC in the config file, i.e., e2_agent = {near_ric_ip_addr = \"127.0.0.1\"; sm_dir = \"/usr/local/lib/flexric/\"");
+
+  fr_args_t args = {.ip = oai_args.ip}; // init_fr_args(0, NULL);
+  memcpy(args.libs_dir, oai_args.sm_dir, 128);
+
+  sleep(1);
+  const gNB_RRC_INST* rrc = RC.nrrrc[0];
+  assert(rrc != NULL && "rrc cannot be NULL");
+
+  const int mcc = rrc->configuration.mcc[0];
+  const int mnc = rrc->configuration.mnc[0];
+  const int mnc_digit_len = rrc->configuration.mnc_digit_length[0];
+  const ngran_node_t node_type = rrc->node_type;
+  int nb_id = 0;
+  int cu_du_id = 0;
+  if (node_type == ngran_gNB) {
+    nb_id = rrc->configuration.cell_identity;
+  } else if (node_type == ngran_gNB_DU) {
+    cu_du_id = rrc->node_id + 1; // Hack to avoid been 0
+    nb_id = rrc->configuration.cell_identity;
+  } else if (node_type == ngran_gNB_CU) {
+    cu_du_id = rrc->node_id + 1;
+    nb_id = rrc->configuration.cell_identity;
+  } else {
+    LOG_E(NR_RRC, "not supported ran type detect\n");
+  }
+     
+  printf("[E2 NODE]: mcc = %d mnc = %d mnc_digit = %d nb_id = %d \n", mcc, mnc, mnc_digit_len, nb_id);
+
+  init_agent_api(mcc, mnc, mnc_digit_len, nb_id, cu_du_id, node_type, io, &args);
+//   }
+
+#endif // E2_AGENT
+
 
   if (NFAPI_MODE==NFAPI_MODE_PNF) {
     wait_nfapi_init("main?");
@@ -796,6 +750,7 @@ int main( int argc, char **argv ) {
     // once all RUs are ready initialize the rest of the gNBs ((dependence on final RU parameters after configuration)
     printf("ALL RUs ready - init gNBs\n");
 
+    for (int idx=0;idx<RC.nb_nr_L1_inst;idx++) RC.gNB[idx]->if_inst->sl_ahead = sl_ahead;
     if(IS_SOFTMODEM_DOSCOPE) {
       sleep(1);
       scopeParms_t p;
@@ -804,6 +759,15 @@ int main( int argc, char **argv ) {
       p.gNB=RC.gNB[0];
       p.ru=RC.ru[0];
       load_softscope("nr",&p);
+    }
+
+    if(IS_SOFTMODEM_DOSCOPE_QT) {
+      scopeParms_t p;
+      p.argc = &argc;
+      p.argv = argv;
+      p.gNB  = RC.gNB[0];
+      p.ru   = RC.ru[0];
+      load_softscope("nrqt", &p);
     }
 
     if (NFAPI_MODE != NFAPI_MODE_PNF && NFAPI_MODE != NFAPI_MODE_VNF) {
@@ -822,60 +786,31 @@ int main( int argc, char **argv ) {
     pthread_mutex_unlock(&sync_mutex);
   }
 
-  printf("About to call end_configmodule() from %s() %s:%d\n", __FUNCTION__, __FILE__, __LINE__);
-  // We have to set PARAMFLAG_NOFREE on right paramters before re-enabling end_configmodule()
-  //end_configmodule();
-  printf("Called end_configmodule() from %s() %s:%d\n", __FUNCTION__, __FILE__, __LINE__);
   // wait for end of program
-  printf("TYPE <CTRL-C> TO TERMINATE\n");
-  //getchar();
   printf("Entering ITTI signals handler\n");
-  itti_wait_tasks_end();
+  printf("TYPE <CTRL-C> TO TERMINATE\n");
+  itti_wait_tasks_end(NULL);
   printf("Returned from ITTI signal handler\n");
   oai_exit=1;
   printf("oai_exit=%d\n",oai_exit);
-  // stop threads
-  /*#ifdef XFORMS
 
-      printf("waiting for XFORMS thread\n");
-
-      if (do_forms==1) {
-        pthread_join(forms_thread,&status);
-        fl_hide_form(form_stats->stats_form);
-        fl_free_form(form_stats->stats_form);
-
-          fl_hide_form(form_stats_l2->stats_form);
-          fl_free_form(form_stats_l2->stats_form);
-
-          for(UE_id=0; UE_id<scope_enb_num_ue; UE_id++) {
-      for(CC_id=0; CC_id<MAX_NUM_CCs; CC_id++) {
-        fl_hide_form(form_enb[CC_id][UE_id]->phy_scope_gNB);
-        fl_free_form(form_enb[CC_id][UE_id]->phy_scope_gNB);
-      }
-          }
-      }
-
-  #endif*/
-  printf("stopping MODEM threads\n");
   // cleanup
-  stop_gNB(NB_gNB_INST);
+  if (RC.nb_nr_L1_inst > 0)
+    stop_gNB(RC.nb_nr_L1_inst);
 
-  if (RC.nb_nr_L1_inst > 0) {
-    stop_RU(NB_RU);
-  }
+  if (RC.nb_RU > 0)
+    stop_RU(RC.nb_RU);
 
   /* release memory used by the RU/gNB threads (incomplete), after all
    * threads have been stopped (they partially use the same memory) */
-  for (int inst = 0; inst < NB_gNB_INST; inst++) {
-    //free_transport(RC.gNB[inst]);
-    phy_free_nr_gNB(RC.gNB[inst]);
-  }
-
-  for (int inst = 0; inst < NB_RU; inst++) {
+  for (int inst = 0; inst < RC.nb_RU; inst++) {
     nr_phy_free_RU(RC.ru[inst]);
   }
 
-  free_lte_top();
+  for (int inst = 0; inst < RC.nb_nr_L1_inst; inst++) {
+    phy_free_nr_gNB(RC.gNB[inst]);
+  }
+
   pthread_cond_destroy(&sync_cond);
   pthread_mutex_destroy(&sync_mutex);
   pthread_cond_destroy(&nfapi_sync_cond);
@@ -884,10 +819,7 @@ int main( int argc, char **argv ) {
 
   // *** Handle per CC_id openair0
 
-  for(ru_id=0; ru_id<NB_RU; ru_id++) {
-    if (RC.ru[ru_id]->rfdevice.trx_end_func)
-      RC.ru[ru_id]->rfdevice.trx_end_func(&RC.ru[ru_id]->rfdevice);
-
+  for(ru_id = 0; ru_id < RC.nb_RU; ru_id++) {
     if (RC.ru[ru_id]->ifdevice.trx_end_func)
       RC.ru[ru_id]->ifdevice.trx_end_func(&RC.ru[ru_id]->ifdevice);
   }

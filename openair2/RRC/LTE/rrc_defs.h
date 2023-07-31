@@ -36,23 +36,22 @@
 #include <string.h>
 
 #include "collection/tree.h"
+#include "collection/linear_alloc.h"
 #include "common/ngran_types.h"
 #include "rrc_types.h"
 //#include "PHY/phy_defs.h"
 #include "LAYER2/RLC/rlc.h"
-#include "RRC/NR/nr_rrc_types.h"
 #include "NR_UE-MRDC-Capability.h"
 #include "NR_UE-NR-Capability.h"
 
-
-#include "COMMON/platform_constants.h"
+#include "common/platform_constants.h"
 #include "COMMON/platform_types.h"
 
 #include "LAYER2/MAC/mac.h"
-
+#include "openair2/RRC/common.h"
 //for D2D
 #define DEBUG_CTRL_SOCKET
-#define BUFSIZE                1024
+
 #define CONTROL_SOCKET_PORT_NO 8888
 #define MAX_NUM_DEST           10
 //netlink
@@ -173,13 +172,6 @@ extern pthread_mutex_t slrb_mutex;
 //the thread function
 void *send_UE_status_notification(void *);
 
-
-
-//#include "COMMON/openair_defs.h"
-#ifndef USER_MODE
-  //#include <rtai.h>
-#endif
-
 #include "LTE_SystemInformationBlockType1.h"
 #include "LTE_SystemInformation.h"
 #include "LTE_RRCConnectionReconfiguration.h"
@@ -217,12 +209,6 @@ void *send_UE_status_notification(void *);
 #define NB_SIG_CNX_UE 2 //MAX_MANAGED_RG_PER_MOBILE
 #define NB_CNX_UE 2//MAX_MANAGED_RG_PER_MOBILE
 
-#ifndef NO_RRM
-  #include "L3_rrc_interface.h"
-  #include "rrc_rrm_msg.h"
-  #include "rrc_rrm_interface.h"
-#endif
-
 
 #include "intertask_interface.h"
 
@@ -230,17 +216,6 @@ void *send_UE_status_notification(void *);
 
 
 #include "commonDef.h"
-
-
-//--------
-typedef unsigned int uid_t;
-#define UID_LINEAR_ALLOCATOR_BITMAP_SIZE (((MAX_MOBILES_PER_ENB/8)/sizeof(unsigned int)) + 1)
-typedef struct uid_linear_allocator_s {
-  unsigned int   bitmap[UID_LINEAR_ALLOCATOR_BITMAP_SIZE];
-} uid_allocator_t;
-
-//--------
-
 
 
 #define PROTOCOL_RRC_CTXT_UE_FMT           PROTOCOL_CTXT_FMT
@@ -324,12 +299,12 @@ typedef enum SL_TRIGGER_e {
 #define RRM_CALLOC(t,n)   (t *) malloc16( sizeof(t) * n)
 #define RRM_CALLOC2(t,s)  (t *) malloc16( s )
 
-#define MAX_MEAS_OBJ 6
-#define MAX_MEAS_CONFIG 6
-#define MAX_MEAS_ID 6
+#define MAX_MEAS_OBJ 7
+#define MAX_MEAS_CONFIG 7
+#define MAX_MEAS_ID 7
 
 #define PAYLOAD_SIZE_MAX 1024
-#define RRC_BUF_SIZE 8192
+#define RRC_BUF_SIZE 1024
 #define UNDEF_SECURITY_MODE 0xff
 #define NO_SECURITY_MODE 0x20
 
@@ -364,7 +339,7 @@ typedef struct UE_RRC_INFO_s {
   uint8_t SIwindowsize_MBMS; //!< Corresponds to the SIB1 si-WindowLength parameter. The unit is ms. Possible values are (final): 1,2,5,10,15,20,40
   uint8_t handoverTarget;
   HO_STATE_t ho_state;
-  uint16_t SIperiod; //!< Corresponds to the SIB1 si-Periodicity parameter (multiplied by 10). Possible values are (final): 80,160,320,640,1280,2560,5120
+  uint16_t SIperiod ; //!< Corresponds to the SIB1 si-Periodicity parameter (multiplied by 10). Possible values are (final): 80,160,320,640,1280,2560,5120
   uint16_t SIperiod_MBMS; //!< Corresponds to the SIB1-MBMS si-Periodicity parameter (multiplied by 10). Possible values are (final): 80,160,320,640,1280,2560,5120 TODO
   unsigned short UE_index;
   uint32_t T300_active;
@@ -376,10 +351,11 @@ typedef struct UE_RRC_INFO_s {
   uint32_t N310_cnt;
   uint32_t N311_cnt;
   rnti_t   rnti;
+  struct LTE_DL_DCCH_Message *dl_dcch_msg;
 } __attribute__ ((__packed__)) UE_RRC_INFO;
 
 typedef struct UE_S_TMSI_s {
-  boolean_t  presence;
+  bool       presence;
   mme_code_t mme_code;
   m_tmsi_t   m_tmsi;
 } __attribute__ ((__packed__)) UE_S_TMSI;
@@ -496,7 +472,7 @@ typedef struct MEASUREMENT_INFO_s {
 typedef struct {
   char Payload[RRC_BUFFER_SIZE_MAX];
   char Header[RRC_HEADER_SIZE_MAX];
-  char payload_size;
+  uint16_t payload_size;
 } RRC_BUFFER;
 #define RRC_BUFFER_SIZE sizeof(RRC_BUFFER)
 
@@ -680,8 +656,6 @@ typedef struct eNB_RRC_UE_s {
   int                                nr_capabilities_requested;
 } eNB_RRC_UE_t;
 
-typedef uid_t ue_uid_t;
-
 typedef struct rrc_eNB_ue_context_s {
   /* Tree related data */
   RB_ENTRY(rrc_eNB_ue_context_s) entries;
@@ -692,7 +666,7 @@ typedef struct rrc_eNB_ue_context_s {
   rnti_t         ue_id_rnti;
 
   // another key for protocol layers but should not be used as a key for RB tree
-  ue_uid_t       local_uid;
+  uid_t          local_uid;
 
   /* UE id for initial connection to S1AP */
   struct eNB_RRC_UE_s   ue_context;
@@ -722,15 +696,13 @@ typedef struct {
   uint32_t                              N_RB_DL;
   uint32_t                              pbch_repetition;
   LTE_BCCH_BCH_Message_t                mib;
-  LTE_BCCH_BCH_Message_t                *mib_DU;
   LTE_BCCH_DL_SCH_Message_t             siblock1;
   LTE_BCCH_DL_SCH_Message_t             siblock1_BR;
   LTE_BCCH_DL_SCH_Message_t             *siblock1_DU;
   LTE_BCCH_DL_SCH_Message_t             systemInformation;
   LTE_BCCH_DL_SCH_Message_t             systemInformation_BR;
   LTE_BCCH_BCH_Message_MBMS_t            mib_fembms;
-  LTE_BCCH_DL_SCH_Message_MBMS_t         siblock1_MBMS;
-  LTE_BCCH_DL_SCH_Message_MBMS_t         systemInformation_MBMS;
+  LTE_BCCH_DL_SCH_Message_MBMS_t siblock1_MBMS;
   LTE_SchedulingInfo_MBMS_r14_t 	 schedulingInfo_MBMS;
   LTE_PLMN_IdentityInfo_t		 PLMN_identity_info_MBMS[6];
   LTE_MCC_MNC_Digit_t			 dummy_mcc_MBMS[6][3], dummy_mnc_MBMS[6][3];
@@ -769,12 +741,11 @@ typedef struct {
 
 typedef struct eNB_RRC_INST_s {
   /// southbound midhaul configuration
-  ngran_node_t                    node_type;
   eth_params_t                    eth_params_s;
   char                            *node_name;
   uint32_t                        node_id;
   rrc_eNB_carrier_data_t          carrier[MAX_NUM_CCs];
-  uid_allocator_t                    uid_allocator; // for rrc_ue_head
+  uid_allocator_t                 uid_allocator;
   RB_HEAD(rrc_ue_tree_s, rrc_eNB_ue_context_s)     rrc_ue_head; // ue_context tree key search by rnti
   uint8_t                           HO_flag;
   uint8_t                            Nb_ue;
@@ -929,6 +900,7 @@ typedef struct UE_RRC_INST_s {
   float                           rsrq_db[7];
   float                           rsrp_db_filtered[7];
   float                           rsrq_db_filtered[7];
+  int                             subframeCount;
   /* KeNB as computed from parameters within USIM card */
   uint8_t kenb[32];
   uint8_t nh[32];
@@ -942,11 +914,13 @@ typedef struct UE_RRC_INST_s {
 } UE_RRC_INST;
 
 typedef struct UE_PF_PO_s {
-  boolean_t enable_flag;  /* flag indicate whether current object is used */
+  bool enable_flag;  /* flag indicate whether current object is used */
   uint16_t ue_index_value;  /* UE index value */
   uint8_t PF_min;  /* minimal value of Paging Frame (PF) */
   uint8_t PO;  /* Paging Occasion (PO) */
   uint32_t T;  /* DRX cycle */
+  uint8_t PF_offset;
+  uint8_t i_s;
 } UE_PF_PO_t;
 
 #include "rrc_proto.h"

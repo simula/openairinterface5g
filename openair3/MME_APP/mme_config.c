@@ -45,7 +45,7 @@
 #include "LAYER2/MAC/mac_proto.h"
 #include "PHY/phy_extern.h"
 #include "PHY/INIT/phy_init.h"
-#include "targets/ARCH/ETHERNET/USERSPACE/LIB/ethernet_lib.h"
+#include "radio/ETHERNET/ethernet_lib.h"
 #include "nfapi_vnf.h"
 #include "nfapi_pnf.h"
 
@@ -54,7 +54,6 @@
 #include "common/config/config_userapi.h"
 #include "RRC_config_tools.h"
 #include "enb_paramdef.h"
-#include "proto_agent.h"
 
 int RCconfig_MME(void ) {
   //int               num_enbs                      = 0;

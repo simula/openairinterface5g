@@ -12,19 +12,13 @@
   </tr>
 </table>
 
-## Table of Contents ##
+**2022/03/08: CAUTION, THIS TUTORIAL IS NO LONGER VALID on the `develop` branch after the `2022.w01` tag.**
 
-1.   [Environment](#1-environment)
-2.   [Retrieve the OAI eNB-UE source code](#2-retrieve-the-oai-enb-ue-source-code)
-3.   [Setup of the USIM information in UE folder](#3-setup-of-the-usim-information-in-ue-folder)
-4.   [Setup of the Configuration files](#4-setup-of-the-configuration-files)
-     1.   [The eNB Configuration file](#41-the-enb-configuration-file)
-     2.   [The UE Configuration file](#42-the-ue-configuration-file)
-5.   [Build OAI UE and eNodeB](#5-build-oai-ue-and-enodeb)
-6.   [Start the eNB](#6-start-the-enb)
-7.   [Start the UE](#7-start-the-ue)
-8.   [Test with ping](#8-test-with-ping)
-9.   [Limitations](#9-limitations)
+**2022/03/08: CAUTION, THE LAST VALID TAG on `develop` branch is `2021.w51_c`.**
+
+**Table of Contents**
+
+[[_TOC_]]
 
 # 1. Environment #
 
@@ -197,7 +191,7 @@ Last, the S1 interface shall be properly set.
 ```bash
 $ ssh sudousername@machineB
 cd ue_folder
-# Edit ci-scripts/conf_files/ue.nfapi.conf with your preferred editor
+# Edit ci-scripts/conf_files/nrue.uicc.conf with your preferred editor
 ```
 
 Verify the nFAPI interface setup on the loopback interface.
@@ -252,16 +246,15 @@ In the second terminal (the one you used to build the UE):
 $ ssh sudousername@machineC
 cd ue_folder/cmake_targets
 # Test 64 UEs, 1 thread in FDD mode
-sudo -E ./ran_build/build/lte-uesoftmodem -O ../ci-scripts/conf_files/ue.nfapi.conf --noS1 --L2-emul 3 --num-ues 64 --nums_ue_thread 1 --nokrnmod 1 > ue.log 2>&1
+sudo -E ./ran_build/build/lte-uesoftmodem -O ../ci-scripts/conf_files/nrue.uicc.conf --noS1 --L2-emul 3 --num-ues 64 --nums_ue_thread 1 > ue.log 2>&1
 # Test 64 UEs, 1 thread in TDD mode
-sudo -E ./ran_build/build/lte-uesoftmodem -O ../ci-scripts/conf_files/ue.nfapi.conf --noS1 --L2-emul 3 --num-ues 64 --nums_ue_thread 1 --nokrnmod 1 -T 1 > ue.log 2>&1
+sudo -E ./ran_build/build/lte-uesoftmodem -O ../ci-scripts/conf_files/nrue.uicc.conf --noS1 --L2-emul 3 --num-ues 64 --nums_ue_thread 1 -T 1 > ue.log 2>&1
 # The "-T 1" option means TDD config
 ```
 
 -   The number of UEs can set by using `--num-ues` option and the maximum UE number is 255 (with the `--mu*` options, otherwise 16).
 -   The number of threads can set with the `--nums-ue-thread`. This number **SHALL NOT** be greater than the number of UEs.
     * At the time of writing, it seems to be enough to run on a single thread.
--   The `--nokrnmod 1` option makes use of the preferred and supported tunnel interface.
 -   How many UE that can be tested depends on hardware (server , PC, etc) performance in your environment.
 
 For example, running with 4 UEs:
@@ -269,7 +262,7 @@ For example, running with 4 UEs:
 ```bash
 $ ssh sudousername@machineC
 cd ue_folder/cmake_targets
-sudo -E ./ran_build/build/lte-uesoftmodem -O ../ci-scripts/conf_files/ue.nfapi.conf --noS1 --L2-emul 3 --num-ues 64 --nums_ue_thread 1 --nokrnmod 1 > ue.log 2>&1
+sudo -E ./ran_build/build/lte-uesoftmodem -O ../ci-scripts/conf_files/nrue.uicc.conf --noS1 --L2-emul 3 --num-ues 64 --nums_ue_thread 1 > ue.log 2>&1
 sleep 10
 ifconfig
 ens3      Link encap:Ethernet  HWaddr XX:XX:XX:XX:XX:XX

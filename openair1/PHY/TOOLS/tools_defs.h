@@ -29,36 +29,304 @@
 
 */
 
+#include <stdio.h>
+#include <stdint.h>
+#include <assert.h>
+#include "PHY/sse_intrin.h"
+#include "common/utils/assertions.h"
+#include "common/utils/utils.h"
+
+#if defined(__x86_64__) || defined(__i386__)
+#define simd_q15_t __m128i
+#define simdshort_q15_t __m64
+#define shiftright_int16(a,shift) _mm_srai_epi16(a,shift)
+#define set1_int16(a) _mm_set1_epi16(a)
+#define mulhi_int16(a,b) _mm_mulhrs_epi16 (a,b)
+#define mulhi_s1_int16(a,b) _mm_slli_epi16(_mm_mulhi_epi16(a,b),2)
+#define adds_int16(a,b) _mm_adds_epi16(a,b)
+#define mullo_int16(a,b) _mm_mullo_epi16(a,b)
+#elif defined(__arm__) || defined(__aarch64__)
+#define simd_q15_t int16x8_t
+#define simdshort_q15_t int16x4_t
+#define shiftright_int16(a,shift) vshrq_n_s16(a,shift)
+#define set1_int16(a) vdupq_n_s16(a)
+#define mulhi_int16(a,b) vqdmulhq_s16(a,b)
+#define mulhi_s1_int16(a,b) vshlq_n_s16(vqdmulhq_s16(a,b),1)
+#define adds_int16(a,b) vqaddq_s16(a,b)
+#define mullo_int16(a,b) vmulq_s16(a,b)
+#define _mm_empty()
+#define _m_empty()
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include <stdint.h>
-#include "PHY/sse_intrin.h"
-
 #define CEILIDIV(a,b) ((a+b-1)/b)
 #define ROUNDIDIV(a,b) (((a<<1)+b)/(b<<1))
 
-struct complexd {
-  double r;
-  double i;
-};
+  typedef struct complexd {
+    double r;
+    double i;
+  } cd_t;
 
-struct complexf {
-  float r;
-  float i;
-};
+  typedef struct complexf {
+    float r;
+    float i;
+  } cf_t;
 
-struct complex16 {
-  int16_t r;
-  int16_t i;
-};
+  typedef struct complex8 {
+    int8_t r;
+    int8_t i;
+  } c8_t;
 
-struct complex32 {
-  int32_t r;
-  int32_t i;
-};
+  typedef struct complex16 {
+    int16_t r;
+    int16_t i;
+  } c16_t;
 
+  typedef struct complex32 {
+    int32_t r;
+    int32_t i;
+  } c32_t;
+
+  typedef struct complex64 {
+    int64_t r;
+    int64_t i;
+  } c64_t;
+
+  typedef struct {
+    int dim1;
+    int dim2;
+    int dim3;
+    int dim4;
+    uint8_t data[];
+  } fourDimArray_t;
+
+  static inline fourDimArray_t *allocateFourDimArray(int elmtSz, int dim1, int dim2, int dim3, int dim4)
+  {
+    int sz = elmtSz;
+    DevAssert(dim1 > 0);
+    sz *= dim1;
+    if (dim2) {
+      sz *= dim2;
+      if (dim3) {
+        sz *= dim3;
+        if (dim4)
+          sz *= dim4;
+      }
+    }
+    fourDimArray_t *tmp = (fourDimArray_t *)malloc16_clear(sizeof(*tmp) + sz);
+    AssertFatal(tmp, "no more memory\n");
+    *tmp = (fourDimArray_t){dim1, dim2, dim3, dim4};
+    return tmp;
+  }
+
+#define CheckArrAllocated(workingVar, elementType, ArraY, diM1, diM2, diM3, diM4, resizeAllowed)                           \
+  if (!(ArraY))                                                                                                            \
+    ArraY = allocateFourDimArray(sizeof(elementType), diM1, diM2, diM3, diM4);                                             \
+  else {                                                                                                                   \
+    if ((resizeAllowed)                                                                                                    \
+        && ((diM1) != (ArraY)->dim1 || (diM2) != (ArraY)->dim2 || (diM3) != (ArraY)->dim3 || (diM4) != (ArraY)->dim4)) {   \
+      LOG_I(PHY, "resizing %s to %d/%d/%d/%d\n", #ArraY, (diM1), (diM2), (diM3), (diM4));                                  \
+      free(ArraY);                                                                                                         \
+      ArraY = allocateFourDimArray(sizeof(elementType), diM1, diM2, diM3, diM4);                                           \
+    } else                                                                                                                 \
+      DevAssert((diM1) == (ArraY)->dim1 && (diM2) == (ArraY)->dim2 && (diM3) == (ArraY)->dim3 && (diM4) == (ArraY)->dim4); \
+  }
+
+#define cast1Darray(workingVar, elementType, ArraY) elementType *workingVar = (elementType *)((ArraY)->data);
+
+#define allocCast1D(workingVar, elementType, ArraY, dim1, resizeAllowed)           \
+  CheckArrAllocated(workingVar, elementType, ArraY, dim1, 0, 0, 0, resizeAllowed); \
+  cast1Darray(workingVar, elementType, ArraY);
+
+#define cast2Darray(workingVar, elementType, ArraY) \
+  elementType(*workingVar)[(ArraY)->dim2] = (elementType(*)[(ArraY)->dim2])((ArraY)->data);
+
+#define allocCast2D(workingVar, elementType, ArraY, dim1, dim2, resizeAllowed)        \
+  CheckArrAllocated(workingVar, elementType, ArraY, dim1, dim2, 0, 0, resizeAllowed); \
+  cast2Darray(workingVar, elementType, ArraY);
+
+#define cast3Darray(workingVar, elementType, ArraY) \
+  elementType(*workingVar)[(ArraY)->dim2][(ArraY)->dim3] = (elementType(*)[(ArraY)->dim2][(ArraY)->dim3])((ArraY)->data);
+
+#define allocCast3D(workingVar, elementType, ArraY, dim1, dim2, dim3, resizeAllowed)     \
+  CheckArrAllocated(workingVar, elementType, ArraY, dim1, dim2, dim3, 0, resizeAllowed); \
+  cast3Darray(workingVar, elementType, ArraY);
+
+#define cast4Darray(workingVar, elementType, ArraY)                       \
+  elementType(*workingVar)[(ArraY)->dim2][(ArraY)->dim3][(ArraY)->dim4] = \
+      (elementType(*)[(ArraY)->dim2][(ArraY)->dim3][(ArraY)->dim4])((ArraY)->data);
+
+#define allocCast4D(workingVar, elementType, ArraY, dim1, dim2, dim3, dim4, resizeAllowed)  \
+  CheckArrAllocated(workingVar, elementType, ArraY, dim1, dim2, dim3, dim4, resizeAllowed); \
+  cast4Darray(workingVar, elementType, ArraY);
+
+#define clearArray(ArraY, elementType) \
+  memset((ArraY)->data,                  \
+         0,                            \
+         sizeof(elementType) * (ArraY)->dim1 * max((ArraY)->dim2, 1) * max((ArraY)->dim3, 1) * max((ArraY)->dim4, 1))
+
+#define squaredMod(a) ((a).r*(a).r + (a).i*(a).i)
+#define csum(res, i1, i2) (res).r = (i1).r + (i2).r ; (res).i = (i1).i + (i2).i
+
+  __attribute__((always_inline)) inline uint32_t c16amp2(const c16_t a) {
+    return a.r * a.r + a.i * a.i;
+  }
+
+  __attribute__((always_inline)) inline c16_t c16sub(const c16_t a, const c16_t b) {
+    return (c16_t) {
+        .r = (int16_t) (a.r - b.r),
+        .i = (int16_t) (a.i - b.i)
+    };
+  }
+
+  __attribute__((always_inline)) inline c16_t c16Shift(const c16_t a, const int Shift) {
+    return (c16_t) {
+        .r = (int16_t)(a.r >> Shift),
+        .i = (int16_t)(a.i >> Shift)
+    };
+  }
+
+  __attribute__((always_inline)) inline c16_t c16addShift(const c16_t a, const c16_t b, const int Shift) {
+    return (c16_t) {
+        .r = (int16_t)((a.r + b.r) >> Shift),
+        .i = (int16_t)((a.i + b.i) >> Shift)
+    };
+  }
+
+  __attribute__((always_inline)) inline c16_t c16mulShift(const c16_t a, const c16_t b, const int Shift) {
+    return (c16_t) {
+      .r = (int16_t)((a.r * b.r - a.i * b.i) >> Shift),
+      .i = (int16_t)((a.r * b.i + a.i * b.r) >> Shift)
+    };
+  }
+
+  __attribute__((always_inline)) inline c16_t c16divShift(const c16_t a, const c16_t b, const int Shift) {
+    return (c16_t) {
+      .r = (int16_t)((a.r * b.r + a.i * b.i) >> Shift),
+      .i = (int16_t)((a.r * b.i - a.i * b.r) >> Shift)
+    };
+  }
+
+  __attribute__((always_inline)) inline c16_t c16maddShift(const c16_t a, const c16_t b, c16_t c, const int Shift) {
+    return (c16_t) {
+      .r = (int16_t)(((a.r * b.r - a.i * b.i ) >> Shift) + c.r),
+      .i = (int16_t)(((a.r * b.i + a.i * b.r ) >> Shift) + c.i)
+    };
+  }
+
+  __attribute__((always_inline)) inline c32_t c32x16mulShift(const c16_t a, const c16_t b, const int Shift) {
+    return (c32_t) {
+      .r = (a.r * b.r - a.i * b.i) >> Shift,
+      .i = (a.r * b.i + a.i * b.r) >> Shift
+    };
+  }
+
+  __attribute__((always_inline)) inline c32_t c32x16maddShift(const c16_t a, const c16_t b, const c32_t c, const int Shift) {
+    return (c32_t) {
+      .r = ((a.r * b.r - a.i * b.i) >> Shift) + c.r,
+      .i = ((a.r * b.i + a.i * b.r) >> Shift) + c.i
+    };
+  }
+
+  __attribute__((always_inline)) inline c16_t c16x32div(const c32_t a, const int div) {
+    return (c16_t) {
+      .r = (int16_t)(a.r / div),
+      .i = (int16_t)(a.i / div)
+    };
+  }
+
+  __attribute__((always_inline)) inline cd_t cdMul(const cd_t a, const cd_t b)
+  {
+    return (cd_t) {
+        .r = a.r * b.r - a.i * b.i,
+        .i = a.r * b.i + a.i * b.r
+    };
+  }
+
+  // On N complex numbers
+  //   y.r += (x * alpha.r) >> 14
+  //   y.i += (x * alpha.i) >> 14
+  // See regular C implementation at the end
+  static __attribute__((always_inline)) inline void c16multaddVectRealComplex(const int16_t *x,
+                                                                       const c16_t *alpha,
+                                                                       c16_t *y,
+                                                                       const int N) {
+#if defined(__x86_64__) || defined(__i386__)
+    // Default implementation for x86
+    const int8_t makePairs[32] __attribute__((aligned(32)))={
+      0,1,0+16,1+16,
+      2,3,2+16,3+16,
+      4,5,4+16,5+16,
+      6,7,6+16,7+16,
+      8,9,8+16,9+16,
+      10,11,10+16,11+16,
+      12,13,12+16,13+16,
+      14,15,14+16,15+16};
+    
+    __m256i alpha256= simde_mm256_set1_epi32(*(int32_t *)alpha);
+    __m128i *x128=(__m128i *)x;
+    __m128i *y128=(__m128i *)y;
+    AssertFatal(N%8==0,"Not implemented\n");
+    for (int i=0; i<N/8; i++) {
+      const __m256i xduplicate=simde_mm256_broadcastsi128_si256(*x128);
+      const __m256i x_duplicate_ordered=simde_mm256_shuffle_epi8(xduplicate,*(__m256i*)makePairs);
+      const __m256i x_mul_alpha_shift15 =simde_mm256_mulhrs_epi16(alpha256, x_duplicate_ordered);
+      // Existing multiplication normalization is weird, constant table in alpha need to be doubled
+      const __m256i x_mul_alpha_x2= simde_mm256_adds_epi16(x_mul_alpha_shift15,x_mul_alpha_shift15);
+      *y128= _mm_adds_epi16(simde_mm256_extracti128_si256(x_mul_alpha_x2,0),*y128);
+      y128++;
+      *y128= _mm_adds_epi16(simde_mm256_extracti128_si256(x_mul_alpha_x2,1),*y128);
+      y128++;
+      x128++;
+    } 
+    
+#elif defined(__arm__) || defined(__aarch64__)
+    // Default implementation for ARM
+    uint32_t i;
+
+    // do 8 multiplications at a time
+    simd_q15_t alpha_r_128,alpha_i_128,yr,yi,*x_128=(simd_q15_t*)x,*y_128=(simd_q15_t*)y;
+    int j;
+
+    //  printf("alpha = %d,%d\n",alpha[0],alpha[1]);
+    alpha_r_128 = set1_int16(alpha->r);
+    alpha_i_128 = set1_int16(alpha->i);
+
+    j=0;
+
+    for (i=0; i<N>>3; i++) {
+
+      yr     = mulhi_s1_int16(alpha_r_128,x_128[i]);
+      yi     = mulhi_s1_int16(alpha_i_128,x_128[i]);
+      int16x8x2_t yint;
+      yint = vzipq_s16(yr,yi);
+      y_128[j]   = adds_int16(y_128[j],yint.val[0]);
+      j++;
+      y_128[j]   = adds_int16(y_128[j],yint.val[1]);
+
+      j++;
+    }
+#else
+    // Almost dead code (BMC)
+    for (int i=0; i<N; i++) {
+      int tmpr=y[i].r+((x[i]*alpha->r)>>14);
+      if (tmpr>INT16_MAX)
+        tmpr=INT16_MAX;
+      if (tmpr<INT16_MIN)
+        tmpr=INT16_MIN;
+      int tmpi=y[i].i+((x[i]*alpha->i)>>14);
+      if (tmpi>INT16_MAX)
+        tmpi=INT16_MAX;
+      if (tmpi<INT16_MIN)
+        tmpi=INT16_MIN;
+      y[i].r=(int16_t)tmpr;
+      y[i].i=(int16_t)tmpi;
+    }
+#endif
+  }
 //cmult_sv.h
 
 /*!\fn void multadd_real_vector_complex_scalar(int16_t *x,int16_t *alpha,int16_t *y,uint32_t N)
@@ -70,14 +338,26 @@ This function performs componentwise multiplication and accumulation of a comple
 
 The function implemented is : \f$\mathbf{y} = y + \alpha\mathbf{x}\f$
 */
-void multadd_real_vector_complex_scalar(int16_t *x,
-                                        int16_t *alpha,
-                                        int16_t *y,
-                                        uint32_t N);
+  void multadd_real_vector_complex_scalar(const int16_t *x, const int16_t *alpha, int16_t *y, uint32_t N);
 
-void multadd_real_four_symbols_vector_complex_scalar(int16_t *x,
-                                                     int16_t *alpha,
-                                                     int16_t *y);
+  __attribute__((always_inline)) inline void multadd_real_four_symbols_vector_complex_scalar(const int16_t *x,
+                                                                                             c16_t *alpha,
+                                                                                             c16_t *y)
+  {
+    // do 8 multiplications at a time
+    const simd_q15_t alpha_r_128 = set1_int16(alpha->r);
+    const simd_q15_t alpha_i_128 = set1_int16(alpha->i);
+
+    const simd_q15_t *x_128 = (const simd_q15_t *)x;
+    const simd_q15_t yr = mulhi_s1_int16(alpha_r_128, *x_128);
+    const simd_q15_t yi = mulhi_s1_int16(alpha_i_128, *x_128);
+
+    simd_q15_t y_128 = _mm_loadu_si128((simd_q15_t *)y);
+    y_128 = _mm_adds_epi16(y_128, _mm_unpacklo_epi16(yr, yi));
+    y_128 = _mm_adds_epi16(y_128, _mm_unpackhi_epi16(yr, yi));
+
+    _mm_storeu_si128((simd_q15_t *)y, y_128);
+  }
 
 /*!\fn void multadd_complex_vector_real_scalar(int16_t *x,int16_t alpha,int16_t *y,uint8_t zero_flag,uint32_t N)
 This function performs componentwise multiplication and accumulation of a real scalar and a complex vector.
@@ -95,15 +375,6 @@ void multadd_complex_vector_real_scalar(int16_t *x,
                                         uint8_t zero_flag,
                                         uint32_t N);
 
-int rotate_cpx_vector(int16_t *x,
-                      int16_t *alpha,
-                      int16_t *y,
-                      uint32_t N,
-                      uint16_t output_shift);
-
-
-
-
 /*!\fn void init_fft(uint16_t size,uint8_t logsize,uint16_t *rev)
 \brief Initialize the FFT engine for a given size
 @param size Size of the FFT
@@ -113,7 +384,7 @@ int rotate_cpx_vector(int16_t *x,
 
 //cmult_vv.c
 /*!
-  Multiply elementwise the complex conjugate of x1 with x2. 
+  Multiply elementwise the complex conjugate of x1 with x2.
   @param x1       - input 1    in the format  |Re0 Im0 Re1 Im1|,......,|Re(N-2)  Im(N-2) Re(N-1) Im(N-1)|
               We assume x1 with a dinamic of 15 bit maximum
   @param x2       - input 2    in the format  |Re0 Im0 Re1 Im1|,......,|Re(N-2)  Im(N-2) Re(N-1) Im(N-1)|
@@ -181,164 +452,286 @@ This function performs optimized fixed-point radix-2 FFT/IFFT.
         );
 */
 
+#define FOREACH_DFTSZ(SZ_DEF) \
+  SZ_DEF(12) \
+  SZ_DEF(24) \
+  SZ_DEF(36) \
+  SZ_DEF(48) \
+  SZ_DEF(60) \
+  SZ_DEF(64) \
+  SZ_DEF(72) \
+  SZ_DEF(96) \
+  SZ_DEF(108) \
+  SZ_DEF(120) \
+  SZ_DEF(128) \
+  SZ_DEF(144) \
+  SZ_DEF(180) \
+  SZ_DEF(192) \
+  SZ_DEF(216) \
+  SZ_DEF(240) \
+  SZ_DEF(256) \
+  SZ_DEF(288) \
+  SZ_DEF(300) \
+  SZ_DEF(324) \
+  SZ_DEF(360) \
+  SZ_DEF(384) \
+  SZ_DEF(432) \
+  SZ_DEF(480) \
+  SZ_DEF(512) \
+  SZ_DEF(540) \
+  SZ_DEF(576) \
+  SZ_DEF(600) \
+  SZ_DEF(648) \
+  SZ_DEF(720) \
+  SZ_DEF(768) \
+  SZ_DEF(864) \
+  SZ_DEF(900) \
+  SZ_DEF(960) \
+  SZ_DEF(972) \
+  SZ_DEF(1024) \
+  SZ_DEF(1080) \
+  SZ_DEF(1152) \
+  SZ_DEF(1200) \
+  SZ_DEF(1296) \
+  SZ_DEF(1440) \
+  SZ_DEF(1500) \
+  SZ_DEF(1536) \
+  SZ_DEF(1620) \
+  SZ_DEF(1728) \
+  SZ_DEF(1800) \
+  SZ_DEF(1920) \
+  SZ_DEF(1944) \
+  SZ_DEF(2048) \
+  SZ_DEF(2160) \
+  SZ_DEF(2304) \
+  SZ_DEF(2400) \
+  SZ_DEF(2592) \
+  SZ_DEF(2700) \
+  SZ_DEF(2880) \
+  SZ_DEF(2916) \
+  SZ_DEF(3000) \
+  SZ_DEF(3072) \
+  SZ_DEF(3240) \
+  SZ_DEF(4096) \
+  SZ_DEF(6144) \
+  SZ_DEF(8192) \
+  SZ_DEF(9216) \
+  SZ_DEF(12288) \
+  SZ_DEF(18432) \
+  SZ_DEF(24576) \
+  SZ_DEF(36864) \
+  SZ_DEF(49152) \
+  SZ_DEF(73728) \
+  SZ_DEF(98304)
 
+#define FOREACH_IDFTSZ(SZ_DEF)\
+  SZ_DEF(64) \
+  SZ_DEF(128) \
+  SZ_DEF(256) \
+  SZ_DEF(512) \
+  SZ_DEF(768) \
+  SZ_DEF(1024) \
+  SZ_DEF(1536) \
+  SZ_DEF(2048) \
+  SZ_DEF(3072) \
+  SZ_DEF(4096) \
+  SZ_DEF(6144) \
+  SZ_DEF(8192) \
+  SZ_DEF(9216) \
+  SZ_DEF(12288) \
+  SZ_DEF(16384) \
+  SZ_DEF(18432) \
+  SZ_DEF(24576) \
+  SZ_DEF(32768) \
+  SZ_DEF(36864) \
+  SZ_DEF(49152) \
+  SZ_DEF(65536) \
+  SZ_DEF(73728) \
+  SZ_DEF(98304)
 
 #ifdef OAIDFTS_MAIN
-typedef  void(*adftfunc_t)(int16_t *sigF,int16_t *sig,unsigned char scale_flag);  
-typedef  void(*aidftfunc_t)(int16_t *sigF,int16_t *sig,unsigned char scale_flag);     
+typedef  void(*adftfunc_t)(int16_t *sigF,int16_t *sig,unsigned char scale_flag);
+typedef  void(*aidftfunc_t)(int16_t *sigF,int16_t *sig,unsigned char scale_flag);
 
-void dft12(int16_t *x,int16_t *y,uint8_t scale_flag);
-void dft24(int16_t *x,int16_t *y,uint8_t scale_flag);
-void dft36(int16_t *x,int16_t *y,uint8_t scale_flag);
-void dft48(int16_t *x,int16_t *y,uint8_t scale_flag);
-void dft60(int16_t *x,int16_t *y,uint8_t scale_flag);
-void dft64(int16_t *x,int16_t *y,uint8_t scale_flag);
-void dft72(int16_t *x,int16_t *y,uint8_t scale_flag);
-void dft96(int16_t *x,int16_t *y,uint8_t scale_flag);
-void dft108(int16_t *x,int16_t *y,uint8_t scale_flag);
-void dft120(int16_t *x,int16_t *y,uint8_t scale_flag);
-void dft128(int16_t *x,int16_t *y,uint8_t scale_flag);
-void dft144(int16_t *x,int16_t *y,uint8_t scale_flag);
-void dft180(int16_t *x,int16_t *y,uint8_t scale_flag);
-void dft192(int16_t *x,int16_t *y,uint8_t scale_flag);
-void dft216(int16_t *x,int16_t *y,uint8_t scale_flag);
-void dft240(int16_t *x,int16_t *y,uint8_t scale_flag);
-void dft256(int16_t *x,int16_t *y,uint8_t scale_flag);
-void dft288(int16_t *x,int16_t *y,uint8_t scale_flag);
-void dft300(int16_t *x,int16_t *y,uint8_t scale_flag);
-void dft324(int16_t *x,int16_t *y,uint8_t scale_flag);
-void dft360(int16_t *x,int16_t *y,uint8_t scale_flag);
-void dft384(int16_t *x,int16_t *y,uint8_t scale_flag);
-void dft432(int16_t *x,int16_t *y,uint8_t scale_flag);
-void dft480(int16_t *x,int16_t *y,uint8_t scale_flag);
-void dft512(int16_t *x,int16_t *y,uint8_t scale_flag);
-void dft540(int16_t *x,int16_t *y,uint8_t scale_flag);
-void dft576(int16_t *x,int16_t *y,uint8_t scale_flag);
-void dft600(int16_t *x,int16_t *y,uint8_t scale_flag);
-void dft648(int16_t *x,int16_t *y,uint8_t scale_flag);
-void dft720(int16_t *x,int16_t *y,uint8_t scale_flag);
-void dft768(int16_t *x,int16_t *y,uint8_t scale_flag);
-void dft864(int16_t *x,int16_t *y,uint8_t scale_flag);
-void dft900(int16_t *x,int16_t *y,uint8_t scale_flag);
-void dft960(int16_t *x,int16_t *y,uint8_t scale_flag);
-void dft972(int16_t *x,int16_t *y,uint8_t scale_flag);
-void dft1024(int16_t *x,int16_t *y,uint8_t scale_flag);
-void dft1080(int16_t *x,int16_t *y,uint8_t scale_flag);
-void dft1152(int16_t *x,int16_t *y,uint8_t scale_flag);
-void dft1200(int16_t *x,int16_t *y,uint8_t scale_flag);
-void dft1296(int16_t *x,int16_t *y,uint8_t scale_flag);
-void dft1440(int16_t *x,int16_t *y,uint8_t scale_flag);
-void dft1500(int16_t *x,int16_t *y,uint8_t scale_flag);
-void dft1536(int16_t *sigF,int16_t *sig,uint8_t scale_flag);
-void dft1620(int16_t *x,int16_t *y,uint8_t scale_flag);
-void dft1728(int16_t *x,int16_t *y,uint8_t scale_flag);
-void dft1800(int16_t *x,int16_t *y,uint8_t scale_flag);
-void dft1920(int16_t *x,int16_t *y,uint8_t scale_flag);
-void dft1944(int16_t *x,int16_t *y,uint8_t scale_flag);
-void dft2048(int16_t *x,int16_t *y,uint8_t scale_flag);
-void dft2160(int16_t *x,int16_t *y,uint8_t scale_flag);
-void dft2304(int16_t *x,int16_t *y,uint8_t scale_flag);
-void dft2400(int16_t *x,int16_t *y,uint8_t scale_flag);
-void dft2592(int16_t *x,int16_t *y,uint8_t scale_flag);
-void dft2700(int16_t *x,int16_t *y,uint8_t scale_flag);
-void dft2880(int16_t *x,int16_t *y,uint8_t scale_flag);
-void dft2916(int16_t *x,int16_t *y,uint8_t scale_flag);
-void dft3000(int16_t *x,int16_t *y,uint8_t scale_flag);
-void dft3072(int16_t *sigF,int16_t *sig,uint8_t scale_flag);
-void dft3240(int16_t *x,int16_t *y,uint8_t scale_flag);
-void dft4096(int16_t *x,int16_t *y,uint8_t scale_flag);
-void dft6144(int16_t *sigF,int16_t *sig,uint8_t scale_flag);
-void dft8192(int16_t *x,int16_t *y,uint8_t scale_flag);
-void dft9216(int16_t *x,int16_t *y,uint8_t scale_flag);
-void dft12288(int16_t *x,int16_t *y,uint8_t scale_flag);  
-void dft18432(int16_t *x,int16_t *y,uint8_t scale_flag); 
-void dft24576(int16_t *x,int16_t *y,uint8_t scale_flag); 
-void dft36864(int16_t *x,int16_t *y,uint8_t scale_flag); 
-void dft49152(int16_t *x,int16_t *y,uint8_t scale_flag); 
-void dft73728(int16_t *x,int16_t *y,uint8_t scale_flag); 
-void dft98304(int16_t *x,int16_t *y,uint8_t scale_flag);
+#define SZ_FUNC(Sz) void dft ## Sz(int16_t *x,int16_t *y,uint8_t scale_flag);
 
+FOREACH_DFTSZ(SZ_FUNC)
 
-void idft64(int16_t *x,int16_t *y,uint8_t scale_flag);
-void idft128(int16_t *x,int16_t *y,uint8_t scale_flag);
-void idft256(int16_t *x,int16_t *y,uint8_t scale_flag);
-void idft512(int16_t *x,int16_t *y,uint8_t scale_flag);
-void idft1024(int16_t *x,int16_t *y,uint8_t scale_flag);
-void idft1536(int16_t *sigF,int16_t *sig,uint8_t scale_flag);
-void idft2048(int16_t *x,int16_t *y,uint8_t scale_flag);
-void idft3072(int16_t *sigF,int16_t *sig,uint8_t scale_flag);
-void idft4096(int16_t *x,int16_t *y,uint8_t scale_flag);
-void idft6144(int16_t *sigF,int16_t *sig,uint8_t scale_flag);
-void idft8192(int16_t *x,int16_t *y,uint8_t scale_flag);
-void idft9216(int16_t *x,int16_t *y,uint8_t scale_flag);
-void idft12288(int16_t *sigF,int16_t *sig,uint8_t scale_flag);
-void idft18432(int16_t *sigF,int16_t *sig,uint8_t scale_flag);
-void idft24576(int16_t *sigF,int16_t *sig,uint8_t scale_flag);
-void idft36864(int16_t *sigF,int16_t *sig,uint8_t scale_flag);
-void idft49152(int16_t *sigF,int16_t *sig,uint8_t scale_flag); 
-void idft73728(int16_t *sigF,int16_t *sig,uint8_t scale_flag);
-void idft98304(int16_t *sigF,int16_t *sig,uint8_t scale_flag);
+#define SZ_iFUNC(Sz) void idft ## Sz(int16_t *x,int16_t *y,uint8_t scale_flag);
 
-
-
+FOREACH_IDFTSZ(SZ_iFUNC)
 
 #else
-  typedef  void(*dftfunc_t)(uint8_t sizeidx,int16_t *sigF,int16_t *sig,unsigned char scale_flag);  
-  typedef  void(*idftfunc_t)(uint8_t sizeidx,int16_t *sigF,int16_t *sig,unsigned char scale_flag);  
+typedef  void(*dftfunc_t)(uint8_t sizeidx,int16_t *sigF,int16_t *sig,unsigned char scale_flag);
+typedef  void(*idftfunc_t)(uint8_t sizeidx,int16_t *sigF,int16_t *sig,unsigned char scale_flag);
 #  ifdef OAIDFTS_LOADER
-  dftfunc_t dft;
-  idftfunc_t idft;
+dftfunc_t dft;
+idftfunc_t idft;
 #  else
-  extern dftfunc_t dft;
-  extern idftfunc_t idft;
-  extern int load_dftslib(void);
+extern dftfunc_t dft;
+extern idftfunc_t idft;
+extern int load_dftslib(void);
 #  endif
 #endif
 
-typedef enum DFT_size_idx {
-	DFT_12,    DFT_24,    DFT_36,   DFT_48,     DFT_60,   DFT_72,   DFT_96,
-	DFT_108,   DFT_120,   DFT_128,  DFT_144,    DFT_180,  DFT_192,  DFT_216,   DFT_240,
-	DFT_256,   DFT_288,   DFT_300,  DFT_324,    DFT_360,  DFT_384,  DFT_432,   DFT_480,
-	DFT_512,   DFT_540,   DFT_576,  DFT_600,    DFT_648,  DFT_720,  DFT_768,   DFT_864,
-	DFT_900,   DFT_960,   DFT_972,  DFT_1024,   DFT_1080, DFT_1152, DFT_1200,  DFT_1296,
-	DFT_1440,  DFT_1500,  DFT_1536, DFT_1620,   DFT_1728, DFT_1800, DFT_1920,  DFT_1944,
-	DFT_2048,  DFT_2160,  DFT_2304, DFT_2400,   DFT_2592, DFT_2700, DFT_2880,  DFT_2916,
-	DFT_3000,  DFT_3072,  DFT_3240, DFT_4096,   DFT_6144, DFT_8192, DFT_9216,  DFT_12288,
-	DFT_18432, DFT_24576, DFT_36864, DFT_49152, DFT_73728, DFT_98304,
-	DFT_SIZE_IDXTABLESIZE
-} dft_size_idx_t;
+#define SZ_ENUM(Sz) DFT_ ## Sz,
 
-#ifdef OAIDFTS_MAIN
-adftfunc_t dft_ftab[]={
-	dft12,    dft24,    dft36,    dft48,    dft60,   dft72,   dft96,
-	dft108,   dft120,   dft128,   dft144,   dft180,  dft192,  dft216,   dft240,
-	dft256,   dft288,   dft300,   dft324,   dft360,  dft384,  dft432,   dft480,
-	dft512,   dft540,   dft576,   dft600,   dft648,  dft720,  dft768,   dft864,
-	dft900,   dft960,   dft972,   dft1024,  dft1080, dft1152, dft1200,  dft1296,
-	dft1440,  dft1500,  dft1536,  dft1620,  dft1728, dft1800, dft1920,  dft1944,
-	dft2048,  dft2160,  dft2304,  dft2400,  dft2592, dft2700, dft2880,  dft2916,
-	dft3000,  dft3072,  dft3240,  dft4096,  dft6144, dft8192, dft9216,  dft12288,
-	dft18432, dft24576, dft36864, dft49152, dft73728, dft98304
-};
-#endif
+typedef enum dft_size_idx {
+  FOREACH_DFTSZ(SZ_ENUM)
+  DFT_SIZE_IDXTABLESIZE
+}  dft_size_idx_t;
+
+#define SZ_iENUM(Sz) IDFT_ ## Sz,
+
+/*******************************************************************
+*
+* NAME :         get_dft
+*
+* PARAMETERS :   size of ofdm symbol
+*
+* RETURN :       function for discrete fourier transform
+*
+* DESCRIPTION :  get dft function depending of ofdm size
+*
+*********************************************************************/
+static inline
+dft_size_idx_t get_dft(int ofdm_symbol_size)
+{
+  switch (ofdm_symbol_size) {
+    case 128:
+      return DFT_128;
+    case 256:
+      return DFT_256;
+    case 512:
+      return DFT_512;
+    case 768:
+      return DFT_768;
+    case 1024:
+      return DFT_1024;
+    case 1536:
+      return DFT_1536;
+    case 2048:
+      return DFT_2048;
+    case 3072:
+      return DFT_3072;
+    case 4096:
+      return DFT_4096;
+    case 6144:
+      return DFT_6144;
+    case 8192:
+      return DFT_8192;
+    case 9216:
+      return DFT_9216;
+    case 12288:
+      return DFT_12288;
+    case 18432:
+      return DFT_18432;
+    case 24576:
+      return DFT_24576;
+    case 36864:
+      return DFT_36864;
+    case 49152:
+      return DFT_49152;
+    case 73728:
+      return DFT_73728;
+    case 98304:
+      return DFT_98304;
+    default:
+      printf("function get_dft : unsupported ofdm symbol size \n");
+      assert(0);
+      break;
+  }
+  return DFT_SIZE_IDXTABLESIZE; // never reached and will trigger assertion in idft function;
+}
 
 typedef enum idft_size_idx {
-	IDFT_128,   IDFT_256,  IDFT_512,   IDFT_1024,  IDFT_1536,  IDFT_2048,  IDFT_3072,  IDFT_4096,
-	IDFT_6144,  IDFT_8192, IDFT_9216,  IDFT_12288, IDFT_18432, IDFT_24576, IDFT_36864, IDFT_49152, 
-	IDFT_73728, IDFT_98304, 
-	IDFT_SIZE_IDXTABLESIZE
-} idft_size_idx_t;
+  FOREACH_IDFTSZ(SZ_iENUM)
+  IDFT_SIZE_IDXTABLESIZE
+}  idft_size_idx_t;
+
 #ifdef OAIDFTS_MAIN
-aidftfunc_t idft_ftab[]={
-	idft128,   idft256,  idft512,   idft1024,  idft1536,  idft2048,  idft3072,  idft4096,
-	idft6144,  idft8192, idft9216,  idft12288, idft18432, idft24576, idft36864, idft49152,
-	idft73728, idft98304
+
+#define SZ_PTR(Sz) {dft ## Sz,Sz},
+struct {
+  adftfunc_t func;
+  int size;
+} dft_ftab[]= {
+  FOREACH_DFTSZ(SZ_PTR)
 };
+
+#define SZ_iPTR(Sz)  {idft ## Sz,Sz},
+struct {
+  adftfunc_t func;
+  int size;
+} idft_ftab[]= {
+  FOREACH_IDFTSZ(SZ_iPTR)
+};
+
 #endif
 
+/*******************************************************************
+*
+* NAME :         get_idft
+*
+* PARAMETERS :   size of ofdm symbol
+*
+* RETURN :       index pointing to the dft func in the dft library
+*
+* DESCRIPTION :  get idft function depending of ofdm size
+*
+*********************************************************************/
+static inline
+idft_size_idx_t get_idft(int ofdm_symbol_size)
+{
+  switch (ofdm_symbol_size) {
+    case 128:
+      return IDFT_128;
+    case 256:
+      return IDFT_256;
+    case 512:
+      return IDFT_512;
+    case 768:
+      return IDFT_768;
+    case 1024:
+      return IDFT_1024;
+    case 1536:
+      return IDFT_1536;
+    case 2048:
+      return IDFT_2048;
+    case 3072:
+      return IDFT_3072;
+    case 4096:
+      return IDFT_4096;
+    case 6144:
+      return IDFT_6144;
+    case 8192:
+      return IDFT_8192;
+    case 9216:
+      return IDFT_9216;
+    case 12288:
+      return IDFT_12288;
+    case 18432:
+      return IDFT_18432;
+    case 24576:
+      return IDFT_24576;
+    case 36864:
+      return IDFT_36864;
+    case 49152:
+      return IDFT_49152;
+    case 73728:
+      return IDFT_73728;
+    case 98304:
+      return IDFT_98304;
+    default:
+      printf("function get_idft : unsupported ofdm symbol size \n");
+      assert(0);
+      break;
+  }
+  return IDFT_SIZE_IDXTABLESIZE; // never reached and will trigger assertion in idft function
+}
 
 
-/*!\fn int32_t rotate_cpx_vector(int16_t *x,int16_t *alpha,int16_t *y,uint32_t N,uint16_t output_shift)
+/*!\fn int32_t rotate_cpx_vector(c16_t *x,c16_t *alpha,c16_t *y,uint32_t N,uint16_t output_shift)
 This function performs componentwise multiplication of a vector with a complex scalar.
 @param x Vector input (Q1.15)  in the format  |Re0  Im0|,......,|Re(N-1) Im(N-1)|
 @param alpha Scalar input (Q1.15) in the format  |Re0 Im0|
@@ -348,12 +741,7 @@ This function performs componentwise multiplication of a vector with a complex s
 
 The function implemented is : \f$\mathbf{y} = \alpha\mathbf{x}\f$
 */
-int32_t rotate_cpx_vector(int16_t *x,
-                          int16_t *alpha,
-                          int16_t *y,
-                          uint32_t N,
-                          uint16_t output_shift);
-
+void rotate_cpx_vector(const c16_t *const x, const c16_t *const alpha, c16_t *y, uint32_t N, uint16_t output_shift);
 
 //cadd_sv.c
 
@@ -376,58 +764,6 @@ int32_t sub_cpx_vector16(int16_t *x,
                          int16_t *z,
                          uint32_t N);
 
-int32_t add_cpx_vector32(int16_t *x,
-                         int16_t *y,
-                         int16_t *z,
-                         uint32_t N);
-
-int32_t add_real_vector64(int16_t *x,
-                          int16_t *y,
-                          int16_t *z,
-                          uint32_t N);
-
-int32_t sub_real_vector64(int16_t *x,
-                          int16_t* y,
-                          int16_t *z,
-                          uint32_t N);
-
-int32_t add_real_vector64_scalar(int16_t *x,
-                                 long long int a,
-                                 int16_t *y,
-                                 uint32_t N);
-
-/*!\fn int32_t add_vector16(int16_t *x,int16_t *y,int16_t *z,uint32_t N)
-This function performs componentwise addition of two vectors with Q1.15 components.
-@param x Vector input (Q1.15)
-@param y Scalar input (Q1.15)
-@param z Scalar output (Q1.15)
-@param N Length of x WARNING: N must be a multiple of 32
-
-The function implemented is : \f$\mathbf{z} = \mathbf{x} + \mathbf{y}\f$
-*/
-int32_t add_vector16(int16_t *x,
-                     int16_t *y,
-                     int16_t *z,
-                     uint32_t N);
-
-int32_t add_vector16_64(int16_t *x,
-                        int16_t *y,
-                        int16_t *z,
-                        uint32_t N);
-
-int32_t complex_conjugate(int16_t *x1,
-                          int16_t *y,
-                          uint32_t N);
-
-void bit8_txmux(int32_t length,int32_t offset);
-
-void bit8_rxdemux(int32_t length,int32_t offset);
-
-void Zero_Buffer(void *,uint32_t);
-void Zero_Buffer_nommx(void *buf,uint32_t length);
-
-void mmxcopy(void *dest,void *src,int size);
-
 /*!\fn int32_t signal_energy(int *,uint32_t);
 \brief Computes the signal energy per subcarrier
 */
@@ -444,7 +780,7 @@ int32_t signal_energy_amp_shift(int32_t *input, uint32_t length);
 /*!\fn int32_t signal_energy(int *,uint32_t);
 \brief Computes the signal energy per subcarrier
 */
-int32_t subcarrier_energy(int32_t *,uint32_t, int32_t* subcarrier_energy, uint16_t rx_power_correction);
+int32_t subcarrier_energy(int32_t *,uint32_t, int32_t *subcarrier_energy, uint16_t rx_power_correction);
 #endif
 
 /*!\fn int32_t signal_energy_nodc(int32_t *,uint32_t);
@@ -500,23 +836,18 @@ int32_t phy_phase_compensation_top(uint32_t pilot_type,
                                    uint32_t last_pilot,
                                    int32_t ignore_prefix);
 
-int32_t dot_product(int16_t *x,
-                    int16_t *y,
-                    uint32_t N, //must be a multiple of 8
-                    uint8_t output_shift);
-
-int64_t dot_product64(int16_t *x,
-                      int16_t *y,
-                      uint32_t N, //must be a multiple of 8
-                      uint8_t output_shift);
-
+c32_t dot_product(const c16_t *x,
+                  const c16_t *y,
+                  const uint32_t N, // must be a multiple of 8
+                  const int output_shift);
 
 /** @} */
 
 
 double interp(double x, double *xs, double *ys, int count);
 
-int write_output(const char *fname,const char *vname,void *data,int length,int dec,char format);
+void simde_mm128_separate_real_imag_parts(__m128i *out_re, __m128i *out_im, __m128i in0, __m128i in1);
+void simde_mm256_separate_real_imag_parts(__m256i *out_re, __m256i *out_im, __m256i in0, __m256i in1);
 
 #ifdef __cplusplus
 }

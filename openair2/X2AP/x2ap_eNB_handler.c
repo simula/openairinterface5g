@@ -30,8 +30,6 @@
 
 #include "intertask_interface.h"
 
-#include "asn1_conversions.h"
-
 #include "x2ap_common.h"
 #include "x2ap_eNB_defs.h"
 #include "x2ap_eNB_handler.h"
@@ -41,7 +39,6 @@
 #include "x2ap_eNB_management_procedures.h"
 #include "x2ap_eNB_generate_messages.h"
 
-#include "msc.h"
 #include "assertions.h"
 #include "conversions.h"
 #include "X2AP_FreqBandNrItem.h"
@@ -56,6 +53,17 @@ int x2ap_eNB_handle_x2_setup_response (instance_t instance,
                                        uint32_t assoc_id,
                                        uint32_t stream,
                                        X2AP_X2AP_PDU_t *pdu);
+static
+int x2ap_eNB_handle_x2_reset_request (instance_t instance,
+                                      uint32_t assoc_id,
+                                      uint32_t stream,
+                                      X2AP_X2AP_PDU_t *pdu);
+static
+int x2ap_eNB_handle_x2_reset_response (instance_t instance,
+                                       uint32_t assoc_id,
+                                       uint32_t stream,
+                                       X2AP_X2AP_PDU_t *pdu);
+
 static
 int x2ap_eNB_handle_x2_setup_failure (instance_t instance,
                                       uint32_t assoc_id,
@@ -158,58 +166,65 @@ int x2ap_gNB_handle_ENDC_sGNB_release_confirm(instance_t instance,
                                           X2AP_X2AP_PDU_t *pdu);
 
 /* Handlers matrix. Only eNB related procedure present here. Placement of callback functions according to X2AP_ProcedureCode.h */
-x2ap_message_decoded_callback x2ap_messages_callback[][3] = {
-  { x2ap_eNB_handle_handover_preparation, x2ap_eNB_handle_handover_response, 0 }, /* handoverPreparation */
-  { x2ap_eNB_handle_handover_cancel, 0, 0 }, /* handoverCancel */
-  { 0, 0, 0 }, /* loadIndication */
-  { 0, 0, 0 }, /* errorIndication */
-  { 0, 0, 0 }, /* snStatusTransfer */
-  { x2ap_eNB_handle_ue_context_release, 0, 0 }, /* uEContextRelease */
-  { x2ap_eNB_handle_x2_setup_request, x2ap_eNB_handle_x2_setup_response, x2ap_eNB_handle_x2_setup_failure }, /* x2Setup */
-  { 0, 0, 0 }, /* reset */
-  { 0, 0, 0 }, /* eNBConfigurationUpdate */
-  { 0, 0, 0 }, /* resourceStatusReportingInitiation */
-  { 0, 0, 0 }, /* resourceStatusReporting */
-  { 0, 0, 0 }, /* privateMessage */
-  { 0, 0, 0 }, /* mobilitySettingsChange */
-  { 0, 0, 0 }, /* rLFIndication */
-  { 0, 0, 0 }, /* handoverReport */
-  { 0, 0, 0 }, /* cellActivation */
-  { 0, 0, 0 }, /* x2Release */
-  { 0, 0, 0 }, /* x2APMessageTransfer */
-  { 0, 0, 0 }, /* x2Removal */
-  { x2ap_eNB_handle_senb_addition_request, x2ap_eNB_handle_senb_addition_request_ack, x2ap_eNB_handle_senb_addition_request_reject }, /* seNBAdditionPreparation */
-  { 0, 0, 0 }, /* seNBReconfigurationCompletion */
-  { 0, 0, 0 }, /* meNBinitiatedSeNBModificationPreparation */
-  { 0, 0, 0 }, /* seNBinitiatedSeNBModification */
-  { 0, 0, 0 }, /* meNBinitiatedSeNBRelease */
-  { 0, 0, 0 }, /* seNBinitiatedSeNBRelease */
-  { 0, 0, 0 }, /* seNBCounterCheck */
-  { 0, 0, 0 },  /* retrieveUEContext */
-  { x2ap_gNB_handle_ENDC_sGNB_addition_request, x2ap_eNB_handle_ENDC_sGNB_addition_response, 0 }, /*X2AP_ProcedureCode_id_sgNBAdditionPreparation*/
-  { x2ap_gNB_handle_ENDC_sGNB_reconfiguration_complete, 0, 0 }, /*X2AP_ProcedureCode_id_sgNBReconfigurationCompletion*/
-  { 0, 0, 0 },
-  { 0, 0, 0 },
-  { x2ap_gNB_handle_ENDC_sGNB_release_request, x2ap_gNB_handle_ENDC_sGNB_release_request_acknowledge, 0 }, /* meNBinitiatedSgNBRelease */
-  { x2ap_gNB_handle_ENDC_sGNB_release_required, x2ap_gNB_handle_ENDC_sGNB_release_confirm, 0 }, /* sgNBinitiatedSgNBRelease */
+static const x2ap_message_decoded_callback x2ap_messages_callback[][3] = {
+    {x2ap_eNB_handle_handover_preparation, x2ap_eNB_handle_handover_response, 0}, /* handoverPreparation */
+    {x2ap_eNB_handle_handover_cancel, 0, 0}, /* handoverCancel */
+    {0, 0, 0}, /* loadIndication */
+    {0, 0, 0}, /* errorIndication */
+    {0, 0, 0}, /* snStatusTransfer */
+    {x2ap_eNB_handle_ue_context_release, 0, 0}, /* uEContextRelease */
+    {x2ap_eNB_handle_x2_setup_request, x2ap_eNB_handle_x2_setup_response, x2ap_eNB_handle_x2_setup_failure}, /* x2Setup */
+    {x2ap_eNB_handle_x2_reset_request, x2ap_eNB_handle_x2_reset_response, 0}, /* reset */
+    {0, 0, 0}, /* eNBConfigurationUpdate */
+    {0, 0, 0}, /* resourceStatusReportingInitiation */
+    {0, 0, 0}, /* resourceStatusReporting */
+    {0, 0, 0}, /* privateMessage */
+    {0, 0, 0}, /* mobilitySettingsChange */
+    {0, 0, 0}, /* rLFIndication */
+    {0, 0, 0}, /* handoverReport */
+    {0, 0, 0}, /* cellActivation */
+    {0, 0, 0}, /* x2Release */
+    {0, 0, 0}, /* x2APMessageTransfer */
+    {0, 0, 0}, /* x2Removal */
+    {x2ap_eNB_handle_senb_addition_request,
+     x2ap_eNB_handle_senb_addition_request_ack,
+     x2ap_eNB_handle_senb_addition_request_reject}, /* seNBAdditionPreparation */
+    {0, 0, 0}, /* seNBReconfigurationCompletion */
+    {0, 0, 0}, /* meNBinitiatedSeNBModificationPreparation */
+    {0, 0, 0}, /* seNBinitiatedSeNBModification */
+    {0, 0, 0}, /* meNBinitiatedSeNBRelease */
+    {0, 0, 0}, /* seNBinitiatedSeNBRelease */
+    {0, 0, 0}, /* seNBCounterCheck */
+    {0, 0, 0}, /* retrieveUEContext */
+    {x2ap_gNB_handle_ENDC_sGNB_addition_request,
+     x2ap_eNB_handle_ENDC_sGNB_addition_response,
+     0}, /*X2AP_ProcedureCode_id_sgNBAdditionPreparation*/
+    {x2ap_gNB_handle_ENDC_sGNB_reconfiguration_complete, 0, 0}, /*X2AP_ProcedureCode_id_sgNBReconfigurationCompletion*/
+    {0, 0, 0},
+    {0, 0, 0},
+    {x2ap_gNB_handle_ENDC_sGNB_release_request,
+     x2ap_gNB_handle_ENDC_sGNB_release_request_acknowledge,
+     0}, /* meNBinitiatedSgNBRelease */
+    {x2ap_gNB_handle_ENDC_sGNB_release_required, x2ap_gNB_handle_ENDC_sGNB_release_confirm, 0}, /* sgNBinitiatedSgNBRelease */
 
-  { 0, 0, 0 },
-  { 0, 0, 0 },
-  { 0, 0, 0 },
-  { x2ap_eNB_handle_ENDC_x2_setup_request, x2ap_gNB_handle_ENDC_x2_setup_response, 0 }, /*X2AP_ProcedureCode_id_endcX2Setup*/
-  { 0, 0, 0 },
-  { 0, 0, 0 },
-  { 0, 0, 0 }
+    {0, 0, 0},
+    {0, 0, 0},
+    {0, 0, 0},
+    {x2ap_eNB_handle_ENDC_x2_setup_request, x2ap_gNB_handle_ENDC_x2_setup_response, 0}, /*X2AP_ProcedureCode_id_endcX2Setup*/
+    {0, 0, 0},
+    {0, 0, 0},
+    {0, 0, 0}};
+
+static const char *const x2ap_direction_String[] = {
+    "", /* Nothing */
+    "Originating message", /* originating message */
+    "Successfull outcome", /* successfull outcome */
+    "UnSuccessfull outcome", /* successfull outcome */
 };
 
-char *x2ap_direction2String(int x2ap_dir) {
-static char *x2ap_direction_String[] = {
-  "", /* Nothing */
-  "Originating message", /* originating message */
-  "Successfull outcome", /* successfull outcome */
-  "UnSuccessfull outcome", /* successfull outcome */
-};
-return(x2ap_direction_String[x2ap_dir]);
+const char *x2ap_direction2String(int x2ap_dir)
+{
+  return (x2ap_direction_String[x2ap_dir]);
 }
 
 void x2ap_handle_x2_setup_message(x2ap_eNB_instance_t *instance_p, x2ap_eNB_data_t *enb_desc_p, int sctp_shutdown)
@@ -492,6 +507,98 @@ x2ap_eNB_handle_x2_setup_request(instance_t instance,
       X2AP_SETUP_REQ(msg).Nid_cell[i] = x2ap_eNB_data->Nid_cell[i];
     }
   }
+
+  instance_p = x2ap_eNB_get_instance(instance);
+  DevAssert(instance_p != NULL);
+
+  itti_send_msg_to_task(TASK_RRC_ENB, instance_p->instance, msg);
+
+  return x2ap_eNB_generate_x2_setup_response(instance_p, x2ap_eNB_data);
+}
+
+int
+x2ap_eNB_handle_x2_reset_response(instance_t instance,
+                                  uint32_t assoc_id,
+                                  uint32_t stream,
+                                  X2AP_X2AP_PDU_t *pdu)
+{
+
+   return (0);
+}
+
+
+int
+x2ap_eNB_handle_x2_reset_request(instance_t instance,
+                                 uint32_t assoc_id,
+                                 uint32_t stream,
+                                 X2AP_X2AP_PDU_t *pdu)
+{
+  const char *const X2AP_ResetRequest_str[2] = {"X2AP_ResetRequest_IEs__value_PR_Cause",
+                                                "X2AP_ResetRequest_IEs__value_PR_InterfaceInstanceIndication"};
+
+  X2AP_ResetRequest_t              *ResetRequest;
+  X2AP_ResetRequest_IEs_t          *ie;
+
+  x2ap_eNB_instance_t                *instance_p;
+  x2ap_eNB_data_t                    *x2ap_eNB_data;
+  MessageDef                         *msg;
+  uint32_t                           eNB_id = 0;
+
+  DevAssert (pdu != NULL);
+  ResetRequest = &pdu->choice.initiatingMessage.value.choice.ResetRequest;
+
+  X2AP_DEBUG("Received a new X2 reset request\n");
+
+  X2AP_FIND_PROTOCOLIE_BY_ID(X2AP_ResetRequest_IEs_t, ie, ResetRequest,
+                             X2AP_ProtocolIE_ID_id_Cause, true);
+  if (ie == NULL ) {
+    X2AP_ERROR("%s %d: ie is a NULL pointer \n",__FILE__,__LINE__);
+    return -1;
+  } else {
+    AssertFatal(ie->value.present <= X2AP_ResetRequest_IEs__value_PR_InterfaceInstanceIndication && ie->value.present > 0,
+                "Cause value %d, is impossible\n",ie->value.present);
+    LOG_I(X2AP,"Received X2AP Reset Request with Cause Type %s\n",X2AP_ResetRequest_str[ie->value.present-1]);
+  }
+
+  X2AP_DEBUG("Adding eNB to the list of associated eNBs\n");
+
+  if ((x2ap_eNB_data = x2ap_is_eNB_id_in_list (eNB_id)) == NULL) {
+      /*
+       * eNB has not been found in list of associated eNB,
+       * * * * Add it to the tail of list and initialize data
+       */
+    if ((x2ap_eNB_data = x2ap_is_eNB_assoc_id_in_list (assoc_id)) == NULL) {
+      /*
+       * ??
+       */
+      return -1;
+    } else {
+      x2ap_eNB_data->state = X2AP_ENB_STATE_RESETTING;
+      x2ap_eNB_data->eNB_id = eNB_id;
+    }
+  } else {
+    x2ap_eNB_data->state = X2AP_ENB_STATE_RESETTING;
+    /*
+     * eNB has been found in list, consider the x2 setup request as a reset connection,
+     * * * * reseting any previous UE state if sctp association is != than the previous one
+     */
+    if (x2ap_eNB_data->assoc_id != assoc_id) {
+      /*
+       * ??: Send an overload cause...
+       */
+      X2AP_ERROR("Reset Request: eNB id %d is already associated to an active sctp association" "Previous known: %d, new one: %d\n", eNB_id, x2ap_eNB_data->assoc_id, assoc_id);
+
+      return -1;
+    }
+    /*
+     * TODO: call the reset procedure
+     */
+  }
+
+  msg = itti_alloc_new_message(TASK_X2AP, 0, X2AP_RESET_REQ);
+
+  X2AP_RESET_REQ(msg).cause = ie->value.present;
+
 
   instance_p = x2ap_eNB_get_instance(instance);
   DevAssert(instance_p != NULL);

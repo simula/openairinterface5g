@@ -40,9 +40,9 @@
 //#define PRACH_DEBUG 1
 //#define PRACH_WRITE_OUTPUT_DEBUG 1
 
-extern uint16_t NCS_unrestricted[16];
-extern uint16_t NCS_restricted[15];
-extern uint16_t NCS_4[7];
+extern const uint16_t NCS_unrestricted[16];
+extern const uint16_t NCS_restricted[15];
+extern const uint16_t NCS_4[7];
 
 extern int16_t ru[2*839]; // quantized roots of unity
 extern uint32_t ZC_inv[839]; // multiplicative inverse for roots u
@@ -81,7 +81,7 @@ void compute_prach_seq(uint16_t rootSequenceIndex,
 		       uint8_t prach_ConfigIndex,
 		       uint8_t zeroCorrelationZoneConfig,
 		       uint8_t highSpeedFlag,
-		       lte_frame_type_t frame_type,
+		       frame_type_t frame_type,
 		       uint32_t X_u[64][839]);
 
 #endif

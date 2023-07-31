@@ -35,6 +35,7 @@
 #include "PHY/NR_TRANSPORT/nr_transport_proto.h"
 #include "PHY/LTE_REFSIG/lte_refsig.h"
 #include "PHY/sse_intrin.h"
+#include "executables/softmodem-common.h"
 
 //#define DEBUG_PBCH
 //#define DEBUG_PBCH_ENCODING
@@ -47,7 +48,7 @@ const uint8_t nr_pbch_payload_interleaving_pattern[32] = {16, 23, 18, 17, 8, 30,
                                                    };
 
 int nr_generate_pbch_dmrs(uint32_t *gold_pbch_dmrs,
-                          int32_t *txdataF,
+                          c16_t *txdataF,
                           int16_t amp,
                           uint8_t ssb_start_symbol,
                           nfapi_nr_config_request_scf_t *config,
@@ -65,7 +66,7 @@ int nr_generate_pbch_dmrs(uint32_t *gold_pbch_dmrs,
     mod_dmrs[m<<1] = nr_qpsk_mod_table[idx<<1];
     mod_dmrs[(m<<1)+1] = nr_qpsk_mod_table[(idx<<1) + 1];
 #ifdef DEBUG_PBCH_DMRS
-    printf("m %d idx %d gold seq %d b0-b1 %d-%d mod_dmrs %d %d\n", m, idx, gold_pbch_dmrs[(m<<1)>>5], (((gold_pbch_dmrs[(m<<1)>>5])>>((m<<1)&0x1f))&1),
+    printf("m %d idx %d gold seq %u b0-b1 %d-%d mod_dmrs %d %d\n", m, idx, gold_pbch_dmrs[(m<<1)>>5], (((gold_pbch_dmrs[(m<<1)>>5])>>((m<<1)&0x1f))&1),
            (((gold_pbch_dmrs[((m<<1)+1)>>5])>>(((m<<1)+1)&0x1f))&1), mod_dmrs[(m<<1)], mod_dmrs[(m<<1)+1]);
 #endif
   }
@@ -149,7 +150,7 @@ static void nr_pbch_scrambling(NR_gNB_PBCH *pbch,
                         uint8_t encoded,
                         uint32_t unscrambling_mask) {
   uint8_t reset, offset;
-  uint32_t x1, x2, s=0;
+  uint32_t x1 = 0, x2 = 0, s = 0;
   uint32_t *pbch_e = pbch->pbch_e;
   reset = 1;
   // x1 is set in lte_gold_generic
@@ -219,10 +220,9 @@ void nr_init_pbch_interleaver(uint8_t *interleaver) {
       *(interleaver+i) = *(nr_pbch_payload_interleaving_pattern+j_ssb++);
 }
 
-int nr_generate_pbch(NR_gNB_PBCH *pbch,
-		     nfapi_nr_dl_tti_ssb_pdu *ssb_pdu,
+int nr_generate_pbch(nfapi_nr_dl_tti_ssb_pdu *ssb_pdu,
                      uint8_t *interleaver,
-                     int32_t *txdataF,
+                     c16_t *txdataF,
                      int16_t amp,
                      uint8_t ssb_start_symbol,
                      uint8_t n_hf,
@@ -239,6 +239,8 @@ int nr_generate_pbch(NR_gNB_PBCH *pbch,
   uint64_t a_reversed=0;
   LOG_D(PHY, "PBCH generation started\n");
   ///Payload generation
+  NR_gNB_PBCH m_pbch;
+  NR_gNB_PBCH *pbch = &m_pbch;
   memset((void *)pbch, 0, sizeof(NR_gNB_PBCH));
   pbch->pbch_a=0;
   uint8_t ssb_index = ssb_pdu->ssb_pdu_rel15.SsbBlockIndex;
@@ -246,6 +248,9 @@ int nr_generate_pbch(NR_gNB_PBCH *pbch,
   uint8_t Lmax = frame_parms->Lmax;
   for (int i=0; i<NR_PBCH_PDU_BITS; i++)
     pbch->pbch_a |= ((pbch_pdu[i>>3]>>(7-(i&7)))&1)<<i;
+
+  // NSA to signal no coreset0
+  const int ssb_sc_offset = get_softmodem_params()->sa ? config->ssb_table.ssb_subcarrier_offset.value : 31;
 
   #ifdef DEBUG_PBCH_ENCODING
   for (int i=0; i<3; i++)
@@ -264,7 +269,7 @@ int nr_generate_pbch(NR_gNB_PBCH *pbch,
     for (int i=0; i<3; i++)
       pbch->pbch_a |= ((ssb_index>>(5-i))&1)<<(29+i); // resp. 6th, 5th and 4th bits of ssb_index
   else
-    pbch->pbch_a |= ((config->ssb_table.ssb_subcarrier_offset.value>>4)&1)<<29; //MSB of k_SSB (bit index 4)
+    pbch->pbch_a |= ((ssb_sc_offset>>4)&1)<<29; //MSB of k_SSB (bit index 4)
 
   LOG_D(PHY,"After extra byte: pbch_a = 0x%08x\n",pbch->pbch_a);
 
@@ -298,8 +303,8 @@ int nr_generate_pbch(NR_gNB_PBCH *pbch,
 
   /// CRC, coding and rate matching
   polar_encoder_fast (&a_reversed, (void*)pbch->pbch_e, 0, 0,
-                      nr_polar_params( NR_POLAR_PBCH_MESSAGE_TYPE, NR_POLAR_PBCH_PAYLOAD_BITS, NR_POLAR_PBCH_AGGREGATION_LEVEL,0,NULL)
-                     );
+                      NR_POLAR_PBCH_MESSAGE_TYPE, NR_POLAR_PBCH_PAYLOAD_BITS, NR_POLAR_PBCH_AGGREGATION_LEVEL);
+
 #ifdef DEBUG_PBCH_ENCODING
   printf("Channel coding:\n");
 

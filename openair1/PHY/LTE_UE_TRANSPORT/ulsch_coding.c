@@ -38,6 +38,7 @@
 #include "PHY/CODING/lte_interleaver_inline.h"
 #include "PHY/LTE_UE_TRANSPORT/transport_ue.h"
 #include "common/utils/LOG/vcd_signal_dumper.h"
+#include "PHY/LTE_TRANSPORT/transport_vars.h"
 
 //#define DEBUG_ULSCH_CODING
 //#define DEBUG_ULSCH_FREE 1
@@ -71,6 +72,7 @@ void free_ue_ulsch(LTE_UE_ULSCH_t *ulsch) {
         for (r=0; r<MAX_NUM_ULSCH_SEGMENTS; r++) {
           if (ulsch->harq_processes[i]->c[r]) {
             free16(ulsch->harq_processes[i]->c[r],((r==0)?8:0) + 3+768);
+            free16(ulsch->harq_processes[i]->d[r],0);
             ulsch->harq_processes[i]->c[r] = NULL;
           }
         }
@@ -86,7 +88,7 @@ void free_ue_ulsch(LTE_UE_ULSCH_t *ulsch) {
 
 LTE_UE_ULSCH_t *new_ue_ulsch(unsigned char N_RB_UL, uint8_t abstraction_flag) {
   LTE_UE_ULSCH_t *ulsch;
-  unsigned char exit_flag = 0,i,j,r;
+  unsigned char exit_flag = 0;
   unsigned char bw_scaling =1;
 
   switch (N_RB_UL) {
@@ -113,7 +115,7 @@ LTE_UE_ULSCH_t *new_ue_ulsch(unsigned char N_RB_UL, uint8_t abstraction_flag) {
     memset(ulsch,0,sizeof(LTE_UE_ULSCH_t));
     ulsch->Mlimit = 4;
 
-    for (i=0; i<8; i++) {
+    for (int i=0; i<8; i++) {
       ulsch->harq_processes[i] = (LTE_UL_UE_HARQ_t *)malloc16(sizeof(LTE_UL_UE_HARQ_t));
 
       //      printf("ulsch->harq_processes[%d] %p\n",i,ulsch->harq_processes[i]);
@@ -129,15 +131,11 @@ LTE_UE_ULSCH_t *new_ue_ulsch(unsigned char N_RB_UL, uint8_t abstraction_flag) {
         }
 
         if (abstraction_flag==0) {
-          for (r=0; r<MAX_NUM_ULSCH_SEGMENTS; r++) {
-            ulsch->harq_processes[i]->c[r] = (unsigned char *)malloc16(((r==0)?8:0) + 3+768); // account for filler in first segment and CRCs for multiple segment case
-
-            if (ulsch->harq_processes[i]->c[r])
-              memset(ulsch->harq_processes[i]->c[r],0,((r==0)?8:0) + 3+768);
-            else {
-              LOG_E(PHY,"Can't get c\n");
-              exit_flag=2;
-            }
+          for (int r=0; r<MAX_NUM_ULSCH_SEGMENTS; r++) {
+            ulsch->harq_processes[i]->c[r] = malloc16_clear(((r==0)?8:0) + 3+768); // account for filler in first segment and CRCs for multiple segment case
+            AssertFatal(ulsch->harq_processes[i]->c[r], "");
+            ulsch->harq_processes[i]->d[r] = malloc16_clear(96+3+(3*6144));
+            AssertFatal(ulsch->harq_processes[i]->d[r], "");
           }
         }
 
@@ -148,15 +146,7 @@ LTE_UE_ULSCH_t *new_ue_ulsch(unsigned char N_RB_UL, uint8_t abstraction_flag) {
         exit_flag=3;
       }
     }
-
-    if ((abstraction_flag == 0) && (exit_flag==0)) {
-      for (i=0; i<8; i++)
-        for (j=0; j<96; j++)
-          for (r=0; r<MAX_NUM_ULSCH_SEGMENTS; r++)
-            ulsch->harq_processes[i]->d[r][j] = LTE_NULL;
-
-      return(ulsch);
-    } else if (abstraction_flag==1)
+    if (!exit_flag)
       return(ulsch);
   }
 
@@ -185,13 +175,13 @@ uint32_t ulsch_encoding(uint8_t *a,
   uint8_t Q_m=0;
   uint32_t Kr=0,Kr_bytes,r,r_offset=0;
   uint8_t y[6*14*1200],*yptr;;
-  uint8_t *columnset;
+  const uint8_t *columnset;
   uint32_t sumKr=0;
   uint32_t Qprime,L,G,Q_CQI=0,Q_RI=0,Q_ACK=0,H=0,Hprime=0,Hpp=0,Cmux=0,Rmux=0,Rmux_prime=0;
   uint32_t Qprime_ACK=0,Qprime_CQI=0,Qprime_RI=0,len_ACK=0,len_RI=0;
   //  uint32_t E;
   uint8_t ack_parity;
-  uint32_t i,q,j,iprime,j2;
+  uint32_t q,j,iprime,j2;
   uint16_t o_RCC;
   uint8_t o_flip[8];
   uint32_t wACK_idx;
@@ -318,15 +308,17 @@ uint32_t ulsch_encoding(uint8_t *a,
 
         Kr_bytes = Kr>>3;
 #ifdef DEBUG_ULSCH_CODING
-        printf("Generating Code Segment %d (%d bits)\n",r,Kr);
+        printf("Generating Code Segment %u (%u bits)\n",r,Kr);
         // generate codewords
-        printf("bits_per_codeword (Kr)= %d\n",Kr);
+        printf("bits_per_codeword (Kr)= %u\n",Kr);
         printf("N_RB = %d\n",ulsch->harq_processes[harq_pid]->nb_rb);
         printf("Ncp %d\n",frame_parms->Ncp);
         printf("Qm %d\n",Q_m);
 #endif
         //  offset=0;
         start_meas(te_stats);
+        for (int z=0; z<96; z++)
+            ulsch->harq_processes[harq_pid]->d[r][z] = LTE_NULL;
         encoder(ulsch->harq_processes[harq_pid]->c[r],
                 Kr>>3,
                 &ulsch->harq_processes[harq_pid]->d[r][96],
@@ -477,7 +469,7 @@ uint32_t ulsch_encoding(uint8_t *a,
 
     for (r=0; r<ulsch->harq_processes[harq_pid]->C; r++) {
 #ifdef DEBUG_ULSCH_CODING
-      printf("Rate Matching, Code segment %d (coded bits (G) %d,unpunctured/repeated bits per code segment %d,mod_order %d, nb_rb %d)...\n",
+      printf("Rate Matching, Code segment %u (coded bits (G) %u,unpunctured/repeated bits per code segment %u,mod_order %d, nb_rb %d)...\n",
              r,
              G,
              Kr*3,
@@ -539,8 +531,6 @@ uint32_t ulsch_encoding(uint8_t *a,
                          ulsch->q);
   }
 
-  i=0;
-
   //  Do RI coding
   if (ulsch->O_RI == 1) {
     switch (Q_m) {
@@ -577,7 +567,7 @@ uint32_t ulsch_encoding(uint8_t *a,
   //  Do ACK coding, Section 5.2.2.6 36.213 (p.23-24 in v8.6)
   wACK_idx = (ulsch->bundling==0) ? 4 : ((Nbundled-1)&3);
 #ifdef DEBUG_ULSCH_CODING
-  printf("ulsch_coding.c: Bundling %d, Nbundled %d, wACK_idx %d\n",
+  printf("ulsch_coding.c: Bundling %d, Nbundled %d, wACK_idx %u\n",
          ulsch->bundling,Nbundled,wACK_idx);
 #endif
 
@@ -691,7 +681,7 @@ uint32_t ulsch_encoding(uint8_t *a,
 
   j=0;
 
-  for (i=0; i<Qprime_RI; i++) {
+  for (int i=0; i<Qprime_RI; i++) {
     r = Rmux_prime - 1 - (i>>2);
 
     for (q=0; q<Q_m; q++)  {
@@ -725,7 +715,7 @@ uint32_t ulsch_encoding(uint8_t *a,
   }
   */
 
-  for (i=0; i<Qprime_CQI; i++) {
+  for (int i=0; i<Qprime_CQI; i++) {
     while (y[Q_m*j] != LTE_NULL) j++;
 
     for (q=0; q<Q_m; q++) {
@@ -788,13 +778,13 @@ uint32_t ulsch_encoding(uint8_t *a,
 
   j=0;
 
-  for (i=0; i<Qprime_ACK; i++) {
+  for (int i=0; i<Qprime_ACK; i++) {
     r = Rmux_prime - 1 - (i>>2);
 
     for (q=0; q<Q_m; q++) {
       y[q+(Q_m*((r*Cmux) + columnset[j]))]  = ulsch->q_ACK[(q+(Q_m*i))%len_ACK];
 #ifdef DEBUG_ULSCH_CODING
-      printf("ulsch_coding.c: ACK %d => y[%d]=%d (i %d, r*Cmux %d, columnset %d)\n",q+(Q_m*i),
+      printf("ulsch_coding.c: ACK %u => y[%u]=%d (i %d, r*Cmux %u, columnset %d)\n",q+(Q_m*i),
              q+(Q_m*((r*Cmux) + columnset[j])),ulsch->q_ACK[(q+(Q_m*i))%len_ACK],
              i,r*Cmux,columnset[j]);
 #endif
@@ -808,7 +798,7 @@ uint32_t ulsch_encoding(uint8_t *a,
 
   switch (Q_m) {
     case 2:
-      for (i=0; i<Cmux; i++)
+      for (int i=0; i<Cmux; i++)
         for (r=0; r<Rmux_prime; r++) {
           yptr=&y[((r*Cmux)+i)<<1];
           ulsch->h[j++] = *yptr++;
@@ -818,7 +808,7 @@ uint32_t ulsch_encoding(uint8_t *a,
       break;
 
     case 4:
-      for (i=0; i<Cmux; i++)
+      for (int i=0; i<Cmux; i++)
         for (r=0; r<Rmux_prime; r++) {
           yptr = &y[((r*Cmux)+i)<<2];
           ulsch->h[j++] = *yptr++;
@@ -830,7 +820,7 @@ uint32_t ulsch_encoding(uint8_t *a,
       break;
 
     case 6:
-      for (i=0; i<Cmux; i++)
+      for (int i=0; i<Cmux; i++)
         for (r=0; r<Rmux_prime; r++) {
           yptr = &y[((r*Cmux)+i)*6];
           ulsch->h[j++] = *yptr++;

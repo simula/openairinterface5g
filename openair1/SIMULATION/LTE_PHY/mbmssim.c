@@ -43,10 +43,8 @@
 #include "PHY/phy_vars.h"
 
 #include "SCHED/sched_eNB.h"
-#include "SCHED/sched_common_vars.h"
 #include "LAYER2/MAC/mac_vars.h"
 
-#include "OCG_vars.h"
 #include "common/utils/LOG/log.h"
 #include "UTIL/LISTS/list.h"
 
@@ -121,7 +119,6 @@ void do_OFDM_mod_l(int32_t **txdataF, int32_t **txdata, uint16_t next_slot, LTE_
   slot_offset = (next_slot)*(frame_parms->samples_per_tti>>1);
 
   for (aa=0; aa<frame_parms->nb_antennas_tx; aa++) {
-    //    printf("Thread %d starting ... aa %d (%llu)\n",omp_get_thread_num(),aa,rdtsc());
     if (frame_parms->Ncp == 1)
       PHY_ofdm_mod(&txdataF[aa][slot_offset_F],        // input
                    &txdata[aa][slot_offset],         // output
@@ -181,7 +178,7 @@ void DL_channel(RU_t *ru,PHY_VARS_UE *UE,uint subframe,int awgn_flag,double SNR,
 
     if (UE->perfect_ce==1) {
       // fill in perfect channel estimates
-      freq_channel(eNB2UE[round],UE->frame_parms.N_RB_DL,12*UE->frame_parms.N_RB_DL + 1);
+      freq_channel(eNB2UE[round],UE->frame_parms.N_RB_DL,12*UE->frame_parms.N_RB_DL + 1, 15);
       /*
       LOG_M("channel.m","ch",eNB2UE[round]->ch[0],eNB2UE[round]->channel_length,1,8);
       LOG_M("channelF.m","chF",eNB2UE[round]->chF[0],12*UE->frame_parms.N_RB_DL + 1,1,8);
@@ -192,7 +189,7 @@ void DL_channel(RU_t *ru,PHY_VARS_UE *UE,uint subframe,int awgn_flag,double SNR,
   if(abstx) {
     if (trials==0 && round==0) {
       // calculate freq domain representation to compute SINR
-      freq_channel(eNB2UE[0], ru->frame_parms.N_RB_DL,2*ru->frame_parms.N_RB_DL + 1);
+      freq_channel(eNB2UE[0], ru->frame_parms.N_RB_DL,2*ru->frame_parms.N_RB_DL + 1, 15);
       // snr=pow(10.0,.1*SNR);
       fprintf(csv_fd,"%f,",SNR);
 
@@ -207,7 +204,7 @@ void DL_channel(RU_t *ru,PHY_VARS_UE *UE,uint subframe,int awgn_flag,double SNR,
       }
 
       if(num_rounds>1) {
-        freq_channel(eNB2UE[1], ru->frame_parms.N_RB_DL,2*ru->frame_parms.N_RB_DL + 1);
+        freq_channel(eNB2UE[1], ru->frame_parms.N_RB_DL,2*ru->frame_parms.N_RB_DL + 1, 15);
 
         for (u=0; u<2*ru->frame_parms.N_RB_DL; u++) {
           for (aarx=0; aarx<eNB2UE[1]->nb_rx; aarx++) {
@@ -219,7 +216,7 @@ void DL_channel(RU_t *ru,PHY_VARS_UE *UE,uint subframe,int awgn_flag,double SNR,
           }
         }
 
-        freq_channel(eNB2UE[2], ru->frame_parms.N_RB_DL,2*ru->frame_parms.N_RB_DL + 1);
+        freq_channel(eNB2UE[2], ru->frame_parms.N_RB_DL,2*ru->frame_parms.N_RB_DL + 1, 15);
 
         for (u=0; u<2*ru->frame_parms.N_RB_DL; u++) {
           for (aarx=0; aarx<eNB2UE[2]->nb_rx; aarx++) {
@@ -231,7 +228,7 @@ void DL_channel(RU_t *ru,PHY_VARS_UE *UE,uint subframe,int awgn_flag,double SNR,
           }
         }
 
-        freq_channel(eNB2UE[3], ru->frame_parms.N_RB_DL,2*ru->frame_parms.N_RB_DL + 1);
+        freq_channel(eNB2UE[3], ru->frame_parms.N_RB_DL,2*ru->frame_parms.N_RB_DL + 1, 15);
 
         for (u=0; u<2*ru->frame_parms.N_RB_DL; u++) {
           for (aarx=0; aarx<eNB2UE[3]->nb_rx; aarx++) {
@@ -588,7 +585,7 @@ double SNR,snr0=-2.0,snr1,rate = 0;
 int print_perf=0;
 
 int main(int argc, char **argv) {
-  int k,i,j,aa;
+  int k = 0,i,j,aa;
   int re;
   int s,Kr,Kr_bytes;
   LTE_DL_FRAME_PARMS *frame_parms;
@@ -680,7 +677,7 @@ int main(int argc, char **argv) {
   nfapi_tx_request_t TX_req;
   Sched_Rsp_t sched_resp;
   int pa=dB0;
-#if defined(__arm__)
+#if defined(__arm__) || defined(__aarch64__)
   FILE    *proc_fd = NULL;
   char buf[64];
   memset(buf,0,sizeof(buf));
@@ -1111,14 +1108,6 @@ int main(int argc, char **argv) {
   eNB->frame_parms.Nid_cell_mbsfn=0;
 #endif
 
-
-  if(get_thread_worker_conf() == WORKER_ENABLE) {
-    extern void init_td_thread(PHY_VARS_eNB *);
-    extern void init_te_thread(PHY_VARS_eNB *);
-    init_td_thread(eNB);
-    init_te_thread(eNB);
-  }
-
   // callback functions required for phy_procedures_tx
   //  eNB_id_i = UE->n_connected_eNB;
   printf("Setting mcs1 = %d\n",mcs1);
@@ -1158,8 +1147,6 @@ int main(int argc, char **argv) {
     hostname[1023] = '\0';
     gethostname(hostname, 1023);
     printf("Hostname: %s\n", hostname);
-    //char dirname[FILENAME_MAX];
-    //sprintf(dirname, "%s/SIMU/USER/pre-ci-logs-%s", getenv("OPENAIR_TARGETS"),hostname );
     sprintf(time_meas_fname,"time_meas_prb%d_mcs%d_anttx%d_antrx%d_pdcch%d_channel%s_tx%d.csv",
             N_RB_DL,mcs1,n_tx_phy,n_rx,num_pdcch_symbols,channel_model_input,transmission_mode);
     //mkdir(dirname,0777);
@@ -1339,19 +1326,15 @@ int main(int argc, char **argv) {
       break;
   }
 
-  for (k=0; k<NUMBER_OF_UE_MAX; k++) {
-    // Create transport channel structures for 2 transport blocks (MIMO)
-    for (i=0; i<2; i++) {
-      eNB->dlsch[k][i] = new_eNB_dlsch(Kmimo,8,Nsoft,N_RB_DL,0,&eNB->frame_parms);
+    // Create transport channel structures for 1 transport block
+  eNB->dlsch[0][0] = new_eNB_dlsch(Kmimo,8,Nsoft,N_RB_DL,0,&eNB->frame_parms);
 
-      if (!eNB->dlsch[k][i]) {
-        printf("Can't get eNB dlsch structures\n");
-        exit(-1);
-      }
-
-      eNB->dlsch[k][i]->rnti = n_rnti+k;
-    }
+  if (!eNB->dlsch[0][0]) {
+      printf("Can't get eNB dlsch structures\n");
+      exit(-1);
   }
+
+  eNB->dlsch[0][0]->rnti = n_rnti+k;
 
 #ifdef ENABLE_MBMS_SIM
   eNB->dlsch_MCH = new_eNB_dlsch(1,8,Nsoft,N_RB_DL, 0, &eNB->frame_parms);
@@ -1971,12 +1954,12 @@ int main(int argc, char **argv) {
         if (t_rx > 2000 )
           n_rx_dropped++;
 
-        appendVarArray(table_tx, &t_tx);
-        appendVarArray(table_tx_ifft, &t_tx_ifft);
-        appendVarArray(table_rx, &t_rx );
-        appendVarArray(table_rx_fft, &t_rx_fft );
-        appendVarArray(table_rx_demod, &t_rx_demod );
-        appendVarArray(table_rx_dec, &t_rx_dec );
+        appendVarArray(&table_tx, &t_tx);
+        appendVarArray(&table_tx_ifft, &t_tx_ifft);
+        appendVarArray(&table_rx, &t_rx );
+        appendVarArray(&table_rx_fft, &t_rx_fft );
+        appendVarArray(&table_rx_demod, &t_rx_demod );
+        appendVarArray(&table_rx_dec, &t_rx_dec );
       }   //trials
 
       // round_trials[0]: number of code word : goodput the protocol

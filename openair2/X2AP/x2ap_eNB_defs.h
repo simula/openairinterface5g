@@ -32,6 +32,8 @@
 #include "tree.h"
 
 #include "sctp_eNB_defs.h"
+#include "s1ap_messages_types.h"
+#include "x2ap_messages_types.h"
 
 #include "x2ap_ids.h"
 #include "x2ap_timers.h"
@@ -172,7 +174,7 @@ typedef struct x2ap_eNB_instance_s {
   int32_t                 uplink_frequency_offset[MAX_NUM_CCs];
   uint32_t                Nid_cell[MAX_NUM_CCs];
   int16_t                 N_RB_DL[MAX_NUM_CCs];
-  lte_frame_type_t        frame_type[MAX_NUM_CCs];
+  frame_type_t            frame_type[MAX_NUM_CCs];
   uint32_t                fdd_earfcn_DL[MAX_NUM_CCs];
   uint32_t                fdd_earfcn_UL[MAX_NUM_CCs];
   uint32_t                subframeAssignment[MAX_NUM_CCs];

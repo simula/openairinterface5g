@@ -33,6 +33,8 @@
 #ifndef SRS_MODULATION_NR_H
 #define SRS_MODULATION_NR_H
 
+#include "PHY/defs_nr_UE.h"
+
 #ifdef DEFINE_VARIABLES_SRS_MODULATION_NR_H
 #define EXTERN
 #define INIT_VARIABLES_SRS_MODULATION_NR_H
@@ -131,20 +133,33 @@ EXTERN const uint16_t srs_periodicity[SRS_PERIODICITY]
 #endif
 ;
 
+// TS 38.211 - Table 6.4.1.4.2-1
+EXTERN const uint16_t srs_max_number_cs[3]
+#ifdef INIT_VARIABLES_SRS_MODULATION_NR_H
+    = {8, 12, 6}
+#endif
+;
+
 /*************** FUNCTIONS *****************************************/
 
 /** \brief This function generates the sounding reference symbol (SRS) for the uplink according to 38.211 6.4.1.4 Sounding reference signal
     @param frame_parms NR DL Frame parameters
     @param txdataF pointer to the frequency domain TX signal
+    @param symbol_offset symbol offset added in txdataF
+    @param nr_srs_info pointer to the srs info structure
     @param amp amplitude of generated signal
-    @param proc pointer to the transmit parameters
+    @param frame_number frame number
+    @param slot_number slot number
     @returns 0 on success -1 on error with message */
 
-int32_t generate_srs_nr(SRS_ResourceSet_t *p_srs_resource_set,
-                        NR_DL_FRAME_PARMS *frame_parms,
-                        int32_t *txptr,
-                        int16_t amp,
-                        UE_nr_rxtx_proc_t *proc);
+int generate_srs_nr(nfapi_nr_srs_pdu_t *srs_config_pdu,
+                    NR_DL_FRAME_PARMS *frame_parms,
+                    int32_t **txdataF,
+                    uint16_t symbol_offset,
+                    nr_srs_info_t *nr_srs_info,
+                    int16_t amp,
+                    frame_t frame_number,
+                    slot_t slot_number);
 
 /** \brief This function checks for periodic srs if srs should be transmitted in this slot
  *  @param p_SRS_Resource pointer to active resource
@@ -155,13 +170,14 @@ int32_t generate_srs_nr(SRS_ResourceSet_t *p_srs_resource_set,
 int is_srs_period_nr(SRS_Resource_t *p_SRS_Resource,
                      NR_DL_FRAME_PARMS *frame_parms,
                      int frame_tx, int slot_tx);
+
 /** \brief This function processes srs configuration
  *  @param ue context
     @param rxtx context
-    @param current eNB identifier
+    @param current gNB_id identifier
     @returns 0 if srs is transmitted -1 otherwise */
 
-int ue_srs_procedure_nr(PHY_VARS_NR_UE *ue, UE_nr_rxtx_proc_t *proc, uint8_t eNB_id);
+int ue_srs_procedures_nr(PHY_VARS_NR_UE *ue, const UE_nr_rxtx_proc_t *proc, c16_t **txdataF);
 
 #undef EXTERN
 #undef INIT_VARIABLES_SRS_MODULATION_NR_H

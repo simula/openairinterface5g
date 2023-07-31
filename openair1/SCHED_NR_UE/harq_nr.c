@@ -98,128 +98,6 @@
 #define DL_DCI              (1)
 #define UL_DCI              (0)
 
-
-/*******************************************************************
-*
-* NAME :         config_uplink_harq_process
-*
-* PARAMETERS :   pointer to ue context
-*                id of current gNB
-*                number of uplink processes
-*                maximum number of uplink retransmissions
-* RETURN :       none
-*
-* DESCRIPTION :  configuration of uplink HARQ entity
-*
-*********************************************************************/
-
-void config_uplink_harq_process(PHY_VARS_NR_UE *ue, int gNB_id, int thread_id, int code_word_idx, uint8_t number_harq_processes_pusch)
-{
-  NR_UE_ULSCH_t *ulsch;
-
-  ulsch = (NR_UE_ULSCH_t *)malloc16(sizeof(NR_UE_ULSCH_t));
-
-  if (ulsch != NULL) {
-
-    memset(ulsch,0,sizeof(NR_UE_ULSCH_t));
-
-    ue->ulsch[thread_id][gNB_id][code_word_idx] = ulsch;
-  }
-  else {
-    LOG_E(PHY, "Fatal memory allocation problem at line %d in function %s of file %s \n", __LINE__ , __func__, __FILE__);
-    assert(0);
-  }
-
-  ulsch->number_harq_processes_for_pusch = number_harq_processes_pusch;
-
-  /* allocation of HARQ process context */
-  for (int harq_pid = 0; harq_pid < number_harq_processes_pusch; harq_pid++) {
-
-    ulsch->harq_processes[harq_pid] = (NR_UL_UE_HARQ_t *)malloc16(sizeof(NR_UL_UE_HARQ_t));
-
-    if (ulsch->harq_processes[harq_pid] == NULL) {
-      LOG_E(PHY, "Fatal memory allocation problem at line %d in function %s of file %s \n", __LINE__ , __func__, __FILE__);
-      assert(0);
-    }
-
-    ulsch->harq_processes[harq_pid]->subframe_scheduling_flag = 0;
-    ulsch->harq_processes[harq_pid]->first_tx = 1;
-    ulsch->harq_processes[harq_pid]->round  = 0;
-  }
-
-  for (int slot_tx = 0; slot_tx < NR_MAX_SLOTS_PER_FRAME; slot_tx++) {
-    ue->ulsch[thread_id][gNB_id][code_word_idx]->harq_process_id[slot_tx] = NR_MAX_HARQ_PROCESSES;
-  }
-}
-
-/*******************************************************************
-*
-* NAME :         release_uplink_harq_process
-*
-* PARAMETERS :   pointer to ue context
-*                id of current gNB
-*
-* RETURN :       none
-*
-* DESCRIPTION :  release of HARQ uplink entity
-*
-*********************************************************************/
-
-void release_uplink_harq_process(PHY_VARS_NR_UE *ue, int gNB_id, int thread_id, int code_word_idx)
-{
-  NR_UE_ULSCH_t *ulsch = ue->ulsch[thread_id][gNB_id][code_word_idx];
-
-  for (int process_id = 0; process_id < ulsch->number_harq_processes_for_pusch; process_id++) {
-
-    free16(ulsch->harq_processes[process_id],sizeof(NR_UL_UE_HARQ_t));
-
-    ulsch->harq_processes[process_id] = NULL;
-  }
-
-  free16(ulsch, sizeof(NR_UE_ULSCH_t));
-
-  ue->ulsch[thread_id][gNB_id][code_word_idx] = NULL;
-}
-
-/*******************************************************************
-*
-* NAME :         set_tx_harq_id
-*
-* PARAMETERS :   ue context
-*                slot_tx slot for transmission
-*                gNB_id identifier
-*
-* RETURN :       none
-*
-* DESCRIPTION :  store tx harq process identifier for given transmission slot
-*
-*********************************************************************/
-
-void set_tx_harq_id(NR_UE_ULSCH_t *ulsch, int harq_pid, int slot_tx)
-{
-  ulsch->harq_process_id[slot_tx] = harq_pid;
-}
-
-/*******************************************************************
-*
-* NAME :         get_tx_harq_id
-*
-* PARAMETERS :   ue context
-*                slot_tx slot for transmission
-*                gNB_id identifier
-*
-* RETURN :       harq process identifier
-*
-* DESCRIPTION :  return tx harq process identifier for given slot transmission
-*
-*********************************************************************/
-
-int get_tx_harq_id(NR_UE_ULSCH_t *ulsch, int slot_tx)
-{
-
-  return (ulsch->harq_process_id[slot_tx]);
-}
-
 /*******************************************************************
 *
 * NAME :         uplink_harq_process
@@ -239,7 +117,7 @@ int get_tx_harq_id(NR_UE_ULSCH_t *ulsch, int slot_tx)
 *
 *********************************************************************/
 
-harq_result_t uplink_harq_process(NR_UE_ULSCH_t *ulsch, int harq_pid, int ndi, uint8_t rnti_type)
+harq_result_t uplink_harq_process(NR_UE_ULSCH_t *ulsch, int harq_pid, NR_UL_UE_HARQ_t harq_processes[NR_MAX_ULSCH_HARQ_PROCESSES], int ndi, uint8_t rnti_type)
 {
   harq_result_t result_harq = RETRANSMISSION_HARQ;
 
@@ -257,11 +135,10 @@ harq_result_t uplink_harq_process(NR_UE_ULSCH_t *ulsch, int harq_pid, int ndi, u
   }
 
   /* 38.321 5.4.2.1  2>  if the uplink grant was received on PDCCH for the C-RNTI and the HARQ buffer of the identified process is empty */
-  if ((ulsch->harq_processes[harq_pid]->first_tx == 1) && (rnti_type == _C_RNTI_)) {  /* no transmission yet on this process so consider its harq buffer as empty */
-   ulsch->harq_processes[harq_pid]->first_tx = 0;
-    ulsch->harq_processes[harq_pid]->pusch_pdu.pusch_data.new_data_indicator = ndi;             /* store first value of ndi */
-    ulsch->harq_processes[harq_pid]->round = 0;
-    ulsch->harq_processes[harq_pid]->subframe_scheduling_flag = 1;
+  if ((harq_processes[harq_pid].first_tx == 1) && (rnti_type == _C_RNTI_)) {  /* no transmission yet on this process so consider its harq buffer as empty */
+   harq_processes[harq_pid].first_tx = 0;
+    harq_processes[harq_pid].ndi = ndi;             /* store first value of ndi */
+    harq_processes[harq_pid].round = 0;
 
     result_harq = NEW_TRANSMISSION_HARQ;
 
@@ -269,10 +146,9 @@ harq_result_t uplink_harq_process(NR_UE_ULSCH_t *ulsch, int harq_pid, int ndi, u
   }
   /* 38.321 5.4.2.1  2> if the received grant was not addressed to a Temporary C-RNTI on PDCCH, and the NDI provided in the associated HARQ */
   /* information has been toggled compared to the value in the previous transmission of this TB of this HARQ process */
-  else if ((ulsch->harq_processes[harq_pid]->pusch_pdu.pusch_data.new_data_indicator != ndi) && (rnti_type != _TC_RNTI_)) {   /* is ndi toogled so this is a new grant ? */
-    ulsch->harq_processes[harq_pid]->pusch_pdu.pusch_data.new_data_indicator = ndi;             /* store first value of ndi */
-    ulsch->harq_processes[harq_pid]->round = 0;
-    ulsch->harq_processes[harq_pid]->subframe_scheduling_flag = 1;
+  else if ((harq_processes[harq_pid].ndi != ndi) && (rnti_type != _TC_RNTI_)) {   /* is ndi toogled so this is a new grant ? */
+    harq_processes[harq_pid].ndi = ndi;             /* store first value of ndi */
+    harq_processes[harq_pid].round = 0;
 
     result_harq = NEW_TRANSMISSION_HARQ;
 
@@ -280,8 +156,8 @@ harq_result_t uplink_harq_process(NR_UE_ULSCH_t *ulsch, int harq_pid, int ndi, u
    }
    /* 38.321 5.4.2.1 2> else (i.e. retransmission): */
    else {
-     ulsch->harq_processes[harq_pid]->pusch_pdu.pusch_data.new_data_indicator = ndi;             /* ndi has not toggled si this is a retransmission */
-     ulsch->harq_processes[harq_pid]->round++;                  /* increment number of retransmission */
+     harq_processes[harq_pid].ndi = ndi;             /* ndi has not toggled si this is a retransmission */
+     harq_processes[harq_pid].round++;                  /* increment number of retransmission */
 
      result_harq = RETRANSMISSION_HARQ;
 
@@ -307,8 +183,8 @@ void init_downlink_harq_status(NR_DL_UE_HARQ_t *dl_harq)
 {
   dl_harq->status = SCH_IDLE;
   dl_harq->first_rx = 1;
-  dl_harq->round  = 0;
-  dl_harq->DCINdi = 1;
+  dl_harq->DLround  = 0;
+  dl_harq->Ndi = 2; // set to an invalid value
   dl_harq->ack = DL_ACKNACK_NO_SET;
 }
 
@@ -329,66 +205,42 @@ void init_downlink_harq_status(NR_DL_UE_HARQ_t *dl_harq)
 *
 *********************************************************************/
 
-void downlink_harq_process(NR_DL_UE_HARQ_t *dl_harq, int harq_pid, int ndi, int rv, uint8_t rnti_type) {
-
+void downlink_harq_process(NR_DL_UE_HARQ_t *dl_harq, int harq_pid, int dci_ndi, int rv, uint8_t rnti_type) {
 
   if (rnti_type == _SI_RNTI_ ||
       rnti_type == _P_RNTI_ ||
       rnti_type == _RA_RNTI_) {
-    dl_harq->round = 0;
+    dl_harq->DLround = 0;
     dl_harq->status = ACTIVE;
     dl_harq->first_rx = 1;
-  }
-  else{
-    switch(rv){
-      case 0:
-        dl_harq->round = 0;
-        dl_harq->status = ACTIVE;
-        dl_harq->first_rx = 1;
-        if (dl_harq->DCINdi == ndi)
-          LOG_E(PHY,"Warning! rv %d indicates new transmission but new ndi %d is the same as old ndi %d\n",rv,ndi,dl_harq->DCINdi);
-        dl_harq->DCINdi = ndi;
-        break;
-      case 1:
-        dl_harq->round = 2;
-        dl_harq->first_rx = 0;
-        if (dl_harq->DCINdi != ndi) {
-          LOG_E(PHY,"Missed previous DCI detections. NDI toggled but rv %d does not correspond to first reception\n",rv);
-          dl_harq->status = ACTIVE;
-          dl_harq->first_rx = 1;
-          dl_harq->DCINdi = ndi;
-        }
-        else if (dl_harq->ack)
-          dl_harq->status = SCH_IDLE;
-        break;
-      case 2:
-        dl_harq->round = 1;
-        dl_harq->first_rx = 0;
-        if (dl_harq->DCINdi != ndi) {
-          LOG_E(PHY,"Missed previous DCI detections. NDI toggled but rv %d does not correspond to first reception\n",rv);
-          dl_harq->status = ACTIVE;
-          dl_harq->first_rx = 1;
-          dl_harq->DCINdi = ndi;
-        }
-        else if (dl_harq->ack)
-          dl_harq->status = SCH_IDLE;
-        break;
-      case 3:
-        dl_harq->round = 3;
-        dl_harq->first_rx = 0;
-        if (dl_harq->DCINdi != ndi) {
-          LOG_E(PHY,"Missed previous DCI detections. NDI toggled but rv %d does not correspond to first reception\n",rv);
-          dl_harq->status = ACTIVE;
-          dl_harq->first_rx = 1;
-          dl_harq->DCINdi = ndi;
-        }
-        else if (dl_harq->ack)
-          dl_harq->status = SCH_IDLE;
-        break;
-      default:
-        AssertFatal(1==0,"Invalid value for rv %d\n",rv);
+  }  else {
+    LOG_D(PHY,"receive harq process: %p harqPid=%d, rv=%d, ndi=%d, rntiType=%d new transmission= %s\n",
+	  dl_harq, harq_pid, rv, dci_ndi, rnti_type, dl_harq->Ndi != dci_ndi ? "yes":"no");
+    AssertFatal(rv<4 && rv>=0, "invalid redondancy version %d\n", rv);
+    if (dci_ndi!=dl_harq->Ndi) {
+      if (dl_harq->ack == DL_NACK)
+        LOG_D(PHY,"New transmission on a harq pid (%d) never acknowledged\n", harq_pid);
+      else
+         LOG_D(PHY,"Starting new transmission on a harq pid (%d)\n", harq_pid);
+    } else {
+      if (dl_harq->ack != DL_NACK)
+        LOG_D(PHY,"gNB asked for retransmission even if we sent ACK\n");
+      else
+        LOG_D(PHY,"Starting retransmission on a harq pid (%d), rv (%d)\n", harq_pid, rv);
     }
-  }
 
+    if (dci_ndi!=dl_harq->Ndi) {
+      dl_harq->first_rx = true;
+      dl_harq->DLround = 0;
+    } else {
+      dl_harq->first_rx = false;
+      dl_harq->DLround++;
+    }
+    
+    dl_harq->status = ACTIVE;
+
+    dl_harq->Ndi = dci_ndi;
+    //dl_harq->status = SCH_IDLE;
+   }
 }
 

@@ -36,14 +36,30 @@
 #include "NR_CellGroupConfig.h"
 #include "openair2/RRC/NR/nr_rrc_proto.h"
 
-/* from OAI */
-#include "pdcp.h"
-
 struct NR_RLC_Config;
 struct NR_LogicalChannelConfig;
 
-void nr_rlc_bearer_init(NR_RLC_BearerConfig_t *RLC_BearerConfig, NR_RLC_BearerConfig__servedRadioBearer_PR rb_type);
+void nr_rlc_add_srb(int rnti, int srb_id, const NR_RLC_BearerConfig_t *rlc_BearerConfig);
+void nr_rlc_add_drb(int rnti, int drb_id, const NR_RLC_BearerConfig_t *rlc_BearerConfig);
 
-void nr_drb_config(struct NR_RLC_Config *rlc_Config, NR_RLC_Config_PR rlc_config_pr);
+void nr_rlc_remove_ue(int rnti);
 
-void nr_rlc_bearer_init_ul_spec(struct NR_LogicalChannelConfig *mac_LogicalChannelConfig);
+int nr_rlc_get_available_tx_space(
+  const rnti_t            rntiP,
+  const logical_chan_id_t channel_idP);
+
+void nr_rlc_activate_avg_time_to_tx(
+  const rnti_t            rnti,
+  const logical_chan_id_t channel_id,
+  const bool              is_on);
+
+void nr_rlc_srb_recv_sdu(const int rnti, const logical_chan_id_t channel_id, unsigned char *buf, int size);
+
+struct gNB_MAC_INST_s;
+void nr_rlc_activate_srb0(int rnti, struct gNB_MAC_INST_s *mac, void *rawUE,
+                          void (*send_initial_ul_rrc_message)(
+                                     struct gNB_MAC_INST_s *mac,
+                                     int                    rnti,
+                                     const uint8_t         *sdu,
+                                     sdu_size_t             sdu_len,
+                                     void                  *rawUE));

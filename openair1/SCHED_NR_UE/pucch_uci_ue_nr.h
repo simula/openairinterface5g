@@ -41,9 +41,6 @@
 /************** INCLUDE *******************************************/
 
 #include "PHY/defs_nr_UE.h"
-#include "openair2/LAYER2/NR_MAC_UE/mac_proto.h"
-#include "openair2/LAYER2/NR_MAC_UE/mac_defs.h"
-#include "RRC/NR_UE/rrc_proto.h"
 
 #ifdef DEFINE_VARIABLES_PUCCH_UE_NR_H
 #define EXTERN
@@ -61,43 +58,8 @@
 
 /*************** FUNCTIONS ****************************************/
 
-void pucch_procedures_ue_nr(PHY_VARS_NR_UE *ue, 
-                            uint8_t gNB_id,
-                            UE_nr_rxtx_proc_t *proc);
-
-/** \brief This function check pucch format
-    @param ue context
-    @param gNB_id identity
-    @param format_pucch pucch format
-    @param nb_symbols_for_tx number of symbols for pucch transmission
-    @param uci size number of uci bits
-    @returns TRUE pucch format matched uci size and constraints, FALSE invalid pucch format */
-
-boolean_t check_pucch_format(NR_UE_MAC_INST_t *mac, uint8_t gNB_id, pucch_format_nr_t format_pucch, int nb_symbols_for_tx, 
-                             int uci_size);
-
-/** \brief This function reads current CSI
-    @param ue context
-    @param gNB_id identity
-    @param csi_payload is updated with CSI
-    @returns number of bits of CSI */
-
-int get_csi_nr(NR_UE_MAC_INST_t *mac, PHY_VARS_NR_UE *ue, uint8_t gNB_id, uint32_t *csi_payload);
-
-/** \brief This dummy function sets current CSI for simulation
-    @param csi_status
-    @param csi_payload is updated with CSI
-    @returns none */
-    
-uint16_t get_nr_csi_bitlen(NR_UE_MAC_INST_t *mac);
+void pucch_procedures_ue_nr(PHY_VARS_NR_UE *ue, const UE_nr_rxtx_proc_t *proc, nr_phy_data_tx_t *phy_data, c16_t **txdataF);
 
 void set_csi_nr(int csi_status, uint32_t csi_payload);
 
-uint8_t get_nb_symbols_pucch(NR_PUCCH_Resource_t *pucch_resource, pucch_format_nr_t format_type);
-
-uint16_t get_starting_symb_idx(NR_PUCCH_Resource_t *pucch_resource, pucch_format_nr_t format_type);
-
-int get_ics_pucch(NR_PUCCH_Resource_t *pucch_resource, pucch_format_nr_t format_type);
-
-NR_PUCCH_Resource_t *select_resource_by_id(int resource_id, NR_PUCCH_Config_t *pucch_config);
 #endif /* PUCCH_UCI_UE_NR_H */

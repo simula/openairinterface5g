@@ -35,15 +35,6 @@
 
 /************** DEFINE ********************************************/
 
-#if 0
-
-/* these define are in file PHY/impl_defs_top.h" because of compilation problems due to multiple header files inclusions */
-#define NR_MAX_HARQ_PROCESSES                    (16)
-#define NR_MAX_ULSCH_HARQ_PROCESSES              (NR_MAX_HARQ_PROCESSES)  /* TS 38.214 6.1 UE procedure for receiving the physical uplink shared channel */
-#define NR_MAX_DLSCH_HARQ_PROCESSES              (NR_MAX_HARQ_PROCESSES)  /* TS 38.214 5.1 UE procedure for receiving the physical downlink shared channel */
-
-#endif
-
 #define NR_DEFAULT_DLSCH_HARQ_PROCESSES          (8)                      /* TS 38.214 5.1 */
 
 #define DL_ACKNACK_NO_SET                        (2)
@@ -65,47 +56,12 @@
 
 /*************** FUNCTIONS ****************************************/
 
-
-/** \brief This function configures uplink HARQ context
-    @param PHY_VARS_NR_UE ue context
-    @param gNB_id gNodeB identifier
-    @param thread_id RXTX thread index
-    @param code_word_idx code word index
-    @param number_harq_processes_pusch maximum number of uplink HARQ processes
-    @returns none */
-
-void config_uplink_harq_process(PHY_VARS_NR_UE *ue, int gNB_id, int thread_id, int code_word_idx, uint8_t number_harq_processes_pusch);
-
-/** \brief This function releases uplink HARQ context
-    @param PHY_VARS_NR_UE ue context
-    @param gNB_id gNodeB identifier
-    @param thread_id RXTX thread index
-    @param code_word_idx code word index
-    @returns none */
-
-void release_uplink_harq_process(PHY_VARS_NR_UE *ue, int gNB_id, int thread_id, int code_word_idx);
-
-/** \brief This function stores slot for transmission in HARQ context
-    @param ulsch uplink context
-    @param harq process identifier harq_pid
-    @param slot_tx slot for transmission related to current downlink PDCCH
-    @returns 0 none */
-
-void set_tx_harq_id(NR_UE_ULSCH_t *ulsch, int harq_pid, int slot_tx);
-
-/** \brief This function initialises context of an uplink HARQ process
-    @param ulsch uplink context
-    @param harq process identifier harq_pid
-    @returns harq number for tx slot */
-
-int get_tx_harq_id(NR_UE_ULSCH_t *ulsch, int slot_tx);
-
 /** \brief This function update uplink harq context and return transmission type (new transmission or retransmission)
     @param ulsch uplink harq context
     @param harq process identifier harq_pid
     @returns retransmission or new transmission */
 
-harq_result_t uplink_harq_process(NR_UE_ULSCH_t *ulsch, int harq_pid, int ndi, uint8_t rnti_type);
+harq_result_t uplink_harq_process(NR_UE_ULSCH_t *ulsch, int harq_pid, NR_UL_UE_HARQ_t harq_processes[NR_MAX_ULSCH_HARQ_PROCESSES], int ndi, uint8_t rnti_type);
 
 /** \brief This function initialises downlink HARQ status
     @param pointer to downlink harq status

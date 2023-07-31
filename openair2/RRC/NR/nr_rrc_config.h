@@ -32,108 +32,52 @@
 #define __NR_RRC_CONFIG_H__
 
 #include "nr_rrc_defs.h"
+#include "openair2/RRC/NR/MESSAGES/asn1_msg.h"
 
-typedef struct rlc_bearer_config_s{
-  long        LogicalChannelIdentity[MAX_NUM_CCs];
-  long        servedRadioBearer_present[MAX_NUM_CCs];
-  long        srb_Identity[MAX_NUM_CCs];
-  long        drb_Identity[MAX_NUM_CCs];
-  long        reestablishRLC[MAX_NUM_CCs];
-  long        rlc_Config_present[MAX_NUM_CCs];
-  long        ul_AM_sn_FieldLength[MAX_NUM_CCs];
-  long        t_PollRetransmit[MAX_NUM_CCs];
-  long        pollPDU[MAX_NUM_CCs];
-  long        pollByte[MAX_NUM_CCs];
-  long        maxRetxThreshold[MAX_NUM_CCs];
-  long        dl_AM_sn_FieldLength[MAX_NUM_CCs];
-  long        dl_AM_t_Reassembly[MAX_NUM_CCs];
-  long        t_StatusProhibit[MAX_NUM_CCs];
-  long        ul_UM_sn_FieldLength[MAX_NUM_CCs];
-  long        dl_UM_sn_FieldLength[MAX_NUM_CCs];
-  long        dl_UM_t_Reassembly[MAX_NUM_CCs];
-  long        priority[MAX_NUM_CCs];
-  long        prioritisedBitRate[MAX_NUM_CCs];
-  long        bucketSizeDuration[MAX_NUM_CCs];
-  long        allowedServingCells[MAX_NUM_CCs];
-  long        subcarrierspacing[MAX_NUM_CCs];
-  long        maxPUSCH_Duration[MAX_NUM_CCs];
-  long        configuredGrantType1Allowed[MAX_NUM_CCs];
-  long        logicalChannelGroup[MAX_NUM_CCs];
-  long        schedulingRequestID[MAX_NUM_CCs]; /* OPTIONAL */
-  int         logicalChannelSR_Mask[MAX_NUM_CCs];
-  int         logicalChannelSR_DelayTimerApplied[MAX_NUM_CCs];
-}rlc_bearer_config_t;
+void nr_rrc_config_dl_tda(struct NR_PDSCH_TimeDomainResourceAllocationList *pdsch_TimeDomainAllocationList,
+                          frame_type_t frame_type,
+                          NR_TDD_UL_DL_ConfigCommon_t *tdd_UL_DL_ConfigurationCommon,
+                          int curr_bwp);
+void nr_rrc_config_ul_tda(NR_ServingCellConfigCommon_t *scc, int min_fb_delay);
 
-typedef struct mac_cellgroup_s{
-  long        DRX_Config_PR[MAX_NUM_CCs];
-  long        drx_onDurationTimer_PR[MAX_NUM_CCs];
-  long        subMilliSeconds[MAX_NUM_CCs];
-  long        milliSeconds[MAX_NUM_CCs];
-  long        drx_InactivityTimer[MAX_NUM_CCs];
-  long        drx_HARQ_RTT_TimerDL[MAX_NUM_CCs];
-  long        drx_HARQ_RTT_TimerUL[MAX_NUM_CCs];
-  long        drx_RetransmissionTimerDL[MAX_NUM_CCs];
-  long        drx_RetransmissionTimerUL[MAX_NUM_CCs];
-  long        drx_LongCycleStartOffset_PR[MAX_NUM_CCs];
-  long        drx_LongCycleStartOffset[MAX_NUM_CCs];
-  long        drx_ShortCycle[MAX_NUM_CCs];
-  long        drx_ShortCycleTimer[MAX_NUM_CCs];
-  long        drx_SlotOffset[MAX_NUM_CCs];
-  long        schedulingRequestId[MAX_NUM_CCs];
-  long        sr_ProhibitTimer[MAX_NUM_CCs];
-  long        sr_TransMax[MAX_NUM_CCs];
-  long        periodicBSR_Timer[MAX_NUM_CCs];
-  long        retxBSR_Timer[MAX_NUM_CCs];
-  long        logicalChannelSR_DelayTimer[MAX_NUM_CCs];
-  long        tag_Id[MAX_NUM_CCs];
-  long        timeAlignmentTimer[MAX_NUM_CCs];
-  long        PHR_Config_PR[MAX_NUM_CCs];
-  long        phr_PeriodicTimer[MAX_NUM_CCs];
-  long        phr_ProhibitTimer[MAX_NUM_CCs];
-  long        phr_Tx_PowerFactorChange[MAX_NUM_CCs];
-  int         multiplePHR[MAX_NUM_CCs];
-  int         phr_Type2SpCell[MAX_NUM_CCs];
-  int         phr_Type2OtherCell[MAX_NUM_CCs];
-  long        phr_ModeOtherCG[MAX_NUM_CCs];
-  int         skipUplinkTxDynamic[MAX_NUM_CCs];
-}mac_cellgroup_t;
+void prepare_sim_uecap(NR_UE_NR_Capability_t *cap,
+                       NR_ServingCellConfigCommon_t *scc,
+                       int numerology,
+                       int rbsize,
+                       int mcs_table_dl,
+                       int mcs_table_ul);
 
-typedef struct physicalcellgroup_s{
-  long        harq_ACK_SpatialBundlingPUCCH[MAX_NUM_CCs];
-  long        harq_ACK_SpatialBundlingPUSCH[MAX_NUM_CCs];
-  long        p_NR[MAX_NUM_CCs];
-  long        pdsch_HARQ_ACK_Codebook[MAX_NUM_CCs];
-  long        tpc_SRS_RNTI[MAX_NUM_CCs];
-  long        tpc_PUCCH_RNTI[MAX_NUM_CCs];
-  long        tpc_PUSCH_RNTI[MAX_NUM_CCs];
-  long        sp_CSI_RNTI[MAX_NUM_CCs];
-  long        RNTI_Value_PR[MAX_NUM_CCs];
-  long        RNTI_Value[MAX_NUM_CCs];
-}physicalcellgroup_t;
+NR_BCCH_BCH_Message_t *get_new_MIB_NR(const NR_ServingCellConfigCommon_t *scc);
+void free_MIB_NR(NR_BCCH_BCH_Message_t *mib);
+int encode_MIB_NR(NR_BCCH_BCH_Message_t *mib, int frame, uint8_t *buf, int buf_size);
 
-typedef struct rach_dedicated_s{
-  
-  
-}rach_dedicated_t;
 
-void rrc_config_servingcellconfigcommon(uint8_t Mod_id,
-                                        int CC_id,
-                                        gNB_RrcConfigurationReq *common_configuration
-                                       );
+#define NR_MAX_SIB_LENGTH 2976 // 3GPP TS 38.331 section 5.2.1
+NR_BCCH_DL_SCH_Message_t *get_SIB1_NR(const gNB_RrcConfigurationReq *configuration);
+void free_SIB1_NR(NR_BCCH_DL_SCH_Message_t *sib1);
+int encode_SIB1_NR(NR_BCCH_DL_SCH_Message_t *sib1, uint8_t *buffer, int max_buffer_size);
 
-void rrc_config_rlc_bearer(uint8_t Mod_id,
-                           int CC_id,
-                           rlc_bearer_config_t *rlc_config
-                          );
+NR_CellGroupConfig_t *get_initial_cellGroupConfig(int uid,
+                                                  const NR_ServingCellConfigCommon_t *scc,
+                                                  const NR_ServingCellConfig_t *servingcellconfigdedicated,
+                                                  const gNB_RrcConfigurationReq *configuration);
+void update_cellGroupConfig(NR_CellGroupConfig_t *cellGroupConfig,
+                            const int uid,
+                            NR_UE_NR_Capability_t *uecap,
+                            const gNB_RrcConfigurationReq *configuration);
+void free_cellGroupConfig(NR_CellGroupConfig_t *cellGroupConfig);
+int encode_cellGroupConfig(NR_CellGroupConfig_t *cellGroupConfig, uint8_t *buffer, int max_buffer_size);
+NR_CellGroupConfig_t *decode_cellGroupConfig(const uint8_t *buffer, int max_buffer_size);
 
-void rrc_config_mac_cellgroup(uint8_t Mod_id,
-                              int CC_id,
-                              mac_cellgroup_t *mac_cellgroup_config
-                             );
-
-void rrc_config_physicalcellgroup(uint8_t Mod_id,
-                                  int CC_id,
-                                  physicalcellgroup_t *physicalcellgroup_config
-                                 );
+/* Note: this function returns a new CellGroupConfig for a user with given
+ * configuration, but it will also overwrite the ServingCellConfig passed in
+ * parameter servingcellconfigdedicated! */
+NR_CellGroupConfig_t *get_default_secondaryCellGroup(const NR_ServingCellConfigCommon_t *servingcellconfigcommon,
+                                                     NR_ServingCellConfig_t *servingcellconfigdedicated,
+                                                     const NR_UE_NR_Capability_t *uecap,
+                                                     int scg_id,
+                                                     int servCellIndex,
+                                                     const gNB_RrcConfigurationReq *configuration,
+                                                     int uid);
 
 #endif

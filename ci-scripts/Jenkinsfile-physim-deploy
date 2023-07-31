@@ -32,7 +32,9 @@ def buildStageStatus = true
 def testStageName = params.pipelineTestStageName
 
 // Name of the resource
-def ciEpcResource = params.epcResource
+def lockResources = []
+if (params.LockResources != null && params.LockResources.trim().length() > 0)
+  params.LockResources.trim().split(",").each{lockResources += [resource: it.trim()]}
 
 // Global Parameters. Normally they should be populated when the master job
 // triggers the slave job with parameters
@@ -53,10 +55,9 @@ pipeline {
     label pythonExecutor
   }
   options {
-    disableConcurrentBuilds()
     timestamps()
     ansiColor('xterm')
-    lock(ciEpcResource)
+    lock(extra: lockResources)
   }
 
   stages {
@@ -80,7 +81,8 @@ pipeline {
             testStageName = 'Template Test Stage'
           }
 
-          if (params.smartphonesResource == null) {
+          if (params.LockResources == null) {
+            echo "no LockResources given"
             allParametersPresent = false
           }
           if (params.eNB_IPAddress == null) {
@@ -137,12 +139,6 @@ pipeline {
             allParametersPresent = false
           }
 
-          if (params.ADB_IPAddress == null) {
-            allParametersPresent = false
-          }
-          if (params.ADB_Credentials == null) {
-            allParametersPresent = false
-          }
           if (params.OC_Credentials == null) {
             allParametersPresent = false
           }
@@ -189,15 +185,16 @@ pipeline {
             withCredentials([
               [$class: 'UsernamePasswordMultiBinding', credentialsId: "${params.eNB_Credentials}", usernameVariable: 'eNB_Username', passwordVariable: 'eNB_Password'],
               [$class: 'UsernamePasswordMultiBinding', credentialsId: "${params.EPC_Credentials}", usernameVariable: 'EPC_Username', passwordVariable: 'EPC_Password'],
-              [$class: 'UsernamePasswordMultiBinding', credentialsId: "${params.ADB_Credentials}", usernameVariable: 'ADB_Username', passwordVariable: 'ADB_Password'],
               [$class: 'UsernamePasswordMultiBinding', credentialsId: "${params.OC_Credentials}", usernameVariable: 'OC_Username', passwordVariable: 'OC_Password']
             ]) {
-              sh "python3 main.py --mode=InitiateHtml --ranRepository=${eNB_Repository} --ranBranch=${eNB_Branch} --ranCommitID=${eNB_CommitID} --ranAllowMerge=${eNB_AllowMergeRequestProcess} --ranTargetBranch=${eNB_TargetBranch} --ADBIPAddress=${params.ADB_IPAddress} --ADBUserName=${ADB_Username} --ADBPassword=${ADB_Password} ${mainPythonAllXmlFiles}"
+              sh "python3 main.py --mode=InitiateHtml --ranRepository=${eNB_Repository} --ranBranch=${eNB_Branch} --ranCommitID=${eNB_CommitID} --ranAllowMerge=${eNB_AllowMergeRequestProcess} --ranTargetBranch=${eNB_TargetBranch} ${mainPythonAllXmlFiles}"
               String[] myXmlTestSuite = testXMLFile.split("\\r?\\n")
               for (xmlFile in myXmlTestSuite) {
                 if (fileExists(xmlFile)) {
                   try {
-                    sh "python3 main.py --mode=TesteNB --eNBIPAddress=${params.eNB_IPAddress} --ranRepository=${eNB_Repository} --ranBranch=${eNB_Branch} --ranCommitID=${eNB_CommitID} --ranAllowMerge=${eNB_AllowMergeRequestProcess} --ranTargetBranch=${eNB_TargetBranch} --eNBUserName=${eNB_Username} --eNBPassword=${eNB_Password} --eNBSourceCodePath=${params.eNB_SourceCodePath} --EPCIPAddress=${params.EPC_IPAddress} --EPCType=${params.EPC_Type} --EPCUserName=${EPC_Username} --EPCPassword=${EPC_Password} --EPCSourceCodePath=${params.EPC_SourceCodePath} --ADBIPAddress=${params.ADB_IPAddress} --ADBUserName=${ADB_Username} --ADBPassword=${ADB_Password} --XMLTestFile=${xmlFile} --OCUserName=${OC_Username} --OCPassword=${OC_Password} --OCProjectName=${OC_ProjectName}"
+                   timeout (time: 60, unit: 'MINUTES') {
+                    sh "python3 main.py --mode=TesteNB --eNBIPAddress=${params.eNB_IPAddress} --ranRepository=${eNB_Repository} --ranBranch=${eNB_Branch} --ranCommitID=${eNB_CommitID} --ranAllowMerge=${eNB_AllowMergeRequestProcess} --ranTargetBranch=${eNB_TargetBranch} --eNBUserName=${eNB_Username} --eNBPassword=${eNB_Password} --eNBSourceCodePath=${params.eNB_SourceCodePath} --EPCIPAddress=${params.EPC_IPAddress} --EPCType=${params.EPC_Type} --EPCUserName=${EPC_Username} --EPCPassword=${EPC_Password} --EPCSourceCodePath=${params.EPC_SourceCodePath} --XMLTestFile=${xmlFile} --OCUserName=${OC_Username} --OCPassword=${OC_Password} --OCProjectName=${OC_ProjectName}"
+                   }
                   } catch (Exception e) {
                     currentBuild.result = 'FAILURE'
                     buildStageStatus = false
@@ -215,10 +212,16 @@ pipeline {
         script {
           dir ('ci-scripts') {
             // Zipping all archived log files
-            sh "zip -r -qq physim_deploytest_logs_${env.BUILD_ID}.zip physim_test_logs_*/*"
-            sh "rm -rf physim_test_logs_*/"
-            if (fileExists("physim_deploytest_logs_${env.BUILD_ID}.zip")) {
-              archiveArtifacts artifacts: "physim_deploytest_logs_${env.BUILD_ID}.zip"
+              sh "mkdir test_logs"
+              sh "mv *.log* test_logs || true"
+              sh "zip -r -qq test_logs_${env.BUILD_ID}.zip *test_log*/"
+              sh "rm -rf *test_log*/"
+              if (fileExists("test_logs_${env.BUILD_ID}.zip")) {
+                archiveArtifacts artifacts: "test_logs_${env.BUILD_ID}.zip"
+              }
+              if (fileExists("test_logs_CN.zip")){
+                sh "mv test_logs_CN.zip test_logs_CN_${env.BUILD_ID}.zip"
+                archiveArtifacts artifacts: "test_logs_CN_${env.BUILD_ID}.zip"
             }
             if (fileExists("test_results.html")) {
               sh "mv test_results.html test_results-${env.JOB_NAME}.html"

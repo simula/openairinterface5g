@@ -30,11 +30,11 @@
  * \warning
  */
 
-#include "targets/RT/USER/lte-softmodem.h"
+#include "executables/lte-softmodem.h"
 #include "UTIL/OPT/opt.h"
 #include "common/config/config_userapi.h"
 #include "PHY/TOOLS/lte_phy_scope.h"
-#include "targets/RT/USER/stats.h"
+#include "executables/stats.h"
 
 // current status is that every UE has a DL scope for a SINGLE eNB (eNB_id=0)
 // at eNB 0, an UL scope for every UE
@@ -49,9 +49,9 @@ void reset_stats(FL_OBJECT *button, long arg) {
   int i,j,k;
   PHY_VARS_eNB *phy_vars_eNB = RC.eNB[0][0];
 
-  for (i=0; i<NUMBER_OF_UE_MAX; i++) {
-    for (k=0; k<8; k++) { //harq_processes
-      for (j=0; j<phy_vars_eNB->dlsch[i][0]->Mlimit; j++) {
+  for (i=0; i<sizeofArray(phy_vars_eNB->UE_stats); i++) {
+    for (k=0; k<sizeofArray(phy_vars_eNB->UE_stats[i].dlsch_NAK); k++) { //harq_processes
+      for (j=0; j<sizeofArray(*phy_vars_eNB->UE_stats[i].dlsch_NAK); j++) {
         phy_vars_eNB->UE_stats[i].dlsch_NAK[k][j]=0;
         phy_vars_eNB->UE_stats[i].dlsch_ACK[k][j]=0;
         phy_vars_eNB->UE_stats[i].dlsch_trials[k][j]=0;
@@ -67,21 +67,13 @@ void reset_stats(FL_OBJECT *button, long arg) {
   }
 }
 
-
 static void *scope_thread_eNB(void *arg) {
-# ifdef ENABLE_XFORMS_WRITE_STATS
-  FILE *eNB_stats;
-# endif
   struct sched_param sched_param;
   int UE_id, CC_id;
   int ue_cnt=0;
   sched_param.sched_priority = sched_get_priority_min(SCHED_FIFO)+1;
   sched_setscheduler(0, SCHED_FIFO,&sched_param);
   printf("Scope thread has priority %d\n",sched_param.sched_priority);
-# ifdef ENABLE_XFORMS_WRITE_STATS
-  eNB_stats = fopen("eNB_stats.txt", "w");
-#endif
-
   while (!oai_exit) {
     ue_cnt=0;
 
@@ -99,16 +91,6 @@ static void *scope_thread_eNB(void *arg) {
     usleep(100*1000);
   }
 
-  //  printf("%s",stats_buffer);
-# ifdef ENABLE_XFORMS_WRITE_STATS
-
-  if (eNB_stats) {
-    rewind (eNB_stats);
-    fwrite (stats_buffer, 1, len, eNB_stats);
-    fclose (eNB_stats);
-  }
-
-# endif
   pthread_exit((void *)arg);
 }
 

@@ -27,7 +27,7 @@ Several model lists can be defined in the oai configuration file. One, defined b
 Channel simulation parameters can also be specified on the command line:
 
 ```bash
-./lte-softmodem -O ../../../ci-scripts/conf_files/enb.band7.tm1.50PRB.usrpb210.conf --noS1 --rfsim --rfsimulator.options chanmod --rfsimulator.serveraddr enb --telnetsrv --channelmod.modellist modellist_rfsimu_2 --channelmod.modellist_rfsimu_2.[1].offset 120
+./lte-softmodem -O ../../../ci-scripts/conf_files/enb.band7.tm1.50prb.usrpb210.conf --noS1 --rfsim --rfsimulator.options chanmod --rfsimulator.serveraddr enb --telnetsrv --channelmod.modellist modellist_rfsimu_2 --channelmod.modellist_rfsimu_2.[1].offset 120
 ```
 ### Using the telnet server to modify channel simulator parameters
 The telnet server includes a `channelmod` command which can be used to dynamically modify some channel model parameters. This command is only available when channel simulation is enabled (via `rfsimulator.options chanmod` option when running the rfsimulator.  `channelmod` command has its own help:
@@ -63,7 +63,7 @@ softmodem_enb>
 
 
 
-The [rfsimulator documentation](../../../../targets/ARCH/rfsimulator/README.md ) has also some specific information when using the channel simulation via this tool. 
+The [rfsimulator documentation](../../../../radio/rfsimulator/README.md ) has also some specific information when using the channel simulation via this tool. 
 
 [channel simulation main page](channel_simulation.md)
 [oai Wikis home](https://gitlab.eurecom.fr/oai/openairinterface5g/wikis/home)

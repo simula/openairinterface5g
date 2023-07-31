@@ -178,6 +178,10 @@ typedef struct {
   uint8_t Kmimo;
   /// Nsoft parameter related to UE Category
   uint32_t Nsoft;
+  /// current pa value
+  int pa;
+  /// current pb value
+  int pb;
   /// amplitude of PDSCH (compared to RS) in symbols without pilots
   int16_t sqrt_rho_a;
   /// amplitude of PDSCH (compared to RS) in symbols containing pilots
@@ -323,6 +327,7 @@ typedef struct {
   uint32_t repetition_number ;
   // PUSCH Total number of repetitions
   uint32_t total_number_of_repetitions;
+  decode_abort_t abort_decode;
 } LTE_UL_eNB_HARQ_t;
 
 typedef struct {

@@ -34,26 +34,18 @@
 #define __RAN_CONTEXT_H__
 
 #include <pthread.h>
-#include "COMMON/platform_constants.h"
-#include "PHY/defs_eNB.h"
-#include "PHY/types.h"
-#include "PHY/impl_defs_top.h"
+#include <stdint.h>
 
-//#include "ENB_APP/enb_config.h"
-#include "flexran_agent_defs.h"
-
-#include "gtpv1u.h"
-#include "NwGtpv1u.h"
-#include "NwGtpv1uMsg.h"
-#include "NwGtpv1uPrivate.h"
-#include "gtpv1u_eNB_defs.h"
-#include "gtpv1u_gNB_defs.h"
-
-#include "PHY/defs_L1_NB_IoT.h"
-#include "RRC/LTE/defs_NB_IoT.h"
-#include "RRC/LTE/rrc_defs.h"
-#include "RRC/NR/nr_rrc_defs.h"
-
+// forward declarations to avoid including the full typess ***eNB;
+struct PHY_VARS_gNB_s;
+struct PHY_VARS_eNB_NB_IoT_s;
+struct eNB_RRC_INST_s;
+struct gNB_RRC_INST_s;
+struct eNB_MAC_INST_s;
+struct eNB_MAC_INST_NB_IoT_s;
+struct gNB_MAC_INST_s;
+struct gtpv1u_data_s;
+struct RU_t_s;
 
 typedef struct {
   /// RAN context config file name
@@ -88,8 +80,6 @@ typedef struct {
   int *nb_L1_CC;
   /// Number of RU instances in this node
   int nb_RU;
-  /// FlexRAN context variables
-  flexran_agent_info_t **flexran;
   /// eNB context variables
   struct PHY_VARS_eNB_s ***eNB;
   /// gNB context variables
@@ -109,9 +99,7 @@ typedef struct {
   /// NR MAC context variables
   struct gNB_MAC_INST_s **nrmac;
   /// GTPu descriptor 
-  gtpv1u_data_t *gtpv1u_data_g;
-  /// NR GTPu descriptor 
-  nr_gtpv1u_data_t *nr_gtpv1u_data_g;
+  struct gtpv1u_data_s *gtpv1u_data_g;
   /// RU descriptors. These describe what each radio unit is supposed to do and contain the necessary functions for fronthaul interfaces
   struct RU_t_s **ru;
   /// Mask to indicate fronthaul setup status of RU (hard-limit to 64 RUs)
@@ -123,4 +111,6 @@ typedef struct {
 } RAN_CONTEXT_t;
 
 extern RAN_CONTEXT_t RC;
+
+#define NB_eNB_INST RC.nb_inst
 #endif

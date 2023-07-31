@@ -24,7 +24,7 @@
 #include "pdcp.h"
 
 /* from new rlc module */
-#include "asn1_utils.h"
+#include "rlc_asn1_utils.h"
 #include "rlc_ue_manager.h"
 #include "rlc_entity.h"
 
@@ -278,7 +278,7 @@ rlc_op_status_t rlc_data_req     (const protocol_ctxt_t *const ctxt_pP,
                                   const uint32_t *const destinationL2Id
                                  )
 {
-  int rnti = ctxt_pP->rnti;
+  int rnti = ctxt_pP->rntiMaybeUEid;
   rlc_ue_t *ue;
   rlc_entity_t *rb;
 
@@ -290,8 +290,7 @@ rlc_op_status_t rlc_data_req     (const protocol_ctxt_t *const ctxt_pP,
         MBMS_flagP);
 
   if (ctxt_pP->enb_flag)
-    T(T_ENB_RLC_DL, T_INT(ctxt_pP->module_id),
-      T_INT(ctxt_pP->rnti), T_INT(rb_idP), T_INT(sdu_sizeP));
+    T(T_ENB_RLC_DL, T_INT(ctxt_pP->module_id), T_INT(ctxt_pP->rntiMaybeUEid), T_INT(rb_idP), T_INT(sdu_sizeP));
 
   rlc_manager_lock(rlc_ue_manager);
   ue = rlc_manager_get_ue(rlc_ue_manager, rnti);
@@ -394,24 +393,17 @@ rb_found:
   LOG_D(RLC, "%s:%d:%s: delivering SDU (rnti %d is_srb %d rb_id %d) size %d",
         __FILE__, __LINE__, __FUNCTION__, ue->rnti, is_srb, rb_id, size);
 
-  memblock = get_free_mem_block(size, __func__);
-  if (memblock == NULL) {
-    LOG_E(RLC, "%s:%d:%s: ERROR: get_free_mem_block failed\n", __FILE__, __LINE__, __FUNCTION__);
-    exit(1);
-  }
-  memcpy(memblock->data, buf, size);
 
   /* unused fields? */
   ctx.instance = ue->module_id;
   ctx.frame = 0;
   ctx.subframe = 0;
   ctx.eNB_index = 0;
-  ctx.configured = 1;
   ctx.brOption = 0;
 
   /* used fields? */
   ctx.module_id = ue->module_id;
-  ctx.rnti = ue->rnti;
+  ctx.rntiMaybeUEid = ue->rnti;
 
   is_enb = rlc_manager_get_enb_flag(rlc_ue_manager);
   ctx.enb_flag = is_enb;
@@ -420,22 +412,14 @@ rb_found:
     T(T_ENB_RLC_UL,
       T_INT(0 /*ctxt_pP->module_id*/),
       T_INT(ue->rnti), T_INT(rb_id), T_INT(size));
-
-    const ngran_node_t type = RC.rrc[0 /*ctxt_pP->module_id*/]->node_type;
-    AssertFatal(type != ngran_eNB_CU && type != ngran_ng_eNB_CU && type != ngran_gNB_CU,
-                "Can't be CU, bad node type %d\n", type);
-
-    if (NODE_IS_DU(type) && is_srb == 1) {
-      MessageDef *msg = itti_alloc_new_message(TASK_RLC_ENB, 0, F1AP_UL_RRC_MESSAGE);
-      F1AP_UL_RRC_MESSAGE(msg).rnti = ue->rnti;
-      F1AP_UL_RRC_MESSAGE(msg).srb_id = rb_id;
-      F1AP_UL_RRC_MESSAGE(msg).rrc_container = (unsigned char *)buf;
-      F1AP_UL_RRC_MESSAGE(msg).rrc_container_length = size;
-      itti_send_msg_to_task(TASK_DU_F1, ENB_MODULE_ID_TO_INSTANCE(0 /*ctxt_pP->module_id*/), msg);
-      return;
-    }
   }
-
+  
+  memblock = get_free_mem_block(size, __func__);
+  if (memblock == NULL) {
+    LOG_E(RLC, "%s:%d:%s: ERROR: get_free_mem_block failed\n", __FILE__, __LINE__, __FUNCTION__);
+    exit(1);
+  }
+  memcpy(memblock->data, buf, size);
   if (!get_pdcp_data_ind_func()(&ctx, is_srb, is_mbms, rb_id, size, memblock, NULL, NULL)) {
     LOG_E(RLC, "%s:%d:%s: ERROR: pdcp_data_ind failed (is_srb %d rb_id %d rnti %d)\n",
           __FILE__, __LINE__, __FUNCTION__,
@@ -818,7 +802,7 @@ rlc_op_status_t rrc_rlc_config_asn1_req (const protocol_ctxt_t   * const ctxt_pP
     const uint32_t destinationL2Id
                                         )
 {
-  int rnti = ctxt_pP->rnti;
+  int rnti = ctxt_pP->rntiMaybeUEid;
   int module_id = ctxt_pP->module_id;
   int i;
   int j;
@@ -832,10 +816,10 @@ rlc_op_status_t rrc_rlc_config_asn1_req (const protocol_ctxt_t   * const ctxt_pP
 
   if (0 /*||
       ctxt_pP->instance != 0 || ctxt_pP->eNB_index != 0 ||
-      ctxt_pP->configured != 1 || ctxt_pP->brOption != 0 */) {
-    LOG_E(RLC, "%s: ctxt_pP not handled (%d %d %ld %d %d %d)\n", __FUNCTION__,
+      ctxt_pP->brOption != 0 */) {
+    LOG_E(RLC, "%s: ctxt_pP not handled (%d %d %ld %d %d)\n", __FUNCTION__,
           ctxt_pP->enb_flag , ctxt_pP->module_id, ctxt_pP->instance,
-          ctxt_pP->eNB_index, ctxt_pP->configured, ctxt_pP->brOption);
+          ctxt_pP->eNB_index, ctxt_pP->brOption);
     exit(1);
   }
 
@@ -939,8 +923,7 @@ rlc_op_status_t rrc_rlc_config_req   (
   const srb_flag_t      srb_flagP,
   const MBMS_flag_t     mbms_flagP,
   const config_action_t actionP,
-  const rb_id_t         rb_idP,
-  const rlc_info_t      rlc_infoP)
+  const rb_id_t         rb_idP)
 {
   rlc_ue_t *ue;
   int      i;
@@ -963,8 +946,8 @@ rlc_op_status_t rrc_rlc_config_req   (
     exit(1);
   }
   rlc_manager_lock(rlc_ue_manager);
-  LOG_D(RLC, "%s:%d:%s: remove rb %d (is_srb %d) for UE %d\n", __FILE__, __LINE__, __FUNCTION__, (int)rb_idP, srb_flagP, ctxt_pP->rnti);
-  ue = rlc_manager_get_ue(rlc_ue_manager, ctxt_pP->rnti);
+  LOG_D(RLC, "%s:%d:%s: remove rb %d (is_srb %d) for UE %ld\n", __FILE__, __LINE__, __FUNCTION__, (int)rb_idP, srb_flagP, ctxt_pP->rntiMaybeUEid);
+  ue = rlc_manager_get_ue(rlc_ue_manager, ctxt_pP->rntiMaybeUEid);
   if (srb_flagP) {
     if (ue->srb[rb_idP-1] != NULL) {
       ue->srb[rb_idP-1]->delete(ue->srb[rb_idP-1]);
@@ -987,22 +970,17 @@ rlc_op_status_t rrc_rlc_config_req   (
       if (ue->drb[i] != NULL)
         break;
     if (i == 5)
-      rlc_manager_remove_ue(rlc_ue_manager, ctxt_pP->rnti);
+      rlc_manager_remove_ue(rlc_ue_manager, ctxt_pP->rntiMaybeUEid);
   }
   rlc_manager_unlock(rlc_ue_manager);
   return RLC_OP_STATUS_OK;
 }
 
-void rrc_rlc_register_rrc (rrc_data_ind_cb_t rrc_data_indP, rrc_data_conf_cb_t rrc_data_confP)
-{
-  /* nothing to do */
-}
-
 rlc_op_status_t rrc_rlc_remove_ue (const protocol_ctxt_t* const x)
 {
-  LOG_D(RLC, "%s:%d:%s: remove UE %d\n", __FILE__, __LINE__, __FUNCTION__, x->rnti);
+  LOG_D(RLC, "%s:%d:%s: remove UE %ld\n", __FILE__, __LINE__, __FUNCTION__, x->rntiMaybeUEid);
   rlc_manager_lock(rlc_ue_manager);
-  rlc_manager_remove_ue(rlc_ue_manager, x->rnti);
+  rlc_manager_remove_ue(rlc_ue_manager, x->rntiMaybeUEid);
   rlc_manager_unlock(rlc_ue_manager);
 
   return RLC_OP_STATUS_OK;
@@ -1040,5 +1018,24 @@ void du_rlc_data_req(const protocol_ctxt_t *const ctxt_pP,
                      confirm_t    confirmP,
                      sdu_size_t   sdu_sizeP,
                      mem_block_t *sdu_pP){
+  rlc_data_req (ctxt_pP,
+		srb_flagP,
+		MBMS_flagP,
+		rb_idP,
+		muiP,
+		confirmP,
+		sdu_sizeP,
+		sdu_pP, NULL, NULL);
+}
 
+/* HACK to be removed: nr_rlc_get_available_tx_space is needed by
+ * openair3/ocp-gtpu/gtp_itf.cpp which is compiled in lte-softmodem
+ * so let's put a dummy nr_rlc_get_available_tx_space here
+ */
+int nr_rlc_get_available_tx_space(
+  const rnti_t            rntiP,
+  const logical_chan_id_t channel_idP)
+{
+  abort();
+  return 0;
 }

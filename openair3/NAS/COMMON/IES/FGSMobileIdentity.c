@@ -53,9 +53,10 @@ int decode_5gs_mobile_identity(FGSMobileIdentity *fgsmobileidentity, uint8_t iei
     CHECK_IEI_DECODER(iei, *buffer);
     decoded++;
   }
-
-  ielen = *(buffer + decoded);
-  decoded++;
+  uint16_t tmp;
+  memcpy(&tmp, buffer + decoded, sizeof(tmp));
+  ielen = (uint8_t)tmp;
+  decoded += 2;
   CHECK_LENGTH_DECODER(len - decoded, ielen);
 
   uint8_t typeofidentity = *(buffer + decoded) & 0x7;
@@ -63,6 +64,8 @@ int decode_5gs_mobile_identity(FGSMobileIdentity *fgsmobileidentity, uint8_t iei
   if (typeofidentity == FGS_MOBILE_IDENTITY_5G_GUTI) {
     decoded_rc = decode_guti_5gs_mobile_identity(&fgsmobileidentity->guti,
                  buffer + decoded);
+  } else {
+    AssertFatal(false, "Mobile Identity encoding of type %d not implemented\n", typeofidentity);
   }
 
   if (decoded_rc < 0) {
@@ -104,9 +107,11 @@ int encode_5gs_mobile_identity(FGSMobileIdentity *fgsmobileidentity, uint8_t iei
   }
 
   if(iei > 0){
-    *(uint16_t*) (buffer+1) = htons(encoded  + encoded_rc - 3);
+    uint16_t tmp = htons(encoded + encoded_rc - 3);
+    memcpy(buffer + 1, &tmp, sizeof(tmp));
   } else {
-    *(uint16_t*) buffer = htons(encoded  + encoded_rc - 2);
+    uint16_t tmp = htons(encoded + encoded_rc - 2);
+    memcpy(buffer, &tmp, sizeof(tmp));
   }
 
   return (encoded + encoded_rc);
@@ -235,10 +240,23 @@ static int encode_suci_5gs_mobile_identity(Suci5GSMobileIdentity_t *suci, uint8_
 static int encode_imeisv_5gs_mobile_identity(Imeisv5GSMobileIdentity_t *imeisv, uint8_t *buffer)
 {
   uint32_t encoded = 0;
-  *(buffer + encoded) = 0x00 | (imeisv->digit1 << 4) | (imeisv->oddeven << 3) | (imeisv->typeofidentity);
+  *(buffer + encoded) = 0x00 | (imeisv->digittac01 << 4) | (imeisv->oddeven << 3) | (imeisv->typeofidentity);
   encoded++;
-
-  *(buffer + encoded) = 0x00 | (imeisv->digitp1 << 4) | (imeisv->digitp);
+  *(buffer + encoded) = 0x00 | (imeisv->digittac03 << 4) | (imeisv->digittac02);
+  encoded++;
+  *(buffer + encoded) = 0x00 | (imeisv->digittac05 << 4) | (imeisv->digittac04);
+  encoded++;
+  *(buffer + encoded) = 0x00 | (imeisv->digittac07 << 4) | (imeisv->digittac06);
+  encoded++;
+  *(buffer + encoded) = 0x00 | (imeisv->digit09    << 4) | (imeisv->digittac08);
+  encoded++;
+  *(buffer + encoded) = 0x00 | (imeisv->digit11    << 4) | (imeisv->digit10);
+  encoded++;
+  *(buffer + encoded) = 0x00 | (imeisv->digit13    << 4) | (imeisv->digit12);
+  encoded++;
+  *(buffer + encoded) = 0x00 | (imeisv->digitsv1   << 4) | (imeisv->digit14);
+  encoded++;
+  *(buffer + encoded) = 0x00 | (imeisv->spare      << 4) | (imeisv->digitsv2);
   encoded++;
 
   return encoded;

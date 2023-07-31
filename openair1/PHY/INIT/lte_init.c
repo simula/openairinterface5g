@@ -36,15 +36,10 @@
 #include <math.h>
 #include "nfapi/oai_integration/vendor_ext.h"
 #include <openair1/PHY/LTE_ESTIMATION/lte_estimation.h>
-extern uint32_t from_earfcn(int eutra_bandP,uint32_t dl_earfcn);
-extern int32_t get_uldl_offset(int eutra_bandP);
 
-extern uint16_t prach_root_sequence_map0_3[838];
-extern uint16_t prach_root_sequence_map4[138];
-uint8_t         dmrs1_tab[8] = { 0, 2, 3, 4, 6, 8, 9, 10 };
+const uint8_t dmrs1_tab[8] = {0, 2, 3, 4, 6, 8, 9, 10};
 
-
-int             N_RB_DL_array[6] = { 6, 15, 25, 50, 75, 100 };
+const int N_RB_DL_array[6] = {6, 15, 25, 50, 75, 100};
 
 #include "common/ran_context.h"
 extern RAN_CONTEXT_t RC;
@@ -106,7 +101,7 @@ void phy_config_request(PHY_Config_t *phy_config) {
   int                 Ncp            = cfg->subframe_config.dl_cyclic_prefix_type.value;
   int                 p_eNB          = cfg->rf_config.tx_antenna_ports.value;
   uint32_t            dl_CarrierFreq = cfg->nfapi_config.earfcn.value;
-  LOG_I(PHY,"Configuring MIB for instance %d, CCid %d : (band %d,N_RB_DL %d, N_RB_UL %d, Nid_cell %d,eNB_tx_antenna_ports %d,Ncp %d,DL freq %u,phich_config.resource %d, phich_config.duration %d)\n",
+  LOG_A(PHY,"Configuring MIB for instance %d, CCid %d : (band %d,N_RB_DL %d, N_RB_UL %d, Nid_cell %d,eNB_tx_antenna_ports %d,Ncp %d,DL freq %u,phich_config.resource %d, phich_config.duration %d)\n",
         Mod_id, CC_id, eutra_band, dl_Bandwidth, ul_Bandwidth, Nid_cell, p_eNB,Ncp,dl_CarrierFreq,
         cfg->phich_config.phich_resource.value,
         cfg->phich_config.phich_duration.value);
@@ -415,10 +410,8 @@ int phy_init_lte_eNB(PHY_VARS_eNB *eNB,
         fp->prach_config_common.prach_ConfigInfo.zeroCorrelationZoneConfig,
         fp->prach_config_common.prach_ConfigInfo.prach_FreqOffset
        );
-  LOG_D(PHY,"[MSC_NEW][FRAME 00000][PHY_eNB][MOD %02"PRIu8"][]\n", eNB->Mod_id);
   LOG_I (PHY, "[eNB %" PRIu8 "] Initializing DL_FRAME_PARMS : N_RB_DL %" PRIu8 ", PHICH Resource %d, PHICH Duration %d\n",
          eNB->Mod_id, fp->N_RB_DL, fp->phich_config_common.phich_resource, fp->phich_config_common.phich_duration);
-  LOG_D (PHY, "[MSC_NEW][FRAME 00000][PHY_eNB][MOD %02" PRIu8 "][]\n", eNB->Mod_id);
   crcTableInit();
   lte_gold (fp, eNB->lte_gold_table, fp->Nid_cell);
   generate_pcfich_reg_mapping (fp);
@@ -477,9 +470,7 @@ int phy_init_lte_eNB(PHY_VARS_eNB *eNB,
       srs_vars[srs_id].srs = (int32_t *) malloc16_clear (2 * fp->ofdm_symbol_size * sizeof (int32_t));
     }
 
-    LOG_I(PHY,"PRACH allocation\n");
     // PRACH
-    prach_vars->prachF = (int16_t *) malloc16_clear (1024 * 2 * sizeof (int16_t));
     // assume maximum of 64 RX antennas for PRACH receiver
     prach_vars->prach_ifft[0] = (int32_t **) malloc16_clear (64 * sizeof (int32_t *));
 
@@ -487,8 +478,6 @@ int phy_init_lte_eNB(PHY_VARS_eNB *eNB,
       prach_vars->prach_ifft[0][i] = (int32_t *) malloc16_clear (1024 * 2 * sizeof (int32_t));
 
     prach_vars->rxsigF[0] = (int16_t **) malloc16_clear (64 * sizeof (int16_t *));
-    // PRACH BR
-    prach_vars_br->prachF = (int16_t *)malloc16_clear( 1024*2*sizeof(int32_t) );
 
     // assume maximum of 64 RX antennas for PRACH receiver
     for (int ce_level = 0; ce_level < 4; ce_level++) {
@@ -541,6 +530,8 @@ int phy_init_lte_eNB(PHY_VARS_eNB *eNB,
   }
 
   eNB->pdsch_config_dedicated->p_a = dB0;       //defaul value until overwritten by RRCConnectionReconfiguration
+
+  init_modulation_LUTs();
   return (0);
 }
 
@@ -578,8 +569,6 @@ void phy_free_lte_eNB(PHY_VARS_eNB *eNB) {
 
   for (UE_id=0; UE_id<NUMBER_OF_SRS_MAX; UE_id++) free_and_zero(srs_vars[UE_id].srs);
 
-  free_and_zero(prach_vars->prachF);
-
   for (i = 0; i < 64; i++) free_and_zero(prach_vars->prach_ifft[0][i]);
 
   free_and_zero(prach_vars->prach_ifft[0]);
@@ -591,7 +580,6 @@ void phy_free_lte_eNB(PHY_VARS_eNB *eNB) {
     free_and_zero(prach_vars->rxsigF[ce_level]);
   }
 
-  free_and_zero(prach_vars_br->prachF);
   free_and_zero(prach_vars->rxsigF[0]);
 
   for (int ULSCH_id=0; ULSCH_id<NUMBER_OF_ULSCH_MAX; ULSCH_id++) {

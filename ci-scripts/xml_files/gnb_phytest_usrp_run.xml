@@ -21,33 +21,48 @@
 
 -->
 <testCaseList>
-        <htmlTabRef>gNB-PHY-Test</htmlTabRef>
-        <htmlTabName>Run-gNB-PHY-Test</htmlTabName>
-        <htmlTabIcon>tasks</htmlTabIcon>	
-	<repeatCount>3</repeatCount>
+	<htmlTabRef>gNB-PHY-Test-40</htmlTabRef>
+	<htmlTabName>Timing phytest 40 MHz</htmlTabName>
+	<htmlTabIcon>tasks</htmlTabIcon>
+	<repeatCount>1</repeatCount>
 	<TestCaseRequestedList>
-090101 000001 090109
+100000 090101 000001 090109 200000
 	</TestCaseRequestedList>
 	<TestCaseExclusionList></TestCaseExclusionList>
-	
-        <testCase id="090101">
-                <class>Initialize_eNB</class>
-                <desc>Initialize gNB USRP</desc>
-		<Initialize_eNB_args>-O ci-scripts/conf_files/gnb.band78.tm1.106PRB.usrpn300.conf --phy-test -q -U 787200 -T 106 -t 28 -D 130175 -m 28 -M 106</Initialize_eNB_args>
+        <testCase id = "100000">
+		<class>Custom_Command</class>
+		<desc>Disable Sleep States</desc>
+		<node>caracal</node>
+		<command>sudo cpupower idle-set -D 0</command>
+	</testCase>
+	 <testCase id = "200000">
+		<class>Custom_Command</class>
+		<desc>Enable Sleep States</desc>
+		<node>caracal</node>
+		<command>sudo cpupower idle-set -E</command>
+	</testCase>
+
+	<testCase id="090101">
+		<class>Initialize_eNB</class>
+		<desc>Initialize gNB USRP</desc>
+		<Initialize_eNB_args>-O ci-scripts/conf_files/gnb.band78.106prb.usrpn300.phytest-dora.conf --phy-test -q -U 787200 -T 106 -t 23 -D 130175 -m 28 -M 106 --usrp-tx-thread-config 1 --log_config.global_log_options level,nocolor,time</Initialize_eNB_args>
+    <rt_stats_cfg>datalog_rt_stats.default.yaml</rt_stats_cfg>
 		<air_interface>NR</air_interface>
-        </testCase>
+		<USRP_IPAddress>192.168.20.2</USRP_IPAddress>
+		<cmd_prefix>numactl --cpunodebind=netdev:enp94s0f0np0 --membind=netdev:enp94s0f0np0</cmd_prefix>
+	</testCase>
 
 	<testCase id="000001">
 		<class>IdleSleep</class>
 		<desc>Sleep</desc>
-		<idle_sleep_time_in_sec>300</idle_sleep_time_in_sec>
+		<idle_sleep_time_in_sec>60</idle_sleep_time_in_sec>
 	</testCase>
 
 
-        <testCase id="090109">
-                <class>Terminate_eNB</class>
-                <desc>Terminate gNB</desc>
+	<testCase id="090109">
+		<class>Terminate_eNB</class>
+		<desc>Terminate gNB</desc>
 		<air_interface>NR</air_interface>
-        </testCase>
+	</testCase>
 
 </testCaseList>

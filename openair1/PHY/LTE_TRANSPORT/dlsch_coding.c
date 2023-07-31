@@ -40,9 +40,8 @@
 #include "SCHED/sched_eNB.h"
 #include "common/utils/LOG/vcd_signal_dumper.h"
 #include "common/utils/LOG/log.h"
-#include "targets/RT/USER/lte-softmodem.h"
+#include "executables/lte-softmodem.h"
 #include <syscall.h>
-#include "targets/RT/USER/rt_wrapper.h"
 #include <common/utils/threadPool/thread-pool.h>
 
 //#define DEBUG_DLSCH_CODING
@@ -60,7 +59,7 @@
   uint64_t deadline,
   uint64_t period);*/
 
-extern volatile int oai_exit;
+extern int oai_exit;
 
 void free_eNB_dlsch(LTE_eNB_DLSCH_t *dlsch) {
   int i, r, aa, layer;
@@ -242,54 +241,13 @@ void clean_eNb_dlsch(LTE_eNB_DLSCH_t *dlsch) {
   }
 }
 
-void *te_thread(void *param) {
-  return(NULL);
-}
-
-int dlsch_encoding_all(PHY_VARS_eNB *eNB,
-		       L1_rxtx_proc_t *proc,
-                       unsigned char *a,
-                       uint8_t num_pdcch_symbols,
-                       LTE_eNB_DLSCH_t *dlsch,
-                       int frame,
-                       uint8_t subframe,
-                       time_stats_t *rm_stats,
-                       time_stats_t *te_stats,
-                       time_stats_t *te_wait_stats,
-                       time_stats_t *te_main_stats,
-                       time_stats_t *te_wakeup_stats0,
-                       time_stats_t *te_wakeup_stats1,
-                       time_stats_t *i_stats) {
-  uint8_t harq_pid = dlsch->harq_ids[frame%2][subframe];
-  if(harq_pid >= dlsch->Mdlharq) {
-    LOG_E(PHY,"dlsch_encoding_all illegal harq_pid %d\n", harq_pid);
-    return(-1);
-  }
-  
-  LOG_D(PHY,"B %d, harq_pid %d\n",
-	dlsch->harq_processes[harq_pid]->B,
-	dlsch->harq_ids[frame%2][subframe]);
-
-  return dlsch_encoding(eNB,
-			proc,
-			a,
-			num_pdcch_symbols,
-			dlsch,
-			frame,
-			subframe,
-			rm_stats,
-			te_stats,
-			i_stats);
-
-}
-
 static void TPencode(void * arg) {
   turboEncode_t * rdata=(turboEncode_t *) arg;
   unsigned char harq_pid = rdata->harq_pid;
   LTE_DL_eNB_HARQ_t *hadlsch=rdata->dlsch->harq_processes[harq_pid];
   
   if ( rdata-> round == 0) {
-    uint8_t tmp[96+12+3+3*6144];
+    uint8_t tmp[96+12+3+3*6144] __attribute__((aligned(32)));
     memset(tmp,LTE_NULL, TURBO_SIMD_SOFTBITS);
     start_meas(rdata->te_stats);
     encoder(rdata->input,
@@ -359,8 +317,7 @@ int dlsch_encoding(PHY_VARS_eNB *eNB,
 	    num_pdcch_symbols,
 	    frame,subframe,beamforming_mode);
 
-  proc->nbEncode=0;
-
+  int nbEncode = 0;
 
   //  if (hadlsch->Ndi == 1) {  // this is a new packet
   if (hadlsch->round == 0) {  // this is a new packet
@@ -387,11 +344,13 @@ int dlsch_encoding(PHY_VARS_eNB *eNB,
                          &hadlsch->F)<0)
       return(-1);
   }
- 
+
+  notifiedFIFO_t respEncode;
+  initNotifiedFIFO(&respEncode);
   for (int r=0, r_offset=0; r<hadlsch->C; r++) {
     
     union turboReqUnion id= {.s={dlsch->rnti,frame,subframe,r,0}};
-    notifiedFIFO_elt_t *req=newNotifiedFIFO_elt(sizeof(turboEncode_t), id.p, proc->respEncode, TPencode);
+    notifiedFIFO_elt_t *req = newNotifiedFIFO_elt(sizeof(turboEncode_t), id.p, &respEncode, TPencode);
     turboEncode_t * rdata=(turboEncode_t *) NotifiedFifoData(req);
     rdata->input=hadlsch->c[r];
     rdata->Kr_bytes= ( r<hadlsch->Cminus ? hadlsch->Kminus : hadlsch->Kplus) >>3;
@@ -405,15 +364,10 @@ int dlsch_encoding(PHY_VARS_eNB *eNB,
     rdata->round=hadlsch->round;
     rdata->r_offset=r_offset;
     rdata->G=G;
-    
-    if (  proc->threadPool->activated ) {
-      pushTpool(proc->threadPool,req);
-      proc->nbEncode++;
-    } else {
-      TPencode(rdata);
-      delNotifiedFIFO_elt(req);
-    }
-    
+
+    pushTpool(proc->threadPool, req);
+    nbEncode++;
+
     int Qm=hadlsch->Qm;
     int C=hadlsch->C;
     int Nl=hadlsch->Nl;
@@ -423,6 +377,14 @@ int dlsch_encoding(PHY_VARS_eNB *eNB,
       r_offset += Nl*Qm * (Gp/C);
     else
       r_offset += Nl*Qm * ((GpmodC==0?0:1) + (Gp/C));
+  }
+  // Wait all other threads finish to process
+  while (nbEncode) {
+    notifiedFIFO_elt_t *res = pullTpool(&respEncode, proc->threadPool);
+    if (res == NULL)
+      break; // Tpool has been stopped
+    delNotifiedFIFO_elt(res);
+    nbEncode--;
   }
   VCD_SIGNAL_DUMPER_DUMP_FUNCTION_BY_NAME(VCD_SIGNAL_DUMPER_FUNCTIONS_ENB_DLSCH_ENCODING, VCD_FUNCTION_OUT);
   return(0);
@@ -463,8 +425,6 @@ int dlsch_encoding_fembms_pmch(PHY_VARS_eNB *eNB,
 	    num_pdcch_symbols,
 	    frame,subframe,beamforming_mode);
 
-  proc->nbEncode=0;
-
   //  if (hadlsch->Ndi == 1) {  // this is a new packet
   if (hadlsch->round == 0) {  // this is a new packet
     // Add 24-bit crc (polynomial A) to payload
@@ -490,11 +450,13 @@ int dlsch_encoding_fembms_pmch(PHY_VARS_eNB *eNB,
                          &hadlsch->F)<0)
       return(-1);
   }
- 
+  int nbEncode = 0;
+  notifiedFIFO_t respEncode;
+  initNotifiedFIFO(&respEncode);
   for (int r=0, r_offset=0; r<hadlsch->C; r++) {
     
     union turboReqUnion id= {.s={dlsch->rnti,frame,subframe,r,0}};
-    notifiedFIFO_elt_t *req=newNotifiedFIFO_elt(sizeof(turboEncode_t), id.p, proc->respEncode, TPencode);
+    notifiedFIFO_elt_t *req = newNotifiedFIFO_elt(sizeof(turboEncode_t), id.p, &respEncode, TPencode);
     turboEncode_t * rdata=(turboEncode_t *) NotifiedFifoData(req);
     rdata->input=hadlsch->c[r];
     rdata->Kr_bytes= ( r<hadlsch->Cminus ? hadlsch->Kminus : hadlsch->Kplus) >>3;
@@ -508,15 +470,10 @@ int dlsch_encoding_fembms_pmch(PHY_VARS_eNB *eNB,
     rdata->round=hadlsch->round;
     rdata->r_offset=r_offset;
     rdata->G=G;
-    
-    if (  proc->threadPool->activated ) {
-      pushTpool(proc->threadPool,req);
-      proc->nbEncode++;
-    } else {
-      TPencode(rdata);
-      delNotifiedFIFO_elt(req);
-    }
-    
+
+    pushTpool(proc->threadPool, req);
+    nbEncode++;
+
     int Qm=hadlsch->Qm;
     int C=hadlsch->C;
     int Nl=hadlsch->Nl;
@@ -527,7 +484,14 @@ int dlsch_encoding_fembms_pmch(PHY_VARS_eNB *eNB,
     else
       r_offset += Nl*Qm * ((GpmodC==0?0:1) + (Gp/C));
   }
-
+  // Wait all other threads finish to process
+  while (nbEncode) {
+    notifiedFIFO_elt_t *res = pullTpool(&respEncode, proc->threadPool);
+    if (res == NULL)
+      break; // Tpool has been stopped
+    delNotifiedFIFO_elt(res);
+    nbEncode--;
+  }
   return(0);
 }
 

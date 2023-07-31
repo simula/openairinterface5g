@@ -41,6 +41,9 @@
 
 /* PSS parameters */
 #define  NUMBER_PSS_SEQUENCE          (3)
+#define  NUMBER_PSS_SEQUENCE_SL       (2)
+#define  PSS_SSS_SUB_CARRIER_START    (56)
+#define  PSS_SSS_SUB_CARRIER_START_SL (2)
 #define  INVALID_PSS_SEQUENCE         (NUMBER_PSS_SEQUENCE)
 #define  LENGTH_PSS_NR                (127)
 #define  N_SC_RB                      (12)     /* Resource block size in frequency domain expressed as a number if subcarriers */
@@ -62,11 +65,19 @@
 #define  SSS_SYMBOL_NB                ((2) + OFFSET_SS_PBCH)
 #define  PBCH_LAST_SYMBOL_NB          ((3) + OFFSET_SS_PBCH)
 
+
+#define  OFFSET_SS_PSBCH              -1
+#define  PSS0_SL_SYMBOL_NB            ((1) + OFFSET_SS_PSBCH)
+#define  PSS1_SL_SYMBOL_NB            ((2) + OFFSET_SS_PSBCH)
+#define  SSS0_SL_SYMBOL_NB            ((3) + OFFSET_SS_PSBCH)
+#define  SSS1_SL_SYMBOL_NB            ((4) + OFFSET_SS_PSBCH)
+
 /* SS/PBCH parameters */
 #define  N_RB_SS_PBCH_BLOCK           (20)
 #define  NB_SYMBOLS_PBCH              (3)
+#define  NR_N_SYMBOLS_SSB             (4)
 
-#define  IQ_SIZE                      (sizeof(int16_t) * 2)        /* I and Q are alternatively stored into buffers */
+#define IQ_SIZE sizeof(c16_t) /* I and Q are alternatively stored into buffers */
 #define  N_SYMB_SLOT                  (14)
 
 /* SS/PBCH parameters :  see from TS 38.211 table 7.4.3.1-1: Resources within an SS/PBCH block for PSS... */
@@ -79,8 +90,6 @@
 /* see TS 38211 7.4.1.4 Demodulation reference signals for PBCH */
 #define  DMRS_PBCH_I_SSB              (8)         /* maximum index value for SSB/PBCH which can have alength of L=4 or L=8 */
 #define  DMRS_PBCH_N_HF               (2)         /* half frame indication - 0 for first part of frame and 1 for second part of frame */
-#define  DMRS_ALIGNMENT_32_BIT        (20)        /* it is just for ensuring a 32 bits alignment for storing dmrs pbch into a 32 bits map */
-#define  DMRS_BITMAP_SIZE             ((DMRS_PBCH_NUMBER-DMRS_ALIGNMENT_32_BIT)/32)   /* size is divided by 32 (to get bitmap on uint32) DMRS_PBCH_NUMBER should be a multiple of 32 */
 
 #endif /* SS_PBCH_NR_H */
 

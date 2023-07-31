@@ -78,7 +78,7 @@ static int ngap_gNB_decode_initiating_message(NGAP_NGAP_PDU_t *pdu) {
     case NGAP_ProcedureCode_id_PDUSessionResourceRelease:
       res = asn_encode_to_new_buffer(NULL, ATS_CANONICAL_XER, &asn_DEF_NGAP_NGAP_PDU, pdu);
       free(res.buffer);
-      NGAP_INFO("TODO PDUSESSIONRelease initiating message\n");
+      NGAP_INFO("PDUSESSIONRelease initiating message\n");
       break;
 
     case NGAP_ProcedureCode_id_ErrorIndication:
@@ -156,13 +156,8 @@ int ngap_gNB_decode_pdu(NGAP_NGAP_PDU_t *pdu, const uint8_t *const buffer,
   asn_dec_rval_t dec_ret;
   DevAssert(pdu != NULL);
   DevAssert(buffer != NULL);
-  dec_ret = aper_decode(NULL,
-                        &asn_DEF_NGAP_NGAP_PDU,
-                        (void **)&pdu,
-                        buffer,
-                        length,
-                        0,
-                        0);
+  asn_codec_ctx_t st = {.max_stack_size = 100 * 1000}; // if we enable asn1c debug the stack size become large
+  dec_ret = aper_decode(&st, &asn_DEF_NGAP_NGAP_PDU, (void **)&pdu, buffer, length, 0, 0);
 
   if (dec_ret.code != RC_OK) {
     NGAP_ERROR("Failed to decode pdu\n");

@@ -17,13 +17,73 @@ body {
 
 </style>
 
+```mermaid
+flowchart TB
+    A[ru_thread] --> RFin>block rx_rf] --> feprx
+    feprx --> half-slot --> end_feprx
+    feprx --> second-thread -- block_end_feprx --> end_feprx>feprx]
+    end_feprx --> rx_nr_prach_ru
+rx_nr_prach_ru -- block_queue --> resp_L1>resp L1]
+resp_L1 -- async launch --> rx_func
+resp_L1 -- immediate return --> RFin
+
+subgraph rxfunc
+rx_func_implem[rx_func] 
+    subgraph rxfuncbeg
+      handle_nr_slot_ind
+      --> rnti_to_remove-mgmt
+      --> L1_nr_prach_procedures
+      --> apply_nr_rotation_RX
+    end 
+    subgraph phy_procedures_gNB_uespec_RX
+      fill_ul_rb_mask
+      --> pucch(decode each gNB->pucch)
+      -->nr_fill_ul_indication
+      --> nr_ulsch_procedures
+      --> nr_ulsch_decoding
+      --> segInParallel[[all segments decode in parallel]]
+      --> barrier_end_of_ulsch_decoding
+    end 
+    subgraph NR_UL_indication
+      handle_nr_rach
+      --> handle_nr_uci
+      --> handle_nr_ulsch
+      --> gNB_dlsch_ulsch_scheduler
+      --> NR_Schedule_response
+    end 
+    rx_func_implem --> rxfuncbeg
+    rxfuncbeg --> phy_procedures_gNB_uespec_RX
+phy_procedures_gNB_uespec_RX --> NR_UL_indication
+-- block_queue --> L1_tx_free2>L1 tx free]
+-- async launch --> tx_func
+L1_tx_free2 -- send_msg --> rsp((resp_L1))
+end 
+rx_func --> rxfunc
+
+
+subgraph tx
+    direction LR
+    subgraph tx_func2
+       phy_procedures_gNB_TX
+       --> dcitop[nr_generate dci top]
+       --> nr_generate_csi_rs
+       --> apply_nr_rotation_TX
+       -- send_msg --> end_tx_func((L1_tx_out))
+    end
+    subgraph tx_reorder_thread
+        L1_tx_out>L1_tx_out]
+        --> reorder{re order} --> reorder
+        reorder --> ru_tx_func
+        reorder --> L1_tx_free((L1_tx_free))
+        ru_tx_func --> feptx_prec
+        --> feptx_ofdm
+    end 
+    tx_func2 --> tx_reorder_thread
+end
+```
 
 This tuto for 5G gNB design, with Open Cells main
 {: .text-center}
-
-# Top file: executables/ocp-gnb.c
-
-the function main() initializes the data from configuration file
 
 # The main thread is in ru_thread()
 The infinite loop:
@@ -41,7 +101,6 @@ raw incoming data is in buffer called "rxdata"
 ## nr_fep_full()
 "front end processing" of uplink signal  
 performs DFT on the signal  
-same function (duplicates): phy_procedures_gNB_common_RX()  
 it computes the buffer rxdataF (for frequency) from rxdata (samples over time)  
 rxdataF is the rxdata in frequency domain, phase aligned
 {: .func3}
@@ -256,7 +315,7 @@ Still on DL (gNB side), PDCP push incoming data into RLC by calling: rlc_data_re
 For UL, the low layer push data into rlc by: mac_rlc_data_ind()  
 Then, rlc push it to pdcp by calling pdcp_data_ind() from a complex rlc internal call back (deliver_sdu())  
 
-When adding a UE, external code have to call nr_rrc_rlc_config_asn1_req(), to remove it: rrc_rlc_remove_ue()  
+When adding a UE, external code have to call `add_rlc_srb()` and/or `add_rlc_drb()`, to remove it: `rrc_rlc_remove_ue()`
 Inside UE, channels called drd or srb can be created: ??? and deleted: rrc_rlc_config_req()
 
 nr_rlc_tick() must be called periodically to manage the internal timers 
@@ -268,24 +327,21 @@ successful_delivery() and max_retx_reached(): in ??? trigger, the RLC sends a it
 The PDCP implementation is also protected through a general mutex.  
 The design is very similar to rlc layer. The pdcp data is isolated and encapsulated.
 
-pdcp_layer_init(): same as rlc init  
+nr_pdcp_layer_init(): same as rlc init
 we have to call a second init function: pdcp_module_init() 
 
-At Tx side (DL in gNB), pdcp_data_req() is the entry function that the upper layer calls.  
+At Tx side (DL in gNB), `pdcp_data_req_drb()` and `pdcp_data_req_srb()` are the entry functions that the upper layer calls.
 The upper layer can be GTP or a PDCP internal thread enb_tun_read_thread() that read directly from Linux socket in case we skip 3GPP core implementation.
-PDCP internals for  pdcp_data_req() is thread safe: inside pdcp_data_req_drb(), the pdcp manager protects with the mutex the access to the SDU receiving function of PDCP (recv_sdu() callback, corresponding to nr_pdcp_entity_drb_am_recv_sdu() for DRBs). When it needs, the pdcp layer push this data to rlc by calling : rlc_data_req()  
-
-Also, incoming downlink sdu can comme from internal RRC: in this case, pdcp_run() reads a itti queue, for message RRC_DCCH_DATA_REQ, to0 only call 'pdcp_data_req()'
+PDCP internals for  nr_pdcp_data_req_srb()/nr_pdcp_data_req_drb() are thread safe: inside them, the pdcp manager protects with the mutex the access to the SDU receiving function of PDCP (recv_sdu() callback, corresponding to nr_pdcp_entity_drb_am_recv_sdu() for DRBs). When it needs, the pdcp layer push this data to rlc by calling : rlc_data_req()
 
 At Rx side, pdcp_data_ind() is the entry point that receives the data from RLC.
 - Inside pdcp_data_ind(), the pdcp manager mutex protects the access to the PDU receiving function of PDCP (recv_pdu() callback corresponding to nr_pdcp_entity_drb_am_recv_pdu() for DRBs)
-- Then deliver_sdu_drb() function sends the received data to GTP thread through an ITTI message (GTPV1U_ENB_TUNNEL_DATA_REQ).
+- Then deliver_sdu_drb() function sends the received data to GTP thread through an ITTI message (GTPV1U_TUNNEL_DATA_REQ).
 
-pdcp_config_set_security(): not yet developped
+nr_pdcp_config_set_security(): sets the keys for AS security of a UE
 
-nr_DRB_preconfiguration(): the mac layer calls this for ???
-
-nr_rrc_pdcp_config_asn1_req() adds a UE in pdcp, pdcp_remove_UE() removes it
+nr_pdcp_add_srbs() adds UE SRBs in pdcp, nr_pdcp_remove_UE() removes it
+nr_pdcp_add_drbs() adds UE DRBs in pdcp, nr_pdcp_remove_UE() removes it
 
 # GTP
 Gtp + UDP are two twin threads performing the data plane interface to the core network
@@ -297,32 +353,43 @@ PDCP layer push to the GTP queue (outside UDP thread that do almost nothing and 
 
 
 ## GTP thread running code from other layers
-gtp thread calls directly pdcp_data_req(), so it runs inside it's context internal pdcp structures updates
+gtp thread calls directly nr_pdcp_data_req_drb(), so it runs inside it's context internal pdcp structures updates
 
 ## inside other threads
 gtpv1u_create_s1u_tunnel(), delete tunnel, ... functions are called inside the other threads, without mutex.
 
 # New GTP
 ## initialization
+
+gtpv1uTask(): this creates only the thread, doesn't configure anything
+gtpv1Init(): creates a listening socket to Linux for a given reception and select a local IP address
+
+## newGtpuCreateTunnel()   
+this function will replace the xxx_create_tunnel_xxx() for various cases  
+The parameters are: 
+1. outgoing TEid, associated with outpoing pair(rnti, id)
+2. incoming packets callback, incoming pair(rnti,id) and a callback function for incoming data 
+
+## outgoing packets 
+
+Each call to newGtpuCreateTunnel() creates a outgoing context for a teid (given as function input), a pair(rnti,outgoing id).  
+ Each outgoing packet received on GTP-U ITTI queue must match one pair(rnti,id), so the gtp-u thread can lookup the related TEid and use it to encode the outpoing GTP-U tunneled packet.  
+
+## incoming packets   
+
+newGtpuCreateTunnel() computes and return the incoming teid that will be used for incoming packets.
+When a incoming packet arrives on this incoming teid, the GTP-U thread calls the defined callback, with the associated pair(rnti, incoming id).  
+
+stuff like enb_flag, mui and more important data are not given explicitly by any legacy function (gtpv1u_create_s1u_tunnel), but the legacy and the new interface to lower layer (like pdcp) require this data. We hardcode it in first version.
+
+## remaining work 
+These teids and "instance", so in a Linux socket: same teid can co-exist for different sockets
+ Remain here a lack to fill: the information given in the legacy funtions is not enough to fullfil the data needed by the callback  
+
 Coexistance until full merge with legacy GTP
 cmake new option: NEW_GTPU to use the new implementation (it changes for the entire executable)
 It is possible to use both old and new GTP in same executable because the itti task and all functions names are different 
 Current status of new implementation: not tested, X2 not developped, 5G new GTP option not developped, remain issues on data coming from void: muid, enb_flag, ...
-
-ocp_gtpv1uTask(): this creates only the thread, doesn't configure anything
-gtpv1Init(): creates a listening socket to Linux for a given reception and select a local IP address
-
-newGtpuCreateTunnel() this function will replace the xxx_create_tunnel_xxx() for various cases
-This creates a outgoing context for a teid (in input), it computes and return the incoming teid that will be used for incoming packets
-These teids and in a "instance", so in a Linux socket: same teid can co-exist for different sockets
- Remain here a lack to fill: the information given in the legacy funtions is not enough to fullfil the data needed by the callback
-stuff like enb_flag, but also mui and more important data are not given explicitly by any legacy function (gtpv1u_create_s1u_tunnel), but the legacy and the new interface to lower layer (like pdcp) require this data.
-The datamodel is still not fully understood, so this data source remain unknown
-A new parameter is the callback function: will be pdpcp_data_req() and gtpv_data_req() (x2 case) for existing implementation and later other call backs like the F1-U implementation.
-
-incoming packets
-the gtp layer retrieves the data, the teid, find out the related data: rnti, bearer and quite a lot of other parameters (not clear why, because it looks like all is statefull, so the lower layer should have the context) 
-if lower layers can be stateless, it is a good idea to keep the context in the gtp layer and pass it to the callback, but the design remain obfuscated.
 
 # NGAP
 NGAP would be a itti thread as is S1AP (+twin thread SCTP that is almost void processing)?  

@@ -73,21 +73,25 @@ typedef guint8   gboolean;
 /*                                            command line parameters for LOG utility                                                          */
 /*   optname                helpstr                 paramflags    XXXptr                  defXXXval                       type        numelt   */
 /*---------------------------------------------------------------------------------------------------------------------------------------------*/
+// clang-format off
 #define OPT_PARAMS_DESC {  \
-    {"type" ,               CONFIG_HLP_TYPEMON,     0,            strptr:(char**)&in_type,        defstrval:"none",               TYPE_STRING,    0},   \
-    {"ip" ,                 CONFIG_HLP_L2MONIP,     0,            strptr:(char**)&in_ip,  defstrval:"127.0.0.1",          TYPE_STRING,    0},   \
-    {"path" ,               CONFIG_HLP_L2MONPATH,   0,            strptr:(char**)&in_path,defstrval:"/tmp/oai_opt.pcap",  TYPE_STRING,    0},   \
-  }
+  {"type" ,               CONFIG_HLP_TYPEMON,     0,           .strptr=&in_type,        .defstrval="none",               TYPE_STRING,    0},   \
+  {"ip" ,                 CONFIG_HLP_L2MONIP,     0,           .strptr=&in_ip,          .defstrval="127.0.0.1",          TYPE_STRING,    0},   \
+  {"path" ,               CONFIG_HLP_L2MONPATH,   0,           .strptr=&in_path,        .defstrval="/tmp/oai_opt.pcap",  TYPE_STRING,    0},   \
+}
+// clang-format on
 
 #define OPTTYPE_IDX 0
 /* check function for opt parameters */
 #define OPTTYPE_OKSTRINGS {"none","pcap","wireshark"}
 #define OPTTYPE_VALUES    {OPT_NONE,OPT_PCAP,OPT_WIRESHARK}
+// clang-format off
 #define OPTPARAMS_CHECK_DESC { \
-    { .s3a= { config_checkstr_assign_integer,  OPTTYPE_OKSTRINGS,OPTTYPE_VALUES ,3}} ,\
-    { .s5= {NULL }} ,                   \
-    { .s5= {NULL }} ,                   \
-  }
+  { .s3a= { config_checkstr_assign_integer,  OPTTYPE_OKSTRINGS,OPTTYPE_VALUES ,3}} ,\
+  { .s5= {NULL }} ,                   \
+  { .s5= {NULL }} ,                   \
+}
+// clang-format on
 
 typedef enum trace_mode_e {
   OPT_WIRESHARK,
@@ -109,11 +113,14 @@ typedef enum radio_type_e {
 
 extern int opt_enabled;
 #define trace_pdu(x...) if (opt_enabled) trace_pdu_implementation(0, x)
-#define trace_NRpdu(x...) if (opt_enabled) trace_pdu_implementation(1, x)
+#define trace_NRpdu(x...) if (opt_enabled) nr_trace_pdu_implementation(1, x)
 
 void trace_pdu_implementation(int nr, int direction, uint8_t *pdu_buffer, unsigned int pdu_buffer_size,
                               int ueid, int rntiType, int rnti, uint16_t sysFrame, uint8_t subframe,
                               int oob_event, int oob_event_value);
+void nr_trace_pdu_implementation(int nr, int direction, uint8_t *pdu_buffer, unsigned int pdu_buffer_size,
+				 int rntiType, int rnti, uint16_t sysFrame, uint8_t subframe,
+				 int oob_event, int oob_event_value);
 
 int init_opt(void);
 

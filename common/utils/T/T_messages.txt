@@ -16,7 +16,7 @@ ID = ENB_PHY_DL_TICK
 ID = ENB_PHY_DLSCH_UE_DCI
     DESC = eNodeB downlink UE specific DCI as sent by the PHY layer
     GROUP = ALL:PHY:GRAPHIC:ENB
-    FORMAT = int,eNB_ID : int,frame : int,subframe : int,rnti : int,dci_format : int,harq_pid : int,mcs : int,TBS
+    FORMAT = int,eNB_ID : int,frame : int,subframe : int,rnti : int,dci_format : int,harq_pid : int,mcs : int,TBS : int,ndi : int,rv : int,rbc : int,nb_rb : int,rb_alloc
 ID = ENB_PHY_DLSCH_UE_ACK
     DESC = eNodeB downlink UE ACK as seen by the PHY layer in process_HARQ_feedback
     GROUP = ALL:PHY:GRAPHIC:ENB
@@ -93,10 +93,22 @@ ID = GNB_PHY_PUCCH_PUSCH_IQ
     DESC = gNodeB input data in the frequency domain for a slot where some PUCCH or PUSCH detection was done
     GROUP = ALL:PHY:GRAPHIC:HEAVY:GNB
     FORMAT = int,frame : int,slot : buffer,rxdataF
+ID = GNB_PHY_UL_FREQ_CHANNEL_ESTIMATE
+    DESC = gNodeB channel estimation in the frequency domain
+    GROUP = ALL:PHY:GRAPHIC:HEAVY:GNB
+    FORMAT = int,gNB_ID : int,rnti : int,frame : int,subframe : int,antenna : buffer,chest_t
+ID = GNB_PHY_UL_TIME_CHANNEL_ESTIMATE
+    DESC = gNodeB channel estimation in the time domain
+    GROUP = ALL:PHY:GRAPHIC:HEAVY:GNB
+    FORMAT = int,gNB_ID : int,rnti : int,frame : int,subframe : int,antenna : buffer,chest_t
 ID = GNB_PHY_PRACH_INPUT_SIGNAL
     DESC = gNodeB input data in the time domain for slots with PRACH detection
     GROUP = ALL:PHY:GRAPHIC:HEAVY:GNB
     FORMAT = int,frame : int,slot : int,antenna : buffer,rxdata
+ID = GNB_PHY_DL_OUTPUT_SIGNAL
+    DESC = gNodeB output data in the freq domain for slots
+    GROUP = ALL:PHY:GRAPHIC:HEAVY:GNB
+    FORMAT = int,gNB_ID : int,frame : int,slot : int,antenna : buffer,txdata
 
 #MAC logs
 ID = ENB_MAC_UE_DL_SDU
@@ -155,6 +167,10 @@ ID = GNB_MAC_DL_RAR_PDU_WITH_DATA
     DESC = NR MAC downlink PDU for RAR
     GROUP = ALL:MAC:GNB:WIRESHARK
     FORMAT = int,gNB_ID : int,CC_id : int,rnti : int,frame : int,slot : int,harq_pid : buffer,data
+ID = GNB_MAC_RETRANSMISSION_DL_PDU_WITH_DATA
+    DESC = NR MAC downlink retransmitted PDU for an UE
+    GROUP = ALL:MAC:GNB:WIRESHARK
+    FORMAT = int,gNB_ID : int,CC_id : int,rnti : int,frame : int,slot : int,harq_pid : int,round : buffer,data
 
 #RLC logs
 ID = ENB_RLC_DL
@@ -659,27 +675,6 @@ ID = LEGACY_MME_APP_TRACE
     GROUP = ALL:LEGACY_MME_APP:LEGACY_GROUP_TRACE:LEGACY
     FORMAT = string,log
 
-ID = LEGACY_FLEXRAN_AGENT_INFO
-    DESC = FLEXRAN_AGENT legacy logs - info level
-    GROUP = ALL:LEGACY_FLEXRAN_AGENT:LEGACY_GROUP_INFO:LEGACY
-    FORMAT = string,log
-ID = LEGACY_FLEXRAN_AGENT_ERROR
-    DESC = FLEXRAN_AGENT legacy logs - error level
-    GROUP = ALL:LEGACY_FLEXRAN_AGENT:LEGACY_GROUP_ERROR:LEGACY
-    FORMAT = string,log
-ID = LEGACY_FLEXRAN_AGENT_WARNING
-    DESC = FLEXRAN_AGENT legacy logs - warning level
-    GROUP = ALL:LEGACY_FLEXRAN_AGENT:LEGACY_GROUP_WARNING:LEGACY
-    FORMAT = string,log
-ID = LEGACY_FLEXRAN_AGENT_DEBUG
-    DESC = FLEXRAN_AGENT legacy logs - debug level
-    GROUP = ALL:LEGACY_FLEXRAN_AGENT:LEGACY_GROUP_DEBUG:LEGACY
-    FORMAT = string,log
-ID = LEGACY_FLEXRAN_AGENT_TRACE
-    DESC = FLEXRAN_AGENT legacy logs - trace level
-    GROUP = ALL:LEGACY_FLEXRAN_AGENT:LEGACY_GROUP_TRACE:LEGACY
-    FORMAT = string,log
-
 ID = LEGACY_SCTP_INFO
     DESC = SCTP legacy logs - info level
     GROUP = ALL:LEGACY_SCTP:LEGACY_GROUP_INFO:LEGACY
@@ -806,27 +801,6 @@ ID = LEGACY_OTG_TRACE
     GROUP = ALL:LEGACY_OTG:LEGACY_GROUP_TRACE:LEGACY
     FORMAT = string,log
 
-ID = LEGACY_OCG_INFO
-    DESC = OCG legacy logs - info level
-    GROUP = ALL:LEGACY_OCG:LEGACY_GROUP_INFO:LEGACY
-    FORMAT = string,log
-ID = LEGACY_OCG_ERROR
-    DESC = OCG legacy logs - error level
-    GROUP = ALL:LEGACY_OCG:LEGACY_GROUP_ERROR:LEGACY
-    FORMAT = string,log
-ID = LEGACY_OCG_WARNING
-    DESC = OCG legacy logs - warning level
-    GROUP = ALL:LEGACY_OCG:LEGACY_GROUP_WARNING:LEGACY
-    FORMAT = string,log
-ID = LEGACY_OCG_DEBUG
-    DESC = OCG legacy logs - debug level
-    GROUP = ALL:LEGACY_OCG:LEGACY_GROUP_DEBUG:LEGACY
-    FORMAT = string,log
-ID = LEGACY_OCG_TRACE
-    DESC = OCG legacy logs - trace level
-    GROUP = ALL:LEGACY_OCG:LEGACY_GROUP_TRACE:LEGACY
-    FORMAT = string,log
-
 ID = LEGACY_OCM_INFO
     DESC = OCM legacy logs - info level
     GROUP = ALL:LEGACY_OCM:LEGACY_GROUP_INFO:LEGACY
@@ -930,6 +904,27 @@ ID = LEGACY_GTPU_DEBUG
 ID = LEGACY_GTPU_TRACE
     DESC = GTPU legacy logs - trace level
     GROUP = ALL:LEGACY_GTPU:LEGACY_GROUP_TRACE:LEGACY
+    FORMAT = string,log
+
+ID = LEGACY_SDAP_INFO
+    DESC = SDAP legacy logs - info level
+    GROUP = ALL:LEGACY_SDAP:LEGACY_GROUP_INFO:LEGACY
+    FORMAT = string,log
+ID = LEGACY_SDAP_ERROR
+    DESC = SDAP legacy logs - error level
+    GROUP = ALL:LEGACY_SDAP:LEGACY_GROUP_ERROR:LEGACY
+    FORMAT = string,log
+ID = LEGACY_SDAP_WARNING
+    DESC = SDAP legacy logs - warning level
+    GROUP = ALL:LEGACY_SDAP:LEGACY_GROUP_WARNING:LEGACY
+    FORMAT = string,log
+ID = LEGACY_SDAP_DEBUG
+    DESC = SDAP legacy logs - debug level
+    GROUP = ALL:LEGACY_SDAP:LEGACY_GROUP_DEBUG:LEGACY
+    FORMAT = string,log
+ID = LEGACY_SDAP_TRACE
+    DESC = SDAP legacy logs - trace level
+    GROUP = ALL:LEGACY_SDAP:LEGACY_GROUP_TRACE:LEGACY
     FORMAT = string,log
 
 ID = LEGACY_TMR_INFO
@@ -1057,6 +1052,48 @@ ID = LEGACY_NFAPI_PNF_TRACE
     DESC = NFAPI_PNF legacy logs - trace level
     GROUP = ALL:LEGACY_NFAPI_PNF:LEGACY_GROUP_TRACE:LEGACY
     FORMAT = string,log
+
+ID = LEGACY_ITTI_INFO
+    DESC = ITTI legacy logs - info level
+    GROUP = ALL:LEGACY_ITTI:LEGACY_GROUP_INFO:LEGACY
+    FORMAT = string,log
+ID = LEGACY_ITTI_ERROR
+    DESC = ITTI legacy logs - error level
+    GROUP = ALL:LEGACY_ITTI:LEGACY_GROUP_ERROR:LEGACY
+    FORMAT = string,log
+ID = LEGACY_ITTI_WARNING
+    DESC = ITTI legacy logs - warning level
+    GROUP = ALL:LEGACY_ITTI:LEGACY_GROUP_WARNING:LEGACY
+    FORMAT = string,log
+ID = LEGACY_ITTI_DEBUG
+    DESC = ITTI legacy logs - debug level
+    GROUP = ALL:LEGACY_ITTI:LEGACY_GROUP_DEBUG:LEGACY
+    FORMAT = string,log
+ID = LEGACY_ITTI_TRACE
+    DESC = ITTI legacy logs - trace level
+    GROUP = ALL:LEGACY_ITTI:LEGACY_GROUP_TRACE:LEGACY
+    FORMAT = string,log
+
+ID = LEGACY_UTIL_INFO
+    DESC = UTIL legacy logs - info level
+    GROUP = ALL:LEGACY_UTIL:LEGACY_GROUP_INFO:LEGACY
+    FORMAT = string,log
+ID = LEGACY_UTIL_ERROR
+    DESC = UTIL legacy logs - error level
+    GROUP = ALL:LEGACY_UTIL:LEGACY_GROUP_ERROR:LEGACY
+    FORMAT = string,log
+ID = LEGACY_UTIL_WARNING
+    DESC = UTIL legacy logs - warning level
+    GROUP = ALL:LEGACY_UTIL:LEGACY_GROUP_WARNING:LEGACY
+    FORMAT = string,log
+ID = LEGACY_UTIL_DEBUG
+    DESC = UTIL legacy logs - debug level
+    GROUP = ALL:LEGACY_UTIL:LEGACY_GROUP_DEBUG:LEGACY
+    FORMAT = string,log
+ID = LEGACY_UTIL_TRACE
+    DESC = UTIL legacy logs - trace level
+    GROUP = ALL:LEGACY_UTIL:LEGACY_GROUP_TRACE:LEGACY
+    FORMAT = string,log
 # this is a bad hack but I won't fix (function util_print_hex_octets
 # in openairinterface5g/openair2/LAYER2/PDCP_v10.1.0/pdcp_util.c
 # does funky things with the LOG_x macros but we work on the C pre-processor
@@ -1104,26 +1141,6 @@ ID = LEGACY_componentP_TRACE
 
 
 
-ID = LEGACY_PROTO_AGENT_DEBUG
-    DESC = PROTO AGENT DEBUG LEVEL
-    GROUP = ALL:LEGACY_PROTO:LEGACY_GROUP_DEBUG:LEGACY
-    FORMAT = string,log
-
-ID = LEGACY_PROTO_AGENT_INFO
-    DESC = PROTO AGENT INFO LEVEL
-    GROUP = ALL:LEGACY_PROTO:LEGACY_GROUP_INFO:LEGACY
-    FORMAT = string,log
-
-ID = LEGACY_PROTO_AGENT_WARNING
-    DESC = PROTO AGENT WARNING LEVEL
-    GROUP = ALL:LEGACY_PROTO:LEGACY_GROUP_WARNING:LEGACY
-    FORMAT = string,log
-
-ID = LEGACY_PROTO_AGENT_ERROR
-    DESC = PROTO AGENT ERROR LEVEL
-    GROUP = ALL:LEGACY_PROTO:LEGACY_GROUP_ERROR:LEGACY
-    FORMAT = string,log
-
 ID = LEGACY_F1U_DEBUG
     DESC = F1U DEBUG LEVEL
     GROUP = ALL:LEGACY_F1U:LEGACY_GROUP_DEBUG:LEGACY
@@ -1158,6 +1175,27 @@ ID = LEGACY_F1AP_WARNING
 ID = LEGACY_F1AP_ERROR
     DESC = F1AP ERROR LEVEL
     GROUP = ALL:LEGACY_F1AP:LEGACY_GROUP_ERROR:LEGACY
+    FORMAT = string,log
+
+ID = LEGACY_E1AP_TRACE
+    DESC = E1AP TRACE LEVEL
+    GROUP = ALL:LEGACY_E1AP:LEGACY_GROUP_TRACE:LEGACY
+    FORMAT = string,log
+ID = LEGACY_E1AP_DEBUG
+    DESC = E1AP DEBUG LEVEL
+    GROUP = ALL:LEGACY_E1AP:LEGACY_GROUP_DEBUG:LEGACY
+    FORMAT = string,log
+ID = LEGACY_E1AP_INFO
+    DESC = E1AP INFO LEVEL
+    GROUP = ALL:LEGACY_E1AP:LEGACY_GROUP_INFO:LEGACY
+    FORMAT = string,log
+ID = LEGACY_E1AP_WARNING
+    DESC = E1AP WARNING LEVEL
+    GROUP = ALL:LEGACY_E1AP:LEGACY_GROUP_WARNING:LEGACY
+    FORMAT = string,log
+ID = LEGACY_E1AP_ERROR
+    DESC = E1AP ERROR LEVEL
+    GROUP = ALL:LEGACY_E1AP:LEGACY_GROUP_ERROR:LEGACY
     FORMAT = string,log
 
 #################
@@ -1209,7 +1247,11 @@ ID = UE_PHY_INPUT_SIGNAL
 ID = UE_PHY_DL_CHANNEL_ESTIMATE
     DESC = UE channel estimation in the time domain
     GROUP = ALL:PHY:GRAPHIC:HEAVY:UE
-    FORMAT = int,eNB_ID : int,frame : int,subframe : int,antenna : buffer,chest_t
+    FORMAT = int,eNB_ID : int,rsc_id : int,frame : int,subframe : int,antenna : buffer,chest_t
+ID = UE_PHY_DL_CHANNEL_ESTIMATE_FREQ
+    DESC = UE channel estimation in the frequency domain
+    GROUP = ALL:PHY:GRAPHIC:HEAVY:UE
+    FORMAT = int,eNB_ID : int,rsc_id : int,frame : int,subframe : int,antenna : buffer,chestF_t
 ID = UE_PHY_PDCCH_IQ
     DESC = UE PDCCH received IQ data
     GROUP = ALL:PHY:GRAPHIC:HEAVY:UE

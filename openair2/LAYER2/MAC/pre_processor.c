@@ -40,8 +40,6 @@
 #include "common/utils/LOG/log.h"
 #include "common/utils/LOG/vcd_signal_dumper.h"
 #include "UTIL/OPT/opt.h"
-#include "OCG.h"
-#include "OCG_extern.h"
 #include "RRC/LTE/rrc_extern.h"
 #include "RRC/L2_INTERFACE/openair_rrc_L2_interface.h"
 #include "rlc.h"
@@ -402,13 +400,11 @@ int pf_wbcqi_dl_run(module_id_t Mod_id,
 
   return n_rbg_sched;
 }
-default_sched_dl_algo_t proportional_fair_wbcqi_dl = {
-  .name  = "proportional_fair_wbcqi_dl",
-  .setup = pf_dl_setup,
-  .unset = pf_dl_unset,
-  .run   = pf_wbcqi_dl_run,
-  .data  = NULL
-};
+const default_sched_dl_algo_t proportional_fair_wbcqi_dl = {.name = "proportional_fair_wbcqi_dl",
+                                                            .setup = pf_dl_setup,
+                                                            .unset = pf_dl_unset,
+                                                            .run = pf_wbcqi_dl_run,
+                                                            .data = NULL};
 
 void *mt_dl_setup(void) {
   return NULL;
@@ -515,13 +511,11 @@ int mt_wbcqi_dl_run(module_id_t Mod_id,
 
   return n_rbg_sched;
 }
-default_sched_dl_algo_t maximum_throughput_wbcqi_dl = {
-  .name  = "maximum_throughput_wbcqi_dl",
-  .setup = mt_dl_setup,
-  .unset = mt_dl_unset,
-  .run   = mt_wbcqi_dl_run,
-  .data  = NULL
-};
+const default_sched_dl_algo_t maximum_throughput_wbcqi_dl = {.name = "maximum_throughput_wbcqi_dl",
+                                                             .setup = mt_dl_setup,
+                                                             .unset = mt_dl_unset,
+                                                             .run = mt_wbcqi_dl_run,
+                                                             .data = NULL};
 
 // This function stores the downlink buffer for all the logical channels
 void
@@ -638,7 +632,7 @@ dlsch_scheduler_pre_processor(module_id_t Mod_id,
       LOG_E(MAC, "UE %d has RNTI NOT_A_RNTI!\n", UE_id);
       continue;
     }
-    if (UE_info->active[UE_id] != TRUE) {
+    if (UE_info->active[UE_id] != true) {
       LOG_E(MAC, "UE %d RNTI %x is NOT active!\n", UE_id, rnti);
       continue;
     }
@@ -806,6 +800,7 @@ void rr_ul_unset(void **data) {
     free(*data);
   *data = NULL;
 }
+#define MAX(a, b) (((a)>(b))?(a):(b))
 int rr_ul_run(module_id_t Mod_id,
               int CC_id,
               int frame,

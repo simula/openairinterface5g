@@ -55,18 +55,17 @@
 #include <unistd.h>
 
 #include "common_lib.h"
-#include "msc.h"
 #include "defs_common.h"
 #include "defs_RU.h"
 #include "impl_defs_top.h"
-#include "PHY/TOOLS/time_meas.h"
+#include "time_meas.h"
 //#include "PHY/CODING/coding_defs.h"
 #include "PHY/TOOLS/tools_defs.h"
 #include "platform_types.h"
 #include "PHY/LTE_TRANSPORT/transport_common.h"
 #include "PHY/LTE_TRANSPORT/transport_eNB.h"
 #include "openair2/PHY_INTERFACE/IF_Module.h"
-#include "openairinterface5g_limits.h"
+#include "common/openairinterface5g_limits.h"
 
 
 #define PBCH_A 24
@@ -183,9 +182,6 @@ typedef struct {
 
 typedef struct {
   /// \brief ?.
-  /// first index: ? [0..1023] (hard coded)
-  int16_t *prachF;
-  /// \brief ?.
   /// first index: ce_level [0..3]
   /// second index: rx antenna [0..63] (hard coded) \note Hard coded array size indexed by \c nb_antennas_rx.
   /// third index: frequency-domain sample [0..ofdm_symbol_size*12[
@@ -203,7 +199,7 @@ typedef struct {
   int repetition_number[4];
 } LTE_eNB_PRACH;
 
-#include "PHY/TOOLS/time_meas.h"
+#include "time_meas.h"
 #include "PHY/CODING/coding_defs.h"
 #include "PHY/TOOLS/tools_defs.h"
 #include "PHY/LTE_TRANSPORT/transport_eNB.h"
@@ -257,11 +253,9 @@ typedef struct {
   /// mutex for RXn-TXnp4 processing thread
   pthread_mutex_t mutex_RUs;
   tpool_t *threadPool;
-  int nbEncode;
   int nbDecode;
-  notifiedFIFO_t *respEncode;
   notifiedFIFO_t *respDecode;
-    pthread_mutex_t mutex_emulateRF;
+  pthread_mutex_t mutex_emulateRF;
   int instance_cnt_emulateRF;
   pthread_t pthread_emulateRF;
   pthread_attr_t attr_emulateRF;
@@ -735,11 +729,6 @@ typedef struct PHY_VARS_eNB_s {
   time_stats_t dlsch_turbo_encoding_preperation_stats;
   time_stats_t dlsch_turbo_encoding_segmentation_stats;
   time_stats_t dlsch_turbo_encoding_stats;
-  time_stats_t dlsch_turbo_encoding_waiting_stats;
-  time_stats_t dlsch_turbo_encoding_signal_stats;
-  time_stats_t dlsch_turbo_encoding_main_stats;
-  time_stats_t dlsch_turbo_encoding_wakeup_stats0;
-  time_stats_t dlsch_turbo_encoding_wakeup_stats1;
   time_stats_t dlsch_interleaving_stats;
 
   time_stats_t rx_dft_stats;
@@ -770,7 +759,6 @@ typedef struct PHY_VARS_eNB_s {
   int32_t pusch_stats_mcs[NUMBER_OF_UE_MAX][10240];
   int32_t pusch_stats_bsr[NUMBER_OF_UE_MAX][10240];
   int32_t pusch_stats_BO[NUMBER_OF_UE_MAX][10240];
-  uint8_t *FS6bufferZone;
   int32_t pusch_signal_threshold;
 } PHY_VARS_eNB;
 

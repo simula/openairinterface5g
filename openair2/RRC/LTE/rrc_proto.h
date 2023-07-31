@@ -31,9 +31,10 @@
  *  @{
  */
 
+#pragma once
+
 #include "RRC/LTE/rrc_defs.h"
 #include "x2ap_messages_types.h"
-#include "flexran_agent_extern.h"
 
 //main.c
 int rrc_init_global_param(void);
@@ -103,6 +104,7 @@ rrc_ue_decode_dcch(
   const protocol_ctxt_t *const ctxt_pP,
   const rb_id_t                Srb_id,
   const uint8_t         *const Buffer,
+  const uint32_t               Buffer_size,
   const uint8_t                eNB_indexP
 );
 
@@ -301,15 +303,10 @@ rrc_eNB_generate_defaultRRCConnectionReconfiguration(
 
 
 void
-flexran_rrc_eNB_generate_defaultRRCConnectionReconfiguration(
-  const protocol_ctxt_t *const ctxt_pP,
-  rrc_eNB_ue_context_t *const ue_context_pP,
-  const uint8_t ho_state
-);
-void
 rrc_eNB_generate_HO_RRCConnectionReconfiguration(const protocol_ctxt_t *const ctxt_pP,
     rrc_eNB_ue_context_t  *const ue_context_pP,
     uint8_t               *buffer,
+    size_t                 buffer_size,
     int                    *_size
     //const uint8_t        ho_state
                                                 );
@@ -353,6 +350,12 @@ void *rrc_enb_task(void *args_p);
 /**\brief RRC UE task.
    \param void *args_p Pointer on arguments to start the task. */
 void *rrc_ue_task(void *args_p);
+
+/**\brief RRC NSA UE task.
+   \param void *args_p Pointer on arguments to start the task. */
+void *recv_msgs_from_nr_ue(void *args_p);
+
+void init_connections_with_nr_ue(void);
 
 void rrc_eNB_process_x2_setup_request(int mod_id, x2ap_setup_req_t *m);
 
@@ -447,7 +450,7 @@ mac_rrc_data_ind(
   const uint8_t        *sduP,
   const sdu_size_t      sdu_lenP,
   const uint8_t         mbsfn_sync_areaP,
-  const boolean_t   brOption
+  const bool            brOption
 );
 
 int8_t
@@ -614,11 +617,6 @@ rrc_eNB_generate_HandoverPreparationInformation(
   //LTE_PhysCellId_t targetPhyId
 );
 
-int
-flexran_rrc_eNB_trigger_handover (int mod_id,
-                                  const protocol_ctxt_t *const ctxt_pP,
-                                  rrc_eNB_ue_context_t  *ue_context_pP,
-                                  int target_cell_id);
 
 void
 check_handovers(
@@ -657,9 +655,9 @@ rrc_eNB_free_UE(
   const struct rrc_eNB_ue_context_s         *const ue_context_pP
 );
 
-long binary_search_int(int elements[], long numElem, int value);
+long binary_search_int(const int elements[], long numElem, int value);
 
-long binary_search_float(float elements[], long numElem, float value);
+long binary_search_float(const float elements[], long numElem, float value);
 
 void openair_rrc_top_init_eNB(int eMBMS_active,uint8_t HO_active);
 
@@ -675,7 +673,7 @@ extern RRC_release_list_t   rrc_release_info;
 extern pthread_mutex_t      lock_ue_freelist;
 
 void remove_UE_from_freelist(module_id_t mod_id, rnti_t rnti);
-void put_UE_in_freelist(module_id_t mod_id, rnti_t rnti, boolean_t removeFlag);
+void put_UE_in_freelist(module_id_t mod_id, rnti_t rnti, bool removeFlag);
 void release_UE_in_freeList(module_id_t mod_id);
 
 /** @}*/

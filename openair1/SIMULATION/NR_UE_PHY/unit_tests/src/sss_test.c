@@ -181,7 +181,7 @@ int main(int argc, char *argv[])
   uint8_t nb_antennas_tx = 1;
   uint8_t nb_antennas_rx = 1;
   uint8_t frame_type = FDD;
-  uint8_t N_RB_DL=100;
+  int N_RB_DL=100;
   lte_prefix_type_t extended_prefix_flag = NORMAL;
   int phase;
   int Nid1, Nid2;
@@ -227,10 +227,10 @@ int main(int argc, char *argv[])
 
     Nid2 = GET_NID2(Nid_cell[index]);
     Nid1 = GET_NID1(Nid_cell[index]);
-
+    int nid_2_num = get_softmodem_params()->sl_mode == 0 ? N_ID_2_NUMBER : N_ID_2_NUMBER_SL;
     for (int position = 0; position < size_test_position; position++) {
 
-      PHY_vars_UE->frame_parms.Nid_cell = (3 * N_ID_1_NUMBER) + N_ID_2_NUMBER; /* set to invalid value */
+      PHY_vars_UE->frame_parms.Nid_cell = (3 * N_ID_1_NUMBER) + nid_2_num; /* set to invalid value */
 
       phase = (*p_test_synchro_pss_sss)(PHY_vars_UE, test_position[position], &frame_parms_gNB, &test); /* return phase index which gives phase error from an array */
 

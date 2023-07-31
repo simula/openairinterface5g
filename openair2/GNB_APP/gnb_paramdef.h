@@ -34,6 +34,7 @@
 #define __GNB_APP_GNB_PARAMDEF__H__
 
 #include "common/config/config_paramdesc.h"
+#include "common/ngran_types.h"
 #include "RRC_nr_paramsvalues.h"
 
 
@@ -87,8 +88,8 @@ typedef enum {
 /*   optname                                   helpstr   paramflags    XXXptr        defXXXval                                        type           numelt     */
 /*--------------------------------------------------------------------------------------------------------------------------------------------------------------*/
 #define GNBSPARAMS_DESC {                                                                                             \
-{GNB_CONFIG_STRING_ASN1_VERBOSITY,             NULL,     0,        uptr:NULL,   defstrval:GNB_CONFIG_STRING_ASN1_VERBOSITY_NONE,   TYPE_STRING,      0},   \
-{GNB_CONFIG_STRING_ACTIVE_GNBS,                NULL,     0,        uptr:NULL,   defstrval:NULL, 				   TYPE_STRINGLIST,  0}    \
+{GNB_CONFIG_STRING_ASN1_VERBOSITY,             NULL,     0,       .uptr=NULL,   .defstrval=GNB_CONFIG_STRING_ASN1_VERBOSITY_NONE,   TYPE_STRING,      0},   \
+{GNB_CONFIG_STRING_ACTIVE_GNBS,                NULL,     0,       .uptr=NULL,   .defstrval=NULL, 				   TYPE_STRINGLIST,  0}    \
 }
 
 #define GNB_ASN1_VERBOSITY_IDX                     0
@@ -113,39 +114,58 @@ typedef enum {
 #define GNB_CONFIG_STRING_REMOTE_S_PORTC                "remote_s_portc"
 #define GNB_CONFIG_STRING_LOCAL_S_PORTD                 "local_s_portd"
 #define GNB_CONFIG_STRING_REMOTE_S_PORTD                "remote_s_portd"
-#define GNB_CONFIG_STRING_SSBSUBCARRIEROFFSET           "ssb_SubcarrierOffset"
-#define GNB_CONFIG_STRING_PDSCHANTENNAPORTS             "pdsch_AntennaPorts"
+#define GNB_CONFIG_STRING_PDSCHANTENNAPORTS_N1          "pdsch_AntennaPorts_N1"
+#define GNB_CONFIG_STRING_PDSCHANTENNAPORTS_N2          "pdsch_AntennaPorts_N2"
+#define GNB_CONFIG_STRING_PDSCHANTENNAPORTS_XP          "pdsch_AntennaPorts_XP"
 #define GNB_CONFIG_STRING_PUSCHANTENNAPORTS             "pusch_AntennaPorts"
 #define GNB_CONFIG_STRING_SIB1TDA                       "sib1_tda"
 #define GNB_CONFIG_STRING_DOCSIRS                       "do_CSIRS"
+#define GNB_CONFIG_STRING_DOSRS                         "do_SRS"
 #define GNB_CONFIG_STRING_NRCELLID                      "nr_cellid"
+#define GNB_CONFIG_STRING_MINRXTXTIME                   "min_rxtxtime"
+#define GNB_CONFIG_STRING_ULPRBBLACKLIST                "ul_prbblacklist"
+#define GNB_CONFIG_STRING_UMONDEFAULTDRB                "um_on_default_drb"
+#define GNB_CONFIG_STRING_FORCE256QAMOFF                "force_256qam_off"
+#define GNB_CONFIG_STRING_ENABLE_SDAP                   "enable_sdap"
+#define GNB_CONFIG_HLP_STRING_ENABLE_SDAP               "enable the SDAP layer\n"
+#define GNB_CONFIG_HLP_FORCE256QAMOFF                   "suppress activation of 256 QAM despite UE support"
+#define GNB_CONFIG_STRING_DRBS                          "drbs"
+#define GNB_CONFIG_HLP_STRING_DRBS                      "Number of total DRBs to establish, including the mandatory for PDU SEssion (default=1)\n"
 
 /*-----------------------------------------------------------------------------------------------------------------------------------------*/
 /*                                            cell configuration parameters                                                                */
 /*   optname                                   helpstr   paramflags    XXXptr        defXXXval                   type           numelt     */
 /*-----------------------------------------------------------------------------------------------------------------------------------------*/
 #define GNBPARAMS_DESC {\
-{GNB_CONFIG_STRING_GNB_ID,                       NULL,   0,            uptr:NULL,   defintval:0,                 TYPE_UINT,      0},  \
-{GNB_CONFIG_STRING_CELL_TYPE,                    NULL,   0,            strptr:NULL, defstrval:"CELL_MACRO_GNB",  TYPE_STRING,    0},  \
-{GNB_CONFIG_STRING_GNB_NAME,                     NULL,   0,            strptr:NULL, defstrval:"OAIgNodeB",       TYPE_STRING,    0},  \
-{GNB_CONFIG_STRING_TRACKING_AREA_CODE,           NULL,   0,            uptr:NULL,   defuintval:0,                TYPE_UINT,      0},  \
-{GNB_CONFIG_STRING_MOBILE_COUNTRY_CODE_OLD,      NULL,   0,            strptr:NULL, defstrval:NULL,              TYPE_STRING,    0},  \
-{GNB_CONFIG_STRING_MOBILE_NETWORK_CODE_OLD,      NULL,   0,            strptr:NULL, defstrval:NULL,              TYPE_STRING,    0},  \
-{GNB_CONFIG_STRING_TRANSPORT_S_PREFERENCE,       NULL,   0,            strptr:NULL, defstrval:"local_mac",       TYPE_STRING,    0},  \
-{GNB_CONFIG_STRING_LOCAL_S_IF_NAME,              NULL,   0,            strptr:NULL, defstrval:"lo",              TYPE_STRING,    0},  \
-{GNB_CONFIG_STRING_LOCAL_S_ADDRESS,              NULL,   0,            strptr:NULL, defstrval:"127.0.0.1",       TYPE_STRING,    0},  \
-{GNB_CONFIG_STRING_REMOTE_S_ADDRESS,             NULL,   0,            strptr:NULL, defstrval:"127.0.0.2",       TYPE_STRING,    0},  \
-{GNB_CONFIG_STRING_LOCAL_S_PORTC,                NULL,   0,            uptr:NULL,   defuintval:50000,            TYPE_UINT,      0},  \
-{GNB_CONFIG_STRING_REMOTE_S_PORTC,               NULL,   0,            uptr:NULL,   defuintval:50000,            TYPE_UINT,      0},  \
-{GNB_CONFIG_STRING_LOCAL_S_PORTD,                NULL,   0,            uptr:NULL,   defuintval:50001,            TYPE_UINT,      0},  \
-{GNB_CONFIG_STRING_REMOTE_S_PORTD,               NULL,   0,            uptr:NULL,   defuintval:50001,            TYPE_UINT,      0},  \
-{GNB_CONFIG_STRING_SSBSUBCARRIEROFFSET,          NULL,   0,            iptr:NULL,   defintval:31,                TYPE_INT,       0},  \
-{GNB_CONFIG_STRING_PDSCHANTENNAPORTS,            NULL,   0,            iptr:NULL,   defintval:1,                 TYPE_INT,       0},  \
-{GNB_CONFIG_STRING_PUSCHANTENNAPORTS,            NULL,   0,            iptr:NULL,   defintval:1,                 TYPE_INT,       0},  \
-{GNB_CONFIG_STRING_SIB1TDA,                      NULL,   0,            iptr:NULL,   defintval:0,                 TYPE_INT,       0},  \
-{GNB_CONFIG_STRING_DOCSIRS,                      NULL,   0,            iptr:NULL,   defintval:0,                 TYPE_INT,       0},  \
-{GNB_CONFIG_STRING_NRCELLID,                     NULL,   0,            u64ptr:NULL, defint64val:1,               TYPE_UINT64,    0},  \
-}															     	
+{GNB_CONFIG_STRING_GNB_ID,                       NULL,   0,           .uptr=NULL,   .defintval=0,                 TYPE_UINT,      0},  \
+{GNB_CONFIG_STRING_CELL_TYPE,                    NULL,   0,           .strptr=NULL, .defstrval="CELL_MACRO_GNB",  TYPE_STRING,    0},  \
+{GNB_CONFIG_STRING_GNB_NAME,                     NULL,   0,           .strptr=NULL, .defstrval="OAIgNodeB",       TYPE_STRING,    0},  \
+{GNB_CONFIG_STRING_TRACKING_AREA_CODE,           NULL,   0,           .uptr=NULL,   .defuintval=0,                TYPE_UINT,      0},  \
+{GNB_CONFIG_STRING_MOBILE_COUNTRY_CODE_OLD,      NULL,   0,           .strptr=NULL, .defstrval=NULL,              TYPE_STRING,    0},  \
+{GNB_CONFIG_STRING_MOBILE_NETWORK_CODE_OLD,      NULL,   0,           .strptr=NULL, .defstrval=NULL,              TYPE_STRING,    0},  \
+{GNB_CONFIG_STRING_TRANSPORT_S_PREFERENCE,       NULL,   0,           .strptr=NULL, .defstrval="local_mac",       TYPE_STRING,    0},  \
+{GNB_CONFIG_STRING_LOCAL_S_IF_NAME,              NULL,   0,           .strptr=NULL, .defstrval="lo",              TYPE_STRING,    0},  \
+{GNB_CONFIG_STRING_LOCAL_S_ADDRESS,              NULL,   0,           .strptr=NULL, .defstrval="127.0.0.1",       TYPE_STRING,    0},  \
+{GNB_CONFIG_STRING_REMOTE_S_ADDRESS,             NULL,   0,           .strptr=NULL, .defstrval="127.0.0.2",       TYPE_STRING,    0},  \
+{GNB_CONFIG_STRING_LOCAL_S_PORTC,                NULL,   0,           .uptr=NULL,   .defuintval=50000,            TYPE_UINT,      0},  \
+{GNB_CONFIG_STRING_REMOTE_S_PORTC,               NULL,   0,           .uptr=NULL,   .defuintval=50000,            TYPE_UINT,      0},  \
+{GNB_CONFIG_STRING_LOCAL_S_PORTD,                NULL,   0,           .uptr=NULL,   .defuintval=50001,            TYPE_UINT,      0},  \
+{GNB_CONFIG_STRING_REMOTE_S_PORTD,               NULL,   0,           .uptr=NULL,   .defuintval=50001,            TYPE_UINT,      0},  \
+{GNB_CONFIG_STRING_PDSCHANTENNAPORTS_N1, "horiz. log. antenna ports", 0,.iptr=NULL, .defintval=1,                 TYPE_INT,       0},  \
+{GNB_CONFIG_STRING_PDSCHANTENNAPORTS_N2, "vert. log. antenna ports", 0, .iptr=NULL, .defintval=1,                 TYPE_INT,       0},  \
+{GNB_CONFIG_STRING_PDSCHANTENNAPORTS_XP, "XP log. antenna ports",   0, .iptr=NULL,  .defintval=1,                 TYPE_INT,       0},  \
+{GNB_CONFIG_STRING_PUSCHANTENNAPORTS,            NULL,   0,            .iptr=NULL,  .defintval=1,                 TYPE_INT,       0},  \
+{GNB_CONFIG_STRING_SIB1TDA,                      NULL,   0,            .iptr=NULL,  .defintval=1,                 TYPE_INT,       0},  \
+{GNB_CONFIG_STRING_DOCSIRS,                      NULL,   0,            .iptr=NULL,  .defintval=0,                 TYPE_INT,       0},  \
+{GNB_CONFIG_STRING_DOSRS,                        NULL,   0,            .iptr=NULL,  .defintval=0,                 TYPE_INT,       0},  \
+{GNB_CONFIG_STRING_NRCELLID,                     NULL,   0,            .u64ptr=NULL,.defint64val=1,               TYPE_UINT64,    0},  \
+{GNB_CONFIG_STRING_MINRXTXTIME,                  NULL,   0,            .iptr=NULL,  .defintval=2,                 TYPE_INT,       0},  \
+{GNB_CONFIG_STRING_ULPRBBLACKLIST,               NULL,   0,            .strptr=NULL,.defstrval="",                TYPE_STRING,    0},  \
+{GNB_CONFIG_STRING_UMONDEFAULTDRB,               NULL,   0,            .uptr=NULL,  .defuintval=0,                TYPE_UINT,      0},  \
+{GNB_CONFIG_STRING_FORCE256QAMOFF, GNB_CONFIG_HLP_FORCE256QAMOFF, PARAMFLAG_BOOL, .iptr=NULL, .defintval=0,        TYPE_INT,       0},  \
+{GNB_CONFIG_STRING_ENABLE_SDAP, GNB_CONFIG_HLP_STRING_ENABLE_SDAP, PARAMFLAG_BOOL,.iptr=NULL, .defintval=0,       TYPE_INT,       0},  \
+{GNB_CONFIG_STRING_DRBS, GNB_CONFIG_HLP_STRING_DRBS,     0,            .iptr=NULL,  .defintval=1,                 TYPE_INT,       0},  \
+}
 
 #define GNB_GNB_ID_IDX                  0
 #define GNB_CELL_TYPE_IDX               1
@@ -161,12 +181,20 @@ typedef enum {
 #define GNB_REMOTE_S_PORTC_IDX          11
 #define GNB_LOCAL_S_PORTD_IDX           12
 #define GNB_REMOTE_S_PORTD_IDX          13
-#define GNB_SSB_SUBCARRIEROFFSET_IDX    14
-#define GNB_PDSCH_ANTENNAPORTS_IDX      15
-#define GNB_PUSCH_ANTENNAPORTS_IDX      16
-#define GNB_SIB1_TDA_IDX                17
-#define GNB_DO_CSIRS_IDX                18
-#define GNB_NRCELLID_IDX                19
+#define GNB_PDSCH_ANTENNAPORTS_N1_IDX   14
+#define GNB_PDSCH_ANTENNAPORTS_N2_IDX   15
+#define GNB_PDSCH_ANTENNAPORTS_XP_IDX   16
+#define GNB_PUSCH_ANTENNAPORTS_IDX      17
+#define GNB_SIB1_TDA_IDX                18
+#define GNB_DO_CSIRS_IDX                19
+#define GNB_DO_SRS_IDX                  20
+#define GNB_NRCELLID_IDX                21
+#define GNB_MINRXTXTIME_IDX             22
+#define GNB_ULPRBBLACKLIST_IDX          23
+#define GNB_UMONDEFAULTDRB_IDX          24
+#define GNB_FORCE256QAMOFF_IDX          25
+#define GNB_ENABLE_SDAP_IDX             26
+#define GNB_DRBS                        27
 
 #define TRACKING_AREA_CODE_OKRANGE {0x0001,0xFFFD}
 #define GNBPARAMS_CHECK {                                         \
@@ -203,9 +231,9 @@ typedef enum {
 
 #define GNBPLMNPARAMS_DESC {                                                                  \
 /*   optname                              helpstr               paramflags XXXptr     def val          type    numelt */ \
-  {GNB_CONFIG_STRING_MOBILE_COUNTRY_CODE, "mobile country code",        0, uptr:NULL, defuintval:1000, TYPE_UINT, 0},    \
-  {GNB_CONFIG_STRING_MOBILE_NETWORK_CODE, "mobile network code",        0, uptr:NULL, defuintval:1000, TYPE_UINT, 0},    \
-  {GNB_CONFIG_STRING_MNC_DIGIT_LENGTH,    "length of the MNC (2 or 3)", 0, uptr:NULL, defuintval:0,    TYPE_UINT, 0},    \
+  {GNB_CONFIG_STRING_MOBILE_COUNTRY_CODE, "mobile country code",        0, .uptr=NULL, .defuintval=1000, TYPE_UINT, 0},    \
+  {GNB_CONFIG_STRING_MOBILE_NETWORK_CODE, "mobile network code",        0, .uptr=NULL, .defuintval=1000, TYPE_UINT, 0},    \
+  {GNB_CONFIG_STRING_MNC_DIGIT_LENGTH,    "length of the MNC (2 or 3)", 0, .uptr=NULL, .defuintval=0,    TYPE_UINT, 0},    \
 }
 
 #define MCC_MNC_OKRANGES           {0,999}
@@ -222,23 +250,24 @@ typedef enum {
 
 #define GNB_CONFIG_STRING_SNSSAI_LIST                   "snssaiList"
 
-#define GNB_CONFIG_STRING_SLICE_SERIVE_TYPE             "sst"
+#define GNB_CONFIG_STRING_SLICE_SERVICE_TYPE            "sst"
 #define GNB_CONFIG_STRING_SLICE_DIFFERENTIATOR          "sd"
 
-#define GNB_SLICE_SERIVE_TYPE_IDX        0
+#define GNB_SLICE_SERVICE_TYPE_IDX       0
 #define GNB_SLICE_DIFFERENTIATOR_IDX     1
 
 #define GNBSNSSAIPARAMS_DESC {                                                                  \
-/*   optname                               helpstr                 paramflags XXXptr     def val          type    numelt */ \
-  {GNB_CONFIG_STRING_SLICE_SERIVE_TYPE,    "slice serive type",            0, uptr:NULL, defuintval:1,    TYPE_UINT, 0},    \
-  {GNB_CONFIG_STRING_SLICE_DIFFERENTIATOR, "slice differentiator",         0, uptr:NULL, defuintval:0,    TYPE_UINT, 0},    \
+/*   optname                               helpstr                 paramflags XXXptr     def val              type    numelt */ \
+  {GNB_CONFIG_STRING_SLICE_SERVICE_TYPE,   "slice service type",           0, .uptr=NULL, .defuintval=1,        TYPE_UINT, 0},    \
+  {GNB_CONFIG_STRING_SLICE_DIFFERENTIATOR, "slice differentiator",         0, .uptr=NULL, .defuintval=0xffffff, TYPE_UINT, 0},   \
 }
 
-#define SLICE_SERIVE_TYPE_OKRANGES           {1,2,3,4}
+#define SLICE_SERVICE_TYPE_OKRANGE        {0, 255}
+#define SLICE_DIFFERENTIATOR_TYPE_OKRANGE {0, 0xffffff}
 
 #define SNSSAIPARAMS_CHECK {                                           \
-  { .s1 = { config_check_intval, SLICE_SERIVE_TYPE_OKRANGES, 4 } },             \
-  { .s5 = { NULL } },             \
+  { .s2 = { config_check_intrange, SLICE_SERVICE_TYPE_OKRANGE } },        \
+  { .s2 = { config_check_intrange, SLICE_DIFFERENTIATOR_TYPE_OKRANGE } }, \
 }
 
 /* AMF configuration parameters section name */
@@ -259,10 +288,10 @@ typedef enum {
 /*   optname                                          helpstr   paramflags    XXXptr       defXXXval         type           numelt     */
 /*-------------------------------------------------------------------------------------------------------------------------------------*/
 #define GNBNGPARAMS_DESC {  \
-{GNB_CONFIG_STRING_AMF_IPV4_ADDRESS,                   NULL,      0,         uptr:NULL,   defstrval:NULL,   TYPE_STRING,   0},          \
-{GNB_CONFIG_STRING_AMF_IPV6_ADDRESS,                   NULL,      0,         uptr:NULL,   defstrval:NULL,   TYPE_STRING,   0},          \
-{GNB_CONFIG_STRING_AMF_IP_ADDRESS_ACTIVE,              NULL,      0,         uptr:NULL,   defstrval:NULL,   TYPE_STRING,   0},          \
-{GNB_CONFIG_STRING_AMF_IP_ADDRESS_PREFERENCE,          NULL,      0,         uptr:NULL,   defstrval:NULL,   TYPE_STRING,   0},          \
+{GNB_CONFIG_STRING_AMF_IPV4_ADDRESS,                   NULL,      0,         .uptr=NULL,   .defstrval=NULL,   TYPE_STRING,   0},          \
+{GNB_CONFIG_STRING_AMF_IPV6_ADDRESS,                   NULL,      0,         .uptr=NULL,   .defstrval=NULL,   TYPE_STRING,   0},          \
+{GNB_CONFIG_STRING_AMF_IP_ADDRESS_ACTIVE,              NULL,      0,         .uptr=NULL,   .defstrval=NULL,   TYPE_STRING,   0},          \
+{GNB_CONFIG_STRING_AMF_IP_ADDRESS_PREFERENCE,          NULL,      0,         .uptr=NULL,   .defstrval=NULL,   TYPE_STRING,   0},          \
 }
 
 #define GNB_AMF_IPV4_ADDRESS_IDX          0
@@ -286,8 +315,8 @@ typedef enum {
 /*   optname                                          helpstr   paramflags    XXXptr                             defXXXval         type           numelt     */
 /*-----------------------------------------------------------------------------------------------------------------------------------------------------------*/
 #define GNBSCTPPARAMS_DESC {  \
-{GNB_CONFIG_STRING_SCTP_INSTREAMS,                       NULL,   0,   uptr:NULL,   defintval:-1,    TYPE_UINT,   0},       \
-{GNB_CONFIG_STRING_SCTP_OUTSTREAMS,                      NULL,   0,   uptr:NULL,   defintval:-1,    TYPE_UINT,   0}        \
+{GNB_CONFIG_STRING_SCTP_INSTREAMS,                       NULL,   0,   .uptr=NULL,   .defintval=-1,    TYPE_UINT,   0},       \
+{GNB_CONFIG_STRING_SCTP_OUTSTREAMS,                      NULL,   0,   .uptr=NULL,   .defintval=-1,    TYPE_UINT,   0}        \
 }
 
 #define GNB_SCTP_INSTREAMS_IDX          0
@@ -327,65 +356,45 @@ typedef enum {
 /*   optname                                            helpstr   paramflags    XXXptr              defXXXval             type           numelt     */
 /*--------------------------------------------------------------------------------------------------------------------------------------------------*/
 #define GNBNETPARAMS_DESC {  \
-{GNB_CONFIG_STRING_GNB_INTERFACE_NAME_FOR_NG_AMF,        NULL,      0,         strptr:NULL,         defstrval:NULL,      TYPE_STRING,      0},      \
-{GNB_CONFIG_STRING_GNB_IPV4_ADDRESS_FOR_NG_AMF,          NULL,      0,         strptr:NULL,         defstrval:NULL,      TYPE_STRING,      0},      \
-{GNB_CONFIG_STRING_GNB_INTERFACE_NAME_FOR_NGU,           NULL,      0,         strptr:NULL,         defstrval:NULL,      TYPE_STRING,      0},      \
-{GNB_CONFIG_STRING_GNB_IPV4_ADDR_FOR_NGU,                NULL,      0,         strptr:NULL,         defstrval:NULL,      TYPE_STRING,      0},      \
-{GNB_CONFIG_STRING_GNB_PORT_FOR_NGU,                     NULL,      0,         uptr:NULL,           defintval:2152L,     TYPE_UINT,        0},      \
-{GNB_CONFIG_STRING_ENB_IPV4_ADDR_FOR_X2C,                NULL,      0,         strptr:NULL,         defstrval:NULL,      TYPE_STRING,      0},      \
-{GNB_CONFIG_STRING_ENB_PORT_FOR_X2C,                     NULL,      0,         uptr:NULL,           defintval:0L,        TYPE_UINT,        0}      \
-}   
-
-
-
-/*--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/
-/*                                            GTPU  configuration parameters                                                                                                      */
-/*   optname                                            helpstr   paramflags    XXXptr              defXXXval                                           type           numelt     */
-/*--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/
-#define GNBGTPUPARAMS_DESC { \
-{GNB_CONFIG_STRING_GNB_INTERFACE_NAME_FOR_NGU,           NULL,    0,            strptr:&gnb_interface_name_for_NGU,      defstrval:"lo",                TYPE_STRING,   0},        \
-{GNB_CONFIG_STRING_GNB_IPV4_ADDR_FOR_NGU,                NULL,    0,            strptr:&gnb_ipv4_address_for_NGU,        defstrval:"127.0.0.1",         TYPE_STRING,   0},        \
-{GNB_CONFIG_STRING_GNB_PORT_FOR_NGU,                     NULL,    0,            uptr:&gnb_port_for_NGU,                  defintval:2152,                TYPE_UINT,     0},        \
-{GNB_CONFIG_STRING_GNB_INTERFACE_NAME_FOR_S1U,           NULL,    0,            strptr:&gnb_interface_name_for_S1U,      defstrval:"lo",                TYPE_STRING,   0},        \
-{GNB_CONFIG_STRING_GNB_IPV4_ADDRESS_FOR_S1U,             NULL,    0,            strptr:&gnb_ipv4_address_for_S1U,        defstrval:"127.0.0.1",         TYPE_STRING,   0},        \
-{GNB_CONFIG_STRING_GNB_PORT_FOR_S1U,                     NULL,    0,            uptr:&gnb_port_for_S1U,                  defintval:2152,                TYPE_UINT,     0}         \
-}
+    {GNB_CONFIG_STRING_GNB_INTERFACE_NAME_FOR_NG_AMF,        NULL,      0,        .strptr=NULL,        .defstrval=NULL,       TYPE_STRING,      0}, \
+      {GNB_CONFIG_STRING_GNB_IPV4_ADDRESS_FOR_NG_AMF,        NULL,      0,        .strptr=NULL,        .defstrval=NULL,      TYPE_STRING,      0}, \
+      {GNB_CONFIG_STRING_GNB_INTERFACE_NAME_FOR_NGU,         NULL,      0,        .strptr=NULL,        .defstrval=NULL,      TYPE_STRING,      0}, \
+      {GNB_CONFIG_STRING_GNB_IPV4_ADDR_FOR_NGU,              NULL,      0,        .strptr=&gnb_ipv4_address_for_NGU, .defstrval="127.0.0.1",TYPE_STRING,   0},	\
+      {GNB_CONFIG_STRING_GNB_PORT_FOR_NGU,                   NULL,      0,        .uptr=&gnb_port_for_NGU,           .defintval=2152L,      TYPE_UINT,     0},	\
+      {GNB_CONFIG_STRING_ENB_IPV4_ADDR_FOR_X2C,              NULL,      0,        .strptr=NULL,                      .defstrval=NULL,       TYPE_STRING,   0},	\
+      {GNB_CONFIG_STRING_ENB_PORT_FOR_X2C,                   NULL,      0,        .uptr=NULL,                        .defintval=0L,         TYPE_UINT,     0}, \
+      {GNB_CONFIG_STRING_GNB_INTERFACE_NAME_FOR_S1U,         NULL,      0,        .strptr=NULL,                      .defstrval=NULL,       TYPE_STRING,   0},	\
+      {GNB_CONFIG_STRING_GNB_IPV4_ADDRESS_FOR_S1U,           NULL,      0,        .strptr=&gnb_ipv4_address_for_S1U, .defstrval="127.0.0.1",TYPE_STRING,   0}, \
+      {GNB_CONFIG_STRING_GNB_PORT_FOR_S1U,                   NULL,      0,        .uptr=&gnb_port_for_S1U,           .defintval=2152L,       TYPE_UINT,     0}	\
+  }
 /*-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/
 /*-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/
 
+/* E1 configuration section */
+#define GNB_CONFIG_STRING_E1_PARAMETERS                   "E1_INTERFACE"
+
+#define GNB_CONFIG_E1_CU_TYPE_IDX                         0
+#define GNB_CONFIG_E1_IPV4_ADDRESS_CUCP                   1
+#define GNB_CONFIG_E1_IPV4_ADDRESS_CUUP 2
+#define GNB_CONFIG_E1_CN_SUPPORT 3
+
+#define GNB_CONFIG_STRING_E1_CU_TYPE                      "type"
+#define GNB_CONFIG_STRING_E1_IPV4_ADDRESS_CUCP "ipv4_cucp"
+#define GNB_CONFIG_STRING_E1_IPV4_ADDRESS_CUUP "ipv4_cuup"
+#define GNB_CONFIG_STRING_E1_CN_SUPPORT                   "cn_support"
+
+// clang-format off
+#define GNBE1PARAMS_DESC { \
+  {GNB_CONFIG_STRING_E1_CU_TYPE,           NULL, 0, .strptr=NULL, .defstrval=NULL, TYPE_STRING, 0}, \
+  {GNB_CONFIG_STRING_E1_IPV4_ADDRESS_CUCP, NULL, 0, .strptr=NULL, .defstrval=NULL, TYPE_STRING, 0}, \
+  {GNB_CONFIG_STRING_E1_IPV4_ADDRESS_CUUP, NULL, 0, .strptr=NULL, .defstrval=NULL, TYPE_STRING, 0}, \
+  {GNB_CONFIG_STRING_E1_CN_SUPPORT,        NULL, 0, .uptr  =NULL, .defintval=1L,   TYPE_UINT,   0} \
+  }
+// clang-format on
 /* L1 configuration section names   */
 #define CONFIG_STRING_L1_LIST                              "L1s"
 #define CONFIG_STRING_L1_CONFIG                            "l1_config"
 
-
-
-/*----------------------------------------------------------------------------------------------------------------------------------------------------*/
-
-/*----------------------------------------------------------------------------------------------------------------------------------------------------*/
-#define CONFIG_STRING_NETWORK_CONTROLLER_CONFIG         "NETWORK_CONTROLLER"
-
-#define CONFIG_STRING_FLEXRAN_ENABLED                   "FLEXRAN_ENABLED"
-#define CONFIG_STRING_FLEXRAN_INTERFACE_NAME            "FLEXRAN_INTERFACE_NAME"
-#define CONFIG_STRING_FLEXRAN_IPV4_ADDRESS              "FLEXRAN_IPV4_ADDRESS"
-#define CONFIG_STRING_FLEXRAN_PORT                      "FLEXRAN_PORT"
-#define CONFIG_STRING_FLEXRAN_CACHE                     "FLEXRAN_CACHE"
-#define CONFIG_STRING_FLEXRAN_AWAIT_RECONF              "FLEXRAN_AWAIT_RECONF"
-
-#define FLEXRAN_ENABLED                               0
-#define FLEXRAN_INTERFACE_NAME_IDX                    1
-#define FLEXRAN_IPV4_ADDRESS_IDX                      2
-#define FLEXRAN_PORT_IDX                              3
-#define FLEXRAN_CACHE_IDX                             4
-#define FLEXRAN_AWAIT_RECONF_IDX                      5
-
-#define FLEXRANPARAMS_DESC { \
-{CONFIG_STRING_FLEXRAN_ENABLED,                NULL,   0,   strptr:NULL,   defstrval:"no",                    TYPE_STRING,   0},           \
-{CONFIG_STRING_FLEXRAN_INTERFACE_NAME,         NULL,   0,   strptr:NULL,   defstrval:"lo",                    TYPE_STRING,   0},           \
-{CONFIG_STRING_FLEXRAN_IPV4_ADDRESS,           NULL,   0,   strptr:NULL,   defstrval:"127.0.0.1",             TYPE_STRING,   0},           \
-{CONFIG_STRING_FLEXRAN_PORT,                   NULL,   0,   uptr:NULL,     defintval:2210,                    TYPE_UINT,     0},           \
-{CONFIG_STRING_FLEXRAN_CACHE,                  NULL,   0,   strptr:NULL,   defstrval:"/mnt/oai_agent_cache",  TYPE_STRING,   0},           \
-{CONFIG_STRING_FLEXRAN_AWAIT_RECONF,           NULL,   0,   strptr:NULL,   defstrval:"no",                    TYPE_STRING,   0}            \
-}
 
 /*----------------------------------------------------------------------------------------------------------------------------------------------------*/
 /*----------------------------------------------------------------------------------------------------------------------------------------------------*/
@@ -450,8 +459,8 @@ typedef enum {
 /*   optname                                          helpstr   paramflags    XXXptr       defXXXval                                 type           numelt     */
 /*-------------------------------------------------------------------------------------------------------------------------------------------------------------*/
 #define THREAD_CONF_DESC {  \
-{THREAD_CONFIG_STRING_PARALLEL,          CONFIG_HLP_PARALLEL,      0,       strptr:NULL,   defstrval:"PARALLEL_RU_L1_TRX_SPLIT",   TYPE_STRING,   0},          \
-{THREAD_CONFIG_STRING_WORKER,            CONFIG_HLP_WORKER,        0,       strptr:NULL,   defstrval:"WORKER_ENABLE",              TYPE_STRING,   0}           \
+{THREAD_CONFIG_STRING_PARALLEL,          CONFIG_HLP_PARALLEL,      0,       .strptr=NULL,   .defstrval="PARALLEL_RU_L1_TRX_SPLIT",   TYPE_STRING,   0},          \
+{THREAD_CONFIG_STRING_WORKER,            CONFIG_HLP_WORKER,        0,       .strptr=NULL,   .defstrval="WORKER_ENABLE",              TYPE_STRING,   0}           \
 }
 
 
@@ -463,22 +472,29 @@ typedef enum {
 /*----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/
 /* security configuration                                                                                                                                                           */
 /*----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/
-#define CONFIG_STRING_SECURITY      "security"
+#define CONFIG_STRING_SECURITY             "security"
 
-#define SECURITY_CONFIG_CIPHERING   "ciphering_algorithms"
-#define SECURITY_CONFIG_INTEGRITY   "integrity_algorithms"
+#define SECURITY_CONFIG_CIPHERING          "ciphering_algorithms"
+#define SECURITY_CONFIG_INTEGRITY          "integrity_algorithms"
+#define SECURITY_CONFIG_DO_DRB_CIPHERING   "drb_ciphering"
+#define SECURITY_CONFIG_DO_DRB_INTEGRITY   "drb_integrity"
 
 /*----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/
 /*   security configuration                                                                                                                                                         */
 /*   optname                               help                                          paramflags         XXXptr               defXXXval                 type              numelt */
 /*----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/
 #define SECURITY_GLOBALPARAMS_DESC { \
-    {SECURITY_CONFIG_CIPHERING,            "preferred ciphering algorithms\n",            0,                strlistptr:NULL,      defstrlistval:NULL,       TYPE_STRINGLIST,  0}, \
-    {SECURITY_CONFIG_INTEGRITY,            "preferred integrity algorithms\n",            0,                strlistptr:NULL,      defstrlistval:NULL,       TYPE_STRINGLIST,  0}, \
+    {SECURITY_CONFIG_CIPHERING,            "preferred ciphering algorithms\n",            0,               .strlistptr=NULL,     .defstrlistval=NULL,       TYPE_STRINGLIST,  0}, \
+    {SECURITY_CONFIG_INTEGRITY,            "preferred integrity algorithms\n",            0,               .strlistptr=NULL,     .defstrlistval=NULL,       TYPE_STRINGLIST,  0}, \
+    {SECURITY_CONFIG_DO_DRB_CIPHERING,     "use ciphering for DRBs",                      0,               .strptr=NULL,         .defstrval="yes",          TYPE_STRING,      0}, \
+    {SECURITY_CONFIG_DO_DRB_INTEGRITY,     "use integrity for DRBs",                      0,               .strptr=NULL,         .defstrval="no",           TYPE_STRING,      0}, \
 }
 
-#define SECURITY_CONFIG_CIPHERING_IDX   0
-#define SECURITY_CONFIG_INTEGRITY_IDX   1
+#define SECURITY_CONFIG_CIPHERING_IDX          0
+#define SECURITY_CONFIG_INTEGRITY_IDX          1
+#define SECURITY_CONFIG_DO_DRB_CIPHERING_IDX   2
+#define SECURITY_CONFIG_DO_DRB_INTEGRITY_IDX   3
+
 /*----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/
 
 #endif

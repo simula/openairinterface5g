@@ -51,6 +51,8 @@
 #include "telnetsrv_cpumeasur_def.h"
 #include "openair2/LAYER2/MAC/mac.h"
 #include "openair1/PHY/phy_extern.h"
+#include "openair2/LAYER2/RLC/rlc.h"
+#include "openair2/LAYER2/PDCP_v10.1.0/pdcp.c"
 
 void measurcmd_display_macstats(telnet_printfunc_t prnt);
 void measurcmd_display_macstats_ue(telnet_printfunc_t prnt);
@@ -165,8 +167,7 @@ void measurcmd_display_rlcstats(telnet_printfunc_t prnt) {
     statsptr[i].vptr = rlcstats + i;
   }
 
-  for (int UE_id=UE_info->list.head; UE_id>=0; UE_id=UE_info->list.next[UE_id]) {
-#define NB_eNB_INST 1
+  for (int UE_id = UE_info->list.head; UE_id >= 0; UE_id = UE_info->list.next[UE_id]) {
     PROTOCOL_CTXT_SET_BY_MODULE_ID(&ctxt,eNB_id, ENB_FLAG_YES,UE_info->eNB_UE_stats[0][UE_id].crnti,
                                    eNB->frame,eNB->subframe,eNB_id);
     measurcmd_display_one_rlcstat(prnt, UE_id, statsptr, num_rlcmeasure, rlcstats, "DCCH", &ctxt, SRB_FLAG_YES, DCCH);

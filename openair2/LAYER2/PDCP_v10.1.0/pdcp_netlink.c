@@ -54,13 +54,10 @@
 
 #include "common/utils/LOG/log.h"
 #include "common/utils/system.h"
-#include "UTIL/OCG/OCG.h"
-#include "UTIL/OCG/OCG_extern.h"
 #include "LAYER2/MAC/mac_extern.h"
 
 #include "pdcp.h"
 #include "pdcp_primitives.h"
-#include "msc.h"
 
 
 #define PDCP_QUEUE_NB_ELEMENTS 200
@@ -187,7 +184,6 @@ void *pdcp_netlink_thread_fct(void *arg)
   pdcp_thread_read_state = 0;
   memset(nl_rx_buf, 0, NL_MAX_PAYLOAD);
   LOG_I(PDCP, "[NETLINK_THREAD] binding to fd  %d\n",nas_sock_fd);
-  MSC_START_USE();
 
   while (1) {
     len = recvmsg(nas_sock_fd, &nas_msg_rx, 0);

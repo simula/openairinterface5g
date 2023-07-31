@@ -33,15 +33,13 @@
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
-#include <types.h>
 #include "assertions.h"
 #include "common/utils/LOG/log.h"
-#include "PHY/TOOLS/time_meas.h"
+#include "time_meas.h"
 #include "openair1/PHY/CODING/nrLDPC_defs.h"
-//#define DEBUG_LDPC
 #include "ldpc_encode_parity_check.c" 
 #include "ldpc_generate_coefficient.c"
-
+#include "PHY/sse_intrin.h"
 
 
 int nrLDPC_encod(unsigned char **test_input,unsigned char **channel_input,int Zc,int Kb,short block_length, short BG, encoder_implemparams_t *impp)
@@ -53,21 +51,19 @@ int nrLDPC_encod(unsigned char **test_input,unsigned char **channel_input,int Zc
   char temp;
   int simd_size;
 
-#ifdef __AVX2__
-  __m256i shufmask = _mm256_set_epi64x(0x0303030303030303, 0x0202020202020202,0x0101010101010101, 0x0000000000000000);
-  __m256i andmask  = _mm256_set1_epi64x(0x0102040810204080);  // every 8 bits -> 8 bytes, pattern repeats.
-  __m256i zero256   = _mm256_setzero_si256();
+  __m256i shufmask = simde_mm256_set_epi64x(0x0303030303030303, 0x0202020202020202,0x0101010101010101, 0x0000000000000000);
+  __m256i andmask  = simde_mm256_set1_epi64x(0x0102040810204080);  // every 8 bits -> 8 bytes, pattern repeats.
+  __m256i zero256   = simde_mm256_setzero_si256();
   __m256i masks[8];
   register __m256i c256;
-  masks[0] = _mm256_set1_epi8(0x1);
-  masks[1] = _mm256_set1_epi8(0x2);
-  masks[2] = _mm256_set1_epi8(0x4);
-  masks[3] = _mm256_set1_epi8(0x8);
-  masks[4] = _mm256_set1_epi8(0x10);
-  masks[5] = _mm256_set1_epi8(0x20);
-  masks[6] = _mm256_set1_epi8(0x40);
-  masks[7] = _mm256_set1_epi8(0x80);
-#endif
+  masks[0] = simde_mm256_set1_epi8(0x1);
+  masks[1] = simde_mm256_set1_epi8(0x2);
+  masks[2] = simde_mm256_set1_epi8(0x4);
+  masks[3] = simde_mm256_set1_epi8(0x8);
+  masks[4] = simde_mm256_set1_epi8(0x10);
+  masks[5] = simde_mm256_set1_epi8(0x20);
+  masks[6] = simde_mm256_set1_epi8(0x40);
+  masks[7] = simde_mm256_set1_epi8(0x80);
 
   AssertFatal((impp->n_segments>0&&impp->n_segments<=8),"0 < n_segments %d <= 8\n",impp->n_segments);
 
@@ -102,7 +98,6 @@ int nrLDPC_encod(unsigned char **test_input,unsigned char **channel_input,int Zc
   unsigned char c[22*Zc] __attribute__((aligned(32))); //padded input, unpacked, max size
   unsigned char d[46*Zc] __attribute__((aligned(32))); //coded parity part output, unpacked, max size
 
-  unsigned char c_extension[2*22*Zc*simd_size] __attribute__((aligned(32)));      //double size matrix of c
 
   // calculate number of punctured bits
   no_punctured_columns=(int)((nrows-2)*Zc+block_length-block_length*rate)/Zc;
@@ -124,11 +119,10 @@ int nrLDPC_encod(unsigned char **test_input,unsigned char **channel_input,int Zc
     }
   }
 #else
-#ifdef __AVX2__
   for (i=0; i<block_length>>5; i++) {
-    c256 = _mm256_and_si256(_mm256_cmpeq_epi8(_mm256_andnot_si256(_mm256_shuffle_epi8(_mm256_set1_epi32(((uint32_t*)test_input[0])[i]), shufmask),andmask),zero256),masks[0]);
+    c256 = simde_mm256_and_si256(simde_mm256_cmpeq_epi8(simde_mm256_andnot_si256(simde_mm256_shuffle_epi8(simde_mm256_set1_epi32(((uint32_t*)test_input[0])[i]), shufmask),andmask),zero256),masks[0]);
     for (j=1; j<impp->n_segments; j++) {
-      c256 = _mm256_or_si256(_mm256_and_si256(_mm256_cmpeq_epi8(_mm256_andnot_si256(_mm256_shuffle_epi8(_mm256_set1_epi32(((uint32_t*)test_input[j])[i]), shufmask),andmask),zero256),masks[j]),c256);
+      c256 = simde_mm256_or_si256(simde_mm256_and_si256(simde_mm256_cmpeq_epi8(simde_mm256_andnot_si256(simde_mm256_shuffle_epi8(simde_mm256_set1_epi32(((uint32_t*)test_input[j])[i]), shufmask),andmask),zero256),masks[j]),c256);
     }
     ((__m256i *)c)[i] = c256;
   }
@@ -141,9 +135,6 @@ int nrLDPC_encod(unsigned char **test_input,unsigned char **channel_input,int Zc
       c[i] |= (temp << j);
     }
   }
-#else
-  AssertFatal(1==0,"Need AVX2 for this\n");
-#endif
 #endif
 
   if(impp->tinput != NULL) stop_meas(impp->tinput);
@@ -151,24 +142,10 @@ int nrLDPC_encod(unsigned char **test_input,unsigned char **channel_input,int Zc
   if ((BG==1 && Zc>176) || (BG==2 && Zc>64)) { 
     // extend matrix
     if(impp->tprep != NULL) start_meas(impp->tprep);
-    for (i1=0; i1 < ncols; i1++)
-      {
-	memcpy(&c_extension[2*i1*Zc], &c[i1*Zc], Zc*sizeof(unsigned char));
-	memcpy(&c_extension[(2*i1+1)*Zc], &c[i1*Zc], Zc*sizeof(unsigned char));
-      }
-    for (i1=1;i1<simd_size;i1++) {
-      memcpy(&c_extension[(2*ncols*Zc*i1)], &c_extension[i1], (2*ncols*Zc*sizeof(unsigned char))-i1);
-      //    memset(&c_extension[(2*ncols*Zc*i1)],0,i1);
-      /*
-	printf("shift %d: ",i1);
-	for (int j=0;j<64;j++) printf("%d ",c_extension[(2*ncols*Zc*i1)+j]);
-	printf("\n");
-      */
-    }
     if(impp->tprep != NULL) stop_meas(impp->tprep);
     //parity check part
     if(impp->tparity != NULL) start_meas(impp->tparity);
-    encode_parity_check_part_optim(c_extension, d, BG, Zc, Kb);
+    encode_parity_check_part_optim(c, d, BG, Zc, Kb, simd_size, ncols);
     if(impp->tparity != NULL) stop_meas(impp->tparity);
   }
   else {
@@ -183,7 +160,6 @@ int nrLDPC_encod(unsigned char **test_input,unsigned char **channel_input,int Zc
   memcpy(&channel_input[0], &c[2*Zc], (block_length-2*Zc)*sizeof(unsigned char));
   memcpy(&channel_input[block_length-2*Zc], &d[0], ((nrows-no_punctured_columns) * Zc-removed_bit)*sizeof(unsigned char));
   */
-#ifdef __AVX2__
   if ((((2*Zc)&31) == 0) && (((block_length-(2*Zc))&31) == 0)) {
     //AssertFatal(((2*Zc)&31) == 0,"2*Zc needs to be a multiple of 32 for now\n");
     //AssertFatal(((block_length-(2*Zc))&31) == 0,"block_length-(2*Zc) needs to be a multiple of 32 for now\n");
@@ -194,12 +170,12 @@ int nrLDPC_encod(unsigned char **test_input,unsigned char **channel_input,int Zc
     //  if (((block_length-(2*Zc))&31)>0) l1++;
     
     for (i=0;i<l1;i++)
-      for (j=0;j<impp->n_segments;j++) ((__m256i *)channel_input[j])[i] = _mm256_and_si256(_mm256_srai_epi16(c256p[i],j),masks[0]);
+      for (j=0;j<impp->n_segments;j++) ((__m256i *)channel_input[j])[i] = simde_mm256_and_si256(simde_mm256_srai_epi16(c256p[i],j),masks[0]);
     
     //  if ((((nrows-no_punctured_columns) * Zc-removed_bit)&31)>0) l2++;
     
     for (i1=0;i1<l2;i1++,i++)
-      for (j=0;j<impp->n_segments;j++) ((__m256i *)channel_input[j])[i] = _mm256_and_si256(_mm256_srai_epi16(d256p[i1],j),masks[0]);
+      for (j=0;j<impp->n_segments;j++) ((__m256i *)channel_input[j])[i] = simde_mm256_and_si256(simde_mm256_srai_epi16(d256p[i1],j),masks[0]);
   }
   else {
 #ifdef DEBUG_LDPC
@@ -213,10 +189,6 @@ int nrLDPC_encod(unsigned char **test_input,unsigned char **channel_input,int Zc
       for (j=0; j<impp->n_segments; j++)
 	channel_input[j][block_length-2*Zc+i] = (d[i]>>j)&1;
     }
-
-#else
-    AssertFatal(1==0,"Need AVX2 for now\n");
-#endif
 
   if(impp->toutput != NULL) stop_meas(impp->toutput);
   return 0;

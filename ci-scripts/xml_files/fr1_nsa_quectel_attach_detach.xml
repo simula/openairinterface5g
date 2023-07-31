@@ -55,33 +55,27 @@
 		<class>Initialize_UE</class>
 		<desc>Initialize Quectel</desc>
 		<id>idefix</id>
-		<UE_Trace>yes</UE_Trace>
 	</testCase>
-
-
 	<testCase id="010002">
 		<class>Terminate_UE</class>
 		<desc>Terminate Quectel</desc>
 		<id>idefix</id>
 	</testCase>
-
 	<testCase id="010003">
 		<class>Attach_UE</class>
 		<desc>Attach Quectel</desc>
 		<id>idefix</id>
 	</testCase>
-
 	<testCase id="010004">
 		<class>Detach_UE</class>
 		<desc>Detach Quectel</desc>
 		<id>idefix</id>
 	</testCase>	
 
-
 	<testCase id="030000">
 		<class>Initialize_eNB</class>
 		<desc>Initialize eNB</desc>
-		<Initialize_eNB_args>-O ci-scripts/conf_files/enb.band7.tm1.fr1.25PRB.usrpb210.conf</Initialize_eNB_args>
+		<Initialize_eNB_args>-O ci-scripts/conf_files/enb.band7.tm1.fr1.25PRB.usrpb210.conf --log_config.global_log_options level,nocolor,time,line_num,function</Initialize_eNB_args>
 		<eNB_instance>0</eNB_instance>
 		<eNB_serverId>0</eNB_serverId>
 		<air_interface>lte</air_interface>
@@ -92,7 +86,7 @@
 	<testCase id="040000">
 		<class>Initialize_eNB</class>
 		<desc>Initialize gNB</desc>
-		<Initialize_eNB_args>-O ci-scripts/conf_files/gnb.band78.tm1.fr1.106PRB.usrpb210.conf -E -q</Initialize_eNB_args>
+		<Initialize_eNB_args>-O ci-scripts/conf_files/gnb.band78.tm1.fr1.106PRB.usrpb210.conf -E -q --log_config.global_log_options level,nocolor,time,line_num,function</Initialize_eNB_args>
 		<eNB_instance>1</eNB_instance>
 		<eNB_serverId>1</eNB_serverId>
 		<air_interface>nr</air_interface>
@@ -115,7 +109,7 @@
 		<class>Ping</class>
 		<desc>Ping: 20pings in 20sec</desc>
 		<id>idefix</id>
-		<ping_args>-c 20</ping_args>
+		<ping_args>-c 20 %cn_ip%</ping_args>
 		<ping_packetloss_threshold>50</ping_packetloss_threshold>
 	</testCase>
 
@@ -123,7 +117,7 @@
 		<class>Ping</class>
 		<desc>Ping: 100pings in 20sec</desc>
 		<id>idefix</id>
-		<ping_args>-c 100 -i 0.2</ping_args>
+		<ping_args>-c 100 -i 0.2 %cn_ip%</ping_args>
 		<ping_packetloss_threshold>50</ping_packetloss_threshold>
 	</testCase>
 

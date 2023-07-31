@@ -25,6 +25,7 @@
 #include <string.h>
 
 #include "nr_rlc_pdu.h"
+#include "common/utils/time_stat.h"
 
 #include "LOG/log.h"
 
@@ -36,9 +37,16 @@ void nr_rlc_entity_tm_recv_pdu(nr_rlc_entity_t *_entity,
                                char *buffer, int size)
 {
   nr_rlc_entity_tm_t *entity = (nr_rlc_entity_tm_t *)_entity;
+
+  entity->common.stats.rxpdu_pkts++;
+  entity->common.stats.rxpdu_bytes += size;
+
   entity->common.deliver_sdu(entity->common.deliver_sdu_data,
                              (nr_rlc_entity_t *)entity,
                              buffer, size);
+
+  entity->common.stats.txsdu_pkts++;
+  entity->common.stats.txsdu_bytes += size;
 }
 
 /*************************************************************************/
@@ -68,22 +76,22 @@ static int generate_tx_pdu(nr_rlc_entity_tm_t *entity, char *buffer, int size)
   memcpy(buffer, sdu->sdu->data, sdu->size);
 
   entity->tx_size -= sdu->size;
-  nr_rlc_free_sdu_segment(sdu);
+  entity->common.stats.txpdu_pkts++;
+  entity->common.stats.txpdu_bytes += size;
 
-  return ret;
-}
-
-static int tx_list_size(nr_rlc_entity_tm_t *entity,
-                        nr_rlc_sdu_segment_t *l, int maxsize)
-{
-  int ret = 0;
-
-  while (l != NULL && ret < maxsize) {
-    ret += l->size;
-    l = l->next;
+  if (sdu->sdu->time_of_arrival) {
+    uint64_t time_now = time_average_now();
+    uint64_t waited_time = time_now - sdu->sdu->time_of_arrival;
+    /* set time_of_arrival to 0 so as to update stats only once */
+    sdu->sdu->time_of_arrival = 0;
+    time_average_add(entity->common.txsdu_avg_time_to_tx, time_now, waited_time);
   }
 
-  if (ret > maxsize) ret = maxsize;
+  /* update buffer status */
+  entity->common.bstatus.tx_size -= sdu->size;
+
+  nr_rlc_free_sdu_segment(sdu);
+
   return ret;
 }
 
@@ -94,7 +102,7 @@ nr_rlc_entity_buffer_status_t nr_rlc_entity_tm_buffer_status(
   nr_rlc_entity_buffer_status_t ret;
 
   ret.status_size = 0;
-  ret.tx_size = tx_list_size(entity, entity->tx_list, maxsize);
+  ret.tx_size = entity->common.bstatus.tx_size;
   ret.retx_size = 0;
 
   return ret;
@@ -119,6 +127,9 @@ void nr_rlc_entity_tm_recv_sdu(nr_rlc_entity_t *_entity,
   nr_rlc_entity_tm_t *entity = (nr_rlc_entity_tm_t *)_entity;
   nr_rlc_sdu_segment_t *sdu;
 
+  entity->common.stats.rxsdu_pkts++;
+  entity->common.stats.rxsdu_bytes += size;
+
   if (size > NR_SDU_MAX) {
     LOG_E(RLC, "%s:%d:%s: fatal: SDU size too big (%d bytes)\n",
           __FILE__, __LINE__, __FUNCTION__, size);
@@ -128,6 +139,10 @@ void nr_rlc_entity_tm_recv_sdu(nr_rlc_entity_t *_entity,
   if (entity->tx_size + size > entity->tx_maxsize) {
     LOG_D(RLC, "%s:%d:%s: warning: SDU rejected, SDU buffer full\n",
           __FILE__, __LINE__, __FUNCTION__);
+
+    entity->common.stats.rxsdu_dd_pkts++;
+    entity->common.stats.rxsdu_dd_bytes += size;
+
     return;
   }
 
@@ -136,6 +151,12 @@ void nr_rlc_entity_tm_recv_sdu(nr_rlc_entity_t *_entity,
   sdu = nr_rlc_new_sdu(buffer, size, sdu_id);
 
   nr_rlc_sdu_segment_list_append(&entity->tx_list, &entity->tx_end, sdu);
+
+  /* update buffer status */
+  entity->common.bstatus.tx_size += sdu->size;
+
+  if (entity->common.avg_time_is_on)
+    sdu->sdu->time_of_arrival = time_average_now();
 }
 
 /*************************************************************************/
@@ -165,6 +186,8 @@ static void clear_entity(nr_rlc_entity_tm_t *entity)
   entity->tx_list         = NULL;
   entity->tx_end          = NULL;
   entity->tx_size         = 0;
+
+  entity->common.bstatus.tx_size = 0;
 }
 
 void nr_rlc_entity_tm_reestablishment(nr_rlc_entity_t *_entity)
@@ -177,5 +200,12 @@ void nr_rlc_entity_tm_delete(nr_rlc_entity_t *_entity)
 {
   nr_rlc_entity_tm_t *entity = (nr_rlc_entity_tm_t *)_entity;
   clear_entity(entity);
+  time_average_free(entity->common.txsdu_avg_time_to_tx);
   free(entity);
+}
+
+int nr_rlc_entity_tm_available_tx_space(nr_rlc_entity_t *_entity)
+{
+  nr_rlc_entity_tm_t *entity = (nr_rlc_entity_tm_t *)_entity;
+  return entity->tx_maxsize - entity->tx_size;
 }

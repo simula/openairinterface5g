@@ -45,9 +45,9 @@
 static softmodem_params_t softmodem_params;
 char *parallel_config=NULL;
 char *worker_config=NULL;
-msc_interface_t msc_interface;
 int usrp_tx_thread = 0;
-
+char *nfapi_str=NULL;
+int ldpc_offload_flag=0;
 uint8_t nfapi_mode=0;
 
 static mapping softmodem_funcs[] = MAPPING_SOFTMODEM_FUNCTIONS;
@@ -59,6 +59,12 @@ uint64_t get_softmodem_optmask(void) {
 
 uint64_t set_softmodem_optmask(uint64_t bitmask) {
   softmodem_params.optmask = softmodem_params.optmask | bitmask;
+  return softmodem_params.optmask;
+}
+
+uint64_t clear_softmodem_optmask(uint64_t bitmask)
+{
+  softmodem_params.optmask = softmodem_params.optmask & (~bitmask);
   return softmodem_params.optmask;
 }
 
@@ -86,22 +92,32 @@ char *get_softmodem_function(uint64_t *sofmodemfunc_mask_ptr) {
 }
 
 void get_common_options(uint32_t execmask) {
+  int32_t stats_disabled = 0;
   uint32_t online_log_messages=0;
   uint32_t glog_level=0 ;
   uint32_t start_telnetsrv = 0, start_telnetclt = 0;
+  uint32_t start_websrv = 0;
   uint32_t noS1 = 0, nokrnmod = 1, nonbiot = 0;
-  uint32_t rfsim = 0, basicsim = 0, do_forms = 0;
+  uint32_t rfsim = 0, do_forms = 0, do_forms_qt = 0;
+  int nfapi_index = 0;
   char *logmem_filename = NULL;
-  paramdef_t cmdline_params[] =CMDLINE_PARAMS_DESC ;
+  check_execmask(execmask);
+
+  paramdef_t cmdline_params[] = CMDLINE_PARAMS_DESC;
+  checkedparam_t cmdline_CheckParams[] = CMDLINE_PARAMS_CHECK_DESC;
+  int numparams = sizeof(cmdline_params) / sizeof(paramdef_t);
+  config_set_checkfunctions(cmdline_params, cmdline_CheckParams, numparams);
+  config_get(cmdline_params, sizeof(cmdline_params) / sizeof(paramdef_t), NULL);
+  nfapi_index = config_paramidx_fromname(cmdline_params, sizeof(cmdline_params) / sizeof(paramdef_t),"nfapi");
+  AssertFatal(nfapi_index != -1,"Index for nfapi config option not found!");
+  nfapi_mode = config_get_processedint(&cmdline_params[nfapi_index]);
+
   paramdef_t cmdline_logparams[] =CMDLINE_LOGPARAMS_DESC ;
   checkedparam_t cmdline_log_CheckParams[] = CMDLINE_LOGPARAMS_CHECK_DESC;
-  check_execmask(execmask);
-  config_get( cmdline_params,sizeof(cmdline_params)/sizeof(paramdef_t),NULL);
-  
-  int numparams=sizeof(cmdline_logparams)/sizeof(paramdef_t);
-  config_set_checkfunctions(cmdline_logparams, cmdline_log_CheckParams,numparams);
-  config_get( cmdline_logparams,numparams,NULL);
-  
+  int numlogparams = sizeof(cmdline_logparams) / sizeof(paramdef_t);
+  config_set_checkfunctions(cmdline_logparams, cmdline_log_CheckParams, numlogparams);
+  config_get(cmdline_logparams, numlogparams, NULL);
+
   if(config_isparamset(cmdline_logparams,config_paramidx_fromname(cmdline_logparams,numparams, CONFIG_FLOG_OPT))) {
     set_glog_onlinelog(online_log_messages);
   }
@@ -130,7 +146,6 @@ void get_common_options(uint32_t execmask) {
   }
 
   if (nokrnmod) {
-    printf("nokrnmod bit enabled \n");
     set_softmodem_optmask(SOFTMODEM_NOKRNMOD_BIT);
   }
 
@@ -142,18 +157,24 @@ void get_common_options(uint32_t execmask) {
     set_softmodem_optmask(SOFTMODEM_RFSIM_BIT);
   }
 
-  if (basicsim) {
-    set_softmodem_optmask(SOFTMODEM_BASICSIM_BIT);
-  }
-
   if (do_forms) {
     set_softmodem_optmask(SOFTMODEM_DOSCOPE_BIT);
+  }
+
+  if (do_forms_qt) {
+    set_softmodem_optmask(SOFTMODEM_DOSCOPE_QT_BIT);
+  }
+
+  if (start_websrv) {
+    load_module_shlib("websrv", NULL, 0, NULL);
   }
 
   if(parallel_config != NULL) set_parallel_conf(parallel_config);
 
   if(worker_config != NULL)   set_worker_conf(worker_config);
   nfapi_setmode(nfapi_mode);
+  if (stats_disabled)
+    set_softmodem_optmask(SOFTMODEM_NOSTATS_BIT);
 }
 void softmodem_printresources(int sig, telnet_printfunc_t pf) {
   struct rusage usage;
@@ -180,22 +201,25 @@ void softmodem_printresources(int sig, telnet_printfunc_t pf) {
 }
 
 void signal_handler(int sig) {
-  void *array[10];
-  size_t size;
+  //void *array[10];
+  //size_t size;
 
   if (sig==SIGSEGV) {
     // get void*'s for all entries on the stack
+    /* backtrace uses malloc, that is not good in signal handlers
+     * I let the code, because it would be nice to make it better
     size = backtrace(array, 10);
     // print out all the frames to stderr
     fprintf(stderr, "Error: signal %d:\n", sig);
     backtrace_symbols_fd(array, size, 2);
+    */
     exit(-1);
   } else {
     if(sig==SIGINT ||sig==SOFTMODEM_RTSIGNAL)
       softmodem_printresources(sig,(telnet_printfunc_t)printf);
     if (sig != SOFTMODEM_RTSIGNAL) {
       printf("Linux signal %s...\n",strsignal(sig));
-      exit_function(__FILE__, __FUNCTION__, __LINE__,"softmodem starting exit procedure\n");
+      exit_function(__FILE__, __FUNCTION__, __LINE__, "softmodem starting exit procedure\n", OAI_EXIT_NORMAL);
     }
   }
 }
@@ -208,10 +232,14 @@ void set_softmodem_sighandler(void) {
   memset(&act,0,sizeof(act));
   act.sa_handler=signal_handler;
   sigaction(SOFTMODEM_RTSIGNAL,&act,&oldact);
+  // Disabled in order generate a core dump for analysis with gdb
+  // Enable for clean exit on CTRL-C (i.e. record player, USRP...) 
+  signal(SIGINT,  signal_handler);
+  # if 0
   printf("Send signal %d to display resource usage...\n",SIGRTMIN+1);
   signal(SIGSEGV, signal_handler);
-  signal(SIGINT,  signal_handler);
   signal(SIGTERM, signal_handler);
   signal(SIGABRT, signal_handler);
+  #endif
 }
 

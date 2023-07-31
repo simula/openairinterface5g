@@ -21,15 +21,17 @@
 
 #ifndef _NR_RLC_UE_MANAGER_H_
 #define _NR_RLC_UE_MANAGER_H_
-
+#include "openair2/COMMON/platform_types.h"
 #include "nr_rlc_entity.h"
 
 typedef void nr_rlc_ue_manager_t;
 
 typedef struct nr_rlc_ue_t {
   int rnti;
+  ue_id_t ue_id;
+  nr_rlc_entity_t *srb0;
   nr_rlc_entity_t *srb[3];
-  nr_rlc_entity_t *drb[5];
+  nr_rlc_entity_t *drb[MAX_DRBS_PER_UE];
 } nr_rlc_ue_t;
 
 /***********************************************************************/

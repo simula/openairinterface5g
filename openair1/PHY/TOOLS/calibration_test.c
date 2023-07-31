@@ -1,11 +1,12 @@
 #include <stdint.h>
 #include <openair1/PHY/impl_defs_top.h>
-#include <targets/ARCH/COMMON/common_lib.h>
+#include <radio/COMMON/common_lib.h>
 #include <executables/softmodem-common.h>
 #include <openair1/PHY/TOOLS/calibration_scope.h>
+#include "nfapi/oai_integration/vendor_ext.h"
 
 
-volatile int oai_exit=false;
+int oai_exit=false;
 unsigned int mmapped_dma=0;
 int      single_thread_flag;
 uint32_t timing_advance;
@@ -21,6 +22,9 @@ uint64_t dlsch_slot_bitmap = (1<<1);
 uint64_t ulsch_slot_bitmap = (1<<8);
 uint32_t target_ul_bw = 50;
 uint32_t target_dl_bw = 50;
+uint32_t target_dl_Nl;
+uint32_t target_ul_Nl;
+char *uecap_file;
 #include <executables/nr-softmodem.h>
 
 int read_recplayconfig(recplay_conf_t **recplay_conf, recplay_state_t **recplay_state) {return 0;}
@@ -42,11 +46,10 @@ int main(int argc, char **argv) {
   get_common_options(SOFTMODEM_GNB_BIT );
   config_process_cmdline( cmdline_params,sizeof(cmdline_params)/sizeof(paramdef_t),NULL);
   CONFIG_CLEARRTFLAG(CONFIG_NOEXITONHELP);
-  configure_linux();
+  set_latency_target();
 
     
   int N_RB=50;
-  int subCarrierFreq=30e3;
   int sampling_rate=30.72e6;
   int DFT=2048;
   int TxAdvanceInDFTSize=12;
@@ -108,7 +111,6 @@ int main(int argc, char **argv) {
     //! timing_source
     .time_source=internal, //internal gpsdo external
     //! Manual SDR IP address
-    //#if defined(EXMIMO) || defined(OAI_USRP) || defined(OAI_BLADERF) || defined(OAI_LMSSDR)
     .sdr_addrs=usrp_addrs,
     //! Auto calibration flag
     .autocal={0},
@@ -260,7 +262,6 @@ int main(int argc, char **argv) {
     /*! \brief Set RX feaquencies
      * \param device the hardware to use
      * \param openair0_cfg RF frontend parameters set by application
-     * \param exmimo_dump_config  dump EXMIMO configuration
      * \returns 0 in success
      */
     .trx_set_freq_func=NULL,
@@ -305,15 +306,15 @@ int main(int argc, char **argv) {
   
   openair0_device_load(&rfdevice,&openair0_cfg);
 
-  void ** samplesRx = (void **)malloc16(antennas* sizeof(struct complex16 *) );
-  void ** samplesTx = (void **)malloc16(antennas* sizeof(struct complex16 *) );
+  void ** samplesRx = (void **)malloc16(antennas* sizeof(c16_t *) );
+  void ** samplesTx = (void **)malloc16(antennas* sizeof(c16_t *) );
 
   int fd=open(getenv("rftestInputFile"),O_RDONLY);
   AssertFatal(fd>=0,"%s",strerror(errno));
   
   for (int i=0; i<antennas; i++) {
-    samplesRx[i] = (int32_t *)malloc16_clear( DFT*sizeof(struct complex16) );
-    samplesTx[i] = (int32_t *)malloc16_clear( DFT*sizeof(struct complex16) );
+    samplesRx[i] = (int32_t *)malloc16_clear( DFT*sizeof(c16_t) );
+    samplesTx[i] = (int32_t *)malloc16_clear( DFT*sizeof(c16_t) );
   }
 
   CalibrationInitScope(samplesRx, &rfdevice);
@@ -322,18 +323,9 @@ int main(int argc, char **argv) {
   
   while(!oai_exit) {
     for (int i=0; i<antennas; i++)
-      read(fd, samplesTx[i], DFT*sizeof(struct complex16));
-    int readBlockSize = rfdevice.trx_read_func(&rfdevice,
-					       &timestamp,
-					       samplesRx,
-					       DFT,
-					       antennas);
-    int txs = rfdevice.trx_write_func(&rfdevice,
-					    timestamp+TxAdvanceInDFTSize*DFT,
-					    samplesTx,
-					    DFT,
-					    antennas,
-					    0);
+      read(fd, samplesTx[i], DFT*sizeof(c16_t));
+    rfdevice.trx_read_func(&rfdevice, &timestamp, samplesRx, DFT, antennas);
+    rfdevice.trx_write_func(&rfdevice, timestamp + TxAdvanceInDFTSize * DFT, samplesTx, DFT, antennas, 0);
   }
 
   return 0;

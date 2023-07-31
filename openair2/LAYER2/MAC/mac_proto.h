@@ -212,11 +212,6 @@ void mac_switch_node_function(module_id_t module_idP);
 
 int mac_init_global_param(void);
 
-void mac_top_cleanup(void);
-
-void mac_UE_out_of_sync_ind(module_id_t module_idP, frame_t frameP,
-                            uint16_t eNB_index);
-
 void clear_nfapi_information(eNB_MAC_INST *eNB, int CC_idP,
                              frame_t frameP, sub_frame_t subframeP);
 
@@ -391,16 +386,12 @@ MCH_PDU *get_mch_sdu(module_id_t Mod_id, int CC_id, frame_t frame,
 void ue_mac_reset(module_id_t module_idP, uint8_t eNB_index);
 void ue_init_mac(module_id_t module_idP);
 void init_ue_sched_info(void);
-void add_ue_ulsch_info(module_id_t module_idP, int CC_id, int UE_id,
-                       sub_frame_t subframe, UE_ULSCH_STATUS status);
-void add_ue_dlsch_info(module_id_t module_idP, int CC_id, int UE_id,
-                       sub_frame_t subframe, UE_DLSCH_STATUS status, rnti_t rnti);
 int find_UE_id(module_id_t module_idP, rnti_t rnti);
 int find_RA_id(module_id_t mod_idP, int CC_idP, rnti_t rntiP);
 rnti_t UE_RNTI(module_id_t module_idP, int UE_id);
 int UE_PCCID(module_id_t module_idP, int UE_id);
 uint8_t find_active_UEs(module_id_t module_idP);
-boolean_t is_UE_active(module_id_t module_idP, int UE_id);
+bool is_UE_active(module_id_t module_idP, int UE_id);
 uint8_t get_aggregation(uint8_t bw_index, uint8_t cqi, uint8_t dci_fmt);
 
 int8_t find_active_UEs_with_traffic(module_id_t module_idP);
@@ -416,11 +407,11 @@ int get_nCCE_offset(int *CCE_table,
 
 int allocate_CCEs(int module_idP, int CC_idP, frame_t frameP, sub_frame_t subframeP, int test_only);
 
-boolean_t CCE_allocation_infeasible(int module_idP,
-                                    int CC_idP,
-                                    int common_flag,
-                                    int subframe,
-                                    int aggregation, int rnti);
+bool CCE_allocation_infeasible(int module_idP,
+                               int CC_idP,
+                               int common_flag,
+                               int subframe,
+                               int aggregation, int rnti);
 /* tries to allocate a CCE. If it succeeds, reserves NFAPI DCI and DLSCH config */
 int CCE_try_allocate_dlsch(int module_id,
                            int CC_id,
@@ -487,8 +478,6 @@ uint32_t req_new_ulsch(module_id_t module_idP);
 */
 uint32_t ue_get_SR(module_id_t module_idP, int CC_id, frame_t frameP,
                    uint8_t eNB_id, rnti_t rnti, sub_frame_t subframe);
-
-uint8_t get_ue_weight(module_id_t module_idP, int CC_id, int UE_id);
 
 // UE functions
 void mac_out_of_sync_ind(module_id_t module_idP, frame_t frameP,
@@ -675,8 +664,6 @@ int remove_ue_list(UE_list_t *listP, int UE_id);
 void dump_ue_list(UE_list_t *listP);
 void init_ue_list(UE_list_t *listP);
 int UE_num_active_CC(UE_info_t *listP, int ue_idP);
-int UE_PCCID(module_id_t mod_idP, int ue_idP);
-rnti_t UE_RNTI(module_id_t mod_idP, int ue_idP);
 
 uint8_t find_rb_table_index(uint8_t average_rbs);
 
@@ -741,13 +728,12 @@ BSR_SHORT *get_bsr_short(module_id_t module_idP, uint8_t bsr_len);
 */
 BSR_LONG *get_bsr_long(module_id_t module_idP, uint8_t bsr_len);
 
-/*! \fn  boolean_t update_bsr(module_id_t module_idP, frame_t frameP,sub_frame_t subframeP)
+/*! \fn  bool update_bsr(module_id_t module_idP, frame_t frameP,sub_frame_t subframeP)
    \brief get the rlc stats and update the bsr level for each lcid
 \param[in] Mod_id instance of the UE
 \param[in] frame Frame index
 */
-boolean_t update_bsr(module_id_t module_idP, frame_t frameP,
-                     sub_frame_t subframeP, eNB_index_t eNB_index);
+bool update_bsr(module_id_t module_idP, frame_t frameP, sub_frame_t subframeP, eNB_index_t eNB_index);
 
 /*! \fn  locate_BsrIndexByBufferSize (int *table, int size, int value)
    \brief locate the BSR level in the table as defined in 36.321. This function requires that he values in table to be monotonic, either increasing or decreasing. The returned value is not less than 0, nor greater than n-1, where n is the size of table.
@@ -916,43 +902,46 @@ int generate_dlsch_header(unsigned char *mac_header,
 @param mbms_AreaConfiguration pointer to eMBMS MBSFN Area Configuration
 */
 
-int rrc_mac_config_req_eNB(module_id_t module_idP,
-                           int CC_id,
-                           int physCellId,
-                           int p_eNB,
-                           int Ncp,
-                           int eutra_band, uint32_t dl_CarrierFreq,
-                           int pbch_repetition,
-                           rnti_t rntiP,
-                           LTE_BCCH_BCH_Message_t *mib,
-                           LTE_RadioResourceConfigCommonSIB_t *radioResourceConfigCommon,
-                           LTE_RadioResourceConfigCommonSIB_t *LTE_radioResourceConfigCommon_BR,
-                           struct LTE_PhysicalConfigDedicated  *physicalConfigDedicated,
-                           LTE_SCellToAddMod_r10_t *sCellToAddMod_r10,
-                           LTE_MeasObjectToAddMod_t **measObj,
-                           LTE_MAC_MainConfig_t *mac_MainConfig,
-                           long logicalChannelIdentity,
-                           LTE_LogicalChannelConfig_t *logicalChannelConfig,
-                           LTE_MeasGapConfig_t *measGapConfig,
-                           LTE_TDD_Config_t *tdd_Config,
-                           LTE_MobilityControlInfo_t *mobilityControlInfo,
-                           LTE_SchedulingInfoList_t *schedulingInfoList,
-                           uint32_t ul_CarrierFreq,
-                           long *ul_Bandwidth,
-                           LTE_AdditionalSpectrumEmission_t *additionalSpectrumEmission,
-                           struct LTE_MBSFN_SubframeConfigList *mbsfn_SubframeConfigList,
-                           uint8_t MBMS_Flag,
-                           LTE_MBSFN_AreaInfoList_r9_t *mbsfn_AreaInfoList,
-                           LTE_PMCH_InfoList_r9_t *pmch_InfoList,
-                           LTE_SystemInformationBlockType1_v1310_IEs_t *sib1_ext_r13,
-                           uint8_t FeMBMS_Flag,
-                           LTE_BCCH_DL_SCH_Message_MBMS_t *mib_fembms,
-                           LTE_SchedulingInfo_MBMS_r14_t *schedulingInfo_fembms,
-                           struct LTE_NonMBSFN_SubframeConfig_r14 *nonMBSFN_SubframeConfig,
-                           LTE_SystemInformationBlockType1_MBMS_r14_t   *sib1_mbms_r14_fembms,
-                           LTE_MBSFN_AreaInfoList_r9_t *mbsfn_AreaInfoList_fembms,
-			   LTE_MBSFNAreaConfiguration_r9_t * mbms_AreaConfiguration
-                          );
+typedef struct {
+  int CC_id;
+  int physCellId;
+  int p_eNB;
+  int Ncp;
+  int eutra_band;
+  uint32_t dl_CarrierFreq;
+  int pbch_repetition;
+  rnti_t rnti;
+  LTE_BCCH_BCH_Message_t *mib;
+  LTE_RadioResourceConfigCommonSIB_t *radioResourceConfigCommon;
+  LTE_RadioResourceConfigCommonSIB_t *LTE_radioResourceConfigCommon_BR;
+  struct LTE_PhysicalConfigDedicated *physicalConfigDedicated;
+  LTE_SCellToAddMod_r10_t *sCellToAddMod_r10;
+  LTE_MeasObjectToAddMod_t **measObj;
+  LTE_MAC_MainConfig_t *mac_MainConfig;
+  long logicalChannelIdentity;
+  LTE_LogicalChannelConfig_t *logicalChannelConfig;
+  LTE_MeasGapConfig_t *measGapConfig;
+  LTE_TDD_Config_t *tdd_Config;
+  LTE_MobilityControlInfo_t *mobilityControlInfo;
+  LTE_SchedulingInfoList_t *schedulingInfoList;
+  uint32_t ul_CarrierFreq;
+  long *ul_Bandwidth;
+  LTE_AdditionalSpectrumEmission_t *additionalSpectrumEmission;
+  struct LTE_MBSFN_SubframeConfigList *mbsfn_SubframeConfigList;
+  uint8_t MBMS_Flag;
+  LTE_MBSFN_AreaInfoList_r9_t *mbsfn_AreaInfoList;
+  LTE_PMCH_InfoList_r9_t *pmch_InfoList;
+  LTE_SystemInformationBlockType1_v1310_IEs_t *sib1_ext_r13;
+  uint8_t FeMBMS_Flag;
+  LTE_BCCH_DL_SCH_Message_MBMS_t *mib_fembms;
+  LTE_SchedulingInfo_MBMS_r14_t *schedulingInfo_fembms;
+  struct LTE_NonMBSFN_SubframeConfig_r14 *nonMBSFN_SubframeConfig;
+  LTE_SystemInformationBlockType13_r9_t *sib1_mbms_r14_fembms;
+  LTE_MBSFN_AreaInfoList_r9_t *mbsfn_AreaInfoList_fembms;
+  LTE_MBSFNAreaConfiguration_r9_t *mbms_AreaConfiguration;
+} rrc_mac_config_req_eNB_t;
+
+int rrc_mac_config_req_eNB(const module_id_t module_idP, const rrc_mac_config_req_eNB_t *);
 
 /** \brief RRC eNB Configuration primitive for PHY/MAC.  Allows configuration of PHY/MAC resources based on System Information (SI), RRCConnectionSetup and RRCConnectionReconfiguration messages.
 @param Mod_id Instance ID of ue
@@ -1035,10 +1024,6 @@ uint8_t frame_subframe2_dl_harq_pid(LTE_TDD_Config_t *tdd_Config, int abs_frameP
 uint8_t ul_subframe2_k_phich(COMMON_channels_t *cc, sub_frame_t ul_subframe);
 
 unsigned char ul_ACK_subframe2M(LTE_TDD_Config_t *tdd_Config,unsigned char subframe);
-
-int to_rbg(int dl_Bandwidth);
-
-int to_prb(int dl_Bandwidth);
 
 uint8_t get_Msg3harqpid(COMMON_channels_t *cc,
                         frame_t frame, sub_frame_t current_subframe);

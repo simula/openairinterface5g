@@ -555,7 +555,7 @@ int lte_dl_channel_estimation(PHY_VARS_UE *ue,
                                            32767-ue->ch_est_alpha,
                                            dl_ch-(ue->frame_parms.ofdm_symbol_size<<1),0,ue->frame_parms.ofdm_symbol_size);
       } else { // high_speed_flag == 1
-        if ((symbol == 0)) {
+        if (symbol == 0) {
           //      printf("Interpolating %d->0\n",4-ue->frame_parms.Ncp);
           //      dl_ch_prev = (int16_t *)&dl_ch_estimates[(p<<1)+aarx][(4-ue->frame_parms.Ncp)*(ue->frame_parms.ofdm_symbol_size)];
           if(((Ns>>1)!=0) || ( ((Ns>>1)==0) && interpolateS11S12)) {
@@ -701,7 +701,7 @@ int lte_dl_channel_estimation(PHY_VARS_UE *ue,
       }
   }
 
-  T(T_UE_PHY_DL_CHANNEL_ESTIMATE, T_INT(eNB_id),
+  T(T_UE_PHY_DL_CHANNEL_ESTIMATE, T_INT(eNB_id), T_INT(0),
     T_INT(ue->proc.proc_rxtx[ue->current_thread_id[Ns>>1]].frame_rx%1024), T_INT(ue->proc.proc_rxtx[ue->current_thread_id[Ns>>1]].subframe_rx),
     T_INT(0), T_BUFFER(&ue->common_vars.common_vars_rx_data_per_thread[ue->current_thread_id[Ns>>1]].dl_ch_estimates_time[eNB_offset][0][0], 512  * 4));
   return(0);

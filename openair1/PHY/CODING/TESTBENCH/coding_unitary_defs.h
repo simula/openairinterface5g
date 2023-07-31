@@ -22,13 +22,13 @@
 #ifndef __CODING_UNITARY_DEFS__h__
 #define __CODING_UNITARY_DEFS__h__
 int oai_exit=0;
-unsigned int NB_UE_INST = 1;
+const int NB_UE_INST = 1;
 #include "openair1/PHY/defs_UE.h"
 PHY_VARS_UE ***PHY_vars_UE_g;
 #include "common/ran_context.h"
 RAN_CONTEXT_t RC;
 
-void exit_function(const char* file, const char* function, const int line, const char *s) {
+void exit_function(const char* file, const char* function, const int line, const char* s, const int assert) {
   const char * msg= s==NULL ? "no comment": s;
   printf("Exiting at: %s:%d %s(), %s\n", file, line, function, msg);
   exit(-1);

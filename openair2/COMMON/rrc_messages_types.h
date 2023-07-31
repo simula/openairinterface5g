@@ -75,6 +75,7 @@
 #define NAS_CELL_SELECTION_REQ(mSGpTR)  (mSGpTR)->ittiMsg.nas_cell_selection_req
 #define NAS_CONN_ESTABLI_REQ(mSGpTR)    (mSGpTR)->ittiMsg.nas_conn_establi_req
 #define NAS_UPLINK_DATA_REQ(mSGpTR)     (mSGpTR)->ittiMsg.nas_ul_data_req
+#define NAS_DEREGISTRATION_REQ(mSGpTR)  (mSGpTR)->ittiMsg.nas_deregistration_req
 
 #define NAS_RAB_ESTABLI_RSP(mSGpTR)     (mSGpTR)->ittiMsg.nas_rab_est_rsp
 
@@ -87,8 +88,12 @@
 #define NAS_DOWNLINK_DATA_IND(mSGpTR)   (mSGpTR)->ittiMsg.nas_dl_data_ind
 
 #define RRC_SUBFRAME_PROCESS(mSGpTR)    (mSGpTR)->ittiMsg.rrc_subframe_process
+#define NRRRC_SLOT_PROCESS(mSGpTR)      (mSGpTR)->ittiMsg.nr_rrc_slot_process
 
 #define RLC_SDU_INDICATION(mSGpTR)      (mSGpTR)->ittiMsg.rlc_sdu_indication
+#define NRDuDlReq(mSGpTR)      (mSGpTR)->ittiMsg.nr_du_dl_req
+
+#define NAS_OAI_TUN_NSA(mSGpTR)         (mSGpTR)->ittiMsg.nas_oai_tun_nsa
 
 //-------------------------------------------------------------------------------------------//
 typedef struct RrcStateInd_s {
@@ -164,7 +169,7 @@ typedef struct RadioResourceConfig_s {
   long                    ue_TransmissionMode;
   long                    ue_multiple_max;
   //SIB2 BR Options
-  long       *preambleTransMax_CE_r13;
+  long       preambleTransMax_CE_r13;
   BOOLEAN_t     prach_ConfigCommon_v1310;
   BOOLEAN_t            *mpdcch_startSF_CSS_RA_r13;
   long        mpdcch_startSF_CSS_RA_r13_val;
@@ -185,7 +190,7 @@ typedef struct RrcConfigurationReq_s {
   uint32_t                rrc_inactivity_timer_thres; // for testing, maybe change later
   paging_drx_t            default_drx;
   int16_t                 nb_cc;
-  lte_frame_type_t        frame_type[MAX_NUM_CCs];
+  frame_type_t            frame_type[MAX_NUM_CCs];
   uint8_t                 tdd_config[MAX_NUM_CCs];
   uint8_t                 tdd_config_s[MAX_NUM_CCs];
   lte_prefix_type_t       prefix_type[MAX_NUM_CCs];
@@ -336,7 +341,7 @@ typedef struct NbIoTRrcConfigurationReq_s {
   uint16_t                mcc;
   uint16_t                mnc;
   uint8_t                 mnc_digit_length;
-  lte_frame_type_t        frame_type;
+  frame_type_t            frame_type;
   uint8_t                 tdd_config;
   uint8_t                 tdd_config_s;
   lte_prefix_type_t       prefix_type;
@@ -398,6 +403,12 @@ typedef struct NbIoTRrcConfigurationReq_s {
   long                    ue_TimersAndConstants_n311_NB;
 } NbIoTRrcConfigurationReq;
 
+typedef struct {
+  int N1;
+  int N2;
+  int XP;
+} rrc_pdsch_AntennaPorts_t;
+
 // gNB: GNB_APP -> RRC messages
 typedef struct NRRrcConfigurationReq_s {
   uint64_t                cell_identity;
@@ -408,23 +419,35 @@ typedef struct NRRrcConfigurationReq_s {
   uint8_t                 num_plmn;
   NR_ServingCellConfigCommon_t *scc;
   NR_ServingCellConfig_t  *scd;
-  int                     ssb_SubcarrierOffset;
   int                     sib1_tda;
-  int                     pdsch_AntennaPorts;
+  rrc_pdsch_AntennaPorts_t pdsch_AntennaPorts;
   int                     pusch_AntennaPorts;
+  int                     minRXTXTIME;
   int                     do_CSIRS;
+  int                     do_SRS;
+  bool                    force_256qam_off;
   int                     pusch_TargetSNRx10;
   int                     pucch_TargetSNRx10;
+  bool                    enable_sdap;
+  int                     drbs;
 } gNB_RrcConfigurationReq;
 
+typedef struct NRDuDlReq_s {
+  rnti_t rnti;
+  mem_block_t * buf;
+  uint64_t srb_id;
+}  NRDuDlReq_t; 
 
 // UE: NAS -> RRC messages
 typedef kenb_refresh_req_t      NasKenbRefreshReq;
 typedef cell_info_req_t         NasCellSelectionReq;
 typedef nas_establish_req_t     NasConnEstabliReq;
 typedef ul_info_transfer_req_t  NasUlDataReq;
+typedef nas_deregistration_req_t NasDeregistrationReq;
 
 typedef rab_establish_rsp_t     NasRabEstRsp;
+
+typedef nas_oai_tun_nsa_t       NasOaiTunNsa;
 
 // UE: RRC -> NAS messages
 typedef cell_info_cnf_t         NasCellSelectionCnf;
@@ -438,8 +461,14 @@ typedef dl_info_transfer_ind_t  NasDlDataInd;
 // eNB: realtime -> RRC messages
 typedef struct rrc_subframe_process_s {
   protocol_ctxt_t ctxt;
-  int             CC_id;
+  int CC_id;
 } RrcSubframeProcess;
+
+typedef struct nrrrc_slot_process_s {
+  int frame;
+  int slot;
+  int gnb_id;
+} NRRrcSlotProcess;
 
 // eNB: RLC -> RRC messages
 typedef struct rlc_sdu_indication_s {

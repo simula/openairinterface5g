@@ -36,13 +36,14 @@
 // Defines to access message fields.
 #define RRC_MAC_IN_SYNC_IND(mSGpTR)             (mSGpTR)->ittiMsg.rrc_mac_in_sync_ind
 #define RRC_MAC_OUT_OF_SYNC_IND(mSGpTR)         (mSGpTR)->ittiMsg.rrc_mac_out_of_sync_ind
+#define NR_RRC_MAC_SYNC_IND(mSGpTR)             (mSGpTR)->ittiMsg.nr_rrc_mac_sync_ind
 
 #define RRC_MAC_BCCH_DATA_REQ(mSGpTR)           (mSGpTR)->ittiMsg.rrc_mac_bcch_data_req
 #define RRC_MAC_BCCH_DATA_IND(mSGpTR)           (mSGpTR)->ittiMsg.rrc_mac_bcch_data_ind
 #define NR_RRC_MAC_BCCH_DATA_IND(mSGpTR)        (mSGpTR)->ittiMsg.nr_rrc_mac_bcch_data_ind
 
-#define RRC_MAC_BCCH_MBMS_DATA_REQ(mSGpTR)           (mSGpTR)->ittiMsg.rrc_mac_bcch_mbms_data_req
-#define RRC_MAC_BCCH_MBMS_DATA_IND(mSGpTR)           (mSGpTR)->ittiMsg.rrc_mac_bcch_mbms_data_ind
+#define RRC_MAC_BCCH_MBMS_DATA_REQ(mSGpTR)      (mSGpTR)->ittiMsg.rrc_mac_bcch_mbms_data_req
+#define RRC_MAC_BCCH_MBMS_DATA_IND(mSGpTR)      (mSGpTR)->ittiMsg.rrc_mac_bcch_mbms_data_ind
 
 #define RRC_MAC_CCCH_DATA_REQ(mSGpTR)           (mSGpTR)->ittiMsg.rrc_mac_ccch_data_req
 #define RRC_MAC_CCCH_DATA_CNF(mSGpTR)           (mSGpTR)->ittiMsg.rrc_mac_ccch_data_cnf
@@ -53,17 +54,25 @@
 #define RRC_MAC_MCCH_DATA_IND(mSGpTR)           (mSGpTR)->ittiMsg.rrc_mac_mcch_data_ind
 #define RRC_MAC_PCCH_DATA_REQ(mSGpTR)           (mSGpTR)->ittiMsg.rrc_mac_pcch_data_req
 
-#define RRC_MAC_DRX_CONFIG_REQ(mSGpTR)           (mSGpTR)->ittiMsg.rrc_mac_drx_config_req
+#define NR_RRC_MAC_RA_IND(mSGpTR)               (mSGpTR)->ittiMsg.nr_rrc_mac_ra_ind
+
+#define RRC_MAC_DRX_CONFIG_REQ(mSGpTR)          (mSGpTR)->ittiMsg.rrc_mac_drx_config_req
 
 // Some constants from "LAYER2/MAC/defs.h"
 #define BCCH_SDU_SIZE                           (512)
 #define BCCH_SDU_MBMS_SIZE                      (512)
-#define CCCH_SDU_SIZE                           (512)
+#define CCCH_SDU_SIZE                           (1024)
 #define MCCH_SDU_SIZE                           (512)
 #define PCCH_SDU_SIZE                           (512)
 
 //-------------------------------------------------------------------------------------------//
 // Messages between RRC and MAC layers
+
+typedef struct NRRrcMacRaInd_s {
+  uint32_t frame;
+  bool RA_succeeded;
+} NRRrcMacRaInd;
+
 typedef struct RrcMacInSyncInd_s {
   uint32_t  frame;
   uint8_t   sub_frame;
@@ -71,6 +80,11 @@ typedef struct RrcMacInSyncInd_s {
 } RrcMacInSyncInd;
 
 typedef RrcMacInSyncInd RrcMacOutOfSyncInd;
+
+typedef struct NRRrcMacSyncInd_s {
+  uint32_t frame;
+  bool in_sync;
+} NRRrcMacSyncInd;
 
 typedef struct RrcMacBcchDataReq_s {
   uint32_t  frame;
@@ -91,7 +105,7 @@ typedef struct RrcMacBcchDataInd_s {
 
 typedef struct NRRrcMacBcchDataInd_s {
   uint32_t  frame;
-  uint8_t   sub_frame;
+  uint8_t   slot;
   uint32_t  sdu_size;
   uint8_t   sdu[BCCH_SDU_SIZE];
   uint8_t   gnb_index;
@@ -140,13 +154,14 @@ typedef struct RrcMacCcchDataInd_s {
 
 typedef struct NRRrcMacCcchDataInd_s {
   uint32_t  frame;
-  uint8_t   sub_frame;
+  uint8_t   slot;
   uint16_t  rnti;
   uint32_t  sdu_size;
   uint8_t   sdu[CCCH_SDU_SIZE];
   OCTET_STRING_t *du_to_cu_rrc_container;
   uint8_t   gnb_index;
   int       CC_id;
+  uint64_t  nr_cellid;
 } NRRrcMacCcchDataInd;
 
 typedef struct RrcMacMcchDataReq_s {

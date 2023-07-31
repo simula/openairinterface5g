@@ -43,13 +43,11 @@
 #include "common/utils/LOG/log.h"
 #include "rrc_eNB_UE_context.h"
 #include "pdcp.h"
-#include "msc.h"
 #include "common/ran_context.h"
+#include "uper_encoder.h"
 
 #include "intertask_interface.h"
 
-#include "flexran_agent_extern.h"
-#include "openair2/F1AP/f1ap_du_rrc_message_transfer.h"
 
 extern RAN_CONTEXT_t RC;
 
@@ -300,26 +298,10 @@ mac_rrc_data_ind(
   const uint8_t        *sduP,
   const sdu_size_t      sdu_lenP,
   const uint8_t         mbsfn_sync_areaP,
-  const boolean_t   brOption
+  const bool            brOption
 )
 //--------------------------------------------------------------------------
 {
-  if (NODE_IS_DU(RC.rrc[module_idP]->node_type)) {
-    LOG_W(RRC,"[DU %d][RAPROC] Received SDU for CCCH on SRB %ld length %d for UE id %d RNTI %x \n",
-          module_idP, srb_idP, sdu_lenP, UE_id, rntiP);
-    /* do ITTI message */
-    DU_send_INITIAL_UL_RRC_MESSAGE_TRANSFER(
-      module_idP,
-      CC_id,
-      UE_id,
-      rntiP,
-      sduP,
-      sdu_lenP,
-      NULL,
-      0);
-    return(0);
-  }
-
   //SRB_INFO *Srb_info;
   protocol_ctxt_t ctxt;
   sdu_size_t      sdu_size = 0;
@@ -398,11 +380,6 @@ void mac_eNB_rrc_ul_failure(const module_id_t Mod_instP,
       ue_context_p->ue_context.ul_failure_timer=1;
   } else {
     LOG_W(RRC,"Frame %d, Subframe %d: UL failure: UE %x unknown \n",frameP,subframeP,rntiP);
-  }
-
-  if (flexran_agent_get_rrc_xface(Mod_instP)) {
-    flexran_agent_get_rrc_xface(Mod_instP)->flexran_agent_notify_ue_state_change(Mod_instP,
-        rntiP, PROTOCOL__FLEX_UE_STATE_CHANGE_TYPE__FLUESC_DEACTIVATED);
   }
 
   //rrc_mac_remove_ue(Mod_instP,rntiP);

@@ -118,7 +118,7 @@ void dlsch_scrambling(LTE_DL_FRAME_PARMS *frame_parms,
   for (n=0; n<(1+(G>>5)); n++) {
 #ifdef DEBUG_SCRAMBLING
 
-    for (int k=0; k<32; k++) printf("scrambling %d : %x xor %x = %d\n",k+(n<<5),e[k],(s>>k)&1,e[k]^((s>>k)&1));
+    for (int k=0; k<32; k++) printf("scrambling %d : %x xor %x = %u\n",k+(n<<5),e[k],(s>>k)&1,e[k]^((s>>k)&1));
 
 #endif
     e[0] = (e[0]) ^ (s&1);
@@ -163,8 +163,7 @@ void dlsch_scrambling(LTE_DL_FRAME_PARMS *frame_parms,
   VCD_SIGNAL_DUMPER_DUMP_FUNCTION_BY_NAME(VCD_SIGNAL_DUMPER_FUNCTIONS_ENB_DLSCH_SCRAMBLING, VCD_FUNCTION_OUT);
 }
 
-
-
+uint8_t scrambling_lut[65536*16] __attribute__((aligned(32)));
 void init_scrambling_lut(void) {
   uint32_t s;
   int i=0,j;
@@ -215,6 +214,7 @@ void dlsch_unscrambling(LTE_DL_FRAME_PARMS *frame_parms,
   }
 }
 
+int16_t unscrambling_lut[65536*16] __attribute__((aligned(32)));
 void init_unscrambling_lut(void) {
   uint32_t s;
   int i=0,j;

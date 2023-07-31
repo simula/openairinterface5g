@@ -29,6 +29,21 @@
 
 #include "LOG/log.h"
 
+#include "common/utils/time_stat.h"
+
+static void nr_rlc_entity_get_stats(
+    nr_rlc_entity_t *entity,
+    nr_rlc_statistics_t *out)
+{
+// printf("Stats from the RLC entity asked\n");
+  *out = entity->stats;
+  if (entity->avg_time_is_on)
+    out->txsdu_avg_time_to_tx = time_average_get_average(entity->txsdu_avg_time_to_tx,
+                                    time_average_now());
+  else
+    out->txsdu_avg_time_to_tx = 0;
+}
+
 nr_rlc_entity_t *new_nr_rlc_entity_am(
     int rx_maxsize,
     int tx_maxsize,
@@ -77,14 +92,16 @@ nr_rlc_entity_t *new_nr_rlc_entity_am(
   ret->sn_modulus = 1 << ret->sn_field_length;
   ret->window_size = ret->sn_modulus / 2;
 
-  ret->common.recv_pdu        = nr_rlc_entity_am_recv_pdu;
-  ret->common.buffer_status   = nr_rlc_entity_am_buffer_status;
-  ret->common.generate_pdu    = nr_rlc_entity_am_generate_pdu;
-  ret->common.recv_sdu        = nr_rlc_entity_am_recv_sdu;
-  ret->common.set_time        = nr_rlc_entity_am_set_time;
-  ret->common.discard_sdu     = nr_rlc_entity_am_discard_sdu;
-  ret->common.reestablishment = nr_rlc_entity_am_reestablishment;
-  ret->common.delete          = nr_rlc_entity_am_delete;
+  ret->common.recv_pdu           = nr_rlc_entity_am_recv_pdu;
+  ret->common.buffer_status      = nr_rlc_entity_am_buffer_status;
+  ret->common.generate_pdu       = nr_rlc_entity_am_generate_pdu;
+  ret->common.recv_sdu           = nr_rlc_entity_am_recv_sdu;
+  ret->common.set_time           = nr_rlc_entity_am_set_time;
+  ret->common.discard_sdu        = nr_rlc_entity_am_discard_sdu;
+  ret->common.reestablishment    = nr_rlc_entity_am_reestablishment;
+  ret->common.delete             = nr_rlc_entity_am_delete;
+  ret->common.available_tx_space = nr_rlc_entity_am_available_tx_space;
+  ret->common.get_stats       = nr_rlc_entity_get_stats;
 
   ret->common.deliver_sdu                  = deliver_sdu;
   ret->common.deliver_sdu_data             = deliver_sdu_data;
@@ -92,6 +109,13 @@ nr_rlc_entity_t *new_nr_rlc_entity_am(
   ret->common.sdu_successful_delivery_data = sdu_successful_delivery_data;
   ret->common.max_retx_reached             = max_retx_reached;
   ret->common.max_retx_reached_data        = max_retx_reached_data;
+
+  ret->common.stats.mode = NR_RLC_AM;
+
+  /* let's take average over the last 100 milliseconds
+   * initial_size of 1024 is arbitrary
+   */
+  ret->common.txsdu_avg_time_to_tx = time_average_new(100 * 1000, 1024);
 
   return (nr_rlc_entity_t *)ret;
 }
@@ -127,17 +151,26 @@ nr_rlc_entity_t *new_nr_rlc_entity_um(
   ret->sn_modulus = 1 << ret->sn_field_length;
   ret->window_size = ret->sn_modulus / 2;
 
-  ret->common.recv_pdu        = nr_rlc_entity_um_recv_pdu;
-  ret->common.buffer_status   = nr_rlc_entity_um_buffer_status;
-  ret->common.generate_pdu    = nr_rlc_entity_um_generate_pdu;
-  ret->common.recv_sdu        = nr_rlc_entity_um_recv_sdu;
-  ret->common.set_time        = nr_rlc_entity_um_set_time;
-  ret->common.discard_sdu     = nr_rlc_entity_um_discard_sdu;
-  ret->common.reestablishment = nr_rlc_entity_um_reestablishment;
-  ret->common.delete          = nr_rlc_entity_um_delete;
+  ret->common.recv_pdu           = nr_rlc_entity_um_recv_pdu;
+  ret->common.buffer_status      = nr_rlc_entity_um_buffer_status;
+  ret->common.generate_pdu       = nr_rlc_entity_um_generate_pdu;
+  ret->common.recv_sdu           = nr_rlc_entity_um_recv_sdu;
+  ret->common.set_time           = nr_rlc_entity_um_set_time;
+  ret->common.discard_sdu        = nr_rlc_entity_um_discard_sdu;
+  ret->common.reestablishment    = nr_rlc_entity_um_reestablishment;
+  ret->common.delete             = nr_rlc_entity_um_delete;
+  ret->common.available_tx_space = nr_rlc_entity_um_available_tx_space;
+  ret->common.get_stats       = nr_rlc_entity_get_stats;
 
   ret->common.deliver_sdu                  = deliver_sdu;
   ret->common.deliver_sdu_data             = deliver_sdu_data;
+
+  ret->common.stats.mode = NR_RLC_UM;
+
+  /* let's take average over the last 100 milliseconds
+   * initial_size of 1024 is arbitrary
+   */
+  ret->common.txsdu_avg_time_to_tx = time_average_new(100 * 1000, 1024);
 
   return (nr_rlc_entity_t *)ret;
 }
@@ -158,17 +191,26 @@ nr_rlc_entity_t *new_nr_rlc_entity_tm(
 
   ret->tx_maxsize = tx_maxsize;
 
-  ret->common.recv_pdu        = nr_rlc_entity_tm_recv_pdu;
-  ret->common.buffer_status   = nr_rlc_entity_tm_buffer_status;
-  ret->common.generate_pdu    = nr_rlc_entity_tm_generate_pdu;
-  ret->common.recv_sdu        = nr_rlc_entity_tm_recv_sdu;
-  ret->common.set_time        = nr_rlc_entity_tm_set_time;
-  ret->common.discard_sdu     = nr_rlc_entity_tm_discard_sdu;
-  ret->common.reestablishment = nr_rlc_entity_tm_reestablishment;
-  ret->common.delete          = nr_rlc_entity_tm_delete;
+  ret->common.recv_pdu           = nr_rlc_entity_tm_recv_pdu;
+  ret->common.buffer_status      = nr_rlc_entity_tm_buffer_status;
+  ret->common.generate_pdu       = nr_rlc_entity_tm_generate_pdu;
+  ret->common.recv_sdu           = nr_rlc_entity_tm_recv_sdu;
+  ret->common.set_time           = nr_rlc_entity_tm_set_time;
+  ret->common.discard_sdu        = nr_rlc_entity_tm_discard_sdu;
+  ret->common.reestablishment    = nr_rlc_entity_tm_reestablishment;
+  ret->common.delete             = nr_rlc_entity_tm_delete;
+  ret->common.available_tx_space = nr_rlc_entity_tm_available_tx_space;
+  ret->common.get_stats       = nr_rlc_entity_get_stats;
 
   ret->common.deliver_sdu                  = deliver_sdu;
   ret->common.deliver_sdu_data             = deliver_sdu_data;
+
+  ret->common.stats.mode = NR_RLC_TM;
+
+  /* let's take average over the last 100 milliseconds
+   * initial_size of 1024 is arbitrary
+   */
+  ret->common.txsdu_avg_time_to_tx = time_average_new(100 * 1000, 1024);
 
   return (nr_rlc_entity_t *)ret;
 }

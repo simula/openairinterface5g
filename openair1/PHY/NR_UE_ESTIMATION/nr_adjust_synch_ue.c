@@ -27,7 +27,7 @@
 #include "executables/softmodem-common.h"
 #include "common/utils/LOG/vcd_signal_dumper.h"
 
-#define DEBUG_PHY
+//#define DEBUG_PHY
 
 // Adjust location synchronization point to account for drift
 // The adjustment is performed once per frame based on the
@@ -36,13 +36,14 @@
 void nr_adjust_synch_ue(NR_DL_FRAME_PARMS *frame_parms,
                         PHY_VARS_NR_UE *ue,
                         module_id_t gNB_id,
+                        const int estimateSz,
+                        struct complex16 dl_ch_estimates_time[][estimateSz],
                         uint8_t frame,
                         uint8_t subframe,
                         unsigned char clear,
                         short coef)
 {
 
-  static int max_pos_fil = 0;
   static int count_max_pos_ok = 0;
   static int first_time = 1;
   int max_val = 0, max_pos = 0;
@@ -55,13 +56,14 @@ void nr_adjust_synch_ue(NR_DL_FRAME_PARMS *frame_parms,
 
   LOG_D(PHY,"AbsSubframe %d: rx_offset (before) = %d\n",subframe,ue->rx_offset);
 
-  // we only use channel estimates from tx antenna 0 here
-  for (int i = 0; i < frame_parms->nb_prefix_samples; i++) {
+  // search for maximum position within the cyclic prefix
+  for (int i = -frame_parms->nb_prefix_samples/2; i < frame_parms->nb_prefix_samples/2; i++) {
     int temp = 0;
 
+    int j = (i < 0) ? (i + frame_parms->ofdm_symbol_size) : i;
     for (int aa = 0; aa < frame_parms->nb_antennas_rx; aa++) {
-      int Re = ((int16_t*)ue->pbch_vars[gNB_id]->dl_ch_estimates_time[aa])[(i<<1)];
-      int Im = ((int16_t*)ue->pbch_vars[gNB_id]->dl_ch_estimates_time[aa])[1+(i<<1)];
+      int Re = dl_ch_estimates_time[aa][j].r;
+      int Im = dl_ch_estimates_time[aa][j].i;
       temp += (Re*Re/2) + (Im*Im/2);
     }
 
@@ -71,19 +73,16 @@ void nr_adjust_synch_ue(NR_DL_FRAME_PARMS *frame_parms,
     }
   }
 
-  if (max_pos > frame_parms->ofdm_symbol_size/2)
-    max_pos = max_pos - frame_parms->ofdm_symbol_size;
-
   // filter position to reduce jitter
   if (clear == 1)
-    max_pos_fil = max_pos;
+    ue->max_pos_fil = max_pos << 15;
   else
-    max_pos_fil = ((max_pos_fil * coef) + (max_pos * ncoef)) >> 15;
+    ue->max_pos_fil = ((ue->max_pos_fil * coef) >> 15) + (max_pos * ncoef);
 
   // do not filter to have proactive timing adjustment
-  //max_pos_fil = max_pos;
+  //ue->max_pos_fil = max_pos << 15;
 
-  int diff = max_pos_fil - sync_pos;
+  int diff = (ue->max_pos_fil >> 15) - sync_pos;
 
   if (frame_parms->freq_range==nr_FR2) 
     sync_offset = 2;
@@ -95,6 +94,10 @@ void nr_adjust_synch_ue(NR_DL_FRAME_PARMS *frame_parms,
   else
     ue->rx_offset = diff;
 
+  const int sample_shift = -(ue->rx_offset>>1);
+  // reset IIR filter for next offset calculation
+  ue->max_pos_fil += sample_shift * 32768;
+
   if(abs(diff)<5)
     count_max_pos_ok ++;
   else
@@ -102,36 +105,19 @@ void nr_adjust_synch_ue(NR_DL_FRAME_PARMS *frame_parms,
       
   //printf("adjust sync count_max_pos_ok = %d\n",count_max_pos_ok);
 
-  if(count_max_pos_ok > 10 && first_time == 1)
-  {
+  if(count_max_pos_ok > 10 && first_time == 1) {
     first_time = 0;
     ue->time_sync_cell = 1;
-    if (get_softmodem_params()->do_ra || get_softmodem_params()->sa) {
-      LOG_I(PHY,"[UE%d] Sending synch status to higher layers\n",ue->Mod_id);
-      //mac_resynch();
-      //dl_phy_sync_success(ue->Mod_id,frame,0,1);//ue->common_vars.eNb_id);
-      ue->UE_mode[0] = PRACH;
-      ue->prach_resources[gNB_id]->sync_frame = frame;
-      ue->prach_resources[gNB_id]->init_msg1 = 0;
-    } else {
-      ue->UE_mode[0] = PUSCH;
-    }
   }
 
-  if (ue->rx_offset < 0)
-    ue->rx_offset += frame_parms->samples_per_frame;
-
-  if (ue->rx_offset >= frame_parms->samples_per_frame)
-    ue->rx_offset -= frame_parms->samples_per_frame;
-
 #ifdef DEBUG_PHY
-  LOG_D(PHY,"AbsSubframe %d: diff = %i, rx_offset (final) = %i : clear = %d, max_pos = %d, max_pos_fil = %d, max_val = %d, sync_pos %d\n",
+  LOG_I(PHY,"AbsSubframe %d: diff = %i, rx_offset (final) = %i : clear = %d, max_pos = %d, max_pos_fil = %d, max_val = %d, sync_pos %d\n",
         subframe,
         diff,
         ue->rx_offset,
         clear,
         max_pos,
-        max_pos_fil,
+        ue->max_pos_fil,
         max_val,
         sync_pos);
 #endif //DEBUG_PHY

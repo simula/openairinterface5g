@@ -101,6 +101,12 @@ SystemInformationBlockType1_nr_t;
 
 #define FRAME_DURATION_MICRO_SEC           (10000)  /* frame duration in microsecond */
 
+enum nr_Link {
+  link_type_dl,
+  link_type_ul,
+  link_type_sl,
+};
+
 typedef enum {
   ms0p5    = 500,                 /* duration is given in microsecond */
   ms0p625  = 625,
@@ -139,7 +145,7 @@ typedef struct TDD_UL_DL_configCommon_s {
   struct TDD_UL_DL_configCommon_s *p_next;
 } TDD_UL_DL_configCommon_t;
 
-typedef struct {
+typedef struct TDD_UL_DL_SlotConfig_s {
   /// \ Identifies a slot within a dl-UL-TransmissionPeriodicity (given in tdd-UL-DL-configurationCommon)
   uint16_t slotIndex;
   /// \ The direction (downlink or uplink) for the symbols in this slot. "allDownlink" indicates that all symbols in this slot are used
@@ -154,7 +160,7 @@ typedef struct {
   /// Corresponds to L1 parameter 'number-of-UL-symbols-dedicated' (see 38.211, section FFS_Section)
   uint16_t nrofUplinkSymbols;
   /// \ for setting a sequence
-  struct TDD_UL_DL_SlotConfig_t *p_next_TDD_UL_DL_SlotConfig;
+  struct TDD_UL_DL_SlotConfig_s *p_next_TDD_UL_DL_SlotConfig;
 } TDD_UL_DL_SlotConfig_t;
 
 /***********************************************************************
@@ -210,12 +216,6 @@ typedef enum {
   srs_sl1280 = 15,
   srs_sl2560 = 16
 } SRS_Periodicity_t;
-
-#define NB_SRS_PERIOD         (17)
-
-static const uint16_t srs_period[NB_SRS_PERIOD]
-= { 1, 2, 4, 5, 8, 10, 16, 20, 32, 40, 64, 80, 160, 320, 640, 1280, 2560}
-;
 
 /// SRS_Resource of SRS_Config information element from 38.331 RRC specifications
 typedef struct {
@@ -345,11 +345,6 @@ typedef struct {
 #define MAX_NR_OF_UL_ALLOCATIONS            (16)
 
 typedef enum {
-  typeA = 0,
-  typeB = 1
-} mappingType_t;
-
-typedef enum {
   pdsch_dmrs_pos0 = 0,
   pdsch_dmrs_pos1 = 1,
   pdsch_dmrs_pos2 = 2,
@@ -368,16 +363,6 @@ typedef enum {
   pusch_dmrs_type1 = 0,
   pusch_dmrs_type2 = 1
 } pusch_dmrs_type_t;
-typedef enum {
-  pusch_dmrs_pos0 = 0,
-  pusch_dmrs_pos1 = 1,
-  pusch_dmrs_pos2 = 2,
-  pusch_dmrs_pos3 = 3,
-} pusch_dmrs_AdditionalPosition_t;
-typedef enum {
-  pusch_len1 = 1,
-  pusch_len2 = 2
-} pusch_maxLength_t;
 
 typedef enum {
   txConfig_codebook = 1,
@@ -526,102 +511,6 @@ typedef struct {
   uint8_t                nb_CS_indexes;
   uint8_t                initial_CS_indexes[MAX_NB_CYCLIC_SHIFT];
 } initial_pucch_resource_t;
-
-
-/* structure with all possible fields for pucch format from 0 to 4  */
-typedef struct {
-  pucch_format_nr_t      format;              /* format   0    1    2    3    4    */
-  uint8_t                initialCyclicShift;  /*          x    x                   */
-  uint8_t                nrofSymbols;         /*          x    x    x    x    x    */
-  uint8_t                startingSymbolIndex; /*          x    x    x    x    x    */
-  uint8_t                timeDomainOCC;       /*               x                   */
-  uint8_t                nrofPRBs;            /*                    x    x         */
-  uint8_t                occ_length;          /*                              x    */
-  uint8_t                occ_Index;           /*                              x    */
-} PUCCH_format_t;
-
-typedef struct {
-  uint8_t                pucch_ResourceId;           /*  maxNrofPUCCH-Resources = 128 */
-  uint16_t               startingPRB;                /* maxNrofPhysicalResourceBlocks  = 275 */
-  feature_status_t       intraSlotFrequencyHopping;
-  uint16_t               secondHopPRB;
-  PUCCH_format_t         format_parameters;
-} PUCCH_Resource_t;
-
-typedef struct {
-  uint8_t                pucch_ResourceSetId; /* maxNrofPUCCH-ResourceSets = 4 */
-/*
-  -- PUCCH resources of format0 and format1 are only allowed in the first PUCCH reosurce set,
-  -- i.e., in a PUCCH-ResourceSet with pucch-ResourceSetId = 0. This set may contain between 8 and 32 resources.
-  -- PUCCH resources of format2, format3 and format4 are only allowed  in a PUCCH-ReosurceSet with pucch-ResourceSetId > 0. If present, these sets must contain 8 resources each.
-  -- The UE chooses a PUCCH-Resource from this list based on the 3-bit PUCCH resource indicator field in DCI as
-  -- speciied in 38.213, FFS_section.
-  -- Note that this list contains only a list of resource IDs. The actual resources are configured in PUCCH-Config.
-*/
-  uint8_t                pucch_resource_id[MAX_NB_OF_PUCCH_RESOURCES_PER_SET];  /* pucch resources belonging to current set is a 32 bit map to address maxNrofPUCCH-ResourcesPerSet = 32 resources */
-
-  uint8_t                first_resources_set_R_PUCCH;  /* size of first resource set which can be higher than 8 */
-/*
-  -- Maximum number of payload bits minus 1 that the UE may transmit using this PUCCH resource set. In a PUCCH occurrence, the UE
-  -- chooses the first of its PUCCH-ResourceSet which supports the number of bits that the UE wants to transmit.
-  -- The field is not present in the first set (Set0) since the maximum Size of Set0 is specified to be 3 bit.
-  -- The field is not present in the last configured set since the UE derives its maximum payload size as specified in 38.213.
-  -- This field can take integer values that are multiples of 4. Corresponds to L1 parameter 'N_2' or 'N_3' (see 38.213, section 9.2)
-*/
-  uint16_t               maxPayloadMinus1;  /* INTEGER (4..256) */
-} PUCCH_ResourceSet_t;
-
-typedef struct {
-/*
-  -- Enabling inter-slot frequency hopping when PUCCH Format 1, 3 or 4 is repeated over multiple slots.
-  -- The field is not applicable for format 2.
- */
-  feature_status_t       interslotFrequencyHopping;
-/*
-  -- Enabling 2 DMRS symbols per hop of a PUCCH Format 3 or 4 if both hops are more than X symbols when FH is enabled (X=4).
-  -- Enabling 4 DMRS sybmols for a PUCCH Format 3 or 4 with more than 2X+1 symbols when FH is disabled (X=4).
-  -- Corresponds to L1 parameter 'PUCCH-F3-F4-additional-DMRS' (see 38.213, section 9.2.1)
-  -- The field is not applicable for format 1 and 2.
-*/
-  enable_feature_t       additionalDMRS;
-/*
-  -- Max coding rate to determine how to feedback UCI on PUCCH for format 2, 3 or 4
-  -- Corresponds to L1 parameter 'PUCCH-F2-maximum-coderate', 'PUCCH-F3-maximum-coderate' and 'PUCCH-F4-maximum-coderate'
-  -- (see 38.213, section 9.2.5)
-  -- The field is not applicable for format 1.
-*/
-  PUCCH_MaxCodeRate_t    maxCodeRate;
-/*
-  -- Number of slots with the same PUCCH F1, F3 or F4. When the field is absent the UE applies the value n1.
-  -- Corresponds to L1 parameter 'PUCCH-F1-number-of-slots', 'PUCCH-F3-number-of-slots' and 'PUCCH-F4-number-of-slots'
-  -- (see 38.213, section 9.2.6)
-  -- The field is not applicable for format 2.
-*/
-  uint8_t                nrofSlots;
-/*
-  -- Enabling pi/2 BPSK for UCI symbols instead of QPSK for PUCCH.
-  -- Corresponds to L1 parameter 'PUCCH-PF3-PF4-pi/2PBSK' (see 38.213, section 9.2.5)
-  -- The field is not applicable for format 1 and 2.
-*/
-  feature_status_t       pi2PBSK;
-/*
-  -- Enabling simultaneous transmission of CSI and HARQ-ACK feedback with or without SR with PUCCH Format 2, 3 or 4
-  -- Corresponds to L1 parameter 'PUCCH-F2-Simultaneous-HARQ-ACK-CSI', 'PUCCH-F3-Simultaneous-HARQ-ACK-CSI' and
-  -- 'PUCCH-F4-Simultaneous-HARQ-ACK-CSI' (see 38.213, section 9.2.5)
-  -- When the field is absent the UE applies the value OFF
-  -- The field is not applicable for format 1.
-*/
-  enable_feature_t       simultaneousHARQ_ACK_CSI;
-} PUCCH_FormatConfig_t;
-
-typedef struct {
-  PUCCH_Resource_t       *PUCCH_Resource[MAX_NB_OF_PUCCH_RESOURCES];
-  PUCCH_ResourceSet_t    *PUCCH_ResourceSet[MAX_NB_OF_PUCCH_RESOURCE_SETS];
-  PUCCH_FormatConfig_t   *formatConfig[NUMBER_PUCCH_FORMAT_NR-1];   /* format 0 is not there */
-  uint8_t                dl_DataToUL_ACK[NB_DL_DATA_TO_UL_ACK];     /* table TS 38.213 Table 9.2.3-1: Mapping of PSDCH-to-HARQ_feedback timing indicator field values to numbers of slots */
-  void                   *spatial_Relation_Info[MAX_NR_OF_SPATIAL_RELATION_INFOS];
-} PUCCH_Config_t;
-
 
 
 /***********************************************************************

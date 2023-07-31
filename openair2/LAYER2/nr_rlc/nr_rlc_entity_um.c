@@ -27,6 +27,21 @@
 #include "nr_rlc_pdu.h"
 
 #include "LOG/log.h"
+#include "common/utils/time_stat.h"
+
+/* for a given SDU/SDU segment, computes the corresponding PDU header size */
+static int compute_pdu_header_size(nr_rlc_entity_um_t *entity,
+                                   nr_rlc_sdu_segment_t *sdu)
+{
+  int header_size = 1;
+
+  /* if SN to be included then one more byte if SN field length is 12 */
+  if (!(sdu->is_first && sdu->is_last) && entity->sn_field_length == 12)
+    header_size++;
+  /* two more bytes for SO if SDU segment is not the first */
+  if (!sdu->is_first) header_size += 2;
+  return header_size;
+}
 
 /*************************************************************************/
 /* PDU RX functions                                                      */
@@ -148,7 +163,7 @@ static void reassemble_and_deliver(nr_rlc_entity_um_t *entity, int sn)
       bad_sdu = 1;
     }
     if (!bad_sdu && len > 0) {
-      memcpy(sdu + so, pdu->data, len);
+      memcpy(sdu + so, pdu->data + so - pdu->so, len);
       so += len;
     }
     free(pdu->data);
@@ -165,6 +180,9 @@ static void reassemble_and_deliver(nr_rlc_entity_um_t *entity, int sn)
   entity->common.deliver_sdu(entity->common.deliver_sdu_data,
                              (nr_rlc_entity_t *)entity,
                              sdu, so);
+
+  entity->common.stats.txsdu_pkts++;
+  entity->common.stats.txsdu_bytes += so;
 }
 
 static void reception_actions(nr_rlc_entity_um_t *entity, nr_rlc_pdu_t *pdu)
@@ -194,6 +212,15 @@ static void reception_actions(nr_rlc_entity_um_t *entity, nr_rlc_pdu_t *pdu)
         nr_rlc_pdu_t *p = entity->rx_list;
         entity->rx_size -= p->size;
         entity->rx_list = p->next;
+
+        entity->common.stats.rxpdu_dd_pkts++;
+        /* we don't count PDU header bytes here, so be it */
+        entity->common.stats.rxpdu_dd_bytes += p->size;
+
+        entity->common.stats.rxpdu_ow_pkts++;
+        /* we don't count PDU header bytes here, so be it */
+        entity->common.stats.rxpdu_ow_bytes += p->size;
+
         nr_rlc_free_pdu(p);
       }
 
@@ -258,6 +285,9 @@ void nr_rlc_entity_um_recv_pdu(nr_rlc_entity_t *_entity,
   int is_first;
   int is_last;
 
+  entity->common.stats.rxpdu_pkts++;
+  entity->common.stats.rxpdu_bytes += size;
+
   nr_rlc_pdu_decoder_init(&decoder, buffer, size);
 
   si = nr_rlc_pdu_decoder_get_bits(&decoder, 2); R(decoder);
@@ -276,6 +306,10 @@ void nr_rlc_entity_um_recv_pdu(nr_rlc_entity_t *_entity,
     entity->common.deliver_sdu(entity->common.deliver_sdu_data,
                                (nr_rlc_entity_t *)entity,
                                buffer + 1, size - 1);
+
+    entity->common.stats.txsdu_pkts++;
+    entity->common.stats.txsdu_bytes += size - 1;
+
     return;
   }
 
@@ -299,21 +333,21 @@ void nr_rlc_entity_um_recv_pdu(nr_rlc_entity_t *_entity,
 
   /* dicard PDU if no data */
   if (data_size <= 0) {
-    LOG_D(RLC, "%s:%d:%s: warning: discard PDU, no data\n",
+    LOG_W(RLC, "%s:%d:%s: warning: discard PDU, no data\n",
           __FILE__, __LINE__, __FUNCTION__);
     goto discard;
   }
 
   /* dicard PDU if rx buffer is full */
   if (entity->rx_size + data_size > entity->rx_maxsize) {
-    LOG_D(RLC, "%s:%d:%s: warning: discard PDU, RX buffer full\n",
+    LOG_W(RLC, "%s:%d:%s: warning: discard PDU, RX buffer full\n",
           __FILE__, __LINE__, __FUNCTION__);
     goto discard;
   }
 
   /* discard PDU if sn < rx_next_reassembly */
   if (sn_compare_rx(entity, sn, entity->rx_next_reassembly) < 0) {
-    LOG_D(RLC, "%s:%d:%s: warning: discard PDU, SN (%d) < rx_next_reassembly (%d)\n",
+    LOG_W(RLC, "%s:%d:%s: warning: discard PDU, SN (%d) < rx_next_reassembly (%d)\n",
           __FILE__, __LINE__, __FUNCTION__,
           sn, entity->rx_next_reassembly);
     goto discard;
@@ -336,6 +370,9 @@ err:
   goto discard;
 
 discard:
+  entity->common.stats.rxpdu_dd_pkts++;
+  entity->common.stats.rxpdu_dd_bytes += size;
+
   return;
 
 #undef R
@@ -373,20 +410,6 @@ static int serialize_sdu(nr_rlc_entity_um_t *entity,
   memcpy(buffer + encoder.byte, sdu->sdu->data + sdu->so, sdu->size);
 
   return encoder.byte + sdu->size;
-}
-
-/* for a given SDU/SDU segment, computes the corresponding PDU header size */
-static int compute_pdu_header_size(nr_rlc_entity_um_t *entity,
-                                   nr_rlc_sdu_segment_t *sdu)
-{
-  int header_size = 1;
-
-  /* if SN to be included then one more byte if SN field length is 12 */
-  if (!(sdu->is_first && sdu->is_last) && entity->sn_field_length == 12)
-    header_size++;
-  /* two more bytes for SO if SDU segment is not the first */
-  if (!sdu->is_first) header_size += 2;
-  return header_size;
 }
 
 /* resize SDU/SDU segment for the corresponding PDU to fit into 'pdu_size'
@@ -434,6 +457,8 @@ static nr_rlc_sdu_segment_t *resegment(nr_rlc_sdu_segment_t *sdu,
   next->so = sdu->so + sdu->size;
   next->is_first = 0;
 
+  entity->common.stats.txpdu_segmented++;
+
   return next;
 }
 
@@ -462,8 +487,12 @@ static int generate_tx_pdu(nr_rlc_entity_um_t *entity, char *buffer, int size)
   /* assign SN to SDU */
   sdu->sdu->sn = entity->tx_next;
 
-  /* segment if necessary */
   pdu_size = pdu_header_size + sdu->size;
+
+  /* update buffer status */
+  entity->common.bstatus.tx_size -= pdu_size;
+
+  /* segment if necessary */
   if (pdu_size > size) {
     nr_rlc_sdu_segment_t *next_sdu;
     next_sdu = resegment(sdu, entity, size);
@@ -474,6 +503,11 @@ static int generate_tx_pdu(nr_rlc_entity_um_t *entity, char *buffer, int size)
     entity->tx_list = next_sdu;
     if (entity->tx_end == NULL)
       entity->tx_end = entity->tx_list;
+
+    entity->common.stats.txpdu_segmented++;
+    /* update buffer status */
+    entity->common.bstatus.tx_size += compute_pdu_header_size(entity, next_sdu)
+                                      + next_sdu->size;
   }
 
   /* update tx_next if the SDU is an SDU segment and is the last */
@@ -483,26 +517,20 @@ static int generate_tx_pdu(nr_rlc_entity_um_t *entity, char *buffer, int size)
   ret = serialize_sdu(entity, sdu, buffer, size);
 
   entity->tx_size -= sdu->size;
-  nr_rlc_free_sdu_segment(sdu);
 
-  return ret;
-}
+  entity->common.stats.txpdu_pkts++;
+  entity->common.stats.txpdu_bytes += size;
 
-/* Pretend to serialize all the SDUs in a list and return the size
- * of all the PDUs it would produce, limited to 'maxsize'.
- * Used for buffer status reporting.
- */
-static int tx_list_size(nr_rlc_entity_um_t *entity,
-                        nr_rlc_sdu_segment_t *l, int maxsize)
-{
-  int ret = 0;
-
-  while (l != NULL && ret < maxsize) {
-    ret += compute_pdu_header_size(entity, l) + l->size;
-    l = l->next;
+  if (sdu->sdu->time_of_arrival) {
+    uint64_t time_now = time_average_now();
+    uint64_t waited_time = time_now - sdu->sdu->time_of_arrival;
+    /* set time_of_arrival to 0 so as to update stats only once */
+    sdu->sdu->time_of_arrival = 0;
+    time_average_add(entity->common.txsdu_avg_time_to_tx, time_now, waited_time);
   }
 
-  if (ret > maxsize) ret = maxsize;
+  nr_rlc_free_sdu_segment(sdu);
+
   return ret;
 }
 
@@ -513,7 +541,7 @@ nr_rlc_entity_buffer_status_t nr_rlc_entity_um_buffer_status(
   nr_rlc_entity_buffer_status_t ret;
 
   ret.status_size = 0;
-  ret.tx_size = tx_list_size(entity, entity->tx_list, maxsize);
+  ret.tx_size = entity->common.bstatus.tx_size;
   ret.retx_size = 0;
 
   return ret;
@@ -538,6 +566,9 @@ void nr_rlc_entity_um_recv_sdu(nr_rlc_entity_t *_entity,
   nr_rlc_entity_um_t *entity = (nr_rlc_entity_um_t *)_entity;
   nr_rlc_sdu_segment_t *sdu;
 
+  entity->common.stats.rxsdu_pkts++;
+  entity->common.stats.rxsdu_bytes += size;
+
   if (size > NR_SDU_MAX) {
     LOG_E(RLC, "%s:%d:%s: fatal: SDU size too big (%d bytes)\n",
           __FILE__, __LINE__, __FUNCTION__, size);
@@ -545,8 +576,12 @@ void nr_rlc_entity_um_recv_sdu(nr_rlc_entity_t *_entity,
   }
 
   if (entity->tx_size + size > entity->tx_maxsize) {
-    LOG_D(RLC, "%s:%d:%s: warning: SDU rejected, SDU buffer full\n",
+    LOG_W(RLC, "%s:%d:%s: warning: SDU rejected, SDU buffer full\n",
           __FILE__, __LINE__, __FUNCTION__);
+
+    entity->common.stats.rxsdu_dd_pkts++;
+    entity->common.stats.rxsdu_dd_bytes += size;
+
     return;
   }
 
@@ -555,6 +590,13 @@ void nr_rlc_entity_um_recv_sdu(nr_rlc_entity_t *_entity,
   sdu = nr_rlc_new_sdu(buffer, size, sdu_id);
 
   nr_rlc_sdu_segment_list_append(&entity->tx_list, &entity->tx_end, sdu);
+
+  /* update buffer status */
+  entity->common.bstatus.tx_size += compute_pdu_header_size(entity, sdu)
+                                    + sdu->size;
+
+  if (entity->common.avg_time_is_on)
+    sdu->sdu->time_of_arrival = time_average_now();
 }
 
 /*************************************************************************/
@@ -591,6 +633,11 @@ static void check_t_reassembly(nr_rlc_entity_um_t *entity)
     nr_rlc_pdu_t *p = cur;
     cur = cur->next;
     entity->rx_list = cur;
+
+    entity->common.stats.rxpdu_dd_pkts++;
+    /* we don't count PDU header bytes here, so be it */
+    entity->common.stats.rxpdu_dd_bytes += p->size;
+
     nr_rlc_free_pdu(p);
   }
 
@@ -650,6 +697,10 @@ void nr_rlc_entity_um_discard_sdu(nr_rlc_entity_t *_entity, int sdu_id)
       entity->tx_end = NULL;
   }
 
+  /* update buffer status */
+  entity->common.bstatus.tx_size -= compute_pdu_header_size(entity, cur)
+                                    + cur->size;
+
   nr_rlc_free_sdu_segment(cur);
 }
 
@@ -682,6 +733,8 @@ static void clear_entity(nr_rlc_entity_um_t *entity)
   entity->tx_list         = NULL;
   entity->tx_end          = NULL;
   entity->tx_size         = 0;
+
+  entity->common.bstatus.tx_size = 0;
 }
 
 void nr_rlc_entity_um_reestablishment(nr_rlc_entity_t *_entity)
@@ -694,5 +747,12 @@ void nr_rlc_entity_um_delete(nr_rlc_entity_t *_entity)
 {
   nr_rlc_entity_um_t *entity = (nr_rlc_entity_um_t *)_entity;
   clear_entity(entity);
+  time_average_free(entity->common.txsdu_avg_time_to_tx);
   free(entity);
+}
+
+int nr_rlc_entity_um_available_tx_space(nr_rlc_entity_t *_entity)
+{
+  nr_rlc_entity_um_t *entity = (nr_rlc_entity_um_t *)_entity;
+  return entity->tx_maxsize - entity->tx_size;
 }

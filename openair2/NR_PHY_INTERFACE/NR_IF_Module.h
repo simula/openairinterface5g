@@ -33,10 +33,11 @@
 #ifndef __NR_IF_MODULE__H__
 #define __NR_IF_MODULE__H__
 
+#include <pthread.h>
 #include <stdint.h>
 #include "nfapi_nr_interface.h"
 #include "nfapi_nr_interface_scf.h"
-#include "platform_constants.h"
+#include "common/platform_constants.h"
 #include "platform_types.h"
 
 #define MAX_NUM_DL_PDU 100
@@ -82,6 +83,8 @@ typedef struct {
 
 
 typedef struct {
+  /// the ID of this sched_response - used by sched_reponse memory management
+  int sched_response_id;
   /// Module ID
   module_id_t module_id;
   /// CC ID
@@ -91,13 +94,13 @@ typedef struct {
   /// slot
   slot_t slot;
   /// nFAPI DL Config Request
-  nfapi_nr_dl_tti_request_t *DL_req;
+  nfapi_nr_dl_tti_request_t DL_req;
   /// nFAPI UL Config Request
-  nfapi_nr_ul_tti_request_t *UL_tti_req;
+  nfapi_nr_ul_tti_request_t UL_tti_req;
   /// nFAPI UL_DCI Request
-  nfapi_nr_ul_dci_request_t *UL_dci_req;
+  nfapi_nr_ul_dci_request_t UL_dci_req;
   /// Pointers to DL SDUs
-  nfapi_nr_tx_data_request_t *TX_req;
+  nfapi_nr_tx_data_request_t TX_req;
 } NR_Sched_Rsp_t;
 
 typedef struct {
@@ -115,6 +118,7 @@ typedef struct NR_IF_Module_s {
   uint16_t current_frame;
   uint8_t current_slot;
   pthread_mutex_t if_mutex;
+  int sl_ahead;
 } NR_IF_Module_t;
 
 /*Initial */
@@ -123,6 +127,8 @@ NR_IF_Module_t *NR_IF_Module_init(int Mod_id);
 void NR_IF_Module_kill(int Mod_id);
 
 void NR_UL_indication(NR_UL_IND_t *UL_INFO);
+
+void RCconfig_nr_ue_macrlc(void);
 
 /*Interface for Downlink, transmitting the DLSCH SDU, DCI SDU*/
 void NR_Schedule_Response(NR_Sched_Rsp_t *Sched_INFO);

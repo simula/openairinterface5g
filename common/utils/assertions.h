@@ -25,28 +25,31 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <inttypes.h>
+#include <sys/types.h>
+#include <unistd.h>
 #include <platform_types.h>
 
-#if defined(ENB_MODE)
-# define display_backtrace()
-#else
-# include "backtrace.h"
-#endif
+#define OAI_EXIT_NORMAL 0
+#define OAI_EXIT_ASSERT 1
 
-void output_log_mem(void);
-#define _Assert_Exit_                           \
-    fprintf(stderr, "\nExiting execution\n");   \
-    display_backtrace();                        \
-    fflush(stdout);                             \
-    fflush(stderr);                             \
-    abort();
+#define _Assert_Exit_							\
+  if (getenv("OAI_GDBSTACKS")) {						\
+    char tmp [1000];							\
+    sprintf(tmp,"gdb -ex='set confirm off' -ex 'thread apply all bt' -ex q -p %d < /dev/null", getpid());  \
+    __attribute__((unused)) int dummy=system(tmp);						\
+  }									\
+  fprintf(stderr, "\nExiting execution\n");				\
+  fflush(stdout);							\
+  fflush(stderr);							\
+  exit_function(__FILE__, __FUNCTION__, __LINE__, "_Assert_Exit_", OAI_EXIT_ASSERT); \
+  abort(); // to avoid gcc warnings - never executed unless app-specific exit_function() does not exit() nor abort()
 
 #define _Assert_(cOND, aCTION, fORMAT, aRGS...)             \
 do {                                                        \
     if (!(cOND)) {                                          \
-        fprintf(stderr, "\nAssertion ("#cOND") failed!\n"   \
+        fprintf(stderr, "\nAssertion (%s) failed!\n"   \
                 "In %s() %s:%d\n" fORMAT,                   \
-                __FUNCTION__, __FILE__, __LINE__, ##aRGS);  \
+                #cOND, __FUNCTION__, __FILE__, __LINE__, ##aRGS);  \
         aCTION;                                             \
     }						\
 } while(0)

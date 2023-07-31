@@ -8,7 +8,6 @@ cmake_targets/ran_build/
 cmake_targets/nas_sim_tools/build/
 log/
 lte_build_oai/
-targets/bin/
 
 # vscode
 .vscode
@@ -18,3 +17,8 @@ GPATH
 GRTAGS
 GTAGS
 tags
+
+# others
+nfapi_nr_interface_scf
+*.log
+*.out

@@ -34,7 +34,6 @@
 
 #include "assertions.h"
 #include "platform_types.h"
-#include "msc.h"
 
 #include "LAYER2/MAC/mac.h"
 #include "LAYER2/MAC/mac_extern.h"
@@ -44,8 +43,6 @@
 #include "nfapi/oai_integration/vendor_ext.h"
 #include "common/utils/LOG/vcd_signal_dumper.h"
 #include "UTIL/OPT/opt.h"
-#include "OCG.h"
-#include "OCG_extern.h"
 #include "PHY/LTE_TRANSPORT/transport_common_proto.h"
 
 #include "RRC/LTE/rrc_extern.h"
@@ -918,7 +915,7 @@ generate_Msg4(module_id_t module_idP,
               module_idP, CC_idP, frameP, subframeP, UE_id, rrc_sdu_length);
         //          AssertFatal(rrc_sdu_length > 0,
         //          "[MAC][eNB Scheduler] CCCH not allocated, rrc_sdu_length: %d\n", rrc_sdu_length);
-        LOG_D(MAC,"[eNB %d][RAPROC] CC_id %d Frame %d, subframeP %d: Generating Msg4 with RRC Piggyback (RNTI %x)\n",
+        LOG_A(MAC,"[eNB %d][RAPROC] CC_id %d Frame %d, subframeP %d: Generating Msg4 with RRC Piggyback (RNTI %x)\n",
               module_idP, CC_idP, frameP, subframeP, ra->rnti);
         /// Choose first 4 RBs for Msg4, should really check that these are free!
         first_rb = 0;
@@ -1226,7 +1223,7 @@ check_Msg4_retransmission(module_id_t module_idP, int CC_idP,
     LOG_D(MAC,"[eNB %d][RAPROC] Frame %d, Subframe %d: state:IDLE\n", module_idP, frameP, subframeP);
     UE_id = find_UE_id(module_idP, ra->rnti);
     DevAssert(UE_id != -1);
-    mac->UE_info.UE_template[UE_PCCID(module_idP, UE_id)][UE_id].configured = TRUE;
+    mac->UE_info.UE_template[UE_PCCID(module_idP, UE_id)][UE_id].configured = true;
     mac->UE_info.UE_template[UE_PCCID(module_idP, UE_id)][UE_id].pusch_repetition_levels=ra->pusch_repetition_levels;
     cancel_ra_proc(module_idP, CC_idP, frameP, ra->rnti);
   }
@@ -1397,10 +1394,16 @@ initiate_ra_proc(module_id_t module_idP,
       ra[i].RA_rnti = ra_rnti;
       ra[i].preamble_index = preamble_index;
       failure_cnt = 0;
-      LOG_D(MAC,
+      LOG_I(MAC,
             "[eNB %d][RAPROC] CC_id %d Frame %d Activating RAR generation in Frame %d, subframe %d for process %d, rnti %x, state %d\n",
-            module_idP, CC_id, frameP, ra[i].Msg2_frame,
-            ra[i].Msg2_subframe, i, ra[i].rnti, ra[i].state);
+            module_idP,
+            CC_id,
+            frameP,
+            ra[i].Msg2_frame,
+            ra[i].Msg2_subframe,
+            i,
+            ra[i].rnti,
+            ra[i].state);
       return;
     }
   }
@@ -1421,8 +1424,6 @@ cancel_ra_proc(module_id_t module_idP, int CC_id, frame_t frameP,
                rnti_t rnti) {
   unsigned char i;
   RA_t *ra = (RA_t *) & RC.mac[module_idP]->common_channels[CC_id].ra[0];
-  MSC_LOG_EVENT(MSC_PHY_ENB, "RA Cancelling procedure ue %" PRIx16 " ",
-                rnti);
   LOG_D(MAC,
         "[eNB %d][RAPROC] CC_id %d Frame %d Cancelling RA procedure for UE rnti %x\n",
         module_idP, CC_id, frameP, rnti);

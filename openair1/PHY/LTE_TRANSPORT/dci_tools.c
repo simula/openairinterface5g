@@ -1527,7 +1527,9 @@ void fill_dci_and_dlsch(PHY_VARS_eNB *eNB,
   if (dlsch0->active)
     T(T_ENB_PHY_DLSCH_UE_DCI, T_INT(0), T_INT(frame), T_INT(subframe),
       T_INT(rel8->rnti), T_INT(rel8->dci_format), T_INT(rel8->harq_process),
-      T_INT(rel8->mcs_1), T_INT(dlsch0_harq->TBS));
+      T_INT(rel8->mcs_1), T_INT(dlsch0_harq->TBS), T_INT(rel8->new_data_indicator_1),
+      T_INT(rel8->redundancy_version_1), T_INT(rel8->resource_block_coding),
+      T_INT(dlsch0_harq->nb_rb), T_INT(dlsch0_harq->rb_alloc[0]));
 
 #endif
 }
@@ -1961,7 +1963,7 @@ void fill_dci0(PHY_VARS_eNB *eNB,int frame,int subframe,L1_rxtx_proc_t *proc,
   if(frame_parms->frame_type == TDD) {
     UE_id = find_ulsch(pdu->dci_pdu_rel8.rnti, eNB,SEARCH_EXIST_OR_FREE);
 
-    if(UE_id >=0 -1 || UE_id < NUMBER_OF_ULSCH_MAX) {
+    if(UE_id >=0 || UE_id < NUMBER_OF_ULSCH_MAX) {
       eNB->ulsch[UE_id]->harq_processes[pdu->dci_pdu_rel8.harq_pid]->V_UL_DAI = dai +1;
     }
   }
@@ -1995,7 +1997,7 @@ int get_narrowband_index(int N_RB_UL,int rb) {
 void fill_ulsch(PHY_VARS_eNB *eNB,int UE_id,nfapi_ul_config_ulsch_pdu *ulsch_pdu,int frame,int subframe) {
   uint8_t harq_pid;
   //uint8_t UE_id;
-  boolean_t new_ulsch = (find_ulsch(ulsch_pdu->ulsch_pdu_rel8.rnti,eNB,SEARCH_EXIST)==-1) ? TRUE : FALSE;
+  const bool new_ulsch = find_ulsch(ulsch_pdu->ulsch_pdu_rel8.rnti,eNB,SEARCH_EXIST) == -1;
   //AssertFatal((UE_id=find_ulsch(ulsch_pdu->ulsch_pdu_rel8.rnti,eNB,SEARCH_EXIST_OR_FREE))>=0,
   //        "No existing/free UE ULSCH for rnti %x\n",ulsch_pdu->ulsch_pdu_rel8.rnti);
   LTE_eNB_ULSCH_t *ulsch=eNB->ulsch[UE_id];
@@ -2061,7 +2063,7 @@ void fill_ulsch(PHY_VARS_eNB *eNB,int UE_id,nfapi_ul_config_ulsch_pdu *ulsch_pdu
 
   if ((ulsch->harq_processes[harq_pid]->status == SCH_IDLE) ||
       (ulsch->harq_processes[harq_pid]->ndi    != ulsch_pdu->ulsch_pdu_rel8.new_data_indication) ||
-      (new_ulsch == TRUE)) {
+      (new_ulsch == true)) {
     ulsch->harq_processes[harq_pid]->status        = ACTIVE;
     ulsch->harq_processes[harq_pid]->TBS           = ulsch_pdu->ulsch_pdu_rel8.size<<3;
     ulsch->harq_processes[harq_pid]->Msc_initial   = 12*ulsch_pdu->ulsch_pdu_rel8.number_of_resource_blocks;

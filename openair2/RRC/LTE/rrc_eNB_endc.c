@@ -23,7 +23,9 @@
 #include "rrc_extern.h"
 #include "rrc_eNB_UE_context.h"
 #include "common/ran_context.h"
+#include "oai_asn1.h"
 #include "LTE_DL-DCCH-Message.h"
+#include "uper_encoder.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -60,8 +62,6 @@ int rrc_eNB_generate_RRCConnectionReconfiguration_endc(protocol_ctxt_t *ctxt,
   struct LTE_LogicalChannelConfig__ul_SpecificParameters  ul_params;
   long                                                    lcg;
   struct LTE_RadioResourceConfigDedicated__mac_MainConfig mac;
-  struct LTE_MAC_MainConfig__ext4                         mac_ext4;
-  struct LTE_MAC_MainConfig__ext4__dualConnectivityPHR    dc_phr;
 
   memset(&rrcd, 0, sizeof(rrcd));
   memset(&drb_list, 0, sizeof(drb_list));
@@ -72,9 +72,6 @@ int rrc_eNB_generate_RRCConnectionReconfiguration_endc(protocol_ctxt_t *ctxt,
 #endif
   memset(&ul_params, 0, sizeof(ul_params));
   memset(&mac, 0, sizeof(mac));
-  memset(&mac_ext4, 0, sizeof(mac_ext4));
-  memset(&dc_phr, 0, sizeof(dc_phr));
-
   trans_id = rrc_eNB_get_next_transaction_identifier(ctxt->module_id);
 
   memset(&dl_dcch_msg,0,sizeof(LTE_DL_DCCH_Message_t));
@@ -100,7 +97,7 @@ int rrc_eNB_generate_RRCConnectionReconfiguration_endc(protocol_ctxt_t *ctxt,
   drb.logicalChannelIdentity = &lcid;
   drb.logicalChannelConfig = &lc;
 
-  ASN_SEQUENCE_ADD(&drb_list.list, &drb);
+  asn1cSeqAdd(&drb_list.list, &drb);
 
   rlc.present = LTE_RLC_Config_PR_am;
   rlc.choice.am.ul_AM_RLC.t_PollRetransmit = LTE_T_PollRetransmit_ms50;
@@ -115,7 +112,7 @@ int rrc_eNB_generate_RRCConnectionReconfiguration_endc(protocol_ctxt_t *ctxt,
 
   /* release drb 1 */
   drb = 1;
-  ASN_SEQUENCE_ADD(&drb_list.list, &drb);
+  asn1cSeqAdd(&drb_list.list, &drb);
   rrcd.drb_ToReleaseList = &drb_list;
 
   ul_params.priority = 12;
@@ -128,12 +125,6 @@ int rrc_eNB_generate_RRCConnectionReconfiguration_endc(protocol_ctxt_t *ctxt,
 
   mac.present = LTE_RadioResourceConfigDedicated__mac_MainConfig_PR_explicitValue;
   mac.choice.explicitValue.timeAlignmentTimerDedicated = LTE_TimeAlignmentTimer_sf10240;
-  mac.choice.explicitValue.ext4 = &mac_ext4;
-
-  mac_ext4.dualConnectivityPHR = &dc_phr;
-
-  dc_phr.present = LTE_MAC_MainConfig__ext4__dualConnectivityPHR_PR_setup;
-  dc_phr.choice.setup.phr_ModeOtherCG_r12 = LTE_MAC_MainConfig__ext4__dualConnectivityPHR__setup__phr_ModeOtherCG_r12_virtual;
 
   /* NR config */
   struct LTE_RRCConnectionReconfiguration_v890_IEs cr_890;
@@ -171,8 +162,10 @@ int rrc_eNB_generate_RRCConnectionReconfiguration_endc(protocol_ctxt_t *ctxt,
 
   OCTET_STRING_t dummy_scg_conf;
   unsigned char scg_conf_buf[4] = { 0, 0, 0, 0 };
-  if (scg_group_config!=NULL)
+  if (scg_group_config!=NULL) {
 	  nr.choice.setup.nr_SecondaryCellGroupConfig_r15 = scg_group_config; //&scg_conf;
+          LOG_E(RRC, "setting scg_group_config\n");
+  }
   else{
 	  nr.choice.setup.nr_SecondaryCellGroupConfig_r15 = &dummy_scg_conf;
 	  dummy_scg_conf.buf = scg_conf_buf;
@@ -197,8 +190,10 @@ int rrc_eNB_generate_RRCConnectionReconfiguration_endc(protocol_ctxt_t *ctxt,
   OCTET_STRING_t dummy_nr1_conf;
   unsigned char nr1_buf[4] = { 0, 0, 0, 0 };
 
-  if(scg_RB_config!=NULL)
+  if(scg_RB_config!=NULL) {
 	  cr_1510.nr_RadioBearerConfig1_r15 = scg_RB_config;
+          LOG_E(RRC, "setting scg_RB_config\n");
+  }
   else{
 	  cr_1510.nr_RadioBearerConfig1_r15 = &dummy_nr1_conf;
 	  dummy_nr1_conf.buf = nr1_buf;
@@ -230,7 +225,8 @@ int rrc_eNB_generate_RRCConnectionReconfiguration_endc(protocol_ctxt_t *ctxt,
                                    (void *)&dl_dcch_msg,
                                    buffer,
                                    buffer_size);
-
+  AssertFatal (enc_rval.encoded > 0, "asn_DEF_LTE_DL_DCCH_Message message encoding failed (%s, %jd)!\n",
+                 enc_rval.failed_type->name, enc_rval.encoded);
 {
 int len = (enc_rval.encoded + 7) / 8;
 int i;

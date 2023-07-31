@@ -30,7 +30,7 @@
 
 #include "intertask_interface.h"
 
-#include "asn1_conversions.h"
+#include "oai_asn1.h"
 
 #include "m3ap_common.h"
 #include "m3ap_MCE_defs.h"
@@ -44,20 +44,19 @@
 //#include "m3ap_MME_interface_management.h"
 #include "m3ap_MCE_interface_management.h"
 
-#include "msc.h"
 #include "assertions.h"
 #include "conversions.h"
 
 /* Handlers matrix. Only eNB related procedure present here */
-m3ap_MCE_message_decoded_callback m3ap_MCE_messages_callback[][3] = {
-  { MCE_handle_MBMS_SESSION_START_REQUEST, 0, 0 }, /* MBMSSessionStart  */
-  { MCE_handle_MBMS_SESSION_STOP_REQUEST, 0, 0 }, /* MBMSSessionStop */
-  { 0, 0, 0 }, /* Error Indication */
-  { 0, 0, 0 }, /* Reset */
-  { 0, 0, 0 }, /* ??? */
-  { MCE_handle_MBMS_SESSION_UPDATE_REQUEST, 0, 0 }, /* MBMSSessionUpdate */
-  { 0, 0, 0 }, /* MCEConfigurationUpdate */
-  { 0, MCE_handle_M3_SETUP_RESPONSE, 0 } /* M3 Setup */
+static const m3ap_MCE_message_decoded_callback m3ap_MCE_messages_callback[][3] = {
+    {MCE_handle_MBMS_SESSION_START_REQUEST, 0, 0}, /* MBMSSessionStart  */
+    {MCE_handle_MBMS_SESSION_STOP_REQUEST, 0, 0}, /* MBMSSessionStop */
+    {0, 0, 0}, /* Error Indication */
+    {0, 0, 0}, /* Reset */
+    {0, 0, 0}, /* ??? */
+    {MCE_handle_MBMS_SESSION_UPDATE_REQUEST, 0, 0}, /* MBMSSessionUpdate */
+    {0, 0, 0}, /* MCEConfigurationUpdate */
+    {0, MCE_handle_M3_SETUP_RESPONSE, 0} /* M3 Setup */
 };
 
 static char *m3ap_direction2String(int m3ap_dir) {

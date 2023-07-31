@@ -1,5 +1,10 @@
+  - Build_Proxy
+  - Build_Cluster_Image
+  - Pull_Cluster_Image
   - Build_PhySim
-  - Run_PhySim
+  - Run_LDPCTest
+  - Run_LDPCt1Test
+  - Run_NRulsimTest
   - Build_eNB
   - WaitEndBuild_eNB
   - Initialize_eNB
@@ -16,9 +21,6 @@
   - CheckStatusUE
   - Ping
   - Iperf
-  - Reboot_UE
-  - Initialize_FlexranCtrl
-  - Terminate_FlexranCtrl
   - Deploy_EPC
   - Undeploy_EPC
   - Initialize_HSS
@@ -29,11 +31,6 @@
   - Terminate_SPGW
   - Initialize_5GCN
   - Terminate_5GCN
-  - Initialize_CatM_module
-  - Terminate_CatM_module
-  - Attach_CatM_module
-  - Detach_CatM_module
-  - Ping_CatM_module
   - IdleSleep
   - Perform_X2_Handover
   - Build_Image
@@ -43,5 +40,10 @@
   - Deploy_Run_PhySim
   - DeployGenObject
   - UndeployGenObject
-  - PingFromContainer
   - IperfFromContainer
+  - StatsFromGenObject
+  - LicenceAndFormattingCheck
+  - Push_Local_Registry
+  - Pull_Local_Registry
+  - Clean_Test_Server_Images
+  - Custom_Command

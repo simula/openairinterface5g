@@ -33,7 +33,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
-#include <crypt.h>
+#include "openair3/SECU/kdf.h"
 
 #include "tree.h"
 #include "queue.h"
@@ -57,15 +57,12 @@
 #include "ngap_gNB_itti_messaging.h"
 
 #include "ngap_gNB_ue_context.h" // test, to be removed
-#include "msc.h"
 
 #include "assertions.h"
 #include "conversions.h"
 #if defined(TEST_S1C_AMF)
   #include "oaisim_amf_test_s1c.h"
 #endif
-
-ngap_gNB_config_t ngap_config;
 
 static int ngap_gNB_generate_ng_setup_request(
   ngap_gNB_instance_t *instance_p, ngap_gNB_amf_data_t *ngap_amf_data_p);
@@ -74,17 +71,20 @@ void ngap_gNB_handle_register_gNB(instance_t instance, ngap_register_gnb_req_t *
 
 void ngap_gNB_handle_sctp_association_resp(instance_t instance, sctp_new_association_resp_t *sctp_new_association_resp);
 
-uint32_t ngap_generate_gNB_id(void) {
-  char    *out;
-  char     hostname[50];
-  int      ret;
-  uint32_t gNB_id;
+uint32_t ngap_generate_gNB_id(void)
+{
   /* Retrieve the host name */
-  ret = gethostname(hostname, sizeof(hostname));
+  char hostname[32] = {0};
+  int const ret = gethostname(hostname, sizeof(hostname));
   DevAssert(ret == 0);
-  out = crypt(hostname, "eurecom");
-  DevAssert(out != NULL);
-  gNB_id = ((out[0] << 24) | (out[1] << 16) | (out[2] << 8) | out[3]);
+
+  uint8_t key[32] = {"eurecom"};
+  byte_array_t data = {.len = 32, .buf = (uint8_t *)hostname};
+
+  uint8_t out[32] = {0};
+  kdf(key, data, 32, out);
+
+  uint32_t const gNB_id = ((out[0] << 24) | (out[1] << 16) | (out[2] << 8) | out[3]);
   return gNB_id;
 }
 
@@ -165,7 +165,6 @@ void ngap_gNB_handle_register_gNB(instance_t instance, ngap_register_gnb_req_t *
   } else {
     new_instance = calloc(1, sizeof(ngap_gNB_instance_t));
     DevAssert(new_instance != NULL);
-    RB_INIT(&new_instance->ngap_ue_head);
     RB_INIT(&new_instance->ngap_amf_head);
     /* Copy usefull parameters */
     new_instance->instance         = instance;
@@ -273,134 +272,94 @@ void ngap_gNB_init(void) {
   NGAP_DEBUG("Starting NGAP layer\n");
   ngap_gNB_prepare_internal_data();
   itti_mark_task_ready(TASK_NGAP);
-  MSC_START_USE();
 }
 
 void *ngap_gNB_process_itti_msg(void *notUsed) {
   MessageDef *received_msg = NULL;
   int         result;
   itti_receive_msg(TASK_NGAP, &received_msg);
+  if (received_msg) {
+    instance_t instance = ITTI_MSG_DESTINATION_INSTANCE(received_msg);
+    LOG_D(RRC, "Received message %s\n", ITTI_MSG_NAME(received_msg));
+    switch (ITTI_MSG_ID(received_msg)) {
+      case TERMINATE_MESSAGE:
+        NGAP_WARN(" *** Exiting NGAP thread\n");
+        itti_exit_task();
+        break;
 
-  switch (ITTI_MSG_ID(received_msg)) {
-    case TERMINATE_MESSAGE:
-      NGAP_WARN(" *** Exiting NGAP thread\n");
-      itti_exit_task();
-      break;
+      case NGAP_REGISTER_GNB_REQ:
+        /* Register a new gNB.
+         * in Virtual mode gNBs will be distinguished using the mod_id/
+         * Each gNB has to send an NGAP_REGISTER_GNB message with its
+         * own parameters.
+         */
+        ngap_gNB_handle_register_gNB(instance, &NGAP_REGISTER_GNB_REQ(received_msg));
+        break;
 
-    case NGAP_REGISTER_GNB_REQ: {
-      /* Register a new gNB.
-       * in Virtual mode gNBs will be distinguished using the mod_id/
-       * Each gNB has to send an NGAP_REGISTER_GNB message with its
-       * own parameters.
-       */
-      ngap_gNB_handle_register_gNB(ITTI_MSG_DESTINATION_INSTANCE(received_msg),
-                                   &NGAP_REGISTER_GNB_REQ(received_msg));
+      case SCTP_NEW_ASSOCIATION_RESP:
+        ngap_gNB_handle_sctp_association_resp(instance, &received_msg->ittiMsg.sctp_new_association_resp);
+        break;
+
+      case SCTP_DATA_IND:
+        ngap_gNB_handle_sctp_data_ind(&received_msg->ittiMsg.sctp_data_ind);
+        break;
+
+      case NGAP_NAS_FIRST_REQ:
+        ngap_gNB_handle_nas_first_req(instance, &NGAP_NAS_FIRST_REQ(received_msg));
+        break;
+
+      case NGAP_UPLINK_NAS:
+        ngap_gNB_nas_uplink(instance, &NGAP_UPLINK_NAS(received_msg));
+        break;
+
+      case NGAP_UE_CAPABILITIES_IND:
+        ngap_gNB_ue_capabilities(instance, &NGAP_UE_CAPABILITIES_IND(received_msg));
+        break;
+
+      case NGAP_INITIAL_CONTEXT_SETUP_RESP:
+        ngap_gNB_initial_ctxt_resp(instance, &NGAP_INITIAL_CONTEXT_SETUP_RESP(received_msg));
+        break;
+
+      case NGAP_PDUSESSION_SETUP_RESP:
+        ngap_gNB_pdusession_setup_resp(instance, &NGAP_PDUSESSION_SETUP_RESP(received_msg));
+        break;
+
+      case NGAP_PDUSESSION_MODIFY_RESP:
+        ngap_gNB_pdusession_modify_resp(instance, &NGAP_PDUSESSION_MODIFY_RESP(received_msg));
+        break;
+
+      case NGAP_NAS_NON_DELIVERY_IND:
+        ngap_gNB_nas_non_delivery_ind(instance, &NGAP_NAS_NON_DELIVERY_IND(received_msg));
+        break;
+
+      case NGAP_PATH_SWITCH_REQ:
+        ngap_gNB_path_switch_req(instance, &NGAP_PATH_SWITCH_REQ(received_msg));
+        break;
+
+      case NGAP_PDUSESSION_MODIFICATION_IND:
+        ngap_gNB_generate_PDUSESSION_Modification_Indication(instance, &NGAP_PDUSESSION_MODIFICATION_IND(received_msg));
+        break;
+
+      case NGAP_UE_CONTEXT_RELEASE_COMPLETE:
+        ngap_ue_context_release_complete(instance, &NGAP_UE_CONTEXT_RELEASE_COMPLETE(received_msg));
+        break;
+
+      case NGAP_UE_CONTEXT_RELEASE_REQ:
+        ngap_ue_context_release_req(instance, &NGAP_UE_CONTEXT_RELEASE_REQ(received_msg));
+        break;
+
+      case NGAP_PDUSESSION_RELEASE_RESPONSE:
+        ngap_gNB_pdusession_release_resp(instance, &NGAP_PDUSESSION_RELEASE_RESPONSE(received_msg));
+        break;
+
+      default:
+        NGAP_ERROR("Received unhandled message: %d:%s\n", ITTI_MSG_ID(received_msg), ITTI_MSG_NAME(received_msg));
+        break;
     }
-    break;
 
-    case SCTP_NEW_ASSOCIATION_RESP: {
-      ngap_gNB_handle_sctp_association_resp(ITTI_MSG_DESTINATION_INSTANCE(received_msg),
-                                            &received_msg->ittiMsg.sctp_new_association_resp);
-    }
-    break;
-
-    case SCTP_DATA_IND: {
-      ngap_gNB_handle_sctp_data_ind(&received_msg->ittiMsg.sctp_data_ind);
-    }
-    break;
-
-    case NGAP_NAS_FIRST_REQ: {
-      ngap_gNB_handle_nas_first_req(ITTI_MSG_DESTINATION_INSTANCE(received_msg),
-                                    &NGAP_NAS_FIRST_REQ(received_msg));
-    }
-    break;
-
-    case NGAP_UPLINK_NAS: {
-      ngap_gNB_nas_uplink(ITTI_MSG_DESTINATION_INSTANCE(received_msg),
-                          &NGAP_UPLINK_NAS(received_msg));
-    }
-    break;
-
-    case NGAP_UE_CAPABILITIES_IND: {
-      ngap_gNB_ue_capabilities(ITTI_MSG_DESTINATION_INSTANCE(received_msg),
-                               &NGAP_UE_CAPABILITIES_IND(received_msg));
-    }
-    break;
-
-    case NGAP_INITIAL_CONTEXT_SETUP_RESP: {
-      ngap_gNB_initial_ctxt_resp(ITTI_MSG_DESTINATION_INSTANCE(received_msg),
-                                 &NGAP_INITIAL_CONTEXT_SETUP_RESP(received_msg));
-    }
-    break;
-
-    case NGAP_PDUSESSION_SETUP_RESP: {
-      ngap_gNB_pdusession_setup_resp(ITTI_MSG_DESTINATION_INSTANCE(received_msg),
-                                &NGAP_PDUSESSION_SETUP_RESP(received_msg));
-    }
-    break;
-
-    case NGAP_PDUSESSION_MODIFY_RESP: {
-      ngap_gNB_pdusession_modify_resp(ITTI_MSG_DESTINATION_INSTANCE(received_msg),
-                                 &NGAP_PDUSESSION_MODIFY_RESP(received_msg));
-    }
-    break;
-
-    case NGAP_NAS_NON_DELIVERY_IND: {
-      ngap_gNB_nas_non_delivery_ind(ITTI_MSG_DESTINATION_INSTANCE(received_msg),
-                                    &NGAP_NAS_NON_DELIVERY_IND(received_msg));
-    }
-    break;
-
-    case NGAP_PATH_SWITCH_REQ: {
-      ngap_gNB_path_switch_req(ITTI_MSG_DESTINATION_INSTANCE(received_msg),
-                               &NGAP_PATH_SWITCH_REQ(received_msg));
-    }
-    break;
-
-    case NGAP_PDUSESSION_MODIFICATION_IND: {
-    	ngap_gNB_generate_PDUSESSION_Modification_Indication(ITTI_MSG_DESTINATION_INSTANCE(received_msg),
-    	                               &NGAP_PDUSESSION_MODIFICATION_IND(received_msg));
-    }
-    break;
-
-    case NGAP_UE_CONTEXT_RELEASE_COMPLETE: {
-      ngap_ue_context_release_complete(ITTI_MSG_DESTINATION_INSTANCE(received_msg),
-                                       &NGAP_UE_CONTEXT_RELEASE_COMPLETE(received_msg));
-    }
-    break;
-
-    case NGAP_UE_CONTEXT_RELEASE_REQ: {
-      ngap_gNB_instance_t               *ngap_gNB_instance_p           = NULL; // test
-      struct ngap_gNB_ue_context_s      *ue_context_p                  = NULL; // test
-      ngap_ue_context_release_req(ITTI_MSG_DESTINATION_INSTANCE(received_msg),
-                                  &NGAP_UE_CONTEXT_RELEASE_REQ(received_msg));
-      ngap_gNB_instance_p = ngap_gNB_get_instance(ITTI_MSG_DESTINATION_INSTANCE(received_msg)); // test
-      DevAssert(ngap_gNB_instance_p != NULL); // test
-
-      if ((ue_context_p = ngap_gNB_get_ue_context(ngap_gNB_instance_p,
-                          NGAP_UE_CONTEXT_RELEASE_REQ(received_msg).gNB_ue_ngap_id)) == NULL) { // test
-        /* The context for this gNB ue ngap id doesn't exist in the map of gNB UEs */
-        NGAP_ERROR("Failed to find ue context associated with gNB ue ngap id: %u\n",
-                   NGAP_UE_CONTEXT_RELEASE_REQ(received_msg).gNB_ue_ngap_id); // test
-      }  // test
-    }
-    break;
-
-    case NGAP_PDUSESSION_RELEASE_RESPONSE: {
-      ngap_gNB_pdusession_release_resp(ITTI_MSG_DESTINATION_INSTANCE(received_msg),
-                                  &NGAP_PDUSESSION_RELEASE_RESPONSE(received_msg));
-    }
-    break;
-
-    default:
-      NGAP_ERROR("Received unhandled message: %d:%s\n",
-                 ITTI_MSG_ID(received_msg), ITTI_MSG_NAME(received_msg));
-      break;
+    result = itti_free(ITTI_MSG_ORIGIN_ID(received_msg), received_msg);
+    AssertFatal(result == EXIT_SUCCESS, "Failed to free memory (%d)!\n", result);
   }
-
-  result = itti_free (ITTI_MSG_ORIGIN_ID(received_msg), received_msg);
-  AssertFatal (result == EXIT_SUCCESS, "Failed to free memory (%d)!\n", result);
-  received_msg = NULL;
   return NULL;
 }
 
@@ -463,7 +422,7 @@ static int ngap_gNB_generate_ng_setup_request(
             ie->value.choice.GlobalRANNodeID.choice.globalGNB_ID->gNB_ID.choice.gNB_ID.buf[1],
             ie->value.choice.GlobalRANNodeID.choice.globalGNB_ID->gNB_ID.choice.gNB_ID.buf[2],
             ie->value.choice.GlobalRANNodeID.choice.globalGNB_ID->gNB_ID.choice.gNB_ID.buf[3]);
-  ASN_SEQUENCE_ADD(&out->protocolIEs.list, ie);
+  asn1cSeqAdd(&out->protocolIEs.list, ie);
 
   /* optional */
   if (instance_p->gNB_name) {
@@ -473,7 +432,7 @@ static int ngap_gNB_generate_ng_setup_request(
     ie->value.present = NGAP_NGSetupRequestIEs__value_PR_RANNodeName;
     OCTET_STRING_fromBuf(&ie->value.choice.RANNodeName, instance_p->gNB_name,
                          strlen(instance_p->gNB_name));
-    ASN_SEQUENCE_ADD(&out->protocolIEs.list, ie);
+    asn1cSeqAdd(&out->protocolIEs.list, ie);
   }
 
   /* mandatory */
@@ -496,7 +455,7 @@ static int ngap_gNB_generate_ng_setup_request(
           ssi = (NGAP_SliceSupportItem_t *)calloc(1, sizeof(NGAP_SliceSupportItem_t));
           INT8_TO_OCTET_STRING(instance_p->s_nssai[i][si].sST, &ssi->s_NSSAI.sST);
 
-          if(instance_p->s_nssai[i]->sD_flag) {
+          if (instance_p->s_nssai[i][si].sD_flag) {
             ssi->s_NSSAI.sD = calloc(1, sizeof(NGAP_SD_t));
             ssi->s_NSSAI.sD->buf = calloc(3, sizeof(uint8_t));
             ssi->s_NSSAI.sD->size = 3;
@@ -506,15 +465,15 @@ static int ngap_gNB_generate_ng_setup_request(
           }
           
 
-          ASN_SEQUENCE_ADD(&plmn->tAISliceSupportList.list, ssi);
+          asn1cSeqAdd(&plmn->tAISliceSupportList.list, ssi);
         }
         
-        ASN_SEQUENCE_ADD(&ta->broadcastPLMNList.list, plmn);
+        asn1cSeqAdd(&ta->broadcastPLMNList.list, plmn);
       }
     }
-    ASN_SEQUENCE_ADD(&ie->value.choice.SupportedTAList.list, ta);
+    asn1cSeqAdd(&ie->value.choice.SupportedTAList.list, ta);
   }
-  ASN_SEQUENCE_ADD(&out->protocolIEs.list, ie);
+  asn1cSeqAdd(&out->protocolIEs.list, ie);
   
   /* mandatory */
   ie = (NGAP_NGSetupRequestIEs_t *)calloc(1, sizeof(NGAP_NGSetupRequestIEs_t));
@@ -522,7 +481,7 @@ static int ngap_gNB_generate_ng_setup_request(
   ie->criticality = NGAP_Criticality_ignore;
   ie->value.present = NGAP_NGSetupRequestIEs__value_PR_PagingDRX;
   ie->value.choice.PagingDRX = instance_p->default_drx;
-  ASN_SEQUENCE_ADD(&out->protocolIEs.list, ie);
+  asn1cSeqAdd(&out->protocolIEs.list, ie);
 
 
   if (ngap_gNB_encode_pdu(&pdu, &buffer, &len) < 0) {

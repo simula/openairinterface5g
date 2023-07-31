@@ -27,6 +27,8 @@
 #define NFAPI_PNF_PARAM_GENERAL_OUI_LENGTH 3
 #define NFAPI_MAX_NUM_RF_BANDS 16
 
+#define NFAPI_MAX_PACKED_MESSAGE_SIZE 8192
+
 // The following definition control the size of arrays used in the interface.
 // These may be changed if desired. They are used in the encoder to make sure 
 // that the user has not specified a 'count' larger than the max array, and also
@@ -122,12 +124,13 @@ typedef struct {
 
 // Convenience methods to convert between SFN/SLOT formats
 #define NFAPI_SFNSLOT2DEC(_sfn,_slot) ( _sfn*20 + _slot  )  // total count of slots
-#define NFAPI_SFNSLOTDEC2SFNSLOT(_sfnslot_dec) ((((_sfnslot_dec) / 20) << 4) | (((_sfnslot_dec) - (((_sfnslot_dec) / 20) * 10)) & 0x3F))
+#define NFAPI_SFNSLOTDEC2SFNSLOT(_sfnslot_dec) ((((_sfnslot_dec) / 20) << 6) | (((_sfnslot_dec) - (((_sfnslot_dec) / 20) * 20)) & 0x3F))
 
 #define NFAPI_SFNSLOT2SFN(_sfnslot) ((_sfnslot) >> 6)
 #define NFAPI_SFNSLOT2SLOT(_sfnslot) ((_sfnslot) & 0x3F)
 #define NFAPI_SFNSLOTDEC2SFN(_sfnslot_dec) ((_sfnslot_dec) / 20)
 #define NFAPI_SFNSLOTDEC2SLOT(_sfnslot_dec) ((_sfnslot_dec) % 20)
+#define NFAPI_SFNSLOT2HEX(_sfn,_slot) ((_sfn << 6) | (_slot & 0x3F))
 
 #define NFAPI_MAX_SFNSLOTDEC 1024*20 // 20 is for numerology 1
 
@@ -706,7 +709,6 @@ typedef struct {
 #define NFAPI_PHICH_CONFIG_PHICH_DURATION_TAG 0x0015
 #define NFAPI_PHICH_CONFIG_PHICH_POWER_OFFSET_TAG 0x0016
 
-
 typedef struct {
 	nfapi_uint16_tlv_t primary_synchronization_signal_epre_eprers;
 	nfapi_uint16_tlv_t secondary_synchronization_signal_epre_eprers;
@@ -1083,7 +1085,7 @@ typedef struct
 
 	// These TLVs are used by the VNF to configure the RF in the PNF
 	nfapi_uint16_tlv_t max_transmit_power;
-	nfapi_uint16_tlv_t earfcn;
+	nfapi_uint32_tlv_t earfcn;
 
 	nfapi_nmm_frequency_bands_t nmm_gsm_frequency_bands;
 	nfapi_nmm_frequency_bands_t nmm_umts_frequency_bands;
@@ -1895,6 +1897,9 @@ typedef struct {
 } nfapi_ul_config_periodic_cqi_pmi_ri_report_re13_t;
 
 typedef struct {
+  // This dummy element is to avoid CLANG warning: empty struct has size 0 in C, size 1 in C++
+  // To be removed if the structure is filled
+  uint32_t dummy;
 } nfapi_ul_config_aperiodic_cqi_pmi_ri_report_re13_t;
 
 typedef struct {
@@ -2497,7 +2502,7 @@ typedef struct {
 typedef struct {
 	nfapi_p7_message_header_t header;
 	uint32_t t1;
-	int32_t delta_sfn_sf;	
+	int32_t delta_sfn_sf;
 	nfapi_vendor_extension_tlv_t vendor_extension;
 } nfapi_dl_node_sync_t;
 
@@ -2872,11 +2877,12 @@ typedef struct {
  } nfapi_rx_indication_rel9_t;
 #define NFAPI_RX_INDICATION_REL9_TAG 0x2025
 
+#define NFAPI_RX_IND_DATA_MAX 8192
 typedef struct {
 	nfapi_rx_ue_information rx_ue_information;
 	nfapi_rx_indication_rel8_t rx_indication_rel8;
 	nfapi_rx_indication_rel9_t rx_indication_rel9;
-	uint8_t* data;
+	uint8_t rx_ind_data[NFAPI_RX_IND_DATA_MAX];
 } nfapi_rx_indication_pdu_t;
 
 #define NFAPI_RX_IND_MAX_PDU 100
@@ -3017,9 +3023,15 @@ typedef struct {
 #define NFAPI_LBT_DL_INDICATION_BODY_TAG 0x2058
 
 typedef struct {
+  // This dummy element is to avoid CLANG warning: empty struct has size 0 in C, size 1 in C++
+  // To be removed if the structure is filled
+  uint32_t dummy;
 } nfapi_error_indication_msg_invalid_state;
 
 typedef struct {
+  // This dummy element is to avoid CLANG warning: empty struct has size 0 in C, size 1 in C++
+  // To be removed if the structure is filled
+  uint32_t dummy;
 } nfapi_error_indication_msg_bch_missing;
 
 typedef struct {
@@ -4056,5 +4068,43 @@ int nfapi_p7_update_checksum(uint8_t* buffer, uint32_t len);
   *  \return 0 means success, -1 means failure.
  */
 int nfapi_p7_update_transmit_timestamp(uint8_t* buffer, uint32_t timestamp);
+
+/*! \brief Encodes a nfapi_nr_srs_normalized_channel_iq_matrix_t to a buffer
+ *
+ *  \param pMessageBuf A pointer to a nfapi_nr_srs_normalized_channel_iq_matrix_t structure
+ *  \param pPackedBuf A pointer to the buffer that the nfapi_nr_srs_normalized_channel_iq_matrix_t will be packed into
+ *  \param packedBufLen The size of the buffer
+ *  \return number of bytes written to the buffer
+ */
+int pack_nr_srs_normalized_channel_iq_matrix(void *pMessageBuf, void *pPackedBuf, uint32_t packedBufLen);
+
+/*! \brief Decodes a nfapi_nr_srs_normalized_channel_iq_matrix_t from a buffer
+ *
+ *  \param pMessageBuf A pointer to an encoded nfapi_nr_srs_normalized_channel_iq_matrix_t
+ *  \param messageBufLen The size of the encoded nfapi_nr_srs_normalized_channel_iq_matrix_t
+ *  \param pUnpackedBuf A pointer to the nfapi_nr_srs_normalized_channel_iq_matrix_t
+ *  \param unpackedBufLen The size of nfapi_nr_srs_normalized_channel_iq_matrix_t structure.
+ *  \return 0 means success, -1 means failure.
+ */
+int unpack_nr_srs_normalized_channel_iq_matrix(void *pMessageBuf, uint32_t messageBufLen, void *pUnpackedBuf, uint32_t unpackedBufLen);
+
+/*! \brief Encodes a nfapi_nr_srs_beamforming_report_t to a buffer
+ *
+ *  \param pMessageBuf A pointer to a nfapi_nr_srs_beamforming_report_t structure
+ *  \param pPackedBuf A pointer to the buffer that the nfapi_nr_srs_beamforming_report_t will be packed into
+ *  \param packedBufLen The size of the buffer
+ *  \return number of bytes written to the buffer
+ */
+int pack_nr_srs_beamforming_report(void *pMessageBuf, void *pPackedBuf, uint32_t packedBufLen);
+
+/*! \brief Decodes a nfapi_nr_srs_beamforming_report_t from a buffer
+ *
+ *  \param pMessageBuf A pointer to an encoded nfapi_nr_srs_beamforming_report_t
+ *  \param messageBufLen The size of the encoded nfapi_nr_srs_beamforming_report_t
+ *  \param pUnpackedBuf A pointer to the nfapi_nr_srs_beamforming_report_t
+ *  \param unpackedBufLen The size of nfapi_nr_srs_beamforming_report_t structure.
+ *  \return 0 means success, -1 means failure.
+ */
+int unpack_nr_srs_beamforming_report(void *pMessageBuf, uint32_t messageBufLen, void *pUnpackedBuf, uint32_t unpackedBufLen);
 
 #endif /* _NFAPI_INTERFACE_H_ */

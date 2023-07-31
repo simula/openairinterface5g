@@ -44,8 +44,6 @@
 /* to declare ue variables */
 #include "PHY/phy_vars_nr_ue.h"
 #include "PHY/LTE_TRANSPORT/transport_vars.h"
-#include "SCHED/sched_common_vars.h"
-#include "PHY/MODULATION/modulation_vars.h"
 
 #include "PHY/NR_REFSIG/pss_nr.h"
 #include "PHY/NR_REFSIG/sss_nr.h"
@@ -71,7 +69,7 @@ static  nfapi_config_request_t *config =&config_t;
 /*************** FUNCTIONS ****************************************/
 
 //void phy_init_nr_top(NR_DL_FRAME_PARMS *frame_parms);
-int init_nr_ue_signal(PHY_VARS_NR_UE *ue, int nb_connected_eNB, uint8_t abstraction_flag);
+int init_nr_ue_signal(PHY_VARS_NR_UE *ue, int nb_connected_eNB);
 
 /*******************************************************************
 *
@@ -113,12 +111,15 @@ void phase_shift_samples(int16_t *samples, int length, int16_t phase_shift_re, i
 
 void display_data(int pss_sequence_number, int16_t *rxdata, int position) {
 #ifdef DEBUG_TEST_PSS
-  int16_t *pss_sequence[NUMBER_PSS_SEQUENCE] = {primary_synch0_time, primary_synch1_time, primary_synch2_time};
-  int16_t *pss_sequence_time = pss_sequence[pss_sequence_number];
+  int pss_sequence = get_softmodem_params()->sl_mode == 0 ? NUMBER_PSS_SEQUENCE : NUMBER_PSS_SEQUENCE_SL;
+  int16_t *pss_sequence[pss_sequence] = {primary_synch0_time, primary_synch1_time, primary_synch2_time};
+  int16_t *pss_sequence_sl[pss_sequence] = {primary_synch0_time, primary_synch1_time};
+  int16_t *pss_sequence_time = pss_sequence[pss_sequence_number];;
+  if (get_softmodem_params()->sl_mode != 0) {
+    pss_sequence_time = pss_sequence_sl[pss_sequence_number];
   printf("   pss %6d             data \n", pss_sequence_number);
-
   for (int i = 0; i < 4; i++) {
-    if (pss_sequence_number < NUMBER_PSS_SEQUENCE) {
+    if (pss_sequence_number < pss_sequence) {
       printf("[i %6d] : %4d       [i %6d] : %8i     at address : %p \n", i, pss_sequence_time[2*i], (i + position), rxdata[2*i + (position*2)],  &(rxdata[2*i + (position*2)]));
       printf("[q %6d] : %4d       [q %6d] : %8i     at address : %p \n", i, pss_sequence_time[2*i+1], (i + position), rxdata[2*i + 1 + (position*2)],  &(rxdata[2*i + 1 + (position*2)]));
     } else {
@@ -206,7 +207,7 @@ void undefined_function(const char *function) {
 *********************************************************************/
 
 int init_test(unsigned char N_tx, unsigned char N_rx, unsigned char transmission_mode,
-              unsigned char extended_prefix_flag, uint8_t frame_type, uint16_t Nid_cell, uint8_t N_RB_DL) {
+              unsigned char extended_prefix_flag, uint8_t frame_type, uint16_t Nid_cell, int N_RB_DL) {
   (void) transmission_mode;
   NR_DL_FRAME_PARMS *frame_parms;
   int log_level = OAILOG_TRACE;
@@ -244,11 +245,12 @@ int init_test(unsigned char N_tx, unsigned char N_rx, unsigned char transmission
   int n_ssb_crb = 0;
   int ssb_subcarrier_offset = 0;
   nr_init_frame_parms_ue(frame_parms, mu, extended_prefix_flag, N_RB_DL, n_ssb_crb, ssb_subcarrier_offset);
-  PHY_vars_UE->frame_parms.Nid_cell = (3 * N_ID_1_NUMBER) + N_ID_2_NUMBER; /* set to unvalid value */
+  int nid_2_num = get_softmodem_params()->sl_mode == 0 ? N_ID_2_NUMBER : N_ID_2_NUMBER_SL;
+  PHY_vars_UE->frame_parms.Nid_cell = (3 * N_ID_1_NUMBER) + nid_2_num; /* set to unvalid value */
 
   //phy_init_nr_top(frame_parms);
 
-  if (init_nr_ue_signal(PHY_vars_UE, 1, 0) != 0) {
+  if (init_nr_ue_signal(PHY_vars_UE, 1) != 0) {
     LOG_E(PHY,"Error at UE NR initialisation : at line %d in function %s of file %s \n", LINE_FILE , __func__, FILE_NAME);
     return (0);
   }
@@ -449,8 +451,8 @@ int set_pss_in_rx_buffer(PHY_VARS_NR_UE *PHY_vars_UE, int position_symbol, int p
     printf("This pss sequence can not be fully written in the received window \n");
     return (-1);
   }
-
-  if ((pss_sequence_number >= NUMBER_PSS_SEQUENCE) && (pss_sequence_number < 0)) {
+  int pss_sequence = get_softmodem_params()->sl_mode == 0 ? NUMBER_PSS_SEQUENCE : NUMBER_PSS_SEQUENCE_SL;
+  if ((pss_sequence_number >= pss_sequence) && (pss_sequence_number < 0)) {
     printf("Unknow pss sequence %d \n", pss_sequence_number);
     return (-1);
   }
@@ -506,8 +508,9 @@ void set_sequence_pss(PHY_VARS_NR_UE *PHY_vars_UE, int position_symbol, int pss_
   if (position_symbol < 0) {
     set_pss_in_rx_buffer_from_external_buffer(PHY_vars_UE, input_buffer);
   }
+  int pss_sequence = get_softmodem_params()->sl_mode == 0 ? NUMBER_PSS_SEQUENCE : NUMBER_PSS_SEQUENCE_SL;
   /* write pss sequence in received ue buffer */
-  else if (pss_sequence_number < NUMBER_PSS_SEQUENCE) {
+  else if (pss_sequence_number < pss_sequence) {
     if (position_symbol > (samples_for_frame - frame_parms->ofdm_symbol_size)) {
       printf("This position for pss sequence %d is not supported because it exceeds the frame length %d!\n", position_symbol, samples_for_frame);
       exit(0);

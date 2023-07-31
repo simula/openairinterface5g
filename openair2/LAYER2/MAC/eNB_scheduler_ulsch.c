@@ -38,11 +38,11 @@
 #include "common/utils/LOG/vcd_signal_dumper.h"
 #include "nfapi/oai_integration/vendor_ext.h"
 #include "UTIL/OPT/opt.h"
-#include "OCG.h"
-#include "OCG_extern.h"
 #include "PHY/LTE_TRANSPORT/transport_common_proto.h"
+#include "PHY/defs_eNB.h"
 
 #include "RRC/LTE/rrc_extern.h"
+#include "RRC/LTE/rrc_eNB_UE_context.h"
 #include "RRC/L2_INTERFACE/openair_rrc_L2_interface.h"
 
 #include "assertions.h"
@@ -50,11 +50,6 @@
 
 #include "intertask_interface.h"
 
-#include "ENB_APP/flexran_agent_defs.h"
-#include "flexran_agent_ran_api.h"
-#include "header.pb-c.h"
-#include "flexran.pb-c.h"
-#include "flexran_agent_mac.h"
 #include <dlfcn.h>
 #include <openair2/LAYER2/MAC/mac.h>
 #include "common/utils/lte/prach_utils.h"
@@ -242,7 +237,7 @@ rx_sdu(const module_id_t enb_mod_idP,
       }
 
       /* CDRX UL HARQ timers */
-      if (UE_scheduling_control->cdrx_configured == TRUE) {
+      if (UE_scheduling_control->cdrx_configured == true) {
         /* Synchronous UL HARQ */
         UE_scheduling_control->ul_synchronous_harq_timer[CC_idP][harq_pid] = 5;
         /*
@@ -329,17 +324,7 @@ rx_sdu(const module_id_t enb_mod_idP,
       if (ra->msg3_round >= mac->common_channels[CC_idP].radioResourceConfigCommon->rach_ConfigCommon.maxHARQ_Msg3Tx - 1) {
 
         // Release RNTI of LTE PHY when RA does not succeed
-        UE_free_list_t *free_list = NULL;
-        pthread_mutex_lock(&lock_ue_freelist);
-        free_list = &mac->UE_free_list;
-        free_list->UE_free_ctrl[free_list->tail_freelist].rnti = current_rnti;
-        free_list->UE_free_ctrl[free_list->tail_freelist].removeContextFlg = 1;
-        free_list->UE_free_ctrl[free_list->tail_freelist].raFlag = 1;
-        free_list->num_UEs++;
-        mac->UE_release_req.ue_release_request_body.ue_release_request_TLVs_list[mac->UE_release_req.ue_release_request_body.number_of_TLVs].rnti = current_rnti;
-        mac->UE_release_req.ue_release_request_body.number_of_TLVs++;
-        free_list->tail_freelist = (free_list->tail_freelist + 1) % (NUMBER_OF_UE_MAX+1);
-        pthread_mutex_unlock(&lock_ue_freelist);
+	put_UE_in_freelist(enb_mod_idP, current_rnti, true);
 
         cancel_ra_proc(enb_mod_idP, CC_idP, frameP, current_rnti);
         nfapi_hi_dci0_request_t *hi_dci0_req = NULL;
@@ -1003,7 +988,7 @@ rx_sdu(const module_id_t enb_mod_idP,
 
   /* CDRX UL HARQ timers */
   if (UE_id != -1) {
-    if (UE_scheduling_control->cdrx_configured == TRUE) {
+    if (UE_scheduling_control->cdrx_configured == true) {
       /* Synchronous UL HARQ */
       UE_scheduling_control->ul_synchronous_harq_timer[CC_idP][harq_pid] = 5;
       /*
@@ -1075,24 +1060,6 @@ bytes_to_bsr_index(int32_t nbytes)
   }
 
   return (i - 1);
-}
-
-//-----------------------------------------------------------------------------
-/*
- * Add ue info in eNB_ulsch_info[module_idP][CC_id][UE_id] struct
- */
-void
-add_ue_ulsch_info(module_id_t module_idP,
-                  int CC_id,
-                  int UE_id,
-                  sub_frame_t subframeP,
-                  UE_ULSCH_STATUS status)
-//-----------------------------------------------------------------------------
-{
-  eNB_ulsch_info[module_idP][CC_id][UE_id].rnti     = UE_RNTI(module_idP, UE_id);
-  eNB_ulsch_info[module_idP][CC_id][UE_id].subframe = subframeP;
-  eNB_ulsch_info[module_idP][CC_id][UE_id].status   = status;
-  eNB_ulsch_info[module_idP][CC_id][UE_id].serving_num++;
 }
 
 //-----------------------------------------------------------------------------
@@ -1447,7 +1414,7 @@ schedule_ulsch_rnti(module_id_t   module_idP,
       continue;
 
     // don't schedule if Msg5 is not received yet
-    if (UE_info->UE_template[CC_id][UE_id].configured == FALSE) {
+    if (UE_info->UE_template[CC_id][UE_id].configured == false) {
       LOG_D(MAC,
             "[eNB %d] frame %d, subframe %d, UE %d: not configured, skipping "
             "UE scheduling \n",
@@ -1800,7 +1767,6 @@ schedule_ulsch_rnti(module_id_t   module_idP,
       ul_req_tmp_body->tl.tag = NFAPI_UL_CONFIG_REQUEST_BODY_TAG;
       mac->ul_handle++;
       ul_req_tmp->sfn_sf = sched_frame << 4 | sched_subframeP;
-      add_ue_ulsch_info(module_idP, CC_id, UE_id, subframeP, S_UL_SCHEDULED);
       LOG_D(MAC,
             "[eNB %d] CC_id %d Frame %d, subframeP %d: Generated ULSCH DCI for "
             "next UE_id %d, format 0\n",
@@ -2033,7 +1999,7 @@ void schedule_ulsch_rnti_emtc(module_id_t   module_idP,
     }
 
     /* Don't schedule if Msg4 is not received yet */
-    if (UE_template->configured == FALSE) {
+    if (UE_template->configured == false) {
       LOG_D(MAC,"[eNB %d] frame %d subframe %d, UE %d: not configured, skipping UE scheduling \n",
             module_idP,
             frameP,
@@ -2298,11 +2264,6 @@ void schedule_ulsch_rnti_emtc(module_id_t   module_idP,
                                                  (frameP * 10) + subframeP);
             ul_req_tmp->number_of_pdus++;
             eNB->ul_handle++;
-            add_ue_ulsch_info(module_idP,
-                              CC_id,
-                              UE_id,
-                              subframeP,
-                              S_UL_SCHEDULED);
             LOG_D(MAC,"[eNB %d] CC_id %d Frame %d, subframeP %d: Generated ULSCH DCI for next UE_id %d, format 0\n",
                   module_idP,
                   CC_id,

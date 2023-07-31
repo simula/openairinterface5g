@@ -36,7 +36,7 @@
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
 #include "RRC/LTE/rrc_defs.h"
-#include "COMMON/platform_constants.h"
+#include "common/platform_constants.h"
 #include "COMMON/platform_types.h"
 #include "LTE_DRB-ToAddMod.h"
 #include "LTE_DRB-ToAddModList.h"
@@ -45,15 +45,19 @@
 #include "LTE_MBMS-SessionInfoList-r9.h"
 #include "LTE_PMCH-InfoList-r9.h"
 
+#include "openair3/SECU/secu_defs.h"
 
 typedef rlc_op_status_t  (*send_rlc_data_req_func_t)(const protocol_ctxt_t *const,
-    const srb_flag_t, const MBMS_flag_t,
-    const rb_id_t, const mui_t,
+						     const srb_flag_t, const MBMS_flag_t,
+						     const rb_id_t, const mui_t,
     confirm_t, sdu_size_t, mem_block_t *,const uint32_t *const, const uint32_t *const);
-typedef boolean_t (*pdcp_data_ind_func_t)( const protocol_ctxt_t *, const srb_flag_t,
-    const MBMS_flag_t, const rb_id_t, const sdu_size_t,
-    mem_block_t *,const uint32_t *const, const uint32_t *const);
 
+typedef bool (pdcp_data_ind_t)( const protocol_ctxt_t *, const srb_flag_t,
+						 const MBMS_flag_t, const rb_id_t, const sdu_size_t,
+						 mem_block_t *,const uint32_t *const, const uint32_t *const);
+typedef pdcp_data_ind_t* pdcp_data_ind_func_t;
+
+#define MAX_NUMBER_NETIF                 1 //16
 #define ENB_NAS_USE_TUN_W_MBMS_BIT      (1<< 10)
 #define PDCP_USE_NETLINK_BIT            (1<< 11)
 #define LINK_ENB_PDCP_TO_IP_DRIVER_BIT  (1<< 13)
@@ -67,9 +71,7 @@ typedef struct {
 } pdcp_params_t;
 
 
-#ifndef PDCP_USE_NETLINK
-  #define PDCP_USE_NETLINK          ( get_pdcp_optmask() & PDCP_USE_NETLINK_BIT)
-#endif
+#define PDCP_USE_NETLINK          ( get_pdcp_optmask() & PDCP_USE_NETLINK_BIT)
 #define LINK_ENB_PDCP_TO_IP_DRIVER  ( get_pdcp_optmask() & LINK_ENB_PDCP_TO_IP_DRIVER_BIT)
 #define LINK_ENB_PDCP_TO_GTPV1U     ( get_pdcp_optmask() & LINK_ENB_PDCP_TO_GTPV1U_BIT)
 #define UE_NAS_USE_TUN              ( get_pdcp_optmask() & UE_NAS_USE_TUN_BIT)
@@ -122,7 +124,6 @@ extern uint32_t Pdcp_stats_rx_outoforder[MAX_eNB][MAX_MOBILES_PER_ENB][NB_RB_MAX
 
 void pdcp_update_perioidical_stats(const protocol_ctxt_t *const  ctxt_pP);
 
-
 /*Packet Probing for agent PDCP*/
 //uint64_t *pdcp_packet_counter;
 //uint64_t *pdcp_size_packet;
@@ -152,27 +153,26 @@ typedef struct pdcp_stats_s {
 
 
 typedef struct pdcp_s {
-  //boolean_t     instanciated_instance;
   uint16_t       header_compression_profile;
 
   /* SR: added this flag to distinguish UE/eNB instance as pdcp_run for virtual
    * mode can receive data on NETLINK for eNB while eNB_flag = 0 and for UE when eNB_flag = 1
    */
-  boolean_t is_ue;
-  boolean_t is_srb;
+  bool is_ue;
+  bool is_srb;
 
   /* Configured security algorithms */
-  uint8_t cipheringAlgorithm;
-  uint8_t integrityProtAlgorithm;
+  eea_alg_id_e cipheringAlgorithm;
+  eia_alg_id_e integrityProtAlgorithm;
 
   /* User-Plane encryption key
    * Control-Plane RRC encryption key
    * Control-Plane RRC integrity key
    * These keys are configured by RRC layer
    */
-  uint8_t *kUPenc;
-  uint8_t *kRRCint;
-  uint8_t *kRRCenc;
+  uint8_t kUPenc[32];
+  uint8_t kRRCint[32];
+  uint8_t kRRCenc[32];
 
   uint8_t security_activated;
 
@@ -216,7 +216,7 @@ typedef struct pdcp_s {
 } pdcp_t;
 
 typedef struct pdcp_mbms_s {
-  boolean_t instanciated_instance;
+  bool instanciated_instance;
   rb_id_t   rb_id;
 } pdcp_mbms_t;
 
@@ -229,7 +229,7 @@ typedef struct pdcp_mbms_s {
  * under targets/TEST/PDCP/
  */
 
-/*! \fn boolean_t pdcp_data_req(const protocol_ctxt_t* const  , srb_flag_t , rb_id_t , mui_t , confirm_t ,sdu_size_t , unsigned char* , pdcp_transmission_mode_t )
+/*! \fn bool pdcp_data_req(const protocol_ctxt_t* const  , srb_flag_t , rb_id_t , mui_t , confirm_t ,sdu_size_t , unsigned char* , pdcp_transmission_mode_t )
 * \brief This functions handles data transfer requests coming either from RRC or from IP
 * \param[in] ctxt_pP        Running context.
 * \param[in] rab_id         Radio Bearer ID
@@ -238,25 +238,34 @@ typedef struct pdcp_mbms_s {
 * \param[in] sdu_buffer_size Size of incoming SDU in bytes
 * \param[in] sdu_buffer      Buffer carrying SDU
 * \param[in] mode            flag to indicate whether the userplane data belong to the control plane or data plane or transparent
-* \return TRUE on success, FALSE otherwise
+* \return true on success, false otherwise
 * \note None
 * @ingroup _pdcp
 */
 
-boolean_t pdcp_data_req(
-  protocol_ctxt_t  *ctxt_pP,
-  const srb_flag_t srb_flagP,
-  const rb_id_t rb_id,
-  const mui_t muiP,
-  const confirm_t confirmP,
-  const sdu_size_t sdu_buffer_size,
-  unsigned char *const sdu_buffer,
-  const pdcp_transmission_mode_t mode,
-  const uint32_t * sourceL2Id,
-  const uint32_t * destinationL2Id
-);
+bool pdcp_data_req(protocol_ctxt_t  *ctxt_pP,
+                   const srb_flag_t srb_flagP,
+                   const rb_id_t rb_id,
+                   const mui_t muiP,
+                   const confirm_t confirmP,
+                   const sdu_size_t sdu_buffer_size,
+                   unsigned char *const sdu_buffer,
+                   const pdcp_transmission_mode_t mode,
+                   const uint32_t * sourceL2Id,
+                   const uint32_t * destinationL2Id);
 
-/*! \fn boolean_t pdcp_data_ind(const protocol_ctxt_t* const, srb_flag_t, MBMS_flag_t, rb_id_t, sdu_size_t, mem_block_t*, boolean_t)
+bool cu_f1u_data_req(protocol_ctxt_t  *ctxt_pP,
+                     const srb_flag_t srb_flagP,
+                     const rb_id_t rb_id,
+                     const mui_t muiP,
+                     const confirm_t confirmP,
+                     const sdu_size_t sdu_buffer_size,
+                     unsigned char *const sdu_buffer,
+                     const pdcp_transmission_mode_t mode,
+                     const uint32_t *const sourceL2Id,
+                     const uint32_t *const destinationL2Id);
+
+/*! \fn bool pdcp_data_ind(const protocol_ctxt_t* const, srb_flag_t, MBMS_flag_t, rb_id_t, sdu_size_t, mem_block_t*, bool)
 * \brief This functions handles data transfer indications coming from RLC
 * \param[in] ctxt_pP        Running context.
 * \param[in] Shows if rb is SRB
@@ -265,17 +274,11 @@ boolean_t pdcp_data_req(
 * \param[in] sdu_buffer_size Size of incoming SDU in bytes
 * \param[in] sdu_buffer Buffer carrying SDU
 * \param[in] is_data_plane flag to indicate whether the userplane data belong to the control plane or data plane
-* \return TRUE on success, FALSE otherwise
+* \return TRUE on success, false otherwise
 * \note None
 * @ingroup _pdcp
 */
-boolean_t pdcp_data_ind(
-  const protocol_ctxt_t *const  ctxt_pP,
-  const srb_flag_t srb_flagP,
-  const MBMS_flag_t MBMS_flagP,
-  const rb_id_t rb_id,
-  const sdu_size_t sdu_buffer_size,
-  mem_block_t *const sdu_buffer);
+pdcp_data_ind_t pdcp_data_ind;
 
 /*! \fn void rrc_pdcp_config_req(const protocol_ctxt_t* const ,uint32_t,rb_id_t,uint8_t)
 * \brief This functions initializes relevant PDCP entity
@@ -308,20 +311,18 @@ void rrc_pdcp_config_req (
 * \param[in]  defaultDRB        Default DRB ID
 * \return     A status about the processing, OK or error code.
 */
-boolean_t rrc_pdcp_config_asn1_req (
-  const protocol_ctxt_t *const  ctxt_pP,
-  LTE_SRB_ToAddModList_t  *const srb2add_list,
-  LTE_DRB_ToAddModList_t  *const drb2add_list,
-  LTE_DRB_ToReleaseList_t *const drb2release_list,
-  const uint8_t                   security_modeP,
-  uint8_t                  *const kRRCenc,
-  uint8_t                  *const kRRCint,
-  uint8_t                  *const kUPenc,
-  LTE_PMCH_InfoList_r9_t  *pmch_InfoList_r9,
-  rb_id_t                 *const defaultDRB
-);
+bool rrc_pdcp_config_asn1_req(const protocol_ctxt_t *const  ctxt_pP,
+                              LTE_SRB_ToAddModList_t  *const srb2add_list,
+                              LTE_DRB_ToAddModList_t  *const drb2add_list,
+                              LTE_DRB_ToReleaseList_t *const drb2release_list,
+                              const uint8_t                   security_modeP,
+                              uint8_t                  *const kRRCenc,
+                              uint8_t                  *const kRRCint,
+                              uint8_t                  *const kUPenc,
+                              LTE_PMCH_InfoList_r9_t  *pmch_InfoList_r9,
+                              rb_id_t                 *const defaultDRB);
 
-/*! \fn boolean_t pdcp_config_req_asn1 (const protocol_ctxt_t* const ctxt_pP, srb_flag_t srb_flagP, uint32_t  action, rb_id_t rb_id, uint8_t rb_sn, uint8_t rb_report, uint16_t header_compression_profile, uint8_t security_mode)
+/*! \fn bool pdcp_config_req_asn1 (const protocol_ctxt_t* const ctxt_pP, srb_flag_t srb_flagP, uint32_t  action, rb_id_t rb_id, uint8_t rb_sn, uint8_t rb_report, uint16_t header_compression_profile, uint8_t security_mode)
 * \brief  Function for RRC to configure a Radio Bearer.
 * \param[in]  ctxt_pP           Running context.
 * \param[in]  pdcp_pP            Pointer on PDCP structure.
@@ -341,22 +342,21 @@ boolean_t rrc_pdcp_config_asn1_req (
 * \param[in]  kUPenc             User-Plane encryption key
 * \return     A status about the processing, OK or error code.
 */
-boolean_t pdcp_config_req_asn1 (
-  const protocol_ctxt_t *const  ctxt_pP,
-  pdcp_t         *const pdcp_pP,
-  const srb_flag_t       srb_flagP,
-  const rlc_mode_t       rlc_mode,
-  const uint32_t         action,
-  const uint16_t         lc_id,
-  const uint16_t         mch_id,
-  const rb_id_t          rb_id,
-  const uint8_t          rb_sn,
-  const uint8_t          rb_report,
-  const uint16_t         header_compression_profile,
-  const uint8_t          security_mode,
-  uint8_t         *const kRRCenc,
-  uint8_t         *const kRRCint,
-  uint8_t         *const kUPenc);
+bool pdcp_config_req_asn1(const protocol_ctxt_t *const  ctxt_pP,
+                          pdcp_t         *const pdcp_pP,
+                          const srb_flag_t       srb_flagP,
+                          const rlc_mode_t       rlc_mode,
+                          const uint32_t         action,
+                          const uint16_t         lc_id,
+                          const uint16_t         mch_id,
+                          const rb_id_t          rb_id,
+                          const uint8_t          rb_sn,
+                          const uint8_t          rb_report,
+                          const uint16_t         header_compression_profile,
+                          const uint8_t          security_mode,
+                          uint8_t         *const kRRCenc,
+                          uint8_t         *const kRRCint,
+                          uint8_t         *const kUPenc);
 
 /*! \fn void pdcp_add_UE(const protocol_ctxt_t* const  ctxt_pP)
 * \brief  Function (for RRC) to add a new UE in PDCP module
@@ -365,13 +365,12 @@ boolean_t pdcp_config_req_asn1 (
 */
 void pdcp_add_UE(const protocol_ctxt_t *const  ctxt_pP);
 
-/*! \fn boolean_t pdcp_remove_UE(const protocol_ctxt_t* const  ctxt_pP)
+/*! \fn bool pdcp_remove_UE(const protocol_ctxt_t* const  ctxt_pP)
 * \brief  Function for RRC to remove UE from PDCP module hashtable
 * \param[in]  ctxt_pP           Running context.
 * \return     A status about the processing, OK or error code.
 */
-boolean_t pdcp_remove_UE(
-  const protocol_ctxt_t *const  ctxt_pP);
+bool pdcp_remove_UE(const protocol_ctxt_t *const  ctxt_pP);
 
 /*! \fn void rrc_pdcp_config_release( const protocol_ctxt_t* const, rb_id_t)
 * \brief This functions is unused
@@ -403,9 +402,8 @@ void pdcp_mbms_run            (
 */
 void pdcp_run            (
   const protocol_ctxt_t *const  ctxt_pP);
-uint64_t pdcp_module_init     (uint64_t pdcp_optmask);
+uint64_t pdcp_module_init (uint64_t pdcp_optmask, int ue_id);
 void pdcp_module_cleanup (void);
-void nr_ip_over_LTE_DRB_preconfiguration (void);
 void pdcp_layer_init     (void);
 void pdcp_layer_cleanup  (void);
 #define PDCP2NW_DRIVER_FIFO 21
@@ -421,7 +419,6 @@ pdcp_data_ind_func_t get_pdcp_data_ind_func(void);
 //-----------------------------------------------------------------------------
 int pdcp_fifo_flush_mbms_sdus                      ( const protocol_ctxt_t *const  ctxt_pP);
 int pdcp_fifo_read_input_mbms_sdus_fromtun       ( const protocol_ctxt_t *const  ctxt_pP);
-
 
 /*
  * Following two types are utilized between NAS driver and PDCP
@@ -501,7 +498,6 @@ typedef struct {
 #define REORDERING_WINDOW_SN_7BIT 64
 #define REORDERING_WINDOW_SN_12BIT 2048
 
-extern signed int             pdcp_2_nas_irq;
 extern pdcp_stats_t              UE_pdcp_stats[MAX_MOBILES_PER_ENB];
 extern pdcp_stats_t              eNB_pdcp_stats[NUMBER_OF_eNB_MAX];
 

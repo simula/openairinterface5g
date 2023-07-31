@@ -45,20 +45,19 @@
 #include "common/utils/load_module_shlib.h"
 
 
-#include "../../ARCH/COMMON/common_lib.h"
-#include "../../ARCH/ETHERNET/USERSPACE/LIB/if_defs.h"
-
+#include "radio/COMMON/common_lib.h"
+#include "radio/ETHERNET/if_defs.h"
 
 #include "PHY/phy_vars.h"
-#include "SCHED/sched_common_vars.h"
+#include "PHY/phy_extern.h"
 #include "PHY/TOOLS/phy_scope_interface.h"
 #include "common/utils/LOG/log.h"
 #include "common/utils/LOG/vcd_signal_dumper.h"
 #include "PHY/INIT/phy_init.h"
 #include "openair2/ENB_APP/enb_paramdef.h"
 #include "system.h"
+#include "nfapi/oai_integration/vendor_ext.h"
 
-#include <executables/split_headers.h>
 #include <executables/softmodem-common.h>
 #include <executables/thread-common.h>
 
@@ -66,6 +65,7 @@ static int DEFBANDS[] = {7};
 static int DEFENBS[] = {0};
 static int DEFBFW[] = {0x00007fff};
 
+static int DEFRUTPCORES[] = {2,4,6,8};
 THREAD_STRUCT thread_struct;
 
 pthread_cond_t sync_cond;
@@ -73,7 +73,7 @@ pthread_mutex_t sync_mutex;
 int sync_var=-1; //!< protected by mutex \ref sync_mutex.
 int config_sync_var=-1;
 
-volatile int             oai_exit = 0;
+int oai_exit = 0;
 uint16_t sf_ahead = 4;
 RU_t ru_m;
 
@@ -87,7 +87,7 @@ int32_t uplink_frequency_offset[MAX_NUM_CCs][4];
 
 
 void nfapi_setmode(nfapi_mode_t nfapi_mode) { return; }
-void exit_function(const char *file, const char *function, const int line, const char *s) {
+void exit_function(const char *file, const char *function, const int line, const char *s, const int assert) {
 
   if (s != NULL) {
     printf("%s:%d %s() Exiting OAI softmodem: %s\n",file,line, function, s);
@@ -104,11 +104,15 @@ void exit_function(const char *file, const char *function, const int line, const
     ru_m.ifdevice.trx_end_func(&ru_m.ifdevice);
     ru_m.ifdevice.trx_end_func = NULL;
   }
- 
+
   pthread_mutex_destroy(ru_m.ru_mutex);
-  pthread_cond_destroy(ru_m.ru_cond); 
-  sleep(1); //allow lte-softmodem threads to exit first
-  exit(1);
+  pthread_cond_destroy(ru_m.ru_cond);
+  if (assert) {
+    abort();
+  } else {
+    sleep(1); // allow lte-softmodem threads to exit first
+    exit(EXIT_SUCCESS);
+  }
 }
 
 

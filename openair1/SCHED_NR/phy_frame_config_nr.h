@@ -29,6 +29,8 @@
 *
 ************************************************************************/
 
+#include "PHY/defs_gNB.h"
+
 #ifndef PHY_FRAME_CONFIG_NR_H
 #define PHY_FRAME_CONFIG_NR_H
 
@@ -91,6 +93,8 @@ void free_tdd_configuration_nr(NR_DL_FRAME_PARMS *frame_parms);
     @returns none */
 
 void free_tdd_configuration_dedicated_nr(NR_DL_FRAME_PARMS *frame_parms);
+
+int get_next_downlink_slot(PHY_VARS_gNB *gNB, nfapi_nr_config_request_scf_t *cfg, int nr_frame, int nr_slot);
 
 #endif  /* PHY_FRAME_CONFIG_NR_H */
 

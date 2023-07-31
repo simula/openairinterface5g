@@ -44,8 +44,9 @@
 
 #include "nas_config.h"
 #include "common/utils/LOG/log.h"
-#include "targets/RT/USER/lte-softmodem.h"
+#include "executables/lte-softmodem.h"
 #include "common/config/config_userapi.h"
+#include "pdcp.h"
 
 //default values according to the examples,
 
@@ -56,15 +57,19 @@ char *broadcastAddr ;
 #define NASHLP_NETMASK   "<NAS network mask>\n"
 #define NASHLP_BROADCASTADDR   "<NAS network broadcast address>\n"
 void nas_getparams(void) {
-  paramdef_t nasoptions[] = {
+  // this datamodel require this static because we partially keep data like baseNetAddress (malloc on a global)
+  // but we loose the opther attributes in nasoptions between two calls if is is not static !
+  // clang-format off
+  static paramdef_t nasoptions[] = {
     /*--------------------------------------------------------------------------------------------------------------------------------------------------------------------*/
     /*                                            configuration parameters for netlink, includes network parameters when running in noS1 mode                             */
     /*   optname                     helpstr                paramflags           XXXptr                               defXXXval               type                 numelt */
     /*--------------------------------------------------------------------------------------------------------------------------------------------------------------------*/
-    {"NetworkPrefix",    NASHLP_NETPREFIX,       0,              strptr:&baseNetAddress,        defstrval:"10.0",            TYPE_STRING,  0 },
-    {"NetworkMask",      NASHLP_NETMASK,         0,              strptr:&netMask,               defstrval:"255.255.255.0",   TYPE_STRING,  0 },
-    {"BroadcastAddr",    NASHLP_BROADCASTADDR,   0,              strptr:&broadcastAddr,         defstrval:"10.0.255.255",    TYPE_STRING,  0 },
+    {"NetworkPrefix",    NASHLP_NETPREFIX,       0,              .strptr=&baseNetAddress,        .defstrval="10.0",            TYPE_STRING,  0 },
+    {"NetworkMask",      NASHLP_NETMASK,         0,              .strptr=&netMask,               .defstrval="255.255.255.0",   TYPE_STRING,  0 },
+    {"BroadcastAddr",    NASHLP_BROADCASTADDR,   0,              .strptr=&broadcastAddr,         .defstrval="10.0.255.255",    TYPE_STRING,  0 },
   };
+  // clang-format on
   config_get( nasoptions,sizeof(nasoptions)/sizeof(paramdef_t),"nas.noS1");
 }
 

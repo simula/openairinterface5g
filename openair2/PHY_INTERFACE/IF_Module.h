@@ -1,5 +1,4 @@
-/*
- * Licensed to the OpenAirInterface (OAI) Software Alliance under one or more
+ /* Licensed to the OpenAirInterface (OAI) Software Alliance under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.
  * The OpenAirInterface Software Alliance licenses this file to You under
@@ -39,6 +38,8 @@
 #include "nfapi_interface.h"
 #include "platform_types.h"
 #include <common/utils/threadPool/thread-pool.h>
+#include <radio/COMMON/common_lib.h>
+
 
 #define MAX_NUM_DL_PDU 100
 #define MAX_NUM_UL_PDU 100
@@ -87,25 +88,25 @@ typedef struct {
 } UL_IND_t;
 
 // Downlink subframe P7
-#define NUM_NFPAI_SUBFRAME 5
+#define NUM_NFAPI_SUBFRAME 10
 typedef struct {
   /// harq indication list
-  nfapi_harq_indication_t harq_ind[NUM_NFPAI_SUBFRAME];
+  nfapi_harq_indication_t harq_ind[NUM_NFAPI_SUBFRAME];
 
   /// crc indication list
-  nfapi_crc_indication_t crc_ind[NUM_NFPAI_SUBFRAME];
+  nfapi_crc_indication_t crc_ind[NUM_NFAPI_SUBFRAME];
 
   /// SR indication list
-  nfapi_sr_indication_t sr_ind[NUM_NFPAI_SUBFRAME];
+  nfapi_sr_indication_t sr_ind[NUM_NFAPI_SUBFRAME];
 
   /// CQI indication list
-  nfapi_cqi_indication_t cqi_ind[NUM_NFPAI_SUBFRAME];
+  nfapi_cqi_indication_t cqi_ind[NUM_NFAPI_SUBFRAME];
 
   /// RACH indication list
-  nfapi_rach_indication_t rach_ind[NUM_NFPAI_SUBFRAME];
+  nfapi_rach_indication_t rach_ind[NUM_NFAPI_SUBFRAME];
 
   /// RX indication
-  nfapi_rx_indication_t rx_ind[NUM_NFPAI_SUBFRAME];
+  nfapi_rx_indication_t rx_ind[NUM_NFAPI_SUBFRAME];
 
 } UL_RCC_IND_t;
 
@@ -135,7 +136,6 @@ typedef struct {
     int CC_id;
     nfapi_config_request_t *cfg;
 } PHY_Config_t;
-#include <targets/ARCH/COMMON/common_lib.h>
 
 typedef struct IF_Module_s{
 //define the function pointer
@@ -150,6 +150,17 @@ typedef struct IF_Module_s{
   uint8_t current_subframe;
   pthread_mutex_t if_mutex;
 } IF_Module_t;
+
+// These mutex is used for multiple UEs L2 FAPI simulator.
+// Each UEs set these value in UL and UL_INFO is shared in all UE's thread.
+typedef struct {
+  pthread_mutex_t rx_mutex;
+  pthread_mutex_t crc_mutex;
+  pthread_mutex_t sr_mutex;
+  pthread_mutex_t harq_mutex;
+  pthread_mutex_t cqi_mutex;
+  pthread_mutex_t rach_mutex;
+} FILL_UL_INFO_MUTEX_t;
 
 /*Initial */
 IF_Module_t *IF_Module_init(int Mod_id);

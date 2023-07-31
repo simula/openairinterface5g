@@ -266,7 +266,7 @@ int opt_create_listener_socket(char *ip_address, uint16_t port) {
     return -1;
   }
 
-  threadCreate(&opt_listener.thread, opt_listener_thread, NULL, "flexran", -1, OAI_PRIORITY_RT_LOW);
+  threadCreate(&opt_listener.thread, opt_listener_thread, NULL, "optListener", -1, OAI_PRIORITY_RT_LOW);
   return 0;
 }
 
@@ -286,7 +286,7 @@ static void SendFrame(guint8 radioType, guint8 direction, guint8 rntiType,
                       guint8 isPredefinedData, guint8 retx, guint8 crcStatus,
                       guint8 oob_event, guint8 oob_event_value,
                       uint8_t *pdu_buffer, unsigned int pdu_buffer_size) {
-  unsigned char frameBuffer[9000];
+  unsigned char frameBuffer[16000];
   unsigned int frameOffset;
   ssize_t bytesSent;
   frameOffset = 0;
@@ -385,8 +385,11 @@ static void SendFrame(guint8 radioType, guint8 direction, guint8 rntiType,
   //memcpy(frameBuffer+frameOffset, g_PDUBuffer, g_PDUOffset);
   //frameOffset += g_PDUOffset;
   if (pdu_buffer != NULL) {
-    memcpy(frameBuffer+frameOffset, (void *)pdu_buffer, pdu_buffer_size);
-    frameOffset += pdu_buffer_size;
+    const int sz = min(pdu_buffer_size, sizeof(frameBuffer)-frameOffset);
+    memcpy(frameBuffer+frameOffset, (void *)pdu_buffer, sz);
+    if ( pdu_buffer_size != sz )
+      LOG_W(OPT,"pdu is huge : %d\n", pdu_buffer_size);
+    frameOffset += sz;
   }
 
   if ( opt_type ==  OPT_WIRESHARK )
@@ -408,7 +411,7 @@ static void SendFrameNR(guint8 radioType, guint8 direction, guint8 rntiType,
 			guint8 isPredefinedData, guint8 retx, guint8 crcStatus,
 			guint8 oob_event, guint8 oob_event_value,
 			uint8_t *pdu_buffer, unsigned int pdu_buffer_size) {
-  unsigned char frameBuffer[9000];
+  unsigned char frameBuffer[32000];
   unsigned int frameOffset;
   ssize_t bytesSent;
   frameOffset = 0;
@@ -454,8 +457,11 @@ static void SendFrameNR(guint8 radioType, guint8 direction, guint8 rntiType,
   //memcpy(frameBuffer+frameOffset, g_PDUBuffer, g_PDUOffset);
   //frameOffset += g_PDUOffset;
   if (pdu_buffer != NULL) {
-    memcpy(frameBuffer+frameOffset, (void *)pdu_buffer, pdu_buffer_size);
-    frameOffset += pdu_buffer_size;
+    const int sz=min(pdu_buffer_size, sizeof(frameBuffer)-frameOffset);
+    memcpy(frameBuffer+frameOffset, (void *)pdu_buffer, sz);
+    if ( sz != pdu_buffer_size )
+      LOG_W(OPT,"large pdu: %d\n", pdu_buffer_size);
+    frameOffset += sz;
   }
 
   if ( opt_type ==  OPT_WIRESHARK )
@@ -476,6 +482,14 @@ static void SendFrameNR(guint8 radioType, guint8 direction, guint8 rntiType,
 extern RAN_CONTEXT_t RC;
 #include <openair1/PHY/phy_extern_ue.h>
 /* Remote serveraddress (where Wireshark is running) */
+void nr_trace_pdu_implementation(int nr, int direction, uint8_t *pdu_buffer, unsigned int pdu_buffer_size,
+				 int rntiType, int rnti, uint16_t sysFrameNumber, uint8_t subFrameNumber, int oob_event,
+				 int oob_event_value) {
+  trace_pdu_implementation(nr, direction, pdu_buffer, pdu_buffer_size,
+			   rnti, rntiType, rnti, sysFrameNumber, subFrameNumber, oob_event,
+			   oob_event_value);
+}
+
 void trace_pdu_implementation(int nr, int direction, uint8_t *pdu_buffer, unsigned int pdu_buffer_size,
                               int ueid, int rntiType, int rnti, uint16_t sysFrameNumber, uint8_t subFrameNumber, int oob_event,
                               int oob_event_value) {
@@ -532,9 +546,6 @@ void trace_pdu_implementation(int nr, int direction, uint8_t *pdu_buffer, unsign
 
 /*---------------------------------------------------*/
 int init_opt(void) { 
-  in_type=malloc(200);
-  in_ip=malloc(200);
-  in_path=malloc(200);
   paramdef_t opt_params[]          = OPT_PARAMS_DESC ;
   checkedparam_t opt_checkParams[] = OPTPARAMS_CHECK_DESC;
   config_set_checkfunctions(opt_params, opt_checkParams,

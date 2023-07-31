@@ -64,6 +64,9 @@ typedef struct itti_lte_time_s {
 
 
 typedef struct IttiMsgEmpty_s {
+  // This dummy element is to avoid CLANG warning: empty struct has size 0 in C, size 1 in C++
+  // To be removed if the structure is filled
+  uint32_t dummy;
 } IttiMsgEmpty;
 
 typedef struct IttiMsgText_s {
@@ -79,6 +82,7 @@ typedef struct IttiMsgText_s {
 #include <openair2/COMMON/as_message.h>
 #include <openair2/RRC/LTE/rrc_types.h>
 #include <openair2/COMMON/rrc_messages_types.h>
+#include <openair2/COMMON/e1ap_messages_types.h>
 
 #include <openair3/NAS/COMMON/UTIL/OctetString.h>
 #include <openair3/NAS/COMMON/IES/AccessPointName.h>
@@ -256,15 +260,9 @@ typedef struct IttiMsgText_s {
 #include <openair3/MME_APP/mme_app.h>
 //#include <proto.h>
 
-#include <openair3/GTPV1-U/gtpv1u_eNB_task.h>
-#include <openair3/GTPV1-U/gtpv1u_gNB_task.h>
 void *rrc_enb_process_itti_msg(void *);
 #include <openair3/SCTP/sctp_eNB_task.h>
 #include <openair3/NGAP/ngap_gNB.h>
-
-#ifdef ITTI_SIM
-  #include <openair2/COMMON/itti_sim_messages_types.h>
-#endif
 
 /*
   static const char *const messages_definition_xml = {
@@ -301,53 +299,54 @@ typedef struct {
 //TASK_DEF(TASK_GTPV1_U,  TASK_PRIORITY_MED,  1000,NULL, NULL)
 //TASK_DEF(TASK_UDP,      TASK_PRIORITY_MED,  1000, NULL, NULL)
 void *rrc_enb_process_msg(void *);
-#define FOREACH_TASK(TASK_DEF) \
-  TASK_DEF(TASK_UNKNOWN,  TASK_PRIORITY_MED, 50, NULL, NULL)  \
-  TASK_DEF(TASK_TIMER,    TASK_PRIORITY_MED, 10, NULL, NULL)   \
-  TASK_DEF(TASK_L2L1,     TASK_PRIORITY_MAX, 200, NULL, NULL)   \
-  TASK_DEF(TASK_BM,       TASK_PRIORITY_MED, 200, NULL, NULL)   \
-  TASK_DEF(TASK_PHY_ENB,  TASK_PRIORITY_MED, 200, NULL, NULL)   \
-  TASK_DEF(TASK_MAC_ENB,  TASK_PRIORITY_MED, 200, NULL, NULL)   \
-  TASK_DEF(TASK_RLC_ENB,  TASK_PRIORITY_MED, 200, NULL, NULL)   \
-  TASK_DEF(TASK_RRC_ENB_NB_IoT,  TASK_PRIORITY_MED, 200, NULL, NULL) \
-  TASK_DEF(TASK_PDCP_ENB, TASK_PRIORITY_MED, 200, NULL, NULL)   \
-  TASK_DEF(TASK_DATA_FORWARDING, TASK_PRIORITY_MED, 200, NULL, NULL)   \
-  TASK_DEF(TASK_END_MARKER, TASK_PRIORITY_MED, 200, NULL, NULL)   \
-  TASK_DEF(TASK_RRC_ENB,  TASK_PRIORITY_MED,  200, NULL,NULL)\
-  TASK_DEF(TASK_RRC_GNB,  TASK_PRIORITY_MED,  200, NULL,NULL)\
-  TASK_DEF(TASK_RAL_ENB,  TASK_PRIORITY_MED,  200, NULL, NULL)  \
-  TASK_DEF(TASK_S1AP,     TASK_PRIORITY_MED,  200, NULL, NULL)  \
-  TASK_DEF(TASK_NGAP,     TASK_PRIORITY_MED,  200, NULL, NULL)  \
-  TASK_DEF(TASK_X2AP,     TASK_PRIORITY_MED,  200, NULL, NULL)  \
-  TASK_DEF(TASK_M2AP_ENB,     TASK_PRIORITY_MED,  200, NULL, NULL)  \
-  TASK_DEF(TASK_M2AP_MCE,     TASK_PRIORITY_MED,  200, NULL, NULL)  \
-  TASK_DEF(TASK_M3AP,     TASK_PRIORITY_MED,  200, NULL, NULL)  \
-  TASK_DEF(TASK_M3AP_MME,     TASK_PRIORITY_MED,  200, NULL, NULL)  \
-  TASK_DEF(TASK_M3AP_MCE,     TASK_PRIORITY_MED,  200, NULL, NULL)  \
-  TASK_DEF(TASK_SCTP,     TASK_PRIORITY_MED,  200, NULL, NULL)  \
-  TASK_DEF(TASK_ENB_APP,  TASK_PRIORITY_MED,  200, NULL, NULL)  \
-  TASK_DEF(TASK_GNB_APP,  TASK_PRIORITY_MED,  200, NULL, NULL)  \
-  TASK_DEF(TASK_MCE_APP,  TASK_PRIORITY_MED,  200, NULL, NULL)  \
-  TASK_DEF(TASK_MME_APP,  TASK_PRIORITY_MED,  200, NULL, NULL)  \
-  TASK_DEF(TASK_FLEXRAN_AGENT,TASK_PRIORITY_MED, 200, NULL, NULL) \
-  TASK_DEF(TASK_PHY_UE,   TASK_PRIORITY_MED,  200, NULL, NULL)  \
-  TASK_DEF(TASK_MAC_UE,   TASK_PRIORITY_MED,  200, NULL, NULL)  \
-  TASK_DEF(TASK_RLC_UE,   TASK_PRIORITY_MED,  200, NULL, NULL)  \
-  TASK_DEF(TASK_PDCP_UE,  TASK_PRIORITY_MED,  200, NULL, NULL)  \
-  TASK_DEF(TASK_RRC_UE,   TASK_PRIORITY_MED,  200, NULL, NULL)  \
-  TASK_DEF(TASK_RRC_NRUE, TASK_PRIORITY_MED,  200, NULL, NULL)  \
-  TASK_DEF(TASK_NAS_UE,   TASK_PRIORITY_MED,  200, NULL, NULL)  \
-  TASK_DEF(TASK_RAL_UE,   TASK_PRIORITY_MED,  200, NULL, NULL)  \
-  TASK_DEF(TASK_MSC,      TASK_PRIORITY_MED,  200, NULL, NULL)\
-  TASK_DEF(TASK_GTPV1_U,  TASK_PRIORITY_MED,  1000,NULL, NULL)\
-  TASK_DEF(OCP_GTPV1_U,  TASK_PRIORITY_MED,  1000,NULL, NULL)\
-  TASK_DEF(TASK_UDP,      TASK_PRIORITY_MED,  1000, NULL, NULL)\
-  TASK_DEF(TASK_CU_F1,    TASK_PRIORITY_MED,  200, NULL, NULL) \
-  TASK_DEF(TASK_DU_F1,    TASK_PRIORITY_MED,  200, NULL, NULL) \
-  TASK_DEF(TASK_RRC_UE_SIM,   TASK_PRIORITY_MED,  200, NULL, NULL)  \
-  TASK_DEF(TASK_RRC_GNB_SIM,  TASK_PRIORITY_MED,  200, NULL, NULL)  \
-  TASK_DEF(TASK_NAS_NRUE,     TASK_PRIORITY_MED,  200, NULL, NULL)  \
-  TASK_DEF(TASK_MAX,      TASK_PRIORITY_MED,  200, NULL, NULL)
+#define FOREACH_TASK(TASK_DEF)                                       \
+  TASK_DEF(TASK_UNKNOWN, TASK_PRIORITY_MED, 50, NULL, NULL)          \
+  TASK_DEF(TASK_TIMER, TASK_PRIORITY_MED, 10, NULL, NULL)            \
+  TASK_DEF(TASK_L2L1, TASK_PRIORITY_MAX, 200, NULL, NULL)            \
+  TASK_DEF(TASK_BM, TASK_PRIORITY_MED, 200, NULL, NULL)              \
+  TASK_DEF(TASK_PHY_ENB, TASK_PRIORITY_MED, 200, NULL, NULL)         \
+  TASK_DEF(TASK_MAC_GNB, TASK_PRIORITY_MED, 200, NULL, NULL)         \
+  TASK_DEF(TASK_RLC_ENB, TASK_PRIORITY_MED, 200, NULL, NULL)         \
+  TASK_DEF(TASK_RRC_ENB_NB_IoT, TASK_PRIORITY_MED, 200, NULL, NULL)  \
+  TASK_DEF(TASK_PDCP_ENB, TASK_PRIORITY_MED, 200, NULL, NULL)        \
+  TASK_DEF(TASK_PDCP_GNB, TASK_PRIORITY_MED, 200, NULL, NULL)        \
+  TASK_DEF(TASK_DATA_FORWARDING, TASK_PRIORITY_MED, 200, NULL, NULL) \
+  TASK_DEF(TASK_END_MARKER, TASK_PRIORITY_MED, 200, NULL, NULL)      \
+  TASK_DEF(TASK_RRC_ENB, TASK_PRIORITY_MED, 200, NULL, NULL)         \
+  TASK_DEF(TASK_RRC_GNB, TASK_PRIORITY_MED, 200, NULL, NULL)         \
+  TASK_DEF(TASK_RAL_ENB, TASK_PRIORITY_MED, 200, NULL, NULL)         \
+  TASK_DEF(TASK_S1AP, TASK_PRIORITY_MED, 200, NULL, NULL)            \
+  TASK_DEF(TASK_NGAP, TASK_PRIORITY_MED, 200, NULL, NULL)            \
+  TASK_DEF(TASK_X2AP, TASK_PRIORITY_MED, 200, NULL, NULL)            \
+  TASK_DEF(TASK_M2AP_ENB, TASK_PRIORITY_MED, 200, NULL, NULL)        \
+  TASK_DEF(TASK_M2AP_MCE, TASK_PRIORITY_MED, 200, NULL, NULL)        \
+  TASK_DEF(TASK_M3AP, TASK_PRIORITY_MED, 200, NULL, NULL)            \
+  TASK_DEF(TASK_M3AP_MME, TASK_PRIORITY_MED, 200, NULL, NULL)        \
+  TASK_DEF(TASK_M3AP_MCE, TASK_PRIORITY_MED, 200, NULL, NULL)        \
+  TASK_DEF(TASK_SCTP, TASK_PRIORITY_MED, 200, NULL, NULL)            \
+  TASK_DEF(TASK_ENB_APP, TASK_PRIORITY_MED, 200, NULL, NULL)         \
+  TASK_DEF(TASK_GNB_APP, TASK_PRIORITY_MED, 200, NULL, NULL)         \
+  TASK_DEF(TASK_MCE_APP, TASK_PRIORITY_MED, 200, NULL, NULL)         \
+  TASK_DEF(TASK_MME_APP, TASK_PRIORITY_MED, 200, NULL, NULL)         \
+  TASK_DEF(TASK_PHY_UE, TASK_PRIORITY_MED, 200, NULL, NULL)          \
+  TASK_DEF(TASK_MAC_UE, TASK_PRIORITY_MED, 200, NULL, NULL)          \
+  TASK_DEF(TASK_RLC_UE, TASK_PRIORITY_MED, 200, NULL, NULL)          \
+  TASK_DEF(TASK_PDCP_UE, TASK_PRIORITY_MED, 200, NULL, NULL)         \
+  TASK_DEF(TASK_RRC_UE, TASK_PRIORITY_MED, 200, NULL, NULL)          \
+  TASK_DEF(TASK_RRC_NRUE, TASK_PRIORITY_MED, 200, NULL, NULL)        \
+  TASK_DEF(TASK_NAS_UE, TASK_PRIORITY_MED, 200, NULL, NULL)          \
+  TASK_DEF(TASK_RAL_UE, TASK_PRIORITY_MED, 200, NULL, NULL)          \
+  TASK_DEF(TASK_GTPV1_U, TASK_PRIORITY_MED, 1000, NULL, NULL)        \
+  TASK_DEF(TASK_CU_F1, TASK_PRIORITY_MED, 200, NULL, NULL)           \
+  TASK_DEF(TASK_DU_F1, TASK_PRIORITY_MED, 200, NULL, NULL)           \
+  TASK_DEF(TASK_CUCP_E1, TASK_PRIORITY_MED, 200, NULL, NULL)         \
+  TASK_DEF(TASK_CUUP_E1, TASK_PRIORITY_MED, 200, NULL, NULL)         \
+  TASK_DEF(TASK_RRC_UE_SIM, TASK_PRIORITY_MED, 200, NULL, NULL)      \
+  TASK_DEF(TASK_RRC_GNB_SIM, TASK_PRIORITY_MED, 200, NULL, NULL)     \
+  TASK_DEF(TASK_RRC_NSA_UE, TASK_PRIORITY_MED, 200, NULL, NULL)      \
+  TASK_DEF(TASK_RRC_NSA_NRUE, TASK_PRIORITY_MED, 200, NULL, NULL)    \
+  TASK_DEF(TASK_NAS_NRUE, TASK_PRIORITY_MED, 200, NULL, NULL)        \
+  TASK_DEF(TASK_MAX, TASK_PRIORITY_MED, 200, NULL, NULL)
 
 #define TASK_DEF(TaskID, pRIO, qUEUEsIZE, FuNc, ThreadFunc)          { pRIO, qUEUEsIZE, #TaskID, FuNc, ThreadFunc },
 
@@ -362,6 +361,8 @@ typedef enum {
   FOREACH_TASK(TASK_ENUM)
 } task_id_t;
 
+extern uint16_t ue_idx_standalone;
+extern uint16_t node_number;
 
 typedef task_id_t thread_id_t;
 
@@ -411,7 +412,7 @@ typedef struct MessageHeader_s {
 } MessageHeader;
 
 typedef struct message_info_s {
-  int id;
+  MessagesIds id;
   message_priorities_t priority;
   /* Message payload size */
   MessageHeaderSize size;
@@ -480,7 +481,7 @@ void itti_unsubscribe_event_fd(task_id_t task_id, int fd);
     \param events events list
     @returns number of events to handle
  **/
-int itti_get_events(task_id_t task_id, struct epoll_event **events);
+  int itti_get_events(task_id_t task_id, struct epoll_event *events, int nb_max_evts);
 
 /** \brief Retrieves a message in the queue associated to task_id.
    If the queue is empty, the thread is blocked till a new message arrives.
@@ -552,11 +553,13 @@ MessageDef *itti_alloc_new_message_sized(
   MessagesIds       message_id,
   MessageHeaderSize size);
 
-/** \brief handle signals and wait for all threads to join when the process complete.
-   This function should be called from the main thread after having created all ITTI tasks.
+/** \brief Wait for SIGINT/SIGTERM signals to unblock ITTI.
+   This function should be called from the main thread after having created all ITTI tasks. If handler is NULL, a default handler is installed.
+    \param handler a custom signal handler. To unblock, it should call itti_wait_tasks_unblock()
  **/
-void itti_wait_tasks_end(void);
-#define  ADDED_QUEUES_MAX 10 // Fix me: MSC component too hard to understand, we keep room for 10 queues created dynamically
+void itti_wait_tasks_end(void (*handler)(int));
+/** \brif unblocks ITTI waiting in itti_wait_tasks_end(). **/
+void itti_wait_tasks_unblock(void);
 void itti_set_task_real_time(task_id_t task_id);
 
 /** \brief Send a termination message to all tasks.
@@ -586,6 +589,7 @@ int timer_remove(long timer_id);
 int signal_handle(int *end);
 int signal_mask(void);
 
+void log_scheduler(const char *label);
 #ifdef __cplusplus
 }
 #endif

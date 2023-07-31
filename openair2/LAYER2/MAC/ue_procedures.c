@@ -29,10 +29,6 @@
  * \email: raymond.knopp@eurecom.fr, navid.nikaein@eurecom.fr javier.morgade@ieee.org
  */
 
-#ifdef EXMIMO
-  #include <pthread.h>
-#endif
-
 #include "mac_extern.h"
 #include "mac.h"
 #include "mac_proto.h"
@@ -49,12 +45,10 @@
 #include "nfapi/oai_integration/vendor_ext.h"
 #include "common/utils/LOG/vcd_signal_dumper.h"
 #include "UTIL/OPT/opt.h"
-#include "OCG.h"
-#include "OCG_extern.h"
 #include "openair2/PHY_INTERFACE/phy_stub_UE.h"
 
 #include "pdcp.h"
-#include "targets/RT/USER/lte-softmodem.h"
+#include "executables/lte-softmodem.h"
 
 #include "intertask_interface.h"
 
@@ -76,13 +70,6 @@ rb_id_t mbms_rab_id=2047;//[8] = {2047,2047,2047,2047,2047,2047,2047,2047};
 static int mbms_mch_i=0;
 //static int num_msi_per_CSA[28];
 
-
-/*
- *
-#ifndef USER_MODE
-#define msg debug_msg
-#endif
- */
 
 mapping BSR_names[] = {
   {"NONE", 0},
@@ -156,15 +143,13 @@ void ue_init_mac(module_id_t module_idP) {
     UE_mac_inst[module_idP].scheduling_info.LCID_buffer_remain[i] = 0;
   }
 
-  if(NFAPI_MODE==NFAPI_UE_STUB_PNF) {
+  if(NFAPI_MODE==NFAPI_UE_STUB_PNF || NFAPI_MODE==NFAPI_MODE_STANDALONE_PNF) {
     pthread_mutex_init(&UE_mac_inst[module_idP].UL_INFO_mutex,NULL);
-    UE_mac_inst[module_idP].UE_mode[0] = NOT_SYNCHED; //PRACH;
+    UE_mac_inst[module_idP].UE_mode[0] = PRACH; //NOT_SYNCHED;
     UE_mac_inst[module_idP].first_ULSCH_Tx =0;
     UE_mac_inst[module_idP].SI_Decoded = 0;
     next_ra_frame = 0;
     next_Mod_id = 0;
-    tx_request_pdu_list = NULL;
-    tx_req_num_elems = 0;
   }
 }
 
@@ -390,9 +375,7 @@ ue_send_sdu(module_id_t module_idP,
   unsigned char rx_lcids[NB_RB_MAX];
   unsigned short rx_lengths[NB_RB_MAX];
   unsigned char *tx_sdu;
-#if UE_TIMING_TRACE
-  start_meas(&UE_mac_inst[module_idP].rx_dlsch_sdu);
-#endif
+  start_UE_TIMING(UE_mac_inst[module_idP].rx_dlsch_sdu);
   VCD_SIGNAL_DUMPER_DUMP_FUNCTION_BY_NAME
   (VCD_SIGNAL_DUMPER_FUNCTIONS_UE_SEND_SDU, VCD_FUNCTION_IN);
   //LOG_D(MAC,"sdu: %x.%x.%x\n",sdu[0],sdu[1],sdu[2]);
@@ -418,7 +401,7 @@ ue_send_sdu(module_id_t module_idP,
 
   if (payload_ptr != NULL) {
     for (i = 0; i < num_ce; i++) {
-      //    printf("ce %d : %d\n",i,rx_ces[i]);
+      LOG_I(MAC, "ce %d : %d\n",i,rx_ces[i]);
       switch (rx_ces[i]) {
         case UE_CONT_RES:
           LOG_I(MAC,
@@ -443,7 +426,7 @@ ue_send_sdu(module_id_t module_idP,
                       "[UE %d][RAPROC] Contention detected, RA failed\n",
                       module_idP);
 
-                if(NFAPI_MODE==NFAPI_UE_STUB_PNF) { // phy_stub mode
+                if(NFAPI_MODE==NFAPI_UE_STUB_PNF || NFAPI_MODE==NFAPI_MODE_STANDALONE_PNF) { // phy_stub mode
                   //  Modification for phy_stub mode operation here. We only need to make sure that the ue_mode is back to
                   // PRACH state.
                   LOG_I(MAC, "nfapi_mode3: Setting UE_mode BACK to PRACH 1\n");
@@ -469,7 +452,7 @@ ue_send_sdu(module_id_t module_idP,
             [module_idP].
             RA_contention_resolution_timer_active = 0;
 
-            if(NFAPI_MODE==NFAPI_UE_STUB_PNF) { // phy_stub mode
+            if(NFAPI_MODE==NFAPI_UE_STUB_PNF || NFAPI_MODE==NFAPI_MODE_STANDALONE_PNF) { // phy_stub mode
               // Modification for phy_stub mode operation here. We only need to change the ue_mode to PUSCH
               UE_mac_inst[module_idP].UE_mode[eNB_index] = PUSCH;
             } else { // Full stack mode
@@ -487,7 +470,7 @@ ue_send_sdu(module_id_t module_idP,
 #endif
 
           // Eliminate call to process_timing_advance for the phy_stub UE operation mode. Is this correct?
-          if (NFAPI_MODE!=NFAPI_UE_STUB_PNF) {
+          if (NFAPI_MODE!=NFAPI_UE_STUB_PNF && NFAPI_MODE!=NFAPI_MODE_STANDALONE_PNF) {
             process_timing_advance(module_idP,CC_id,payload_ptr[0]);
           }
 
@@ -576,16 +559,12 @@ ue_send_sdu(module_id_t module_idP,
 
   VCD_SIGNAL_DUMPER_DUMP_FUNCTION_BY_NAME
   (VCD_SIGNAL_DUMPER_FUNCTIONS_UE_SEND_SDU, VCD_FUNCTION_OUT);
-#if UE_TIMING_TRACE
-  stop_meas(&UE_mac_inst[module_idP].rx_dlsch_sdu);
-#endif
+  stop_UE_TIMING(UE_mac_inst[module_idP].rx_dlsch_sdu);
 }
 
 void ue_decode_si_mbms(module_id_t module_idP, int CC_id, frame_t frameP,
                        uint8_t eNB_index, void *pdu, uint16_t len) {
-#if UE_TIMING_TRACE
-  start_meas(&UE_mac_inst[module_idP].rx_si);
-#endif
+  start_UE_TIMING(UE_mac_inst[module_idP].rx_si);
   VCD_SIGNAL_DUMPER_DUMP_FUNCTION_BY_NAME
   (VCD_SIGNAL_DUMPER_FUNCTIONS_UE_DECODE_SI, VCD_FUNCTION_IN);
   LOG_D(MAC, "[UE %d] Frame %d Sending SI MBMS to RRC (LCID Id %d,len %d)\n",
@@ -596,9 +575,7 @@ void ue_decode_si_mbms(module_id_t module_idP, int CC_id, frame_t frameP,
                       0);
   VCD_SIGNAL_DUMPER_DUMP_FUNCTION_BY_NAME
   (VCD_SIGNAL_DUMPER_FUNCTIONS_UE_DECODE_SI, VCD_FUNCTION_OUT);
-#if UE_TIMING_TRACE
-  stop_meas(&UE_mac_inst[module_idP].rx_si);
-#endif
+  stop_UE_TIMING(UE_mac_inst[module_idP].rx_si);
 
   trace_pdu(DIRECTION_UPLINK,
             (uint8_t *) pdu,
@@ -616,9 +593,7 @@ void ue_decode_si_mbms(module_id_t module_idP, int CC_id, frame_t frameP,
 void
 ue_decode_si(module_id_t module_idP, int CC_id, frame_t frameP,
              uint8_t eNB_index, void *pdu, uint16_t len) {
-#if UE_TIMING_TRACE
-  start_meas(&UE_mac_inst[module_idP].rx_si);
-#endif
+  start_UE_TIMING(UE_mac_inst[module_idP].rx_si);
   VCD_SIGNAL_DUMPER_DUMP_FUNCTION_BY_NAME
   (VCD_SIGNAL_DUMPER_FUNCTIONS_UE_DECODE_SI, VCD_FUNCTION_IN);
   LOG_D(MAC, "[UE %d] Frame %d Sending SI to RRC (LCID Id %d,len %d)\n",
@@ -629,9 +604,7 @@ ue_decode_si(module_id_t module_idP, int CC_id, frame_t frameP,
                       0);
   VCD_SIGNAL_DUMPER_DUMP_FUNCTION_BY_NAME
   (VCD_SIGNAL_DUMPER_FUNCTIONS_UE_DECODE_SI, VCD_FUNCTION_OUT);
-#if UE_TIMING_TRACE
-  stop_meas(&UE_mac_inst[module_idP].rx_si);
-#endif
+  stop_UE_TIMING(UE_mac_inst[module_idP].rx_si);
   trace_pdu(DIRECTION_UPLINK,
             (uint8_t *) pdu,
             len,
@@ -645,9 +618,7 @@ ue_decode_si(module_id_t module_idP, int CC_id, frame_t frameP,
 void
 ue_decode_p(module_id_t module_idP, int CC_id, frame_t frameP,
             uint8_t eNB_index, void *pdu, uint16_t len) {
-#if UE_TIMING_TRACE
-  start_meas(&UE_mac_inst[module_idP].rx_p);
-#endif
+  start_UE_TIMING(UE_mac_inst[module_idP].rx_p);
   VCD_SIGNAL_DUMPER_DUMP_FUNCTION_BY_NAME
   (VCD_SIGNAL_DUMPER_FUNCTIONS_UE_DECODE_PCCH, VCD_FUNCTION_IN);
   LOG_D(MAC,
@@ -659,9 +630,7 @@ ue_decode_p(module_id_t module_idP, int CC_id, frame_t frameP,
                       0);
   VCD_SIGNAL_DUMPER_DUMP_FUNCTION_BY_NAME
   (VCD_SIGNAL_DUMPER_FUNCTIONS_UE_DECODE_PCCH, VCD_FUNCTION_OUT);
-#if UE_TIMING_TRACE
-  stop_meas(&UE_mac_inst[module_idP].rx_p);
-#endif
+  stop_UE_TIMING(UE_mac_inst[module_idP].rx_p);
   trace_pdu(DIRECTION_UPLINK,
             (uint8_t *) pdu,
             len,
@@ -732,9 +701,7 @@ ue_send_mch_sdu(module_id_t module_idP, uint8_t CC_id, frame_t frameP,
   unsigned char num_sdu, i, j, *payload_ptr;
   unsigned char rx_lcids[NB_RB_MAX];
   unsigned short rx_lengths[NB_RB_MAX];
-#if UE_TIMING_TRACE
-  start_meas(&UE_mac_inst[module_idP].rx_mch_sdu);
-#endif
+  start_UE_TIMING(UE_mac_inst[module_idP].rx_mch_sdu);
   VCD_SIGNAL_DUMPER_DUMP_FUNCTION_BY_NAME
   (VCD_SIGNAL_DUMPER_FUNCTIONS_UE_SEND_MCH_SDU, VCD_FUNCTION_IN);
   LOG_D(MAC,
@@ -827,9 +794,7 @@ ue_send_mch_sdu(module_id_t module_idP, uint8_t CC_id, frame_t frameP,
 
   VCD_SIGNAL_DUMPER_DUMP_FUNCTION_BY_NAME
   (VCD_SIGNAL_DUMPER_FUNCTIONS_UE_SEND_MCH_SDU, VCD_FUNCTION_OUT);
-#if UE_TIMING_TRACE
-  stop_meas(&UE_mac_inst[module_idP].rx_mch_sdu);
-#endif
+  stop_UE_TIMING(UE_mac_inst[module_idP].rx_mch_sdu);
 }
 
 void ue_send_sl_sdu(module_id_t module_idP,
@@ -936,7 +901,7 @@ int ue_query_p_mch_info(module_id_t module_idP, uint32_t frameP, uint32_t subfra
       continue;
 
     int mch_scheduling_period = 8 << UE_mac_inst[module_idP].pmch_Config[i]->mch_SchedulingPeriod_r9;
-    uint8_t  sf_AllocEnd_r9   = UE_mac_inst[module_idP].pmch_Config[i]->sf_AllocEnd_r9;
+    long sf_AllocEnd_r9 = UE_mac_inst[module_idP].pmch_Config[i]->sf_AllocEnd_r9;
 
     if (sf_AllocEnd_r9 == 2047) {
       msi_flag = 1;
@@ -948,7 +913,7 @@ int ue_query_p_mch_info(module_id_t module_idP, uint32_t frameP, uint32_t subfra
         //msi and mtch are mutally excluded then the break is safe
         if ((num_sf_alloc == 0) && (sf_AllocEnd_r9 >= 1)) {
           msi_flag = 1;
-          LOG_D(MAC,"msi(%d) should be allocated:frame(%d),submframe(%d),num_sf_alloc(%d),sf_AllocEnd_r9(%d),common_num_sf_alloc(%d)\n",i,frameP,subframe,num_sf_alloc,sf_AllocEnd_r9,
+          LOG_D(MAC,"msi(%d) should be allocated:frame(%d),submframe(%d),num_sf_alloc(%d),sf_AllocEnd_r9(%ld),common_num_sf_alloc(%d)\n",i,frameP,subframe,num_sf_alloc,sf_AllocEnd_r9,
                 UE_mac_inst[module_idP].common_num_sf_alloc);
           UE_mac_inst[module_idP].msi_current_alloc = num_sf_alloc;
           UE_mac_inst[module_idP].msi_pmch = i;
@@ -960,7 +925,7 @@ int ue_query_p_mch_info(module_id_t module_idP, uint32_t frameP, uint32_t subfra
         //if ((num_sf_alloc ==  UE_mac_inst[module_idP].pmch_Config[i-1]->sf_AllocEnd_r9) && (sf_AllocEnd_r9 >= (num_sf_alloc))) {
           //msi should be just after
           msi_flag = 1;
-          LOG_D(MAC,"msi(%d) should be allocated:frame(%d),submframe(%d),num_sf_alloc(%d),sf_AllocEnd_r9(%d),common_num_sf_alloc(%d)\n",i,frameP,subframe,num_sf_alloc,sf_AllocEnd_r9,
+          LOG_D(MAC,"msi(%d) should be allocated:frame(%d),submframe(%d),num_sf_alloc(%d),sf_AllocEnd_r9(%ld),common_num_sf_alloc(%d)\n",i,frameP,subframe,num_sf_alloc,sf_AllocEnd_r9,
                 UE_mac_inst[module_idP].common_num_sf_alloc);
           UE_mac_inst[module_idP].msi_current_alloc = num_sf_alloc;
           UE_mac_inst[module_idP].msi_pmch = i;
@@ -1251,65 +1216,6 @@ int ue_query_mch_fembms(module_id_t module_idP, uint8_t CC_id, uint32_t frameP, 
   }
 
 
-
-  
-#ifdef OLD
-          // Acount for sf_allocable in CSA
-        int num_sf_alloc = 0;
-
-        for (l = 0; l < 8; l++) {
-          if (UE_mac_inst[module_idP].commonSF_Alloc_r9_mbsfn_SubframeConfig[l] == NULL)
-            continue;
-
-          if (UE_mac_inst[module_idP].commonSF_Alloc_r9_mbsfn_SubframeConfig[l]->subframeAllocation.present != LTE_MBSFN_SubframeConfig__subframeAllocation_PR_oneFrame)
-            continue;
-
-          uint32_t common_mbsfn_SubframeConfig = UE_mac_inst[module_idP].commonSF_Alloc_r9_mbsfn_SubframeConfig[l]->subframeAllocation.choice.oneFrame.buf[0];
-
-
-          for (j = 0; j < 6; j++)
-            num_sf_alloc += ((common_mbsfn_SubframeConfig & (0x80 >> j)) == (0x80 >> j));
-            //num_sf_alloc=1;
-        }
-	
-	num_sf_alloc = 10;
-
-        num_non_mbsfn_SubframeConfig = (UE_mac_inst[module_idP].non_mbsfn_SubframeConfig->subframeAllocation_r14.buf[0]<<1 | UE_mac_inst[module_idP].non_mbsfn_SubframeConfig->subframeAllocation_r14.buf[0]>>7);
-	int ones=0;
-	for(j=0; j < 16; j++){
-		if(num_non_mbsfn_SubframeConfig & 1)
-			ones++;
-		num_non_mbsfn_SubframeConfig>>=1;
-	}
-
-        for (l = 0; l < 28; l++) {
-          if (UE_mac_inst[module_idP].pmch_stop_mtch[l] >= 1/*num_sf_alloc*/) {
-            if (UE_mac_inst[module_idP].pmch_stop_mtch[l] != 2047) {
-              if (UE_mac_inst[module_idP].pmch_Config[UE_mac_inst[module_idP].msi_pmch] != NULL){
-                mtch_mcs = UE_mac_inst[module_idP].pmch_Config[UE_mac_inst[module_idP].msi_pmch]->dataMCS_r9;
-    	       //int common_mbsfn_alloc_offset = UE_mac_inst[module_idP].commonSF_Alloc_r9_mbsfn_SubframeConfig[0]->radioframeAllocationOffset;
-               long common_mbsfn_period  = 1 << UE_mac_inst[module_idP].commonSF_Alloc_r9_mbsfn_SubframeConfig[0]->radioframeAllocationPeriod;
-               long commonSF_AllocPeriod = 4 << UE_mac_inst[module_idP].commonSF_AllocPeriod_r9;
-               if(UE_mac_inst[module_idP].common_num_sf_alloc >= UE_mac_inst[module_idP].pmch_stop_mtch[l]){
-                       //LOG_E(MAC,"Attemp to UE_mac_inst[module_idP].common_num_sf_alloc %d\n",UE_mac_inst[module_idP].common_num_sf_alloc);
-
-                       mtch_mcs = -1;
-               }/*else
-                       OG_W(MAC,"Attemp to UE_mac_inst[module_idP].common_num_sf_alloc %d\n",UE_mac_inst[module_idP].common_num_sf_alloc);*/
-                       LOG_D(MAC,"Attemp to UE_mac_inst[module_idP].common_num_sf_alloc %d num_sf_alloc %d commonSF_AllocPeriod %ld, common_mbsfn_period %ld num_non_mbsfn_SubframeConfig %x ones %d\n",UE_mac_inst[module_idP].common_num_sf_alloc,num_sf_alloc, commonSF_AllocPeriod,common_mbsfn_period,num_non_mbsfn_SubframeConfig,ones);
-                UE_mac_inst[module_idP].common_num_sf_alloc++;
-                UE_mac_inst[module_idP].common_num_sf_alloc = UE_mac_inst[module_idP].common_num_sf_alloc % (num_sf_alloc * commonSF_AllocPeriod / common_mbsfn_period-(1+ones)*(commonSF_AllocPeriod/4)); //TODO
-              }
-              else
-                mtch_mcs = -1;
-
-              mch_lcid = (uint8_t)l;
-              break;
-            }
-          }
-        }
-#endif
-
 {
  	 // Acount for sf_allocable in Common SF Allocation
  	 int num_sf_alloc = 0;
@@ -1397,7 +1303,7 @@ int ue_query_mch_fembms(module_id_t module_idP, uint8_t CC_id, uint32_t frameP, 
   //}
 
 
-  if ((mcch_flag == 1)) { // || (msi_flag==1))
+  if (mcch_flag == 1) { // || (msi_flag==1))
     *mcch_active = 1;
   }
 
@@ -1565,10 +1471,7 @@ int ue_query_mch(module_id_t module_idP, uint8_t CC_id, uint32_t frameP, uint32_
   int mcch_flag = 0, mtch_flag = 0, msi_flag = 0;
   long mch_scheduling_period = -1;
   uint8_t mch_lcid = 0;
-#if UE_TIMING_TRACE
-  start_meas(&UE_mac_inst[module_idP].ue_query_mch);
-#endif
-
+  start_UE_TIMING(UE_mac_inst[module_idP].ue_query_mch);
   if (UE_mac_inst[module_idP].pmch_Config[0]) {
     mch_scheduling_period = 8 << UE_mac_inst[module_idP].pmch_Config[0]->mch_SchedulingPeriod_r9;
   }
@@ -1869,49 +1772,7 @@ int ue_query_mch(module_id_t module_idP, uint8_t CC_id, uint32_t frameP, uint32_
 	//}
   }
 
-#ifdef OLD
-        // Acount for sf_allocable in CSA
-        int num_sf_alloc = 0;
 
-        for (l = 0; l < 8; l++) {
-          if (UE_mac_inst[module_idP].commonSF_Alloc_r9_mbsfn_SubframeConfig[l] == NULL)
-            continue;
-
-          if (UE_mac_inst[module_idP].commonSF_Alloc_r9_mbsfn_SubframeConfig[l]->subframeAllocation.present != LTE_MBSFN_SubframeConfig__subframeAllocation_PR_oneFrame)
-            continue;
-
-          uint32_t common_mbsfn_SubframeConfig = UE_mac_inst[module_idP].commonSF_Alloc_r9_mbsfn_SubframeConfig[l]->subframeAllocation.choice.oneFrame.buf[0];
-
-          for (j = 0; j < 6; j++)
-            num_sf_alloc += ((common_mbsfn_SubframeConfig & (0x80 >> j)) == (0x80 >> j));
-	    //num_sf_alloc=1;
-        }
-
-        for (l = 0; l < 28; l++) {
-          if (UE_mac_inst[module_idP].pmch_stop_mtch[l] >= 1/*num_sf_alloc*/) {
-            if (UE_mac_inst[module_idP].pmch_stop_mtch[l] != 2047) {
-              if (UE_mac_inst[module_idP].pmch_Config[UE_mac_inst[module_idP].msi_pmch] != NULL){
-                mtch_mcs = UE_mac_inst[module_idP].pmch_Config[UE_mac_inst[module_idP].msi_pmch]->dataMCS_r9;
-               long common_mbsfn_period  = 1 << UE_mac_inst[module_idP].commonSF_Alloc_r9_mbsfn_SubframeConfig[0]->radioframeAllocationPeriod;
-               long commonSF_AllocPeriod = 4 << UE_mac_inst[module_idP].commonSF_AllocPeriod_r9;
-               if(UE_mac_inst[module_idP].common_num_sf_alloc >= UE_mac_inst[module_idP].pmch_stop_mtch[l]){
-		       //LOG_E(MAC,"Attemp to UE_mac_inst[module_idP].common_num_sf_alloc %d\n",UE_mac_inst[module_idP].common_num_sf_alloc);
-
-                       mtch_mcs = -1;
-	       }/*else
-		       LOG_W(MAC,"Attemp to UE_mac_inst[module_idP].common_num_sf_alloc %d\n",UE_mac_inst[module_idP].common_num_sf_alloc);*/
-               	UE_mac_inst[module_idP].common_num_sf_alloc++;
-           	UE_mac_inst[module_idP].common_num_sf_alloc = UE_mac_inst[module_idP].common_num_sf_alloc % (num_sf_alloc * commonSF_AllocPeriod / common_mbsfn_period);
-	      }
-              else
-                mtch_mcs = -1;
-
-              mch_lcid = (uint8_t)l;
-              break;
-            }
-          }
-        }
-#endif
 
 {
  	 // Acount for sf_allocable in Common SF Allocation
@@ -2110,11 +1971,9 @@ int ue_query_mch(module_id_t module_idP, uint8_t CC_id, uint32_t frameP, uint32_
     }
   } // end of for
 
-#if UE_TIMING_TRACE
-  stop_meas(&UE_mac_inst[module_idP].ue_query_mch);
-#endif
+  stop_UE_TIMING(UE_mac_inst[module_idP].ue_query_mch);
 
-  if ((mcch_flag == 1)) { // || (msi_flag==1))
+  if (mcch_flag == 1) { // || (msi_flag==1))
     *mcch_active = 1;
   }
 
@@ -2435,8 +2294,8 @@ ue_get_sdu(module_id_t module_idP, int CC_id, frame_t frameP,
   uint8_t bsr_len = 0, bsr_ce_len = 0, bsr_header_len = 0;
   uint8_t phr_header_len = 0, phr_ce_len = 0, phr_len = 0;
   uint8_t lcid = 0, lcid_rlc_pdu_count = 0;
-  boolean_t is_lcid_processed = FALSE;
-  boolean_t is_all_lcid_processed = FALSE;
+  bool is_lcid_processed = false;
+  bool is_all_lcid_processed = false;
   uint16_t sdu_lengths[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
   uint8_t sdu_lcids[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
   uint8_t payload_offset = 0, num_sdus = 0;
@@ -2463,9 +2322,7 @@ ue_get_sdu(module_id_t module_idP, int CC_id, frame_t frameP,
         module_idP, frameP, subframe, buflen);
   AssertFatal(CC_id == 0,
               "Transmission on secondary CCs is not supported yet\n");
-#if UE_TIMING_TRACE
-  start_meas(&UE_mac_inst[module_idP].tx_ulsch_sdu);
-#endif
+  start_UE_TIMING(UE_mac_inst[module_idP].tx_ulsch_sdu);
   VCD_SIGNAL_DUMPER_DUMP_FUNCTION_BY_NAME
   (VCD_SIGNAL_DUMPER_FUNCTIONS_UE_GET_SDU, VCD_FUNCTION_IN);
   bsr_header_len = 0;
@@ -2554,11 +2411,11 @@ ue_get_sdu(module_id_t module_idP, int CC_id, frame_t frameP,
   // Check for DCCH first
   // TO DO: Multiplex in the order defined by the logical channel prioritization
   for (lcid = DCCH;
-       (lcid < MAX_NUM_LCID) && (is_all_lcid_processed == FALSE); lcid++) {
+       (lcid < MAX_NUM_LCID) && (is_all_lcid_processed == false); lcid++) {
     if (UE_mac_inst[module_idP].scheduling_info.LCID_status[lcid] ==
         LCID_NOT_EMPTY) {
       lcid_rlc_pdu_count = 0;
-      is_lcid_processed = FALSE;
+      is_lcid_processed = false;
       lcid_buffer_occupancy_old =
         mac_rlc_get_buffer_occupancy_ind(module_idP,
                                          UE_mac_inst[module_idP].
@@ -2616,6 +2473,7 @@ ue_get_sdu(module_id_t module_idP, int CC_id, frame_t frameP,
               scheduling_info.BSR_bytes[UE_mac_inst[module_idP].
                                         scheduling_info.LCGID
                                         [lcid]]);
+        AssertFatal(num_sdus < sizeof(sdu_lengths) / sizeof(sdu_lengths[0]), "num_sdus %d > num sdu_length elements\n", num_sdus);
         sdu_lengths[num_sdus] = mac_rlc_data_req(module_idP,
                                 UE_mac_inst
                                 [module_idP].
@@ -2645,8 +2503,8 @@ ue_get_sdu(module_id_t module_idP, int CC_id, frame_t frameP,
             //No more remaining TBS after this PDU
             //exit the function
             rlc_pdu_header_len_last = 1;
-            is_lcid_processed = TRUE;
-            is_all_lcid_processed = TRUE;
+            is_lcid_processed = true;
+            is_all_lcid_processed = true;
           } else {
             rlc_pdu_header_len_last =
               (sdu_lengths[num_sdus] > 128) ? 3 : 2;
@@ -2656,8 +2514,8 @@ ue_get_sdu(module_id_t module_idP, int CC_id, frame_t frameP,
                 (bsr_len + phr_len + total_rlc_pdu_header_len +
                  rlc_pdu_header_len_last + sdu_length_total)) {
               rlc_pdu_header_len_last = 1;
-              is_lcid_processed = TRUE;
-              is_all_lcid_processed = TRUE;
+              is_lcid_processed = true;
+              is_all_lcid_processed = true;
             }
           }
 
@@ -2668,7 +2526,7 @@ ue_get_sdu(module_id_t module_idP, int CC_id, frame_t frameP,
           lcid_rlc_pdu_count++;
         } else {
           /* avoid infinite loop ... */
-          is_lcid_processed = TRUE;
+          is_lcid_processed = true;
         }
 
         /* Get updated BO after multiplexing this PDU */
@@ -2747,7 +2605,7 @@ ue_get_sdu(module_id_t module_idP, int CC_id, frame_t frameP,
 
   // build PHR and update the timers
   if (phr_ce_len == sizeof(POWER_HEADROOM_CMD)) {
-    if(NFAPI_MODE==NFAPI_UE_STUB_PNF) {
+    if(NFAPI_MODE==NFAPI_UE_STUB_PNF || NFAPI_MODE==NFAPI_MODE_STANDALONE_PNF) {
       //Substitute with a static value for the MAC layer abstraction (phy_stub mode)
       phr_p->PH = 60;
     } else {
@@ -3006,9 +2864,7 @@ ue_get_sdu(module_id_t module_idP, int CC_id, frame_t frameP,
 
   VCD_SIGNAL_DUMPER_DUMP_FUNCTION_BY_NAME
   (VCD_SIGNAL_DUMPER_FUNCTIONS_UE_GET_SDU, VCD_FUNCTION_OUT);
-#if UE_TIMING_TRACE
-  stop_meas(&UE_mac_inst[module_idP].tx_ulsch_sdu);
-#endif
+  stop_UE_TIMING(UE_mac_inst[module_idP].tx_ulsch_sdu);
   trace_pdu(DIRECTION_UPLINK, ulsch_buffer, buflen, module_idP, WS_C_RNTI,
             UE_mac_inst[module_idP].crnti,
             UE_mac_inst[module_idP].txFrame,
@@ -3046,9 +2902,7 @@ ue_scheduler(const module_id_t module_idP,
   protocol_ctxt_t ctxt;
   MessageDef *msg_p;
   int result;
-#if UE_TIMING_TRACE
-  start_meas(&UE_mac_inst[module_idP].ue_scheduler);
-#endif
+  start_UE_TIMING(UE_mac_inst[module_idP].ue_scheduler);
   VCD_SIGNAL_DUMPER_DUMP_FUNCTION_BY_NAME
   (VCD_SIGNAL_DUMPER_FUNCTIONS_UE_SCHEDULER, VCD_FUNCTION_IN);
   PROTOCOL_CTXT_SET_BY_MODULE_ID(&ctxt, module_idP, ENB_FLAG_NO,
@@ -3083,11 +2937,6 @@ ue_scheduler(const module_id_t module_idP,
     } while (msg_p != NULL);
   }
 
-  //Mac_rlc_xface->frameP=frameP;
-  //Rrc_xface->Frame_index=Mac_rlc_xface->frameP;
-  //if (subframe%5 == 0)
-  //LG#ifdef EXMIMO
-
   // data to/from NETLINK is treated in pdcp_run.
   // one socket is used in multiple UE's L2 FAPI simulator and
   // only first UE need to do this.
@@ -3119,9 +2968,7 @@ ue_scheduler(const module_id_t module_idP,
       LOG_E(MAC, "RRCConnectionSetup failed, returning to IDLE state\n");
       VCD_SIGNAL_DUMPER_DUMP_FUNCTION_BY_NAME
       (VCD_SIGNAL_DUMPER_FUNCTIONS_UE_SCHEDULER, VCD_FUNCTION_OUT);
-#if UE_TIMING_TRACE
-      stop_meas(&UE_mac_inst[module_idP].ue_scheduler);
-#endif
+      stop_UE_TIMING(UE_mac_inst[module_idP].ue_scheduler);
       return (CONNECTION_LOST);
       break;
 
@@ -3129,9 +2976,7 @@ ue_scheduler(const module_id_t module_idP,
       LOG_E(MAC, "RRC Loss of synch, returning PHY_RESYNCH\n");
       VCD_SIGNAL_DUMPER_DUMP_FUNCTION_BY_NAME
       (VCD_SIGNAL_DUMPER_FUNCTIONS_UE_SCHEDULER, VCD_FUNCTION_OUT);
-#if UE_TIMING_TRACE
-      stop_meas(&UE_mac_inst[module_idP].ue_scheduler);
-#endif
+      stop_UE_TIMING(UE_mac_inst[module_idP].ue_scheduler);
       return (PHY_RESYNCH);
 
     case RRC_Handover_failed:
@@ -3148,9 +2993,7 @@ ue_scheduler(const module_id_t module_idP,
             "RRC handover, Instruct PHY to start the contention-free PRACH and synchronization\n");
       VCD_SIGNAL_DUMPER_DUMP_FUNCTION_BY_NAME
       (VCD_SIGNAL_DUMPER_FUNCTIONS_UE_SCHEDULER, VCD_FUNCTION_OUT);
-#if UE_TIMING_TRACE
-      stop_meas(&UE_mac_inst[module_idP].ue_scheduler);
-#endif
+      stop_UE_TIMING(UE_mac_inst[module_idP].ue_scheduler);
       return (PHY_HO_PRACH);
 
     default:
@@ -3170,11 +3013,9 @@ ue_scheduler(const module_id_t module_idP,
       VCD_SIGNAL_DUMPER_DUMP_FUNCTION_BY_NAME
       (VCD_SIGNAL_DUMPER_FUNCTIONS_UE_SCHEDULER,
        VCD_FUNCTION_OUT);
-      stop_meas(&UE_mac_inst[module_idP].ue_scheduler);
+      stop_UE_TIMING(UE_mac_inst[module_idP].ue_scheduler);
       AssertFatal(1 == 0, "");
-#if UE_TIMING_TRACE
-      stop_meas(&UE_mac_inst[module_idP].ue_scheduler);
-#endif
+      stop_UE_TIMING(UE_mac_inst[module_idP].ue_scheduler);
       //return(RRC_OK);
     }
 
@@ -3198,7 +3039,7 @@ ue_scheduler(const module_id_t module_idP,
             "Module id %u Contention resolution timer expired, RA failed\n",
             module_idP);
 
-      if(NFAPI_MODE==NFAPI_UE_STUB_PNF) { // phy_stub mode
+      if(NFAPI_MODE==NFAPI_UE_STUB_PNF || NFAPI_MODE==NFAPI_MODE_STANDALONE_PNF) { // phy_stub mode
         // Modification for phy_stub mode operation here. We only need to make sure that the ue_mode is back to
         // PRACH state.
         LOG_I(MAC, "nfapi_mode3: Setting UE_mode to PRACH 2 \n");
@@ -3273,7 +3114,7 @@ ue_scheduler(const module_id_t module_idP,
   }
 
   //Check whether Regular BSR is triggered
-  if (update_bsr(module_idP, txFrameP, txSubframeP, eNB_indexP) == TRUE) {
+  if (update_bsr(module_idP, txFrameP, txSubframeP, eNB_indexP) == true) {
     // call SR procedure to generate pending SR and BSR for next PUCCH/PUSCH TxOp.  This should implement the procedures
     // outlined in Sections 5.4.4 an 5.4.5 of 36.321
     UE_mac_inst[module_idP].scheduling_info.SR_pending = 1;
@@ -3286,16 +3127,14 @@ ue_scheduler(const module_id_t module_idP,
   }
 
   // UE has no valid phy config dedicated ||  no valid/released  SR
-  if ((UE_mac_inst[module_idP].physicalConfigDedicated == NULL)) {
+  if (UE_mac_inst[module_idP].physicalConfigDedicated == NULL) {
     // cancel all pending SRs
     UE_mac_inst[module_idP].scheduling_info.SR_pending = 0;
     UE_mac_inst[module_idP].ul_active = 0;
     LOG_T(MAC, "[UE %d] Release all SRs \n", module_idP);
     VCD_SIGNAL_DUMPER_DUMP_FUNCTION_BY_NAME
     (VCD_SIGNAL_DUMPER_FUNCTIONS_UE_SCHEDULER, VCD_FUNCTION_OUT);
-#if UE_TIMING_TRACE
-    stop_meas(&UE_mac_inst[module_idP].ue_scheduler);
-#endif
+    stop_UE_TIMING(UE_mac_inst[module_idP].ue_scheduler);
     return (CONNECTION_OK);
   }
 
@@ -3351,20 +3190,18 @@ ue_scheduler(const module_id_t module_idP,
   //If the UE has UL resources allocated for new transmission for this TTI here:
   VCD_SIGNAL_DUMPER_DUMP_FUNCTION_BY_NAME
   (VCD_SIGNAL_DUMPER_FUNCTIONS_UE_SCHEDULER, VCD_FUNCTION_OUT);
-#if UE_TIMING_TRACE
-  stop_meas(&UE_mac_inst[module_idP].ue_scheduler);
-#endif
+  stop_UE_TIMING(UE_mac_inst[module_idP].ue_scheduler);
   return (CONNECTION_OK);
 }
 
 // to be improved
 
 
-boolean_t
+bool
 update_bsr(module_id_t module_idP, frame_t frameP,
            sub_frame_t subframeP, eNB_index_t eNB_index) {
   mac_rlc_status_resp_t rlc_status;
-  boolean_t bsr_regular_triggered = FALSE;
+  bool bsr_regular_triggered = false;
   uint8_t lcid;
   uint8_t lcgid;
   uint8_t num_lcid_with_data = 0; // for LCID with data only if LCGID is defined
@@ -3461,7 +3298,7 @@ update_bsr(module_id_t module_idP, frame_t frameP,
           (lcgid_buffer_remain
            [UE_mac_inst[module_idP].scheduling_info.LCGID[lcid]] ==
            0)) {
-        bsr_regular_triggered = TRUE;
+        bsr_regular_triggered = true;
         LOG_D(MAC,
               "[UE %d] PDCCH Tick : MAC BSR Triggered LCID%d LCGID%d data become available at frame %d subframe %d\n",
               module_idP, lcid,
@@ -3473,7 +3310,7 @@ update_bsr(module_id_t module_idP, frame_t frameP,
 
     // Trigger Regular BSR if ReTxBSR Timer has expired and UE has data for transmission
     if (UE_mac_inst[module_idP].scheduling_info.retxBSR_SF == 0) {
-      bsr_regular_triggered = TRUE;
+      bsr_regular_triggered = true;
 
       if ((UE_mac_inst[module_idP].BSR_reporting_active &
            BSR_TRIGGER_REGULAR) == 0) {

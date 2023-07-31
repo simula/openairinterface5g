@@ -85,7 +85,7 @@
 
 /** Number of bit node (BN) groups in BG2 for rate 1/5
  A BN group is defined by its number of connected CNs. */
-#define NR_LDPC_NUM_BN_GROUPS_BG2_R15 23
+#define NR_LDPC_NUM_BN_GROUPS_BG2_R15 13
 /** Number of bit node (BN) groups in BG2 for rate 1/3 */
 #define NR_LDPC_NUM_BN_GROUPS_BG2_R13 10
 /** Number of bit node (BN) groups in BG2 for rate 2/3 */
@@ -197,5 +197,15 @@ static const int8_t ones256_epi8[32] __attribute__ ((aligned(32))) = {1,1,1,1,1,
 static const int8_t zeros256_epi8[32] __attribute__ ((aligned(32))) = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
 /** Vector of 32 '127' in int8 for application with AVX2 */
 static const int8_t maxLLR256_epi8[32] __attribute__ ((aligned(32))) = {127,127,127,127,127,127,127,127,127,127,127,127,127,127,127,127,127,127,127,127,127,127,127,127,127,127,127,127,127,127,127,127};
+
+/** Vector of 64 '1' in int8 for application with AVX512 */
+static const int8_t ones512_epi8[64] __attribute__ ((aligned(64))) = {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1};
+/** Vector of 64 '0' in int8 for application with AVX512 */
+static const int8_t zeros512_epi8[64] __attribute__ ((aligned(64))) = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
+/** Vector of 64 '127' in int8 for application with AVX512 */
+static const int8_t maxLLR512_epi8[64] __attribute__ ((aligned(64))) = {127,127,127,127,127,127,127,127,127,127,127,127,127,127,127,127,127,127,127,127,127,127,127,127,127,127,127,127,127,127,127,127,127,127,127,127,127,127,127,127,127,127,127,127,127,127,127,127,127,127,127,127,127,127,127,127,127,127,127,127,127,127,127,127};
+
+
+
 
 #endif

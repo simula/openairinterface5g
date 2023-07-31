@@ -37,7 +37,6 @@
 #include "PHY/defs_nr_common.h"
 #include "PHY/defs_nr_UE.h"
 //#include "PHY/extern.h"
-//#include "LAYER2/MAC/extern.h"
 
 #include "common/utils/LOG/log.h"
 #include "common/utils/LOG/vcd_signal_dumper.h"
@@ -45,34 +44,33 @@
 #include "T.h"
 #define ONE_OVER_SQRT2 23170 // 32767/sqrt(2) = 23170 (ONE_OVER_SQRT2)
 
+void nr_generate_pucch0(const PHY_VARS_NR_UE *ue,
+                        c16_t **txdataF,
+                        const NR_DL_FRAME_PARMS *frame_parms,
+                        const int16_t amp,
+                        const int nr_slot_tx,
+                        const fapi_nr_ul_config_pucch_pdu *pucch_pdu);
 
-void nr_generate_pucch0(PHY_VARS_NR_UE *ue,
-                        int32_t **txdataF,
-                        NR_DL_FRAME_PARMS *frame_parms,
-                        int16_t amp,
-                        int nr_slot_tx,
-                        fapi_nr_ul_config_pucch_pdu *pucch_pdu);
+void nr_generate_pucch1(const PHY_VARS_NR_UE *ue,
+                        c16_t **txdataF,
+                        const NR_DL_FRAME_PARMS *frame_parms,
+                        const int16_t amp,
+                        const int nr_slot_tx,
+                        const fapi_nr_ul_config_pucch_pdu *pucch_pdu);
 
-void nr_generate_pucch1(PHY_VARS_NR_UE *ue,
-                        int32_t **txdataF,
-                        NR_DL_FRAME_PARMS *frame_parms,
-                        int16_t amp,
-                        int nr_slot_tx,
-                        fapi_nr_ul_config_pucch_pdu *pucch_pdu);
+void nr_generate_pucch2(const PHY_VARS_NR_UE *ue,
+                        c16_t **txdataF,
+                        const NR_DL_FRAME_PARMS *frame_parms,
+                        const int16_t amp,
+                        const int nr_slot_tx,
+                        const fapi_nr_ul_config_pucch_pdu *pucch_pdu);
 
-void nr_generate_pucch2(PHY_VARS_NR_UE *ue,
-                        int32_t **txdataF,
-                        NR_DL_FRAME_PARMS *frame_parms,
-                        int16_t amp,
-                        int nr_slot_tx,
-                        fapi_nr_ul_config_pucch_pdu *pucch_pdu);
-
-void nr_generate_pucch3_4(PHY_VARS_NR_UE *ue,
-                          int32_t **txdataF,
-                          NR_DL_FRAME_PARMS *frame_parms,
-                          int16_t amp,
-                          int nr_slot_tx,
-                          fapi_nr_ul_config_pucch_pdu *pucch_pdu);
+void nr_generate_pucch3_4(const PHY_VARS_NR_UE *ue,
+                          c16_t **txdataF,
+                          const NR_DL_FRAME_PARMS *frame_parms,
+                          const int16_t amp,
+                          const int nr_slot_tx,
+                          const fapi_nr_ul_config_pucch_pdu *pucch_pdu);
 
 // tables for mcs values for different payloads 
  static const uint8_t table1_mcs[]={0,6,3,9};

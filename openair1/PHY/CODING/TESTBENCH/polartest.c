@@ -20,7 +20,7 @@
 
 int main(int argc, char *argv[])
 {
-  //Default simulation values (Aim for iterations = 1000000.)
+  //Default simulation values (Aim for iterations = 1000000.) 
   int decoder_int16=0;
   int itr, iterations = 1000, arguments, polarMessageType = 0; //0=PBCH, 1=DCI, 2=UCI
   double SNRstart = -20.0, SNRstop = 0.0, SNRinc= 0.5; //dB
@@ -29,11 +29,10 @@ int main(int argc, char *argv[])
   uint32_t decoderState=0, blockErrorState=0; //0 = Success, -1 = Decoding failed, 1 = Block Error.
   uint16_t testLength = NR_POLAR_PBCH_PAYLOAD_BITS, coderLength = NR_POLAR_PBCH_E;
   uint16_t blockErrorCumulative=0, bitErrorCumulative=0;
-  double timeEncoderCumulative = 0, timeDecoderCumulative = 0;
   uint8_t aggregation_level = 8, decoderListSize = 8, logFlag = 0;
   uint16_t rnti=0;
 
-  while ((arguments = getopt (argc, argv, "s:d:f:m:i:l:a:p:hqgFL:k:")) != -1)
+  while ((arguments = getopt (argc, argv, "s:d:f:m:i:l:a:p:hqgFL:k:")) != -1) {
     switch (arguments) {
     case 's':
     	SNRstart = atof(optarg);
@@ -105,14 +104,14 @@ int main(int argc, char *argv[])
       exit(-1);
       break;
     }
-
+  }
   //Initiate timing. (Results depend on CPU Frequency. Therefore, might change due to performance variances during simulation.)
-    time_stats_t timeEncoder,timeDecoder;
-    opp_enabled=1;
-    reset_meas(&timeEncoder);
-    reset_meas(&timeDecoder);
-    randominit(0);
-    crcTableInit();
+  time_stats_t timeEncoder,timeDecoder;
+  opp_enabled=1;
+  reset_meas(&timeEncoder);
+  reset_meas(&timeDecoder);
+  randominit(0);
+  crcTableInit();
 
   if (polarMessageType == 0) { //PBCH
     aggregation_level = NR_POLAR_PBCH_AGGREGATION_LEVEL;
@@ -128,50 +127,53 @@ int main(int argc, char *argv[])
   time_t currentTime;
   char fileName[512], currentTimeInfo[25];
   char folderName[] = ".";
-  FILE *logFile;
-  /*folderName=getenv("HOME");
-    strcat(folderName,"/Desktop/polartestResults");*/
+  FILE *logFile = NULL;
 
-if (logFlag){
-	time (&currentTime);
+  if (logFlag){
+    time (&currentTime);
 #ifdef DEBUG_POLAR_TIMING
-  sprintf(fileName,"%s/TIMING_ListSize_%d_Payload_%d_Itr_%d", folderName, decoderListSize, testLength, iterations);
+    sprintf(fileName,"%s/TIMING_ListSize_%d_Payload_%d_Itr_%d", folderName, decoderListSize, testLength, iterations);
 #else
-  sprintf(fileName,"%s/_ListSize_%d_Payload_%d_Itr_%d", folderName, decoderListSize, testLength, iterations);
+    sprintf(fileName,"%s/_ListSize_%d_Payload_%d_Itr_%d", folderName, decoderListSize, testLength, iterations);
 #endif
-  strftime(currentTimeInfo, 25, "_%Y-%m-%d-%H-%M-%S.csv", localtime(&currentTime));
-  strcat(fileName,currentTimeInfo);
-  //Create "~/Desktop/polartestResults" folder if it doesn't already exist.
-  /*struct stat folder = {0};
+    strftime(currentTimeInfo, 25, "_%Y-%m-%d-%H-%M-%S.csv", localtime(&currentTime));
+    strcat(fileName,currentTimeInfo);
+    //Create "~/Desktop/polartestResults" folder if it doesn't already exist.
+    /*struct stat folder = {0};
     if (stat(folderName, &folder) == -1) mkdir(folderName, S_IRWXU | S_IRWXG | S_IRWXO);*/
-  logFile = fopen(fileName, "w");
+    logFile = fopen(fileName, "w");
 
-  if (logFile==NULL) {
-    fprintf(stderr,"[polartest.c] Problem creating file %s with fopen\n",fileName);
-    exit(-1);
+    if (logFile==NULL) {
+      fprintf(stderr,"[polartest.c] Problem creating file %s with fopen\n",fileName);
+      exit(-1);
+    }
+
+#ifdef DEBUG_POLAR_TIMING
+    fprintf(logFile,",timeEncoderCRCByte[us],timeEncoderCRCBit[us],timeEncoderInterleaver[us],timeEncoderBitInsertion[us],timeEncoder1[us],timeEncoder2[us],timeEncoderRateMatching[us],timeEncoderByte2Bit[us]\n");
+#else
+    fprintf(logFile,",SNR,nBitError,blockErrorState,t_encoder[us],t_decoder[us]\n");
+#endif
   }
 
-#ifdef DEBUG_POLAR_TIMING
-  fprintf(logFile,",timeEncoderCRCByte[us],timeEncoderCRCBit[us],timeEncoderInterleaver[us],timeEncoderBitInsertion[us],timeEncoder1[us],timeEncoder2[us],timeEncoderRateMatching[us],timeEncoderByte2Bit[us]\n");
-#else
-  fprintf(logFile,",SNR,nBitError,blockErrorState,t_encoder[us],t_decoder[us]\n");
-#endif
-}
-
-  uint8_t testArrayLength = ceil(testLength / 32.0);
-  uint8_t coderArrayLength = ceil(coderLength / 32.0);
-  uint32_t testInput[testArrayLength]; //generate randomly
+  const uint8_t testArrayLength = ceil(testLength / 32.0);
+  const uint8_t coderArrayLength = ceil(coderLength / 32.0);
+  // in the polar code, often uint64_t arrays are used, but we work with
+  // uint32_t arrays below, so realArrayLength is the length that always
+  // satisfies uint64_t array length
+  const uint8_t realArrayLength = ((testArrayLength + 1) / 2) * 2;
+  printf("testArrayLength %d realArrayLength %d\n", testArrayLength, realArrayLength);
+  uint32_t testInput[realArrayLength]; //generate randomly
   uint32_t encoderOutput[coderArrayLength];
-  uint32_t estimatedOutput[testArrayLength]; //decoder output
-  memset(testInput,0,sizeof(uint32_t) * testArrayLength);
+  uint32_t estimatedOutput[realArrayLength]; //decoder output
+  memset(testInput,0,sizeof(uint32_t) * realArrayLength); // does not reset all
   memset(encoderOutput,0,sizeof(uint32_t) * coderArrayLength);
-  memset(estimatedOutput,0,sizeof(uint32_t) * testArrayLength);
+  memset(estimatedOutput,0,sizeof(uint32_t) * realArrayLength);
   uint8_t encoderOutputByte[coderLength];
   double modulatedInput[coderLength]; //channel input
   double channelOutput[coderLength];  //add noise
   int16_t channelOutput_int16[coderLength];
 
-  t_nrPolar_params *currentPtr = nr_polar_params(polarMessageType, testLength, aggregation_level, 1, NULL);
+  t_nrPolar_params *currentPtr = nr_polar_params(polarMessageType, testLength, aggregation_level, true);
 
 #ifdef DEBUG_DCI_POLAR_PARAMS
   uint32_t dci_pdu[4];
@@ -206,7 +208,8 @@ if (logFlag){
 		  modulated_input[i]=(-1)/sqrt(2);
 	  channel_output[i] = modulated_input[i] + (gaussdouble(0.0,1.0) * (1/sqrt(2*SNR_lin)));
   }
-  decoderState = polar_decoder_dci(channel_output, dci_est, currentPtrDCI, NR_POLAR_DECODER_LISTSIZE, rnti);
+  decoderState = polar_decoder_dci(channel_output, dci_est, NR_POLAR_DECODER_LISTSIZE, rnti,
+                                   1, size, aggregation_level);
   printf("dci_est: [0]->0x%08x \t [1]->0x%08x \t [2]->0x%08x \t [3]->0x%08x\n", dci_est[0], dci_est[1], dci_est[2], dci_est[3]);
   free(encoder_outputByte);
   free(channel_output);
@@ -239,13 +242,13 @@ if (logFlag){
 
 		  start_meas(&timeEncoder);
 		  if (decoder_int16==1) {
-			  polar_encoder_fast((uint64_t *)testInput, encoderOutput, 0, 0, currentPtr);
+			  polar_encoder_fast((uint64_t *)testInput, encoderOutput, 0, 0, polarMessageType, testLength, aggregation_level);
 			  //polar_encoder_fast((uint64_t*)testInput, (uint64_t*)encoderOutput,0,0,currentPtr);
 		  } else { //0 --> PBCH, 1 --> DCI, -1 --> UCI
 			  if (polarMessageType == 0)
-				  polar_encoder(testInput, encoderOutput, currentPtr);
+				  polar_encoder(testInput, encoderOutput, polarMessageType, testLength, aggregation_level);
 			  else if (polarMessageType == 1)
-				  polar_encoder_dci(testInput, encoderOutput, currentPtr, rnti);
+                            polar_encoder_dci(testInput, encoderOutput, rnti, polarMessageType, testLength, aggregation_level);
 		  }
 		  stop_meas(&timeEncoder);
 
@@ -276,19 +279,20 @@ if (logFlag){
       start_meas(&timeDecoder);
 
       if (decoder_int16==1) {
-    	  decoderState = polar_decoder_int16(channelOutput_int16, (uint64_t *)estimatedOutput, 0, currentPtr);
+    	  decoderState = polar_decoder_int16(channelOutput_int16, (uint64_t *)estimatedOutput, 0,
+                                             polarMessageType, testLength, aggregation_level);
       } else { //0 --> PBCH, 1 --> DCI, -1 --> UCI
     	  if (polarMessageType == 0) {
-    		  decoderState = polar_decoder(channelOutput,
-    				                       estimatedOutput,
-										   currentPtr,
-										   decoderListSize);
+            decoderState = polar_decoder(channelOutput,
+                                         estimatedOutput,
+                                         decoderListSize,
+                                         polarMessageType, testLength, aggregation_level);
     	  } else if (polarMessageType == 1) {
-    		  decoderState = polar_decoder_dci(channelOutput,
-    				  	  	  	  	  	  	   estimatedOutput,
-											   currentPtr,
-											   decoderListSize,
-											   rnti);
+            decoderState = polar_decoder_dci(channelOutput,
+                                             estimatedOutput,
+                                             decoderListSize,
+                                             rnti,
+                                             polarMessageType, testLength, aggregation_level);
     	  }
       }
       stop_meas(&timeDecoder);
@@ -319,8 +323,6 @@ if (logFlag){
 #endif
 
       //Iteration times are in microseconds.
-      timeEncoderCumulative+=(timeEncoder.diff/(get_cpu_freq_GHz()*1000.0));
-      timeDecoderCumulative+=(timeDecoder.diff/(get_cpu_freq_GHz()*1000.0));
       if (logFlag) fprintf(logFile,",%f,%d,%u,%f,%f\n", SNR, nBitError, blockErrorState, (timeEncoder.diff/(get_cpu_freq_GHz()*1000.0)), (timeDecoder.diff/(get_cpu_freq_GHz()*1000.0)));
 
       if (nBitError<0) {
@@ -334,9 +336,9 @@ if (logFlag){
       decoderState=0;
       nBitError=0;
       blockErrorState=0;
-	  memset(testInput,0,sizeof(uint32_t) * testArrayLength);
+	  memset(testInput,0,sizeof(uint32_t) * realArrayLength);
 	  memset(encoderOutput,0,sizeof(uint32_t) * coderArrayLength);
-	  memset(estimatedOutput,0,sizeof(uint32_t) * testArrayLength);
+	  memset(estimatedOutput,0,sizeof(uint32_t) * realArrayLength);
     }
 
     //Calculate error statistics for the SNR.
@@ -344,14 +346,11 @@ if (logFlag){
            decoderListSize, SNR, ((double)blockErrorCumulative/iterations),
            ((double)bitErrorCumulative / (iterations*testLength)),
            (double)timeEncoder.diff/timeEncoder.trials/(get_cpu_freq_GHz()*1000.0),(double)timeDecoder.diff/timeDecoder.trials/(get_cpu_freq_GHz()*1000.0));
-    //(timeEncoderCumulative/iterations),timeDecoderCumulative/iterations);
 
     if (blockErrorCumulative==0 && bitErrorCumulative==0) break;
 
     blockErrorCumulative = 0;
     bitErrorCumulative = 0;
-    timeEncoderCumulative = 0;
-    timeDecoderCumulative = 0;
   }
 
   print_meas(&timeEncoder,"polar_encoder",NULL,NULL);

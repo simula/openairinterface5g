@@ -38,7 +38,6 @@
 #define MAX_TURBO_ITERATIONS_MBSFN 8
 #define MAX_TURBO_ITERATIONS max_turbo_iterations
 
-#define MAX_LDPC_ITERATIONS 5
 #define MAX_LDPC_ITERATIONS_MBSFN 4
 
 #define LTE_NULL 2
@@ -400,8 +399,8 @@ unsigned int crc8 (unsigned char * inptr, int bitlen);
 @param bitlen length of inputs in bits*/
 unsigned int crc6 (unsigned char * inptr, int bitlen);
 
-int check_crc(uint8_t* decoded_bytes, uint32_t n, uint32_t F, uint8_t crc_type);
-    
+int check_crc(uint8_t *decoded_bytes, uint32_t n, uint8_t crc_type);
+
 /*!\fn void phy_viterbi_dot11_sse2(int8_t *y, uint8_t *decoded_bytes, uint16_t n,int offset,int traceback)
 \brief This routine performs a SIMD optmized Viterbi decoder for the 802.11 64-state convolutional code. It can be
 run in segments with final trace back after last segment.
@@ -469,40 +468,29 @@ int32_t nr_segmentation(unsigned char *input_buffer,
                      unsigned int *F,
                      uint8_t BG);
 
-/*!\fn uint32_t nr_compute_tbs
-\brief This function returns the TBS in bits as per 6.1.4.2 of TS 38.214
-*/
-uint32_t nr_compute_tbs(uint16_t Qm,
-                        uint16_t R,
-			uint16_t nb_rb,
-			uint16_t nb_symb_sch,
-			uint16_t nb_dmrs_prb,
-                        uint16_t nb_rb_oh,
-                        uint8_t tb_scaling,
-			uint8_t Nl);
-
-uint32_t nr_compute_tbslbrm(uint16_t table,
-			    uint16_t nb_rb,
-		            uint8_t Nl);
-
 void nr_interleaving_ldpc(uint32_t E, uint8_t Qm, uint8_t *e,uint8_t *f);
 
 void nr_deinterleaving_ldpc(uint32_t E, uint8_t Qm, int16_t *e,int16_t *f);
 
-int nr_rate_matching_ldpc(uint8_t Ilbrm,
-                          uint32_t Tbslbrm,
+int nr_get_R_ldpc_decoder(int rvidx,
+                          int E,
+                          int BG,
+                          int Z,
+                          int *llrLen,
+                          int round);
+
+int nr_rate_matching_ldpc(uint32_t Tbslbrm,
                           uint8_t BG,
                           uint16_t Z,
                           uint8_t *w,
                           uint8_t *e,
                           uint8_t C,
-			  uint32_t F,
-			  uint32_t Foffset,
+                          uint32_t F,
+                          uint32_t Foffset,
                           uint8_t rvidx,
                           uint32_t E);
 
-int nr_rate_matching_ldpc_rx(uint8_t Ilbrm,
-                             uint32_t Tbslbrm,
+int nr_rate_matching_ldpc_rx(uint32_t Tbslbrm,
                              uint8_t BG,
                              uint16_t Z,
                              int16_t *w,
@@ -511,8 +499,8 @@ int nr_rate_matching_ldpc_rx(uint8_t Ilbrm,
                              uint8_t rvidx,
                              uint8_t clear,
                              uint32_t E,
-			     uint32_t F,
-			     uint32_t Foffset);
+                             uint32_t F,
+                             uint32_t Foffset);
 
 decoder_if_t phy_threegpplte_turbo_decoder;
 decoder_if_t phy_threegpplte_turbo_decoder8;

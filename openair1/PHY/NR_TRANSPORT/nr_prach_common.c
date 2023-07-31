@@ -37,10 +37,10 @@
 #include "PHY/NR_TRANSPORT/nr_transport_common_proto.h"
 #include "common/utils/LOG/log.h"
 #include "common/utils/LOG/vcd_signal_dumper.h"
-#include "openair2/LAYER2/NR_MAC_COMMON/nr_mac_common.h"
 #include "T.h"
-
-
+c16_t nr_ru[839]; // quantized roots of unity
+static uint32_t nr_ZC_inv[839]; // multiplicative inverse for roots u
+uint16_t nr_du[838];
 
 /*void dump_nr_prach_config(NR_DL_FRAME_PARMS *frame_parms,uint8_t subframe) {
 
@@ -79,7 +79,7 @@
 }*/
 
 // This function computes the du
-void nr_fill_du(uint16_t N_ZC,uint16_t *prach_root_sequence_map)
+void nr_fill_du(uint16_t N_ZC, const uint16_t *prach_root_sequence_map)
 {
 
   uint16_t iu,u,p;
@@ -97,16 +97,13 @@ void nr_fill_du(uint16_t N_ZC,uint16_t *prach_root_sequence_map)
 
 }
 
-void compute_nr_prach_seq(uint8_t short_sequence,
-                          uint8_t num_sequences,
-                          uint8_t rootSequenceIndex,
-                          uint32_t X_u[64][839]){
-
+void compute_nr_prach_seq(uint8_t short_sequence, uint8_t num_sequences, uint8_t rootSequenceIndex, c16_t X_u[64][839])
+{
   // Compute DFT of x_u => X_u[k] = x_u(inv(u)*k)^* X_u[k] = exp(j\pi u*inv(u)*k*(inv(u)*k+1)/N_ZC)
   unsigned int k,inv_u,i;
   int N_ZC;
 
-  uint16_t *prach_root_sequence_map;
+  const uint16_t *prach_root_sequence_map;
   uint16_t u;
 
   VCD_SIGNAL_DUMPER_DUMP_FUNCTION_BY_NAME(VCD_SIGNAL_DUMPER_FUNCTIONS_PHY_UE_COMPUTE_PRACH, VCD_FUNCTION_IN);
@@ -114,7 +111,6 @@ void compute_nr_prach_seq(uint8_t short_sequence,
   LOG_D(PHY,"compute_prach_seq: prach short sequence %x, num_sequences %d, rootSequenceIndex %d\n", short_sequence, num_sequences, rootSequenceIndex);
 
   N_ZC = (short_sequence) ? 139 : 839;
-  //init_prach_tables(N_ZC); //moved to phy_init_lte_ue/eNB, since it takes to long in real-time
   
   init_nr_prach_tables(N_ZC);
 
@@ -148,7 +144,7 @@ void compute_nr_prach_seq(uint8_t short_sequence,
 
     for (k=0; k<N_ZC; k++) {
       // multiply by inverse of 2 (required since ru is exp[j 2\pi n])
-      X_u[i][k] = ((uint32_t*)nr_ru)[(((k*(1+(inv_u*k)))%N_ZC)*nr_ZC_inv[2])%N_ZC];
+      X_u[i][k] = nr_ru[(((k * (1 + (inv_u * k))) % N_ZC) * nr_ZC_inv[2]) % N_ZC];
     }
   }
 
@@ -182,12 +178,12 @@ void init_nr_prach_tables(int N_ZC)
 
   // Compute quantized roots of unity
   for (i=0; i<N_ZC; i++) {
-    nr_ru[i<<1]     = (int16_t)(floor(32767.0*cos(2*M_PI*(double)i/N_ZC)));
-    nr_ru[1+(i<<1)] = (int16_t)(floor(32767.0*sin(2*M_PI*(double)i/N_ZC)));
+    nr_ru[i].r = (int16_t)(floor(32767.0 * cos(2 * M_PI * (double)i / N_ZC)));
+    nr_ru[i].i = (int16_t)(floor(32767.0 * sin(2 * M_PI * (double)i / N_ZC)));
 #ifdef PRACH_DEBUG
 
     if (i<16)
-      printf("i %d : runity %d,%d\n",i,nr_ru[i<<1],nr_ru[1+(i<<1)]);
+      printf("i %d : runity %d,%d\n", i, nr_ru[i].r, nr_ru[i].i);
 
 #endif
   }

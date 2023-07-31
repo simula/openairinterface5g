@@ -34,6 +34,7 @@
 #include <assert.h>
 #include <errno.h>
 #include <math.h>
+#include <nr-uesoftmodem.h>
 
 #include "PHY/defs_nr_UE.h"
 
@@ -47,124 +48,15 @@
 #include "PHY/NR_REFSIG/sss_nr.h"
 #include "PHY/NR_UE_TRANSPORT/cic_filter_nr.h"
 
-/*******************************************************************
-*
-* NAME :         get_idft
-*
-* PARAMETERS :   size of ofdm symbol
-*
-* RETURN :       index pointing to the dft func in the dft library
-*
-* DESCRIPTION :  get idft function depending of ofdm size
-*
-*********************************************************************/
-
 //#define DBG_PSS_NR
+static time_stats_t generic_time[TIME_LAST];
+static int pss_search_time_nr(c16_t **rxdata, PHY_VARS_NR_UE *ue, int fo_flag, int is);
 
-idft_size_idx_t get_idft(int ofdm_symbol_size)
+static int16_t *primary_synchro_nr2[NUMBER_PSS_SEQUENCE] = {0};
+static c16_t *primary_synchro_time_nr[NUMBER_PSS_SEQUENCE] = {0};
+int16_t *get_primary_synchro_nr2(const int nid2)
 {
-  
- 
-  switch (ofdm_symbol_size) {
-    case 128:
-      return IDFT_128;
-      break;
-
-    case 256:
-      return IDFT_256;
-      break;
-
-    case 512:
-      return IDFT_512;
-      break;
-
-    case 1024:
-      return IDFT_1024;
-      break;
-
-    case 1536:
-      return IDFT_1536;
-      break;
-
-    case 2048:
-      return IDFT_2048;
-      break;
-
-    case 3072:
-      return IDFT_3072;
-      break;
-
-    case 4096:
-      return IDFT_4096;
-      break;
-
-    case 8192:
-      return IDFT_8192;
-      break;
-
-    default:
-      printf("function get_idft : unsupported ofdm symbol size \n");
-      assert(0);
-      break;
- }
- return IDFT_SIZE_IDXTABLESIZE; // never reached and will trigger assertion in idft function
-}
-
-/*******************************************************************
-*
-* NAME :         get_dft
-*
-* PARAMETERS :   size of ofdm symbol
-*
-* RETURN :       function for discrete fourier transform
-*
-* DESCRIPTION :  get dft function depending of ofdm size
-*
-*********************************************************************/
-
-dft_size_idx_t get_dft(int ofdm_symbol_size)
-{
-
-
-  switch (ofdm_symbol_size) {
-    case 128:
-      return DFT_128;
-      break;
-
-    case 256:
-      return DFT_256;
-      break;
-
-    case 512:
-      return DFT_512;
-      break;
-
-    case 1024:
-      return DFT_1024;
-      break;
-
-    case 1536:
-      return DFT_1536;
-      break;
-
-    case 2048:
-      return DFT_2048;
-      break;
-
-    case 4096:
-      return DFT_4096;
-      break;
-
-    case 8192:
-      return DFT_8192;
-      break;
-
-    default:
-      printf("function get_dft : unsupported ofdm symbol size \n");
-      assert(0);
-      break;
- }
- return DFT_SIZE_IDXTABLESIZE; // never reached and will trigger assertion in idft function;
+  return primary_synchro_nr2[nid2];
 }
 
 /*******************************************************************
@@ -181,53 +73,33 @@ dft_size_idx_t get_dft(int ofdm_symbol_size)
 *
 *********************************************************************/
 
-void generate_pss_nr(NR_DL_FRAME_PARMS *fp,int N_ID_2)
+void generate_pss_nr(NR_DL_FRAME_PARMS *fp, int N_ID_2)
 {
   AssertFatal(fp->ofdm_symbol_size > 127,"Illegal ofdm_symbol_size %d\n",fp->ofdm_symbol_size);
   AssertFatal(N_ID_2>=0 && N_ID_2 <=2,"Illegal N_ID_2 %d\n",N_ID_2);
   int16_t d_pss[LENGTH_PSS_NR];
   int16_t x[LENGTH_PSS_NR];
-  int16_t *primary_synchro_time = primary_synchro_time_nr[N_ID_2];
-  unsigned int length = fp->ofdm_symbol_size;
-  unsigned int size = length * IQ_SIZE; /* i & q */
-  int16_t *primary_synchro = primary_synchro_nr[N_ID_2]; /* pss in complex with alternatively i then q */
+
+  c16_t primary_synchro[LENGTH_PSS_NR] = {0};
   int16_t *primary_synchro2 = primary_synchro_nr2[N_ID_2]; /* pss in complex with alternatively i then q */
 
-
-  #define INITIAL_PSS_NR    (7)
-  const int x_initial[INITIAL_PSS_NR] = {0, 1, 1 , 0, 1, 1, 1};
-
+#define INITIAL_PSS_NR (7)
+  const int16_t x_initial[INITIAL_PSS_NR] = {0, 1, 1, 0, 1, 1, 1};
   assert(N_ID_2 < NUMBER_PSS_SEQUENCE);
-  assert(size <= SYNCF_TMP_SIZE);
-  assert(size <= SYNC_TMP_SIZE);
+  memcpy(x, x_initial, sizeof(x_initial));
 
-  bzero(synchroF_tmp, size);
-  bzero(synchro_tmp, size);
-
-  for (int i=0; i < INITIAL_PSS_NR; i++) {
-    x[i] = x_initial[i];
-  }
-
-  for (int i=0; i < (LENGTH_PSS_NR - INITIAL_PSS_NR); i++) {
-    x[i+INITIAL_PSS_NR] = (x[i + 4] + x[i])%(2);
-  }
+  for (int i = 0; i < (LENGTH_PSS_NR - INITIAL_PSS_NR); i++)
+    x[i + INITIAL_PSS_NR] = (x[i + 4] + x[i]) % (2);
 
   for (int n=0; n < LENGTH_PSS_NR; n++) {
-    int m = (n + 43*N_ID_2)%(LENGTH_PSS_NR);
+    const int m = (n + 43 * N_ID_2) % (LENGTH_PSS_NR);
     d_pss[n] = 1 - 2*x[m];
   }
 
   /* PSS is directly mapped to subcarrier without modulation 38.211 */
   for (int i=0; i < LENGTH_PSS_NR; i++) {
-#if 1
-    primary_synchro[2*i] = (d_pss[i] * SHRT_MAX)>>SCALING_PSS_NR; /* Maximum value for type short int ie int16_t */
-    primary_synchro[2*i+1] = 0;
+    primary_synchro[i].r = (d_pss[i] * SHRT_MAX) >> SCALING_PSS_NR; /* Maximum value for type short int ie int16_t */
     primary_synchro2[i] = d_pss[i];
-#else
-    primary_synchro[2*i] = d_pss[i] * AMP;
-    primary_synchro[2*i+1] = 0;
-    primary_synchro2[i] = d_pss[i];
-#endif
   }
 
 #ifdef DBG_PSS_NR
@@ -235,8 +107,8 @@ void generate_pss_nr(NR_DL_FRAME_PARMS *fp,int N_ID_2)
   if (N_ID_2 == 0) {
     char output_file[255];
     char sequence_name[255];
-    sprintf(output_file, "pss_seq_%d_%u.m", N_ID_2, length);
-    sprintf(sequence_name, "pss_seq_%d_%u", N_ID_2, length);
+    sprintf(output_file, "pss_seq_%d_%u.m", N_ID_2, fp->ofdm_symbol_size);
+    sprintf(sequence_name, "pss_seq_%d_%u", N_ID_2, fp->ofdm_symbol_size);
     printf("file %s sequence %s\n", output_file, sequence_name);
 
     LOG_M(output_file, sequence_name, primary_synchro, LENGTH_PSS_NR, 1, 1);
@@ -266,33 +138,21 @@ void generate_pss_nr(NR_DL_FRAME_PARMS *fp,int N_ID_2)
   * sample 0 is for continuous frequency which is used here
   */
 
-  unsigned int  k = fp->first_carrier_offset + fp->ssb_start_subcarrier + 56; //and
+  unsigned int subcarrier_start = get_softmodem_params()->sl_mode == 0 ? PSS_SSS_SUB_CARRIER_START : PSS_SSS_SUB_CARRIER_START_SL;
+  unsigned int  k = fp->first_carrier_offset + fp->ssb_start_subcarrier + subcarrier_start;
   if (k>= fp->ofdm_symbol_size) k-=fp->ofdm_symbol_size;
-
-
+  c16_t synchroF_tmp[fp->ofdm_symbol_size] __attribute__((aligned(32)));
+  memset(synchroF_tmp, 0, sizeof(synchroF_tmp));
   for (int i=0; i < LENGTH_PSS_NR; i++) {
-    synchroF_tmp[2*k] = primary_synchro[2*i];
-    synchroF_tmp[2*k+1] = primary_synchro[2*i+1];
-
+    synchroF_tmp[k % fp->ofdm_symbol_size] = primary_synchro[i];
     k++;
-
-    if (k == length) k=0;
-    
   }
 
   /* IFFT will give temporal signal of Pss */
-
- 
- 
-  idft((int16_t)get_idft(length),
-  	   synchroF_tmp,          /* complex input */
-       synchro_tmp,           /* complex output */
-       1);                 /* scaling factor */
-
-  /* then get final pss in time */
-  for (unsigned int i=0; i<length; i++) {
-    ((int32_t *)primary_synchro_time)[i] = ((int32_t *)synchro_tmp)[i];
-  }
+  idft((int16_t)get_idft(fp->ofdm_symbol_size),
+       (int16_t *)synchroF_tmp, /* complex input but legacy type is wrong*/
+       (int16_t *)primary_synchro_time_nr[N_ID_2], /* complex output */
+       1); /* scaling factor */
 
 #ifdef DBG_PSS_NR
 
@@ -343,12 +203,12 @@ void generate_pss_nr(NR_DL_FRAME_PARMS *fp,int N_ID_2)
 #define LIMIT_ERROR_FFT   (10)
 
     for (int i=0; i < LENGTH_PSS_NR; i++) {
-      if (abs(synchroF_tmp[2*k] - primary_synchro[2*i]) > LIMIT_ERROR_FFT) {
-      printf("Pss Error[%d] Compute %d Reference %d \n", k, synchroF_tmp[2*k], primary_synchro[2*i]);
+      if (abs(synchroF_tmp[2*k] - primary_synchro[i].r) > LIMIT_ERROR_FFT) {
+      printf("Pss Error[%d] Compute %d Reference %d \n", k, synchroF_tmp[2*k], primary_synchro[i].r);
       }
     
-      if (abs(synchroF_tmp[2*k+1] - primary_synchro[2*i+1]) > LIMIT_ERROR_FFT) {
-        printf("Pss Error[%d] Compute %d Reference %d\n", (2*k+1), synchroF_tmp[2*k+1], primary_synchro[2*i+1]);
+      if (abs(synchroF_tmp[2*k+1] - primary_synchro[i].i) > LIMIT_ERROR_FFT) {
+        printf("Pss Error[%d] Compute %d Reference %d\n", (2*k+1), synchroF_tmp[2*k+1], primary_synchro[i].i);
       }
 
       k++;
@@ -374,52 +234,15 @@ void generate_pss_nr(NR_DL_FRAME_PARMS *fp,int N_ID_2)
 *
 *********************************************************************/
 
-void init_context_pss_nr(NR_DL_FRAME_PARMS *frame_parms_ue)
+static void init_context_pss_nr(NR_DL_FRAME_PARMS *frame_parms_ue)
 {
-  int ofdm_symbol_size = frame_parms_ue->ofdm_symbol_size;
-  int sizePss = LENGTH_PSS_NR * IQ_SIZE;  /* complex value i & q signed 16 bits */
-  int size = ofdm_symbol_size * IQ_SIZE; /* i and q samples signed 16 bits */
-  int16_t *p = NULL;
-  int64_t *q = NULL;
-
-  AssertFatal(ofdm_symbol_size > 127, "illegal ofdm_symbol_size %d\n",ofdm_symbol_size);
-  for (int i = 0; i < NUMBER_PSS_SEQUENCE; i++) {
-
-    p = malloc16(sizePss); /* pss in complex with alternatively i then q */
-    if (p != NULL) {
-      primary_synchro_nr[i] = p;
-      bzero( primary_synchro_nr[i], sizePss);
-    }
-    else {
-      LOG_E(PHY,"Fatal memory allocation problem \n");
-      assert(0);
-    }
-    p = malloc(LENGTH_PSS_NR*2);
-    if (p != NULL) {
-      primary_synchro_nr2[i] = p;
-      bzero( primary_synchro_nr2[i],LENGTH_PSS_NR*2);
-    }
-    p = malloc16(size);
-    if (p != NULL) {
-      primary_synchro_time_nr[i] = p;
-      bzero( primary_synchro_time_nr[i], size);
-    }
-    else {
-      LOG_E(PHY,"Fatal memory allocation problem \n");
-     assert(0);
-    }
-
-    size = sizeof(int64_t)*(frame_parms_ue->samples_per_frame + (2*ofdm_symbol_size));
-    q = (int64_t*)malloc16(size);
-    if (q != NULL) {
-      pss_corr_ue[i] = q;
-      bzero( pss_corr_ue[i], size);
-    }
-    else {
-      LOG_E(PHY,"Fatal memory allocation problem \n");
-      assert(0);
-    }
-
+  AssertFatal(frame_parms_ue->ofdm_symbol_size > 127, "illegal ofdm_symbol_size %d\n", frame_parms_ue->ofdm_symbol_size);
+  int pss_sequence = get_softmodem_params()->sl_mode == 0 ? NUMBER_PSS_SEQUENCE : NUMBER_PSS_SEQUENCE_SL;
+  for (int i = 0; i < pss_sequence; i++) {
+    primary_synchro_nr2[i] = malloc16_clear(LENGTH_PSS_NR * sizeof(int16_t));
+    AssertFatal(primary_synchro_nr2[i], "Fatal memory allocation problem \n");
+    primary_synchro_time_nr[i] = malloc16_clear(frame_parms_ue->ofdm_symbol_size * sizeof(c16_t));
+    AssertFatal(primary_synchro_time_nr[i], "Fatal memory allocation problem \n");
     generate_pss_nr(frame_parms_ue,i);
   }
 }
@@ -436,36 +259,11 @@ void init_context_pss_nr(NR_DL_FRAME_PARMS *frame_parms_ue)
 *
 *********************************************************************/
 
-void free_context_pss_nr(void)
+static void free_context_pss_nr(void)
 {
   for (int i = 0; i < NUMBER_PSS_SEQUENCE; i++) {
-
-    if (primary_synchro_time_nr[i] != NULL) {
-      free(primary_synchro_time_nr[i]);
-      primary_synchro_time_nr[i] = NULL;
-    }
-    else {
-      LOG_E(PHY,"Fatal memory deallocation problem \n");
-      assert(0);
-    }
-
-    if (primary_synchro_nr[i] != NULL) {
-      free(primary_synchro_nr[i]);
-      primary_synchro_nr[i] = NULL;
-    }
-    else {
-      LOG_E(PHY,"Fatal memory deallocation problem \n");
-      assert(0);
-    }
-
-    if (pss_corr_ue[i] != NULL) {
-      free(pss_corr_ue[i]);
-      pss_corr_ue[i] = NULL;
-    }
-    else {
-      LOG_E(PHY,"Fatal memory deallocation problem \n");
-      assert(0);
-    }
+    free_and_zero(primary_synchro_nr2[i]);
+    free_and_zero(primary_synchro_time_nr[i]);
   }
 }
 
@@ -483,25 +281,8 @@ void free_context_pss_nr(void)
 
 void init_context_synchro_nr(NR_DL_FRAME_PARMS *frame_parms_ue)
 {
-#ifndef STATIC_SYNC_BUFFER
-
   /* initialise global buffers for synchronisation */
-  synchroF_tmp = malloc16(SYNCF_TMP_SIZE);
-  if (synchroF_tmp == NULL) {
-    LOG_E(PHY,"Fatal memory allocation problem \n");
-    assert(0);
-  }
-
-  synchro_tmp = malloc16(SYNC_TMP_SIZE);
-  if (synchro_tmp == NULL) {
-    LOG_E(PHY,"Fatal memory allocation problem \n");
-    assert(0);
-  }
-
-#endif
-
   init_context_pss_nr(frame_parms_ue);
-
   init_context_sss_nr(AMP);
 }
 
@@ -519,28 +300,6 @@ void init_context_synchro_nr(NR_DL_FRAME_PARMS *frame_parms_ue)
 
 void free_context_synchro_nr(void)
 {
-#ifndef STATIC_SYNC_BUFFER
-
-  if (synchroF_tmp != NULL) {
-    free(synchroF_tmp);
-    synchroF_tmp = NULL;
-  }
-  else {
-    LOG_E(PHY,"Fatal memory deallocation problem \n");
-    assert(0);
-  }
-
-  if (synchro_tmp != NULL) {
-    free(synchro_tmp);
-    synchro_tmp = NULL;
-  }
-  else {
-    LOG_E(PHY,"Fatal memory deallocation problem \n");
-    assert(0);
-  }
-
-#endif
-
   free_context_pss_nr();
 }
 
@@ -665,7 +424,7 @@ int pss_synchro_nr(PHY_VARS_NR_UE *PHY_vars_UE, int is, int rate_change)
 {
   NR_DL_FRAME_PARMS *frame_parms = &(PHY_vars_UE->frame_parms);
   int synchro_position;
-  int **rxdata = NULL;
+  c16_t **rxdata = NULL;
   int fo_flag = PHY_vars_UE->UE_fo_compensation;  // flag to enable freq offset estimation and compensation
 
   VCD_SIGNAL_DUMPER_DUMP_FUNCTION_BY_NAME(VCD_SIGNAL_DUMPER_FUNCTIONS_PSS_SYNCHRO_NR, VCD_FUNCTION_IN);
@@ -677,10 +436,10 @@ int pss_synchro_nr(PHY_VARS_NR_UE *PHY_vars_UE, int is, int rate_change)
 
   if (rate_change != 1) {
 
-    rxdata = (int32_t**)malloc16(frame_parms->nb_antennas_rx*sizeof(int32_t*));
+    rxdata = (c16_t**)malloc16(frame_parms->nb_antennas_rx * sizeof(c16_t*));
 
-    for (int aa=0; aa < frame_parms->nb_antennas_rx; aa++) {
-      rxdata[aa] = (int32_t*) malloc16_clear( (frame_parms->samples_per_frame+8192)*sizeof(int32_t));
+    for (int aa = 0; aa < frame_parms->nb_antennas_rx; aa++) {
+      rxdata[aa] = (c16_t*)malloc16_clear((frame_parms->samples_per_frame + 8192) * sizeof(c16_t));
     }
 #ifdef SYNCHRO_DECIMAT
 
@@ -708,12 +467,8 @@ int pss_synchro_nr(PHY_VARS_NR_UE *PHY_vars_UE, int is, int rate_change)
 #endif
 
   VCD_SIGNAL_DUMPER_DUMP_FUNCTION_BY_NAME(VCD_SIGNAL_DUMPER_FUNCTIONS_PSS_SEARCH_TIME_NR, VCD_FUNCTION_IN);
-  synchro_position = pss_search_time_nr(rxdata,
-                                        frame_parms,
-					fo_flag,
-                                        is,
-                                        (int *)&PHY_vars_UE->common_vars.eNb_id,
-					(int *)&PHY_vars_UE->common_vars.freq_offset);
+
+  synchro_position = pss_search_time_nr(rxdata, PHY_vars_UE, fo_flag, is);
 
   VCD_SIGNAL_DUMPER_DUMP_FUNCTION_BY_NAME(VCD_SIGNAL_DUMPER_FUNCTIONS_PSS_SEARCH_TIME_NR, VCD_FUNCTION_OUT);
 
@@ -725,7 +480,7 @@ int pss_synchro_nr(PHY_VARS_NR_UE *PHY_vars_UE, int is, int rate_change)
 
   #ifndef NR_UNIT_TEST
 
-    printf("PSS execution duration %4d microseconds \n", duration_ms);
+  LOG_I(PHY,"PSS execution duration %4d microseconds \n", duration_ms);
 
   #endif
 
@@ -753,30 +508,12 @@ int pss_synchro_nr(PHY_VARS_NR_UE *PHY_vars_UE, int is, int rate_change)
 }
 
 
-static inline int abs32(int x)
-{
-  return (((int)((short*)&x)[0])*((int)((short*)&x)[0]) + ((int)((short*)&x)[1])*((int)((short*)&x)[1]));
-}
-
-static inline int64_t abs64(int64_t x)
-{
-  return (((int64_t)((int32_t*)&x)[0])*((int64_t)((int32_t*)&x)[0]) + ((int64_t)((int32_t*)&x)[1])*((int64_t)((int32_t*)&x)[1]));
-}
-
-static inline double angle64(int64_t x)
-{
-
-  double re=((int32_t*)&x)[0];
-  double im=((int32_t*)&x)[1];
-  return (atan2(im,re));
-}
-
 
 /*******************************************************************
 *
 * NAME :         pss_search_time_nr
 *
-* PARAMETERS :   received buffer
+* PARAMETERS :   received buffer in time domain
 *                frame parameters
 *
 * RETURN :       position of detected pss
@@ -822,20 +559,15 @@ static inline double angle64(int64_t x)
 *
 *********************************************************************/
 
-#define DOT_PRODUCT_SCALING_SHIFT    (17)
-
-int pss_search_time_nr(int **rxdata, ///rx data in time domain
-                       NR_DL_FRAME_PARMS *frame_parms,
-		       int fo_flag,
-                       int is,
-                       int *eNB_id,
-		       int *f_off)
+static int pss_search_time_nr(c16_t **rxdata, PHY_VARS_NR_UE *ue, int fo_flag, int is)
 {
+  NR_DL_FRAME_PARMS *frame_parms = &ue->frame_parms;
+  int *nid2 = (int *)&ue->common_vars.nid2;
+  int *f_off = (int *)&ue->common_vars.freq_offset;
   unsigned int n, ar, peak_position, pss_source;
   int64_t peak_value;
-  int64_t result;
-  int64_t avg[NUMBER_PSS_SEQUENCE];
-  double ffo_est=0;
+  int64_t avg[NUMBER_PSS_SEQUENCE] = {0};
+  double ffo_est = 0;
 
   // performing the correlation on a frame length plus one symbol for the first of the two frame
   // to take into account the possibility of PSS in between the two frames 
@@ -845,96 +577,87 @@ int pss_search_time_nr(int **rxdata, ///rx data in time domain
   else
     length = frame_parms->samples_per_frame;
 
-  AssertFatal(length>0,"illegal length %d\n",length);
-  for (int i = 0; i < NUMBER_PSS_SEQUENCE; i++) AssertFatal(pss_corr_ue[i] != NULL,"pss_corr_ue[%d] not yet allocated! Exiting.\n", i);
 
+  AssertFatal(length>0,"illegal length %d\n",length);
   peak_value = 0;
   peak_position = 0;
   pss_source = 0;
 
   int maxval=0;
-  for (int i=0;i<2*(frame_parms->ofdm_symbol_size);i++) {
-    maxval = max(maxval,primary_synchro_time_nr[0][i]);
-    maxval = max(maxval,-primary_synchro_time_nr[0][i]);
-    maxval = max(maxval,primary_synchro_time_nr[1][i]);
-    maxval = max(maxval,-primary_synchro_time_nr[1][i]);
-    maxval = max(maxval,primary_synchro_time_nr[2][i]);
-    maxval = max(maxval,-primary_synchro_time_nr[2][i]);
-  }
+  int max_size = get_softmodem_params()->sl_mode == 0 ?  NUMBER_PSS_SEQUENCE : NUMBER_PSS_SEQUENCE_SL;
+  for (int j = 0; j < max_size; j++)
+    for (int i = 0; i < frame_parms->ofdm_symbol_size; i++) {
+      maxval = max(maxval, abs(primary_synchro_time_nr[j][i].r));
+      maxval = max(maxval, abs(primary_synchro_time_nr[j][i].i));
+    }
   int shift = log2_approx(maxval);//*(frame_parms->ofdm_symbol_size+frame_parms->nb_prefix_samples)*2);
 
   /* Search pss in the received buffer each 4 samples which ensures a memory alignment on 128 bits (32 bits x 4 ) */
   /* This is required by SIMD (single instruction Multiple Data) Extensions of Intel processors. */
   /* Correlation computation is based on a a dot product which is realized thank to SIMS extensions */
 
-  for (int pss_index = 0; pss_index < NUMBER_PSS_SEQUENCE; pss_index++) {
-    avg[pss_index]=0;
-    memset(pss_corr_ue[pss_index],0,length*sizeof(int64_t)); 
+  uint16_t pss_index_start = 0;
+  uint16_t pss_index_end = get_softmodem_params()->sl_mode == 0 ? NUMBER_PSS_SEQUENCE : NUMBER_PSS_SEQUENCE_SL;
+  if (ue->target_Nid_cell != -1) {
+    pss_index_start = GET_NID2(ue->target_Nid_cell);
+    pss_index_end = pss_index_start + 1;
   }
 
-  for (n=0; n < length; n+=4) { //
+  for (int pss_index = pss_index_start; pss_index < pss_index_end; pss_index++) {
+    for (n = 0; n < length; n += 8) { //
 
-    for (int pss_index = 0; pss_index < NUMBER_PSS_SEQUENCE; pss_index++) {
+      int64_t pss_corr_ue=0;
+      /* calculate dot product of primary_synchro_time_nr and rxdata[ar][n]
+       * (ar=0..nb_ant_rx) and store the sum in temp[n]; */
+      for (ar=0; ar<frame_parms->nb_antennas_rx; ar++) {
 
-      if ( n < (length - frame_parms->ofdm_symbol_size)) {
+        /* perform correlation of rx data and pss sequence ie it is a dot product */
+        const c32_t result = dot_product(primary_synchro_time_nr[pss_index],
+                                         &(rxdata[ar][n + is * frame_parms->samples_per_frame]),
+                                         frame_parms->ofdm_symbol_size,
+                                         shift);
+        const c64_t r64 = {.r = result.r, .i = result.i};
+        pss_corr_ue += squaredMod(r64);
+        //((short*)pss_corr_ue[pss_index])[2*n] += ((short*) &result)[0];   /* real part */
+        //((short*)pss_corr_ue[pss_index])[2*n+1] += ((short*) &result)[1]; /* imaginary part */
+        //((short*)&synchro_out)[0] += ((int*) &result)[0];               /* real part */
+        //((short*)&synchro_out)[1] += ((int*) &result)[1];               /* imaginary part */
 
-        /* calculate dot product of primary_synchro_time_nr and rxdata[ar][n] (ar=0..nb_ant_rx) and store the sum in temp[n]; */
-        for (ar=0; ar<frame_parms->nb_antennas_rx; ar++) {
-
-          /* perform correlation of rx data and pss sequence ie it is a dot product */
-          result  = dot_product64((short*)primary_synchro_time_nr[pss_index], 
-				  (short*) &(rxdata[ar][n+is*frame_parms->samples_per_frame]), 
-				  frame_parms->ofdm_symbol_size, 
-				  shift);
-	  pss_corr_ue[pss_index][n] += abs64(result);
-          //((short*)pss_corr_ue[pss_index])[2*n] += ((short*) &result)[0];   /* real part */
-          //((short*)pss_corr_ue[pss_index])[2*n+1] += ((short*) &result)[1]; /* imaginary part */
-          //((short*)&synchro_out)[0] += ((int*) &result)[0];               /* real part */
-          //((short*)&synchro_out)[1] += ((int*) &result)[1];               /* imaginary part */
-
-        }
       }
- 
+      
       /* calculate the absolute value of sync_corr[n] */
-      avg[pss_index]+=pss_corr_ue[pss_index][n];
-      if (pss_corr_ue[pss_index][n] > peak_value) {
-        peak_value = pss_corr_ue[pss_index][n];
+      avg[pss_index]+=pss_corr_ue;
+      if (pss_corr_ue > peak_value) {
+        peak_value = pss_corr_ue;
         peak_position = n;
         pss_source = pss_index;
-
+        
 #ifdef DEBUG_PSS_NR
-        printf("pss_index %d: n %6u peak_value %15llu\n", pss_index, n, (unsigned long long)pss_corr_ue[pss_index][n]);
+        printf("pss_index %d: n %6u peak_value %15llu\n", pss_index, n, (unsigned long long)pss_corr_ue[n]);
 #endif
       }
     }
   }
-
+  
   if (fo_flag){
 
 	  // fractional frequency offset computation according to Cross-correlation Synchronization Algorithm Using PSS
 	  // Shoujun Huang, Yongtao Su, Ying He and Shan Tang, "Joint time and frequency offset estimation in LTE downlink," 7th International Conference on Communications and Networking in China, 2012.
 
-	  int64_t result1,result2;
-	  // Computing cross-correlation at peak on half the symbol size for first half of data
-	  result1  = dot_product64((short*)primary_synchro_time_nr[pss_source], 
-				  (short*) &(rxdata[0][peak_position+is*frame_parms->samples_per_frame]), 
-				  frame_parms->ofdm_symbol_size>>1, 
-				  shift);
-	  // Computing cross-correlation at peak on half the symbol size for data shifted by half symbol size 
-	  // as it is real and complex it is necessary to shift by a value equal to symbol size to obtain such shift
-	  result2  = dot_product64((short*)primary_synchro_time_nr[pss_source]+(frame_parms->ofdm_symbol_size), 
-				  (short*) &(rxdata[0][peak_position+is*frame_parms->samples_per_frame])+frame_parms->ofdm_symbol_size, 
-				  frame_parms->ofdm_symbol_size>>1, 
-				  shift);
-
-	  int64_t re1,re2,im1,im2;
-	  re1=((int*) &result1)[0];
-	  re2=((int*) &result2)[0];
-	  im1=((int*) &result1)[1];
-	  im2=((int*) &result2)[1];
-
- 	  // estimation of fractional frequency offset: angle[(result1)'*(result2)]/pi
-	  ffo_est=atan2(re1*im2-re2*im1,re1*re2+im1*im2)/M_PI;
+    // Computing cross-correlation at peak on half the symbol size for first half of data
+    c32_t r1 = dot_product(primary_synchro_time_nr[pss_source],
+                           &(rxdata[0][peak_position + is * frame_parms->samples_per_frame]),
+                           frame_parms->ofdm_symbol_size >> 1,
+                           shift);
+    // Computing cross-correlation at peak on half the symbol size for data shifted by half symbol size
+    // as it is real and complex it is necessary to shift by a value equal to symbol size to obtain such shift
+    c32_t r2 = dot_product(primary_synchro_time_nr[pss_source] + (frame_parms->ofdm_symbol_size >> 1),
+                           &(rxdata[0][peak_position + is * frame_parms->samples_per_frame]) + (frame_parms->ofdm_symbol_size >> 1),
+                           frame_parms->ofdm_symbol_size >> 1,
+                           shift);
+    cd_t r1d = {r1.r, r1.i}, r2d = {r2.r, r2.i};
+    // estimation of fractional frequency offset: angle[(result1)'*(result2)]/pi
+    ffo_est = atan2(r1d.r * r2d.i - r2d.r * r1d.i, r1d.r * r2d.r + r1d.i * r2d.i) / M_PI;
 
 #ifdef DBG_PSS_NR
 	  printf("ffo %lf\n",ffo_est);
@@ -942,11 +665,12 @@ int pss_search_time_nr(int **rxdata, ///rx data in time domain
   }
 
   // computing absolute value of frequency offset
-  *f_off = ffo_est*frame_parms->subcarrier_spacing;  
+  *f_off = ffo_est*frame_parms->subcarrier_spacing;
 
-  for (int pss_index = 0; pss_index < NUMBER_PSS_SEQUENCE; pss_index++) avg[pss_index]/=(length/4);
+  for (int pss_index = pss_index_start; pss_index < pss_index_end; pss_index++)
+    avg[pss_index] /= (length / 4);
 
-  *eNB_id = pss_source;
+  *nid2 = pss_source;
 
   LOG_I(PHY,"[UE] nr_synchro_time: Sync source = %d, Peak found at pos %d, val = %llu (%d dB) avg %d dB, ffo %lf\n", pss_source, peak_position, (unsigned long long)peak_value, dB_fixed64(peak_value),dB_fixed64(avg[pss_source]),ffo_est);
 
@@ -959,9 +683,6 @@ int pss_search_time_nr(int **rxdata, ///rx data in time domain
   static int debug_cnt = 0;
 
   if (debug_cnt == 0) {
-    LOG_M("pss_corr_ue0.m","pss_corr_ue0",pss_corr_ue[0],length,1,6);
-    LOG_M("pss_corr_ue1.m","pss_corr_ue1",pss_corr_ue[1],length,1,6);
-    LOG_M("pss_corr_ue2.m","pss_corr_ue2",pss_corr_ue[2],length,1,6);
     if (is)
       LOG_M("rxdata1.m","rxd0",rxdata[frame_parms->samples_per_frame],length,1,1); 
     else
@@ -972,6 +693,6 @@ int pss_search_time_nr(int **rxdata, ///rx data in time domain
 
 #endif
 
-  return(peak_position);
+  return peak_position;
 }
 

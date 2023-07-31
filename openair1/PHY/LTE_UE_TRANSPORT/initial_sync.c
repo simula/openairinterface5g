@@ -31,7 +31,7 @@
 */
 #include "PHY/types.h"
 #include "PHY/defs_UE.h"
-#include "targets/RT/USER/lte-softmodem.h"
+#include "executables/lte-softmodem.h"
 #include "PHY/phy_extern_ue.h"
 #include "SCHED_UE/sched_UE.h"
 #include "transport_proto_ue.h"
@@ -557,11 +557,6 @@ int initial_sync(PHY_VARS_UE *ue, runmode_t mode) {
     ue->measurements.rx_power_avg_dB[0] = dB_fixed(ue->measurements.rx_power_avg[0]);
     LOG_I(PHY,"[UE%d] Initial sync : Estimated power: %d dB\n",ue->Mod_id,ue->measurements.rx_power_avg_dB[0] );
 
-    if (IS_SOFTMODEM_BASICSIM )
-      phy_adjust_gain(ue,ue->measurements.rx_power_avg_dB[0],0);
-  } else {
-    if (IS_SOFTMODEM_BASICSIM )
-      phy_adjust_gain(ue,dB_fixed(ue->measurements.rssi),0);
   }
 
   return ret;

@@ -32,7 +32,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
-#include <crypt.h>
+#include "openair3/SECU/kdf.h"
 
 #include "tree.h"
 #include "queue.h"
@@ -56,7 +56,6 @@
 #include "s1ap_eNB_itti_messaging.h"
 
 #include "s1ap_eNB_ue_context.h" // test, to be removed
-#include "msc.h"
 
 #include "assertions.h"
 #include "conversions.h"
@@ -109,17 +108,20 @@ int s1ap_timer_remove(long timer_id)
   return ret;
 }
 
-uint32_t s1ap_generate_eNB_id(void) {
-  char    *out;
-  char     hostname[50];
-  int      ret;
-  uint32_t eNB_id;
+uint32_t s1ap_generate_eNB_id(void)
+{
   /* Retrieve the host name */
-  ret = gethostname(hostname, sizeof(hostname));
+  char hostname[32] = {0};
+  int const ret = gethostname(hostname, sizeof(hostname));
   DevAssert(ret == 0);
-  out = crypt(hostname, "eurecom");
-  DevAssert(out != NULL);
-  eNB_id = ((out[0] << 24) | (out[1] << 16) | (out[2] << 8) | out[3]);
+
+  uint8_t key[32] = {"eurecom"};
+  byte_array_t data = {.len = 32, .buf = (uint8_t *)hostname};
+
+  uint8_t out[32] = {0};
+  kdf(key, data, 32, out);
+
+  uint32_t const eNB_id = ((out[0] << 24) | (out[1] << 16) | (out[2] << 8) | out[3]);
   return eNB_id;
 }
 
@@ -374,7 +376,7 @@ void s1ap_eNB_handle_sctp_association_resp(instance_t instance, sctp_new_associa
         timer_kind = timer_kind | SCTP_REQ_WAIT;
         
         if( s1ap_timer_setup( instance_p->sctp_req_timer, 0, TASK_S1AP, instance_p->instance,
-          timer_kind, S1AP_TIMER_ONE_SHOT, NULL, &s1ap_mme_data_p->timer_id) < 0 ) {
+          timer_kind, TIMER_ONE_SHOT, NULL, &s1ap_mme_data_p->timer_id) < 0 ) {
           S1AP_ERROR("Timer Start NG(SCTP retransmission wait timer) : MME=%d\n",s1ap_mme_data_p->cnx_id);
           s1ap_sctp_req( instance_p, s1ap_mme_data_p );
         }
@@ -507,7 +509,6 @@ void s1ap_eNB_init(void) {
   S1AP_DEBUG("Starting S1AP layer\n");
   s1ap_eNB_prepare_internal_data();
   itti_mark_task_ready(TASK_S1AP);
-  MSC_START_USE();
 }
 
 void *s1ap_eNB_process_itti_msg(void *notUsed) {
@@ -696,11 +697,11 @@ static int s1ap_eNB_generate_s1_setup_request(
   ie->value.choice.Global_ENB_ID.eNB_ID.present = S1AP_ENB_ID_PR_macroENB_ID;
   MACRO_ENB_ID_TO_BIT_STRING(instance_p->eNB_id,
                              &ie->value.choice.Global_ENB_ID.eNB_ID.choice.macroENB_ID);
-  S1AP_INFO("%d -> %02x%02x%02x\n", instance_p->eNB_id,
+  S1AP_INFO("%u -> %02x%02x%02x\n", instance_p->eNB_id,
             ie->value.choice.Global_ENB_ID.eNB_ID.choice.macroENB_ID.buf[0],
             ie->value.choice.Global_ENB_ID.eNB_ID.choice.macroENB_ID.buf[1],
             ie->value.choice.Global_ENB_ID.eNB_ID.choice.macroENB_ID.buf[2]);
-  ASN_SEQUENCE_ADD(&out->protocolIEs.list, ie);
+  asn1cSeqAdd(&out->protocolIEs.list, ie);
 
   /* optional */
   if (instance_p->eNB_name) {
@@ -710,7 +711,7 @@ static int s1ap_eNB_generate_s1_setup_request(
     ie->value.present = S1AP_S1SetupRequestIEs__value_PR_ENBname;
     OCTET_STRING_fromBuf(&ie->value.choice.ENBname, instance_p->eNB_name,
                          strlen(instance_p->eNB_name));
-    ASN_SEQUENCE_ADD(&out->protocolIEs.list, ie);
+    asn1cSeqAdd(&out->protocolIEs.list, ie);
   }
 
   /* mandatory */
@@ -728,19 +729,19 @@ static int s1ap_eNB_generate_s1_setup_request(
                         instance_p->mnc[s1ap_mme_data_p->broadcast_plmn_index[i]],
                         instance_p->mnc_digit_length[s1ap_mme_data_p->broadcast_plmn_index[i]],
                         plmn);
-        ASN_SEQUENCE_ADD(&ta->broadcastPLMNs.list, plmn);
+        asn1cSeqAdd(&ta->broadcastPLMNs.list, plmn);
       }
     }
-    ASN_SEQUENCE_ADD(&ie->value.choice.SupportedTAs.list, ta);
+    asn1cSeqAdd(&ie->value.choice.SupportedTAs.list, ta);
   }
-  ASN_SEQUENCE_ADD(&out->protocolIEs.list, ie);
+  asn1cSeqAdd(&out->protocolIEs.list, ie);
   /* mandatory */
   ie = (S1AP_S1SetupRequestIEs_t *)calloc(1, sizeof(S1AP_S1SetupRequestIEs_t));
   ie->id = S1AP_ProtocolIE_ID_id_DefaultPagingDRX;
   ie->criticality = S1AP_Criticality_ignore;
   ie->value.present = S1AP_S1SetupRequestIEs__value_PR_PagingDRX;
   ie->value.choice.PagingDRX = instance_p->default_drx;
-  ASN_SEQUENCE_ADD(&out->protocolIEs.list, ie);
+  asn1cSeqAdd(&out->protocolIEs.list, ie);
 
 
   if (s1ap_eNB_encode_pdu(&pdu, &buffer, &len) < 0) {
@@ -752,7 +753,7 @@ static int s1ap_eNB_generate_s1_setup_request(
   timer_kind = timer_kind | S1AP_MMEIND;
   timer_kind = timer_kind | S1_SETRSP_WAIT;
   
-  if( s1ap_timer_setup(instance_p->s1_setuprsp_wait_timer, 0, TASK_S1AP, instance_p->instance, timer_kind, S1AP_TIMER_ONE_SHOT,
+  if( s1ap_timer_setup(instance_p->s1_setuprsp_wait_timer, 0, TASK_S1AP, instance_p->instance, timer_kind, TIMER_ONE_SHOT,
     NULL, &s1ap_mme_data_p->timer_id) < 0 )
   {
     S1AP_ERROR("Timer Start NG(S1 Setup Response) : MME=%d\n",s1ap_mme_data_p->cnx_id);
