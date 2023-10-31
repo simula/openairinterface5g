@@ -75,8 +75,6 @@ typedef struct {
   nfapi_nr_dl_tti_pdsch_pdu pdsch_pdu;
   /// pointer to pdu from MAC interface (this is "a" in 36.212)
   uint8_t *pdu;
-  /// The payload + CRC size in bits, "B" from 36-212
-  uint32_t B;
   /// Pointer to the payload
   uint8_t *b;
   /// Pointers to transport block segments
@@ -199,8 +197,6 @@ typedef struct {
   uint32_t TBS;
   /// Pointer to the payload (38.212 V15.4.0 section 5.1)
   uint8_t *b;
-  /// The payload + CRC (24 bits) in bits (38.212 V15.4.0 section 5.1)
-  uint32_t B;
   /// Pointers to code blocks after code block segmentation and CRC attachment (38.212 V15.4.0 section 5.2.2)
   uint8_t **c;
   /// Number of bits in each code block (38.212 V15.4.0 section 5.2.2)
@@ -227,12 +223,20 @@ typedef struct {
   int llrLen;
   //////////////////////////////////////////////////////////////
 } NR_UL_gNB_HARQ_t;
+static inline int lenWithCrc(int nbSeg, int len)
+{
+  if (nbSeg > 1)
+    return (len + 24 + 24 * nbSeg) / nbSeg;
+  return len + (len > NR_MAX_PDSCH_TBS ? 24 : 16);
+}
+static inline int crcType(int nbSeg, int len)
+{
+  if (nbSeg > 1)
+    return CRC24_B;
+  return len > NR_MAX_PDSCH_TBS ? CRC24_A : CRC16;
+}
 
 typedef struct {
-  //! estimated received spatial signal power (linear)
-  fourDimArray_t * rx_spatial_power;
-  //! estimated received spatial signal power (dB)
-  fourDimArray_t * rx_spatial_power_dB;
   //! estimated rssi (dBm)
   int rx_rssi_dBm;
   //! estimated correlation (wideband linear) between spatial channels (computed in dlsch_demodulation)
@@ -337,48 +341,8 @@ typedef struct {
   /// - first index: rx antenna id [0..nb_antennas_rx[
   /// - second index: ? [0..12*N_RB_UL*frame_parms->symbols_per_tti[
   int32_t **rxdataF_comp;
-  /// \brief Magnitude of the UL channel estimates. Used for 2nd-bit level thresholds in LLR computation
-  /// - first index: rx antenna id [0..nb_antennas_rx[
-  /// - second index: ? [0..12*N_RB_UL*frame_parms->symbols_per_tti[
-  int32_t **ul_ch_mag;
-  /// \brief Magnitude of the UL channel estimates scaled for 3rd bit level thresholds in LLR computation
-  /// - first index: rx antenna id [0..nb_antennas_rx[
-  /// - second index: ? [0..12*N_RB_UL*frame_parms->symbols_per_tti[
-  int32_t **ul_ch_magb;
-  /// \brief Magnitude of the UL channel estimates scaled for 4th bit level thresholds in LLR computation
-  /// - first index: rx antenna id [0..nb_antennas_rx[
-  /// - second index: ? [0..12*N_RB_UL*frame_parms->symbols_per_tti[
-  int32_t **ul_ch_magc;
-  /// \brief Cross-correlation of two UE signals.
-  /// - first index: rx antenna [0..nb_antennas_rx[
-  /// - second index: symbol [0..]
-  int32_t ***rho;
   /// \f$\log_2(\max|H_i|^2)\f$
   int16_t log2_maxh;
-  /// \brief Magnitude of Uplink Channel first layer (16QAM level/First 64QAM level/First 256QAM level).
-  /// - first index: ? [0..7] (hard coded) FIXME! accessed via \c nb_antennas_rx
-  /// - second index: ? [0..168*N_RB_UL[
-  int32_t **ul_ch_mag0;
-  /// \brief Magnitude of Uplink Channel second layer (16QAM level/First 64QAM level/First 256QAM level).
-  /// - first index: ? [0..7] (hard coded) FIXME! accessed via \c nb_antennas_rx
-  /// - second index: ? [0..168*N_RB_UL[
-  int32_t **ul_ch_mag1[8][8];
-  /// \brief Magnitude of Uplink Channel, first layer (2nd 64QAM/256QAM level).
-  /// - first index: ? [0..7] (hard coded) FIXME! accessed via \c nb_antennas_rx
-  /// - second index: ? [0..168*N_RB_UL[
-  int32_t **ul_ch_magb0;
-  /// \brief Magnitude of Uplink Channel second layer (2nd 64QAM/256QAM level).
-  /// - first index: ? [0..7] (hard coded) FIXME! accessed via \c nb_antennas_rx
-  /// - second index: ? [0..168*N_RB_UL[
-  int32_t **ul_ch_magb1[8][8];
-  /// \brief Magnitude of Uplink Channel, first layer (3rd 256QAM level).
-  /// - first index: ? [0..7] (hard coded) FIXME! accessed via \c nb_antennas_rx
-  /// - second index: ? [0..168*N_RB_UL[
-  int32_t **ul_ch_magc0;
-  /// \brief Magnitude of Uplink Channel second layer (3rd 256QAM level).
-  /// - first index: ? [0..7] (hard coded) FIXME! accessed via \c nb_antennas_rx
-  /// - second index: ? [0..168*N_RB_UL[
-  int32_t **ul_ch_magc1[8][8];
   /// measured RX power based on DRS
   int ulsch_power[8];
   /// total signal over antennas
@@ -409,8 +373,8 @@ typedef struct {
   /// \brief Total RE count after DMRS/PTRS RE's are extracted from respective symbol.
   /// - first index: ? [0...14] smybol per slot
   int16_t *ul_valid_re_per_slot;
-  /// flag to verify if channel level computation is done
-  uint8_t cl_done;
+  /// \brief offset for llr corresponding to each symbol
+  int llr_offset[14];
   /// flag to indicate DTX on reception
   int DTX;
 } NR_gNB_PUSCH;
@@ -728,18 +692,14 @@ typedef struct PHY_VARS_gNB_s {
   time_stats_t dlsch_segmentation_stats;
 
   time_stats_t rx_pusch_stats;
+  time_stats_t rx_pusch_init_stats;
+  time_stats_t rx_pusch_symbol_processing_stats;
   time_stats_t ul_indication_stats;
   time_stats_t schedule_response_stats;
   time_stats_t ulsch_decoding_stats;
-  time_stats_t ulsch_rate_unmatching_stats;
   time_stats_t ulsch_ldpc_decoding_stats;
   time_stats_t ulsch_deinterleaving_stats;
-  time_stats_t ulsch_unscrambling_stats;
   time_stats_t ulsch_channel_estimation_stats;
-  time_stats_t ulsch_ptrs_processing_stats;
-  time_stats_t ulsch_channel_compensation_stats;
-  time_stats_t ulsch_rbs_extraction_stats;
-  time_stats_t ulsch_mrc_stats;
   time_stats_t ulsch_llr_stats;
   time_stats_t rx_srs_stats;
   time_stats_t generate_srs_stats;
@@ -754,6 +714,7 @@ typedef struct PHY_VARS_gNB_s {
   time_stats_t rx_dft_stats;
   time_stats_t ulsch_freq_offset_estimation_stats;
   */
+  notifiedFIFO_t respPuschSymb;
   notifiedFIFO_t respDecode;
   notifiedFIFO_t resp_L1;
   notifiedFIFO_t L1_tx_free;
@@ -761,6 +722,8 @@ typedef struct PHY_VARS_gNB_s {
   notifiedFIFO_t L1_tx_out;
   notifiedFIFO_t resp_RU_tx;
   tpool_t threadPool;
+  int nbSymb;
+  int num_pusch_symbols_per_thread;
   pthread_t L1_rx_thread;
   int L1_rx_thread_core;
   pthread_t L1_tx_thread;
@@ -770,6 +733,32 @@ typedef struct PHY_VARS_gNB_s {
   /// structure for analyzing high-level RT measurements
   rt_L1_profiling_t rt_L1_profiling; 
 } PHY_VARS_gNB;
+
+typedef struct puschSymbolProc_s {
+  PHY_VARS_gNB *gNB;
+  NR_DL_FRAME_PARMS *frame_parms;
+  nfapi_nr_pusch_pdu_t *rel15_ul;
+  int ulsch_id;
+  int slot;
+  int startSymbol;
+  int numSymbols;
+  int16_t *llr;
+  int16_t **llr_layers;
+  int16_t *s;
+  uint32_t nvar;
+} puschSymbolProc_t;
+
+struct puschSymbolReqId {
+  uint16_t ulsch_id;
+  uint16_t frame;
+  uint8_t  slot;
+  uint16_t spare;
+} __attribute__((packed));
+
+union puschSymbolReqUnion {
+  struct puschSymbolReqId s;
+  uint64_t p;
+};
 
 typedef struct LDPCDecode_s {
   PHY_VARS_gNB *gNB;

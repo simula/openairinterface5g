@@ -207,7 +207,7 @@ uint32_t nr_compute_tbslbrm(uint16_t table,
 
 void get_type0_PDCCH_CSS_config_parameters(NR_Type0_PDCCH_CSS_config_t *type0_PDCCH_CSS_config,
                                            frame_t frameP,
-                                           NR_MIB_t *mib,
+                                           const NR_MIB_t *mib,
                                            uint8_t num_slot_per_frame,
                                            uint8_t ssb_subcarrier_offset,
                                            uint16_t ssb_start_symbol,
@@ -306,5 +306,7 @@ void compute_cqi_bitlen(struct NR_CSI_ReportConfig *csi_reportconfig,
 void compute_csi_bitlen(NR_CSI_MeasConfig_t *csi_MeasConfig, nr_csi_report_t *csi_report_template);
 
 uint16_t nr_get_csi_bitlen(nr_csi_report_t *csi_report_template, uint8_t csi_report_id);
+
+uint16_t compute_PDU_length(uint32_t num_TLV, uint16_t total_length);
 
 #endif

@@ -16,7 +16,7 @@
  * limitations under the License.
  *-------------------------------------------------------------------------------
  * For more information about the OpenAirInterface (OAI) Software Alliance:
- *      conmnc_digit_lengtht@openairinterface.org
+ *      contact@openairinterface.org
  */
 
 #ifndef MAC_RRC_DL_H
@@ -24,6 +24,9 @@
 
 #include "platform_types.h"
 #include "f1ap_messages_types.h"
+
+typedef void (*f1_setup_response_func_t)(const f1ap_setup_resp_t *resp);
+typedef void (*f1_setup_failure_func_t)(const f1ap_setup_failure_t *fail);
 
 typedef void (*ue_context_setup_request_func_t)(const f1ap_ue_context_setup_t *req);
 typedef void (*ue_context_modification_request_func_t)(const f1ap_ue_context_modif_req_t *req);

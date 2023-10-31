@@ -97,7 +97,9 @@ def CreateWorkspace(sshSession, sourcePath, ranRepository, ranCommitID, ranTarge
 def ImageTagToUse(imageName, ranCommitID, ranBranch, ranAllowMerge):
 	shortCommit = ranCommitID[0:8]
 	if ranAllowMerge:
-		tagToUse = f'{ranBranch}-{shortCommit}'
+		# Allowing contributor to have a name/branchName format
+		branchName = ranBranch.replace('/','-')
+		tagToUse = f'{branchName}-{shortCommit}'
 	else:
 		tagToUse = f'develop-{shortCommit}'
 	fullTag = f'{imageName}:{tagToUse}'
@@ -153,17 +155,13 @@ def AnalyzeBuildLogs(buildRoot, images, globalStatus):
 			committed = False
 			tagged = False
 			with open(f'{buildRoot}/{image}.log', mode='r') as inputfile:
-				startOfTargetImageCreation = False # check for tagged/committed only after image created
 				for line in inputfile:
-					result = re.search(f'FROM .* [aA][sS] {image}$', str(line))
-					if result is not None:
-						startOfTargetImageCreation = True
-					if startOfTargetImageCreation:
-						lineHasTag = re.search(f'Successfully tagged {image}:', str(line)) is not None
-						tagged = tagged or lineHasTag
-						# the OpenShift Cluster builder prepends image registry URL
-						lineHasCommit = re.search(f'COMMIT [a-zA-Z0-9\.:/\-]*{image}', str(line)) is not None
-						committed = committed or lineHasCommit
+					lineHasTag = re.search(f'Successfully tagged {image}:', str(line)) is not None
+					lineHasTag2 = re.search(f'naming to docker.io/library/{image}:', str(line)) is not None
+					tagged = tagged or lineHasTag or lineHasTag2
+					# the OpenShift Cluster builder prepends image registry URL
+					lineHasCommit = re.search(f'COMMIT [a-zA-Z0-9\.:/\-]*{image}', str(line)) is not None
+					committed = committed or lineHasCommit
 			errorandwarnings['errors'] = 0 if committed or tagged else 1
 			errorandwarnings['warnings'] = 0
 			errorandwarnings['status'] = committed or tagged
@@ -291,6 +289,7 @@ class Containerize():
 		self.proxyCommit = None
 		self.eNB_instance = 0
 		self.eNB_serverId = ['', '', '']
+		self.deployKind = [True, True, True]
 		self.yamlPath = ['', '', '']
 		self.services = ['', '', '']
 		self.nb_healthy = [0, 0, 0]
@@ -370,22 +369,23 @@ class Containerize():
 		# Creating a tupple with the imageName and the DockerFile prefix pattern on obelix
 		if result is not None:
 			imageNames.append(('oai-enb', 'eNB'))
-		else:
-			result = re.search('gNB', self.imageKind)
-			if result is not None:
-				imageNames.append(('oai-gnb', 'gNB'))
-			else:
-				result = re.search('all', self.imageKind)
-				if result is not None:
-					imageNames.append(('oai-enb', 'eNB'))
-					imageNames.append(('oai-gnb', 'gNB'))
-					imageNames.append(('oai-nr-cuup', 'nr-cuup'))
-					imageNames.append(('oai-lte-ue', 'lteUE'))
-					imageNames.append(('oai-nr-ue', 'nrUE'))
-					if self.host == 'Red Hat':
-						imageNames.append(('oai-physim', 'phySim'))
-					if self.host == 'Ubuntu':
-						imageNames.append(('oai-lte-ru', 'lteRU'))
+		result = re.search('gNB', self.imageKind)
+		if result is not None:
+			imageNames.append(('oai-gnb', 'gNB'))
+		result = re.search('all', self.imageKind)
+		if result is not None:
+			imageNames.append(('oai-enb', 'eNB'))
+			imageNames.append(('oai-gnb', 'gNB'))
+			imageNames.append(('oai-nr-cuup', 'nr-cuup'))
+			imageNames.append(('oai-lte-ue', 'lteUE'))
+			imageNames.append(('oai-nr-ue', 'nrUE'))
+			if self.host == 'Red Hat':
+				imageNames.append(('oai-physim', 'phySim'))
+			if self.host == 'Ubuntu':
+				imageNames.append(('oai-lte-ru', 'lteRU'))
+		result = re.search('build_cross_arm64', self.imageKind)
+		if result is not None:
+			self.dockerfileprefix = '.ubuntu20.cross-arm64'
 		
 		# Workaround for some servers, we need to erase completely the workspace
 		if self.forcedWorkspaceCleanup:
@@ -434,7 +434,7 @@ class Containerize():
 		if ret.returncode != 0:
 			logging.error('\u001B[1m Could not build properly ran-base\u001B[0m')
 			# Recover the name of the failed container?
-			cmd.run(f"{self.cli} ps --quiet --filter \"status=exited\" -n1 | xargs {self.cli} rm -f")
+			cmd.run(f"{self.cli} ps --quiet --filter \"status=exited\" -n1 | xargs --no-run-if-empty {self.cli} rm -f")
 			cmd.run(f"{self.cli} image prune --force")
 			cmd.close()
 			logging.error('\u001B[1m Building OAI Images Failed\u001B[0m')
@@ -467,17 +467,20 @@ class Containerize():
 			cmd.run(f'sed -i -e "s#{baseImage}:latest#{baseImage}:{baseTag}#" docker/Dockerfile.{pattern}{self.dockerfileprefix}')
 			if image != 'ran-build':
 				cmd.run(f'sed -i -e "s#ran-build:latest#ran-build:{imageTag}#" docker/Dockerfile.{pattern}{self.dockerfileprefix}')
-			cmd.run(f'{self.cli} build {self.cliBuildOptions} --target {image} --tag {image}:{imageTag} --file docker/Dockerfile.{pattern}{self.dockerfileprefix} . > cmake_targets/log/{image}.log 2>&1', timeout=1200)
-			# split the log
-			cmd.run(f"mkdir -p cmake_targets/log/{image}")
-			cmd.run(f"python3 ci-scripts/docker_log_split.py --logfilename=cmake_targets/log/{image}.log")
+			ret = cmd.run(f'{self.cli} build {self.cliBuildOptions} --target {image} --tag {image}:{imageTag} --file docker/Dockerfile.{pattern}{self.dockerfileprefix} . > cmake_targets/log/{image}.log 2>&1', timeout=1200)
+			if image == 'ran-build' and ret.returncode == 0:
+				cmd.run(f"docker run --name test-log -d {image}:{imageTag} /bin/true")
+				cmd.run(f"docker cp test-log:/oai-ran/cmake_targets/log/ cmake_targets/log/{image}/")
+				cmd.run(f"docker rm -f test-log")
+			else:
+				cmd.run(f"mkdir -p cmake_targets/log/{image}")
 			# check the status of the build
 			ret = cmd.run(f"{self.cli} image inspect --format=\'Size = {{{{.Size}}}} bytes\' {image}:{imageTag}")
 			if ret.returncode != 0:
 				logging.error('\u001B[1m Could not build properly ' + image + '\u001B[0m')
 				status = False
 				# Here we should check if the last container corresponds to a failed command and destroy it
-				cmd.run(f"{self.cli} ps --quiet --filter \"status=exited\" -n1 | xargs {self.cli} rm -f")
+				cmd.run(f"{self.cli} ps --quiet --filter \"status=exited\" -n1 | xargs --no-run-if-empty {self.cli} rm -f")
 				allImagesSize[image] = 'N/A -- Build Failed'
 				break
 			else:
@@ -833,6 +836,7 @@ class Containerize():
 			HELP.GenericHelp(CONST.Version)
 			sys.exit('Insufficient Parameter')
 		logging.debug('\u001B[1m Deploying OAI Object on server: ' + lIpAddr + '\u001B[0m')
+		self.deployKind[self.eNB_instance] = True
 
 		mySSH = SSH.SSHConnection()
 		mySSH.open(lIpAddr, lUserName, lPassWord)
@@ -986,14 +990,11 @@ class Containerize():
 		for svcName in services:
 			# head -n -1 suppresses the final "X exited with status code Y"
 			filename = f'{svcName}-{HTML.testCase_id}.log'
-			#mySSH.command(f'docker-compose -f ci-docker-compose.yml logs --no-log-prefix -- {svcName} | head -n -1 &> {lSourcePath}/cmake_targets/log/{filename}', '\$', 30)
 			mySSH.command(f'docker-compose -f ci-docker-compose.yml logs --no-log-prefix -- {svcName} &> {lSourcePath}/cmake_targets/log/{filename}', '\$', 120)
 
-		mySSH.command('docker-compose -f ci-docker-compose.yml down', '\$', 5)
-		# Cleaning any created tmp volume
-		mySSH.command('docker volume prune --force', '\$', 20)
-
+		mySSH.command('docker-compose -f ci-docker-compose.yml down -v', '\$', 5)
 		mySSH.close()
+
 		# Analyzing log file!
 		files = ','.join([f'{s}-{HTML.testCase_id}' for s in services])
 		if len(services) > 1:
@@ -1038,6 +1039,7 @@ class Containerize():
 		logging.debug('\u001B[1m Checking Services to deploy\u001B[0m')
 		# Implicitly we are running locally
 		myCmd = cls_cmd.LocalCmd(d = self.yamlPath[0])
+		self.deployKind[0] = False
 		cmd = 'docker-compose config --services'
 		listServices = myCmd.run(cmd)
 		if listServices.returncode != 0:
@@ -1296,7 +1298,7 @@ class Containerize():
 
 		logging.debug('\u001B[1m Undeploying \u001B[0m')
 		logging.debug(f'Working dir is back {self.yamlPath[0]}')
-		cmd = 'docker-compose -f docker-compose-ci.yml down'
+		cmd = 'docker-compose -f docker-compose-ci.yml down -v'
 		deployStatus = myCmd.run(cmd, timeout=100)
 		if deployStatus.returncode != 0:
 			myCmd.close()
@@ -1307,9 +1309,6 @@ class Containerize():
 			return
 
 		self.deployedContainers = []
-		# Cleaning any created tmp volume
-		cmd = 'docker volume prune --force'
-		deployStatus = myCmd.run(cmd, timeout=100, reportNonZero=False)
 		myCmd.close()
 
 		if fullStatus:

@@ -39,9 +39,9 @@
 #include "openair2/F1AP/f1ap_ids.h"
 #include <openair3/ocp-gtpu/gtp_itf.h>
 #include "openair2/SDAP/nr_sdap/nr_sdap.h"
-#include "nr_pdcp_e1_api.h"
 #include "gnb_config.h"
 #include "executables/softmodem-common.h"
+#include "cuup_cucp_if.h"
 
 #define TODO do { \
     printf("%s:%d:%s: todo\n", __FILE__, __LINE__, __FUNCTION__); \
@@ -538,7 +538,7 @@ void pdcp_layer_init(void)
   abort();
 }
 
-void nr_pdcp_layer_init(void)
+void nr_pdcp_layer_init(bool uses_e1)
 {
   /* hack: be sure to initialize only once */
   static pthread_mutex_t m = PTHREAD_MUTEX_INITIALIZER;
@@ -559,6 +559,7 @@ void nr_pdcp_layer_init(void)
     init_nr_rlc_data_req_queue();
   }
 
+  nr_pdcp_e1_if_init(uses_e1);
   init_nr_pdcp_data_ind_queue();
   nr_pdcp_init_timer_thread(nr_pdcp_ue_manager);
 }
@@ -757,21 +758,32 @@ void deliver_pdu_srb_rlc(void *deliver_pdu_data, ue_id_t ue_id, int srb_id,
   enqueue_rlc_data_req(&ctxt, 1, MBMS_FLAG_NO, srb_id, sdu_id, 0, size, memblock);
 }
 
-static void add_srb(int is_gnb, ue_id_t rntiMaybeUEid, struct NR_SRB_ToAddMod *s, int ciphering_algorithm, int integrity_algorithm, unsigned char *ciphering_key, unsigned char *integrity_key)
+void add_srb(int is_gnb,
+             ue_id_t rntiMaybeUEid,
+             struct NR_SRB_ToAddMod *s,
+             int ciphering_algorithm,
+             int integrity_algorithm,
+             unsigned char *ciphering_key,
+             unsigned char *integrity_key)
 {
   nr_pdcp_entity_t *pdcp_srb;
   nr_pdcp_ue_t *ue;
-  int t_Reordering=3000;
 
   int srb_id = s->srb_Identity;
-  if (s->pdcp_Config == NULL ||
-      s->pdcp_Config->t_Reordering == NULL) t_Reordering = 3000;
-  else t_Reordering = decode_t_reordering(*s->pdcp_Config->t_Reordering);
+  int t_Reordering = -1; // infinity as per default SRB configuration in 9.2.1 of 38.331
+  if (s->pdcp_Config != NULL && s->pdcp_Config->t_Reordering != NULL)
+    t_Reordering = decode_t_reordering(*s->pdcp_Config->t_Reordering);
 
   nr_pdcp_manager_lock(nr_pdcp_ue_manager);
   ue = nr_pdcp_manager_get_ue(nr_pdcp_ue_manager, rntiMaybeUEid);
   if (ue->srb[srb_id-1] != NULL) {
-    LOG_D(PDCP, "%s:%d:%s: warning SRB %d already exist for UE ID/RNTI %ld, do nothing\n", __FILE__, __LINE__, __FUNCTION__, srb_id, rntiMaybeUEid);
+    LOG_E(PDCP,
+          "%s:%d:%s: warning SRB %d already exist for UE ID/RNTI %ld, do nothing\n",
+          __FILE__,
+          __LINE__,
+          __FUNCTION__,
+          srb_id,
+          rntiMaybeUEid);
   } else {
     pdcp_srb = new_nr_pdcp_entity(NR_PDCP_SRB, is_gnb, srb_id,
                                   0, false, false, // sdap parameters
@@ -788,7 +800,13 @@ static void add_srb(int is_gnb, ue_id_t rntiMaybeUEid, struct NR_SRB_ToAddMod *s
   nr_pdcp_manager_unlock(nr_pdcp_ue_manager);
 }
 
-void add_drb_am(int is_gnb, ue_id_t rntiMaybeUEid, struct NR_DRB_ToAddMod *s, int ciphering_algorithm, int integrity_algorithm, unsigned char *ciphering_key, unsigned char *integrity_key)
+void add_drb(int is_gnb,
+             ue_id_t rntiMaybeUEid,
+             struct NR_DRB_ToAddMod *s,
+             int ciphering_algorithm,
+             int integrity_algorithm,
+             unsigned char *ciphering_key,
+             unsigned char *integrity_key)
 {
   nr_pdcp_entity_t *pdcp_drb;
   nr_pdcp_ue_t *ue;
@@ -882,32 +900,6 @@ void add_drb_am(int is_gnb, ue_id_t rntiMaybeUEid, struct NR_DRB_ToAddMod *s, in
   nr_pdcp_manager_unlock(nr_pdcp_ue_manager);
 }
 
-static void add_drb(int is_gnb,
-                    ue_id_t rntiMaybeUEid,
-                    struct NR_DRB_ToAddMod *s,
-                    NR_RLC_Config_t *rlc_Config,
-                    int ciphering_algorithm,
-                    int integrity_algorithm,
-                    unsigned char *ciphering_key,
-                    unsigned char *integrity_key)
-{
-  switch (rlc_Config->present) {
-  case NR_RLC_Config_PR_am:
-    add_drb_am(is_gnb, rntiMaybeUEid, s, ciphering_algorithm, integrity_algorithm, ciphering_key, integrity_key);
-    break;
-  case NR_RLC_Config_PR_um_Bi_Directional:
-    // add_drb_um(rntiMaybeUEid, s);
-    /* hack */
-    add_drb_am(is_gnb, rntiMaybeUEid, s, ciphering_algorithm, integrity_algorithm, ciphering_key, integrity_key);
-    break;
-  default:
-    LOG_E(PDCP, "%s:%d:%s: fatal: unhandled DRB type\n",
-          __FILE__, __LINE__, __FUNCTION__);
-    exit(1);
-  }
-  LOG_I(PDCP, "%s:%s:%d: added DRB for UE ID/RNTI %ld\n", __FILE__, __FUNCTION__, __LINE__, rntiMaybeUEid);
-}
-
 void nr_pdcp_add_srbs(eNB_flag_t enb_flag, ue_id_t rntiMaybeUEid, NR_SRB_ToAddModList_t *const srb2add_list, const uint8_t security_modeP, uint8_t *const kRRCenc, uint8_t *const kRRCint)
 {
   if (srb2add_list != NULL) {
@@ -923,12 +915,17 @@ void nr_pdcp_add_drbs(eNB_flag_t enb_flag,
                       NR_DRB_ToAddModList_t *const drb2add_list,
                       const uint8_t security_modeP,
                       uint8_t *const kUPenc,
-                      uint8_t *const kUPint,
-                      struct NR_CellGroupConfig__rlc_BearerToAddModList *rlc_bearer2add_list)
+                      uint8_t *const kUPint)
 {
   if (drb2add_list != NULL) {
     for (int i = 0; i < drb2add_list->list.count; i++) {
-      add_drb(enb_flag, rntiMaybeUEid, drb2add_list->list.array[i], rlc_bearer2add_list->list.array[i]->rlc_Config, security_modeP & 0x0f, (security_modeP >> 4) & 0x0f, kUPenc, kUPint);
+      add_drb(enb_flag,
+              rntiMaybeUEid,
+              drb2add_list->list.array[i],
+              security_modeP & 0x0f,
+              (security_modeP >> 4) & 0x0f,
+              kUPenc,
+              kUPint);
     }
   } else
     LOG_W(PDCP, "nr_pdcp_add_drbs() with void list\n");
@@ -1059,6 +1056,84 @@ bool nr_pdcp_data_req_srb(ue_id_t ue_id,
   deliver_pdu_cb(data, ue_id, rb_id, pdu_buf, pdu_size, muiP);
 
   return 1;
+}
+
+void nr_pdcp_suspend_srb(ue_id_t ue_id, int srb_id)
+{
+  nr_pdcp_manager_lock(nr_pdcp_ue_manager);
+  nr_pdcp_ue_t *ue = nr_pdcp_manager_get_ue(nr_pdcp_ue_manager, ue_id);
+  nr_pdcp_entity_t *srb = ue->srb[srb_id - 1];
+  if (srb == NULL) {
+    LOG_E(PDCP, "Trying to susbend SRB with ID %d but it is not established\n", srb_id);
+    return;
+  }
+  srb->suspend_entity(srb);
+  nr_pdcp_manager_unlock(nr_pdcp_ue_manager);
+}
+
+void nr_pdcp_suspend_drb(ue_id_t ue_id, int drb_id)
+{
+  nr_pdcp_manager_lock(nr_pdcp_ue_manager);
+  nr_pdcp_ue_t *ue = nr_pdcp_manager_get_ue(nr_pdcp_ue_manager, ue_id);
+  nr_pdcp_entity_t *drb = ue->drb[drb_id - 1];
+  if (drb == NULL) {
+    LOG_E(PDCP, "Trying to susbend DRB with ID %d but it is not established\n", drb_id);
+    return;
+  }
+  drb->suspend_entity(drb);
+  nr_pdcp_manager_unlock(nr_pdcp_ue_manager);
+}
+
+void nr_pdcp_reconfigure_srb(ue_id_t ue_id, int srb_id, long t_Reordering)
+{
+  nr_pdcp_manager_lock(nr_pdcp_ue_manager);
+  nr_pdcp_ue_t *ue = nr_pdcp_manager_get_ue(nr_pdcp_ue_manager, ue_id);
+  nr_pdcp_entity_t *srb = ue->srb[srb_id - 1];
+  int decoded_t_reordering = decode_t_reordering(t_Reordering);
+  srb->t_reordering = decoded_t_reordering;
+  nr_pdcp_manager_unlock(nr_pdcp_ue_manager);
+}
+
+void nr_pdcp_reconfigure_drb(ue_id_t ue_id, int drb_id, long t_Reordering)
+{
+  /* The enabling/disabling of ciphering or integrity protection
+   * can be changed only by releasing and adding the DRB
+   * (so not by reconfiguring).
+   */
+  nr_pdcp_manager_lock(nr_pdcp_ue_manager);
+  nr_pdcp_ue_t *ue = nr_pdcp_manager_get_ue(nr_pdcp_ue_manager, ue_id);
+  nr_pdcp_entity_t *drb = ue->drb[drb_id - 1];
+  int decoded_t_reordering = decode_t_reordering(t_Reordering);
+  drb->t_reordering = decoded_t_reordering;
+  nr_pdcp_manager_unlock(nr_pdcp_ue_manager);
+}
+
+void nr_pdcp_release_srb(ue_id_t ue_id, int srb_id)
+{
+  nr_pdcp_manager_lock(nr_pdcp_ue_manager);
+  nr_pdcp_ue_t *ue = nr_pdcp_manager_get_ue(nr_pdcp_ue_manager, ue_id);
+  if (ue->srb[srb_id - 1] != NULL) {
+    ue->srb[srb_id - 1]->delete_entity(ue->srb[srb_id - 1]);
+    ue->srb[srb_id - 1] = NULL;
+  }
+  else
+    LOG_E(PDCP, "Attempting to release SRB%d but it is not configured\n", srb_id);
+  nr_pdcp_manager_unlock(nr_pdcp_ue_manager);
+}
+
+void nr_pdcp_release_drb(ue_id_t ue_id, int drb_id)
+{
+  nr_pdcp_manager_lock(nr_pdcp_ue_manager);
+  nr_pdcp_ue_t *ue = nr_pdcp_manager_get_ue(nr_pdcp_ue_manager, ue_id);
+  nr_pdcp_entity_t *drb = ue->drb[drb_id - 1];
+  if (drb) {
+    drb->release_entity(drb);
+    drb->delete_entity(drb);
+    ue->drb[drb_id - 1] = NULL;
+  }
+  else
+    LOG_E(PDCP, "Attempting to release DRB%d but it is not configured\n", drb_id);
+  nr_pdcp_manager_unlock(nr_pdcp_ue_manager);
 }
 
 void nr_pdcp_reestablishment(ue_id_t ue_id)
@@ -1226,7 +1301,7 @@ nr_pdcp_ue_manager_t *nr_pdcp_sdap_get_ue_manager() {
 }
 
 /* returns false in case of error, true if everything ok */
-const bool nr_pdcp_get_statistics(ue_id_t ue_id, int srb_flag, int rb_id, nr_pdcp_statistics_t *out)
+bool nr_pdcp_get_statistics(ue_id_t ue_id, int srb_flag, int rb_id, nr_pdcp_statistics_t *out)
 {
   nr_pdcp_ue_t     *ue;
   nr_pdcp_entity_t *rb;

@@ -62,7 +62,7 @@ sudo apt install -y libboost-all-dev libusb-1.0-0-dev doxygen python3-docutils p
 
 git clone https://github.com/EttusResearch/uhd.git ~/uhd
 cd ~/uhd
-git checkout v4.4.0.0
+git checkout v4.5.0.0
 cd host
 mkdir build
 cd build
@@ -90,7 +90,7 @@ cd ~/openairinterface5g/cmake_targets
 cd ~/openairinterface5g
 source oaienv
 cd cmake_targets
-./build_oai -w USRP --ninja --gNB -c
+./build_oai -w USRP --ninja --gNB -C
 ```
 
 # 4. Run OAI CN5G and OAI gNB

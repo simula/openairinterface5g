@@ -63,17 +63,9 @@ int8_t nr_ue_decode_BCCH_DL_SCH(module_id_t module_id,
                                 uint8_t *pduP,
                                 uint32_t pdu_len);
 
-/**\brief primitive from RRC layer to MAC layer to set if bearer exists for a logical channel. todo handle mac_LogicalChannelConfig
-   \param module_id                 module id
-   \param cc_id                     component carrier id
-   \param gNB_index                 gNB index
-   \param long                      logicalChannelIdentity
-   \param bool                      status*/
-int nr_rrc_mac_config_req_ue_logicalChannelBearer(module_id_t module_id,
-                                                  int         cc_idP,
-                                                  uint8_t     gNB_index,
-                                                  long        logicalChannelIdentity,
-                                                  bool        status);
+void nr_rrc_mac_config_req_ue_logicalChannelBearer(module_id_t module_id,
+                                                   struct NR_CellGroupConfig__rlc_BearerToAddModList *rlc_toadd_list,
+                                                   struct NR_CellGroupConfig__rlc_BearerToReleaseList *rlc_torelease_list);
 
 void nr_rrc_mac_config_req_scg(module_id_t module_id,
                                int cc_idP,
@@ -129,19 +121,20 @@ void fill_scheduled_response(nr_scheduled_response_t *scheduled_response,
                              void *phy_data);
 
 /*! \fn int8_t nr_ue_get_SR(module_id_t module_idP, frame_t frameP, slot_t slotP);
-   \brief Called by PHY to get sdu for PUSCH transmission.  It performs the following operations: Checks BSR for DCCH, DCCH1 and DTCH corresponding to previous values computed either in SR or BSR procedures.  It gets rlc status indications on DCCH,DCCH1 and DTCH and forms BSR elements and PHR in MAC header.  CRNTI element is not supported yet.  It computes transport block for up to 3 SDUs and generates header and forms the complete MAC SDU.
-\param[in] Mod_id Instance id of UE in machine
-\param[in] frameP subframe number
-\param[in] slotP slot number
+   \brief Called by PHY to get sdu for PUSCH transmission.  It performs the following operations: Checks BSR for DCCH, DCCH1 and
+DTCH corresponding to previous values computed either in SR or BSR procedures.  It gets rlc status indications on DCCH,DCCH1 and
+DTCH and forms BSR elements and PHR in MAC header.  CRNTI element is not supported yet.  It computes transport block for up to 3
+SDUs and generates header and forms the complete MAC SDU. \param[in]  module_idP Instance id of UE in machine \param[in] frameP
+subframe number \param[in] slotP slot number
 */
 int8_t nr_ue_get_SR(module_id_t module_idP, frame_t frameP, slot_t slotP);
 
-/*! \fn  bool update_bsr(module_id_t module_idP, frame_t frameP, slot_t slotP, uint8_t gNB_index)
+/*! \fn  nr_update_bsr
    \brief get the rlc stats and update the bsr level for each lcid
-\param[in] Mod_id instance of the UE
+\param[in] module_idP instance of the UE
 \param[in] frameP Frame index
-\param[in] slot slotP number
-\param[in] uint8_t gNB_index
+\param[in] slotP number
+\param[in] gNB_index
 */
 bool nr_update_bsr(module_id_t module_idP, frame_t frameP, slot_t slotP, uint8_t gNB_index);
 
@@ -169,12 +162,17 @@ int nr_get_sf_periodicBSRTimer(uint8_t bucketSize);
 */
 int nr_get_sf_retxBSRTimer(uint8_t retxBSR_Timer);
 
-int8_t nr_ue_process_dci(module_id_t module_id, int cc_id, uint8_t gNB_index, frame_t frame, int slot, dci_pdu_rel15_t *dci, fapi_nr_dci_indication_pdu_t *dci_ind);
+int8_t nr_ue_process_dci(module_id_t module_id,
+                         int cc_id,
+                         frame_t frame,
+                         int slot,
+                         dci_pdu_rel15_t *dci,
+                         fapi_nr_dci_indication_pdu_t *dci_ind);
 int nr_ue_process_dci_indication_pdu(module_id_t module_id, int cc_id, int gNB_index, frame_t frame, int slot, fapi_nr_dci_indication_pdu_t *dci);
-int8_t nr_ue_process_csirs_measurements(module_id_t module_id, frame_t frame, int slot, fapi_nr_csirs_measurements_t *csirs_measurements);
-
-uint32_t get_ssb_frame(uint32_t test);
-
+int8_t nr_ue_process_csirs_measurements(module_id_t module_id,
+                                        frame_t frame,
+                                        int slot,
+                                        fapi_nr_csirs_measurements_t *csirs_measurements);
 void nr_ue_aperiodic_srs_scheduling(NR_UE_MAC_INST_t *mac, long resource_trigger, int frame, int slot);
 
 bool trigger_periodic_scheduling_request(NR_UE_MAC_INST_t *mac,
@@ -379,6 +377,8 @@ void set_ra_rnti(NR_UE_MAC_INST_t *mac, fapi_nr_ul_config_prach_pdu *prach_pdu);
 void nr_Msg1_transmitted(module_id_t mod_id);
 
 void nr_Msg3_transmitted(module_id_t mod_id, uint8_t CC_id, frame_t frameP, slot_t slotP, uint8_t gNB_id);
+void nr_get_msg3_payload(module_id_t mod_id);
+void send_msg3_rrc_request(module_id_t mod_id, int rnti);
 
 void nr_ue_msg2_scheduler(module_id_t mod_id, uint16_t rach_frame, uint16_t rach_slot, uint16_t *msg2_frame, uint16_t *msg2_slot);
 
@@ -423,6 +423,5 @@ int nr_config_pusch_pdu(NR_UE_MAC_INST_t *mac,
                         dci_pdu_rel15_t *dci,
                         RAR_grant_t *rar_grant,
                         uint16_t rnti,
-                        const nr_dci_format_t *dci_format);
+                        const nr_dci_format_t dci_format);
 #endif
-/** @}*/

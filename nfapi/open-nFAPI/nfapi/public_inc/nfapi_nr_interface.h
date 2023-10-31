@@ -239,19 +239,6 @@ typedef struct {
   nfapi_vendor_extension_tlv_t              vendor_extension;
 } nfapi_nr_config_request_t;
 
-
-
-typedef enum {
-  NFAPI_NR_DL_DCI_FORMAT_1_0 = 0,
-  NFAPI_NR_DL_DCI_FORMAT_1_1,
-  NFAPI_NR_DL_DCI_FORMAT_2_0,
-  NFAPI_NR_DL_DCI_FORMAT_2_1,
-  NFAPI_NR_DL_DCI_FORMAT_2_2,
-  NFAPI_NR_DL_DCI_FORMAT_2_3,
-  NFAPI_NR_UL_DCI_FORMAT_0_0,
-  NFAPI_NR_UL_DCI_FORMAT_0_1
-} nfapi_nr_dci_format_e;
-
 typedef enum {
 	NFAPI_NR_RNTI_new = 0,
 	NFAPI_NR_RNTI_C,
@@ -292,8 +279,8 @@ typedef enum {
 } nfapi_nr_ssb_and_cset_mux_pattern_type_e;
 
 typedef enum {
-  NFAPI_NR_CCE_REG_MAPPING_INTERLEAVED=0,
-  NFAPI_NR_CCE_REG_MAPPING_NON_INTERLEAVED=1 
+  NFAPI_NR_CCE_REG_MAPPING_INTERLEAVED=1,
+  NFAPI_NR_CCE_REG_MAPPING_NON_INTERLEAVED=0
 } nfapi_nr_cce_reg_mapping_type_e;
 
 typedef enum {

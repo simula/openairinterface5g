@@ -46,34 +46,44 @@ void fill_dci_search_candidates(const NR_SearchSpace_t *ss,
 {
   LOG_D(NR_MAC,"Filling search candidates for DCI\n");
 
-  rel15->number_of_candidates = 0;
   int i = 0;
   for (int maxL = 16; maxL > 0; maxL >>= 1) {
-    uint8_t aggregation, number_of_candidates;
+    uint8_t aggregation, max_number_of_candidates;
     find_aggregation_candidates(&aggregation,
-                                &number_of_candidates,
+                                &max_number_of_candidates,
                                 ss,
                                 maxL);
-    if (number_of_candidates > 0) {
-      LOG_D(NR_MAC,"L %d, number of candidates %d, aggregation %d\n", maxL, number_of_candidates, aggregation);
-      int N_cce_sym = 0; // nb of rbs of coreset per symbol
-      for (int f = 0; f < 6; f++) {
-        for (int t = 0; t < 8; t++) {
-          N_cce_sym += ((rel15->coreset.frequency_domain_resource[f] >> t) & 1);
+    if (max_number_of_candidates == 0)
+      continue;
+    LOG_D(NR_MAC,"L %d, max number of candidates %d, aggregation %d\n", maxL, max_number_of_candidates, aggregation);
+    int N_cce_sym = 0; // nb of rbs of coreset per symbol
+    for (int f = 0; f < 6; f++) {
+      for (int t = 0; t < 8; t++) {
+        N_cce_sym += ((rel15->coreset.frequency_domain_resource[f] >> t) & 1);
+      }
+    }
+    int N_cces = N_cce_sym * rel15->coreset.duration;
+    if (N_cces < aggregation)
+      continue;
+    for (int j = 0; j < max_number_of_candidates; j++) {
+      int first_cce = aggregation * ((Y + ((j * N_cces) / (aggregation * max_number_of_candidates)) + 0) % (N_cces / aggregation));
+      LOG_D(NR_MAC,"Candidate %d of %d first_cce %d (L %d N_cces %d Y %d)\n", j, max_number_of_candidates, first_cce, aggregation, N_cces, Y);
+      // to avoid storing more than one candidate with the same aggregation and starting CCE (duplicated candidate)
+      bool duplicated = false;
+      for (int k = 0; k < i; k++) {
+        if (rel15->CCE[k] == first_cce && rel15->L[k] == aggregation) {
+          duplicated = true;
+          LOG_D(NR_MAC, "Candidate %d of %d is duplicated\n", j, max_number_of_candidates);
         }
       }
-      int N_cces = N_cce_sym * rel15->coreset.duration;
-      // limit the number of candidates to the ones fitting current configuration
-      int max_candidates = min(N_cces / aggregation, number_of_candidates);
-      rel15->number_of_candidates += max_candidates;
-      for (int j = 0; j < max_candidates; i++, j++) {
-        int first_cce = aggregation * ((Y + ((j * N_cces) / (aggregation * number_of_candidates)) + 0) % (N_cces / aggregation));
-        LOG_D(NR_MAC,"Candidate %d of %d first_cce %d (L %d N_cces %d Y %d)\n", j, max_candidates, first_cce, aggregation, N_cces, Y);
+      if (!duplicated) {
         rel15->CCE[i] = first_cce;
         rel15->L[i] = aggregation;
+        i++;
       }
     }
   }
+  rel15->number_of_candidates = i;
 }
 
 NR_ControlResourceSet_t *ue_get_coreset(const NR_UE_MAC_INST_t *mac, const int coreset_id)
@@ -134,12 +144,13 @@ void config_dci_pdu(NR_UE_MAC_INST_t *mac,
   rel15->coreset.precoder_granularity = coreset->precoderGranularity;
 
   // Scrambling RNTI
+  rel15->coreset.scrambling_rnti = 0;
   if (coreset->pdcch_DMRS_ScramblingID) {
     rel15->coreset.pdcch_dmrs_scrambling_id = *coreset->pdcch_DMRS_ScramblingID;
-    rel15->coreset.scrambling_rnti = mac->crnti;
+    if (ss->searchSpaceType->present == NR_SearchSpace__searchSpaceType_PR_ue_Specific)
+      rel15->coreset.scrambling_rnti = mac->crnti;
   } else {
     rel15->coreset.pdcch_dmrs_scrambling_id = mac->physCellId;
-    rel15->coreset.scrambling_rnti = 0;
   }
 
   rel15->num_dci_options = (mac->ra.ra_state == WAIT_RAR ||
@@ -166,7 +177,7 @@ void config_dci_pdu(NR_UE_MAC_INST_t *mac,
 
   // loop over RNTI type and configure resource allocation for DCI
   for (int i = 0; i < rel15->num_dci_options; i++) {
-    rel15->dci_type_options[i] = ss->searchSpaceType->present;
+    rel15->ss_type_options[i] = ss->searchSpaceType->present;
     const int dci_format = rel15->dci_format_options[i];
     uint16_t alt_size = 0;
     if(current_DL_BWP) {

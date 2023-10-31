@@ -32,6 +32,7 @@
 
 #include "LAYER2/NR_MAC_gNB/mac_proto.h"
 #include "common/utils/nr/nr_common.h"
+#include "openair1/PHY/defs_nr_common.h"
 #include <limits.h>
 #include <executables/softmodem-common.h>
 
@@ -4080,7 +4081,7 @@ void csi_period_offset(NR_CSI_ReportConfig_t *csirep,
 uint8_t get_BG(uint32_t A, uint16_t R) {
 
   float code_rate = (float) R / 10240.0f;
-  if ((A <=292) || ((A<=3824) && (code_rate <= 0.6667)) || code_rate <= 0.25)
+  if ((A <= 292) || ((A <= NR_MAX_PDSCH_TBS) && (code_rate <= 0.6667)) || code_rate <= 0.25)
     return 2;
   else
     return 1;
@@ -4105,7 +4106,7 @@ uint32_t get_Y(const NR_SearchSpace_t *ss, int slot, rnti_t rnti) {
 
 void get_type0_PDCCH_CSS_config_parameters(NR_Type0_PDCCH_CSS_config_t *type0_PDCCH_CSS_config,
                                            frame_t frameP,
-                                           NR_MIB_t *mib,
+                                           const NR_MIB_t *mib,
                                            uint8_t num_slot_per_frame,
                                            uint8_t ssb_subcarrier_offset,
                                            uint16_t ssb_start_symbol,
@@ -5362,4 +5363,12 @@ uint16_t nr_get_csi_bitlen(nr_csi_report_t *csi_report_template, uint8_t csi_rep
   }
 
   return csi_bitlen;
+}
+
+uint16_t compute_PDU_length(uint32_t num_TLV, uint16_t total_length)
+{
+  uint8_t pdu_length = 8; // 2 bytes PDU_Length + 2 bytes PDU_Index + 4 bytes num_TLV
+  // For each TLV, add 2 bytes tag + 2 bytes length + value size without padding
+  pdu_length += (num_TLV * 4) + total_length;
+  return pdu_length;
 }

@@ -474,7 +474,8 @@ typedef struct {
 
 typedef struct {
 	nfapi_p4_p5_message_header_t header;
-	uint32_t error_code;
+	uint8_t error_code;
+  uint8_t num_tlvs;
 	nfapi_pnf_param_general_t pnf_param_general;
 	nfapi_pnf_phy_t pnf_phy;
 	nfapi_vendor_extension_tlv_t vendor_extension;
@@ -489,7 +490,7 @@ typedef struct {
 
 typedef struct {
 	nfapi_p4_p5_message_header_t header;
-	uint32_t error_code;
+	uint8_t error_code;
 	nfapi_vendor_extension_tlv_t vendor_extension;
 } nfapi_nr_pnf_config_response_t;
 
@@ -566,7 +567,10 @@ typedef struct {
 typedef struct {
   nfapi_p4_p5_message_header_t  header;
   uint8_t error_code;
-  //uint8_t num_invalid_tlvs;
+  uint8_t num_invalid_tlvs;
+  uint8_t num_invalid_tlvs_configured_in_idle;
+  uint8_t num_invalid_tlvs_configured_in_running;
+  uint8_t num_missing_tlvs;
   // TODO: add list of invalid/unsupported TLVs (see Table 3.18)
    nfapi_vendor_extension_tlv_t  vendor_extension;
 } nfapi_nr_config_response_scf_t;
@@ -928,6 +932,8 @@ typedef struct
 
 typedef struct
 {
+  uint16_t bwp_size;                // Needed for SCF222 10.02
+  uint16_t bwp_start;               // Needed for SCF222 10.02
   uint8_t subcarrier_spacing;       // subcarrierSpacing [3GPP TS 38.211, sec 4.2], Value:0->4
   uint8_t cyclic_prefix;            // Cyclic prefix type [3GPP TS 38.211, sec 4.2], 0: Normal; 1: Extended
   uint16_t start_rb;                // PRB where this CSI resource starts related to common resource block #0 (CRB#0). Only multiples of 4 are allowed. [3GPP TS 38.331, sec 6.3.2 parameter CSIFrequencyOccupation], Value: 0 ->274
@@ -1460,12 +1466,14 @@ typedef enum {
 
 //table 3-58
 #define NFAPI_NR_MAX_TX_REQUEST_TLV 2
-typedef struct
-{
-  uint16_t PDU_length;
+typedef struct {
+  uint16_t PDU_length; // SCF 222.10.02 The total length (in bytes) of the PDU description and  PDU data, without the padding bytes.
+                       // (2 bytes PDU_Length + 2 bytes PDU_Index + 4 bytes num_TLV + TLV size ( 2 bytes tag + 2 bytes length +
+                       // value size without padding))
+                       // TBS + 12
   uint16_t PDU_index;
   uint32_t num_TLV;
-  nfapi_nr_tx_data_request_tlv_t TLVs[NFAPI_NR_MAX_TX_REQUEST_TLV]; 
+  nfapi_nr_tx_data_request_tlv_t TLVs[NFAPI_NR_MAX_TX_REQUEST_TLV];
 
 } nfapi_nr_pdu_t;
 

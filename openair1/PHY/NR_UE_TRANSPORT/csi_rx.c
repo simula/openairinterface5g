@@ -58,30 +58,30 @@ void nr_det_A_MF_2x2(int32_t *a_mf_00,
 
   int16_t nr_conjug2[8]__attribute__((aligned(16))) = {1,-1,1,-1,1,-1,1,-1} ;
 
-  __m128i ad_re_128, bc_re_128, det_re_128;
+  simde__m128i ad_re_128, bc_re_128, det_re_128;
 
-  __m128i *a_mf_00_128 = (__m128i *)a_mf_00;
-  __m128i *a_mf_01_128 = (__m128i *)a_mf_01;
-  __m128i *a_mf_10_128 = (__m128i *)a_mf_10;
-  __m128i *a_mf_11_128 = (__m128i *)a_mf_11;
-  __m128i *det_fin_128 = (__m128i *)det_fin;
+  simde__m128i *a_mf_00_128 = (simde__m128i *)a_mf_00;
+  simde__m128i *a_mf_01_128 = (simde__m128i *)a_mf_01;
+  simde__m128i *a_mf_10_128 = (simde__m128i *)a_mf_10;
+  simde__m128i *a_mf_11_128 = (simde__m128i *)a_mf_11;
+  simde__m128i *det_fin_128 = (simde__m128i *)det_fin;
 
   for (int rb = 0; rb<3*nb_rb; rb++) {
 
     //complex multiplication (I_a+jQ_a)(I_d+jQ_d) = (I_aI_d - Q_aQ_d) + j(Q_aI_d + I_aQ_d)
     //The imag part is often zero, we compute only the real part
-    ad_re_128 = _mm_sign_epi16(a_mf_00_128[0],*(__m128i*)&nr_conjug2[0]);
-    ad_re_128 = _mm_madd_epi16(ad_re_128,a_mf_11_128[0]); //Re: I_a0*I_d0 - Q_a1*Q_d1
+    ad_re_128 = simde_mm_sign_epi16(a_mf_00_128[0],*(simde__m128i*)&nr_conjug2[0]);
+    ad_re_128 = simde_mm_madd_epi16(ad_re_128,a_mf_11_128[0]); //Re: I_a0*I_d0 - Q_a1*Q_d1
 
     //complex multiplication (I_b+jQ_b)(I_c+jQ_c) = (I_bI_c - Q_bQ_c) + j(Q_bI_c + I_bQ_c)
     //The imag part is often zero, we compute only the real part
-    bc_re_128 = _mm_sign_epi16(a_mf_01_128[0],*(__m128i*)&nr_conjug2[0]);
-    bc_re_128 = _mm_madd_epi16(bc_re_128,a_mf_10_128[0]); //Re: I_b0*I_c0 - Q_b1*Q_c1
+    bc_re_128 = simde_mm_sign_epi16(a_mf_01_128[0],*(simde__m128i*)&nr_conjug2[0]);
+    bc_re_128 = simde_mm_madd_epi16(bc_re_128,a_mf_10_128[0]); //Re: I_b0*I_c0 - Q_b1*Q_c1
 
-    det_re_128 = _mm_sub_epi32(ad_re_128, bc_re_128);
+    det_re_128 = simde_mm_sub_epi32(ad_re_128, bc_re_128);
 
     //det in Q30 format
-    det_fin_128[0] = _mm_abs_epi32(det_re_128);
+    det_fin_128[0] = simde_mm_abs_epi32(det_re_128);
 
     det_fin_128+=1;
     a_mf_00_128+=1;
@@ -89,22 +89,22 @@ void nr_det_A_MF_2x2(int32_t *a_mf_00,
     a_mf_10_128+=1;
     a_mf_11_128+=1;
   }
-  _mm_empty();
-  _m_empty();
+  simde_mm_empty();
+  simde_m_empty();
 }
 
 void nr_squared_matrix_element(int32_t *a,
                                int32_t *a_sq,
                                const unsigned short nb_rb) {
-  __m128i *a_128 = (__m128i *)a;
-  __m128i *a_sq_128 = (__m128i *)a_sq;
+  simde__m128i *a_128 = (simde__m128i *)a;
+  simde__m128i *a_sq_128 = (simde__m128i *)a_sq;
   for (int rb=0; rb<3*nb_rb; rb++) {
-    a_sq_128[0] = _mm_madd_epi16(a_128[0], a_128[0]);
+    a_sq_128[0] = simde_mm_madd_epi16(a_128[0], a_128[0]);
     a_sq_128+=1;
     a_128+=1;
   }
-  _mm_empty();
-  _m_empty();
+  simde_mm_empty();
+  simde_m_empty();
 }
 
 void nr_numer_2x2(int32_t *a_00_sq,
@@ -113,23 +113,23 @@ void nr_numer_2x2(int32_t *a_00_sq,
                   int32_t *a_11_sq,
                   int32_t *num_fin,
                   const unsigned short nb_rb) {
-  __m128i *a_00_sq_128 = (__m128i *)a_00_sq;
-  __m128i *a_01_sq_128 = (__m128i *)a_01_sq;
-  __m128i *a_10_sq_128 = (__m128i *)a_10_sq;
-  __m128i *a_11_sq_128 = (__m128i *)a_11_sq;
-  __m128i *num_fin_128 = (__m128i *)num_fin;
+  simde__m128i *a_00_sq_128 = (simde__m128i *)a_00_sq;
+  simde__m128i *a_01_sq_128 = (simde__m128i *)a_01_sq;
+  simde__m128i *a_10_sq_128 = (simde__m128i *)a_10_sq;
+  simde__m128i *a_11_sq_128 = (simde__m128i *)a_11_sq;
+  simde__m128i *num_fin_128 = (simde__m128i *)num_fin;
   for (int rb=0; rb<3*nb_rb; rb++) {
-    __m128i sq_a_plus_sq_d_128 = _mm_add_epi32(a_00_sq_128[0], a_11_sq_128[0]);
-    __m128i sq_b_plus_sq_c_128 = _mm_add_epi32(a_01_sq_128[0], a_10_sq_128[0]);
-    num_fin_128[0] = _mm_add_epi32(sq_a_plus_sq_d_128, sq_b_plus_sq_c_128);
+    simde__m128i sq_a_plus_sq_d_128 = simde_mm_add_epi32(a_00_sq_128[0], a_11_sq_128[0]);
+    simde__m128i sq_b_plus_sq_c_128 = simde_mm_add_epi32(a_01_sq_128[0], a_10_sq_128[0]);
+    num_fin_128[0] = simde_mm_add_epi32(sq_a_plus_sq_d_128, sq_b_plus_sq_c_128);
     num_fin_128+=1;
     a_00_sq_128+=1;
     a_01_sq_128+=1;
     a_10_sq_128+=1;
     a_11_sq_128+=1;
   }
-  _mm_empty();
-  _m_empty();
+  simde_mm_empty();
+  simde_m_empty();
 }
 
 bool is_csi_rs_in_symbol(const fapi_nr_dl_config_csirs_pdu_rel15_t csirs_config_pdu, const int symbol) {
@@ -608,8 +608,6 @@ int nr_csi_rs_pmi_estimation(const PHY_VARS_NR_UE *ue,
                              uint32_t *precoded_sinr_dB) {
 
   const NR_DL_FRAME_PARMS *frame_parms = &ue->frame_parms;
-  memset(i1,0,3*sizeof(uint8_t));
-  i2[0] = 0;
 
   // i1 is a three-element vector in the form of [i11 i12 i13], when CodebookType is specified as 'Type1SinglePanel'.
   // Note that i13 is not applicable when the number of transmission layers is one of {1, 5, 6, 7, 8}.
@@ -834,6 +832,26 @@ int nr_ue_csi_im_procedures(PHY_VARS_NR_UE *ue, UE_nr_rxtx_proc_t *proc, c16_t r
   return 0;
 }
 
+static nfapi_nr_dl_tti_csi_rs_pdu_rel15_t convert_csirs_pdu(const fapi_nr_dl_config_csirs_pdu_rel15_t *csirs_config_pdu)
+{
+  nfapi_nr_dl_tti_csi_rs_pdu_rel15_t dl_tti_csi_rs_pdu;
+  dl_tti_csi_rs_pdu.subcarrier_spacing = csirs_config_pdu->subcarrier_spacing;
+  dl_tti_csi_rs_pdu.cyclic_prefix = csirs_config_pdu->cyclic_prefix;
+  dl_tti_csi_rs_pdu.start_rb = csirs_config_pdu->start_rb;
+  dl_tti_csi_rs_pdu.nr_of_rbs = csirs_config_pdu->nr_of_rbs;
+  dl_tti_csi_rs_pdu.csi_type = csirs_config_pdu->csi_type;
+  dl_tti_csi_rs_pdu.row = csirs_config_pdu->row;
+  dl_tti_csi_rs_pdu.freq_domain = csirs_config_pdu->freq_domain;
+  dl_tti_csi_rs_pdu.symb_l0 = csirs_config_pdu->symb_l0;
+  dl_tti_csi_rs_pdu.symb_l1 = csirs_config_pdu->symb_l1;
+  dl_tti_csi_rs_pdu.cdm_type = csirs_config_pdu->cdm_type;
+  dl_tti_csi_rs_pdu.freq_density = csirs_config_pdu->freq_density;
+  dl_tti_csi_rs_pdu.scramb_id = csirs_config_pdu->scramb_id;
+  dl_tti_csi_rs_pdu.power_control_offset = csirs_config_pdu->power_control_offset;
+  dl_tti_csi_rs_pdu.power_control_offset_ss = csirs_config_pdu->power_control_offset_ss;
+  return dl_tti_csi_rs_pdu;
+}
+
 void nr_ue_csi_rs_procedures(PHY_VARS_NR_UE *ue, UE_nr_rxtx_proc_t *proc, c16_t rxdataF[][ue->frame_parms.samples_per_slot_wCP])
 {
 
@@ -842,7 +860,7 @@ void nr_ue_csi_rs_procedures(PHY_VARS_NR_UE *ue, UE_nr_rxtx_proc_t *proc, c16_t 
     return;
   }
 
-  const fapi_nr_dl_config_csirs_pdu_rel15_t *csirs_config_pdu = (fapi_nr_dl_config_csirs_pdu_rel15_t*)&ue->csirs_vars[gNB_id]->csirs_config_pdu;
+  const fapi_nr_dl_config_csirs_pdu_rel15_t *csirs_config_pdu = &ue->csirs_vars[gNB_id]->csirs_config_pdu;
 
 #ifdef NR_CSIRS_DEBUG
   LOG_I(NR_PHY, "csirs_config_pdu->subcarrier_spacing = %i\n", csirs_config_pdu->subcarrier_spacing);
@@ -884,14 +902,14 @@ void nr_ue_csi_rs_procedures(PHY_VARS_NR_UE *ue, UE_nr_rxtx_proc_t *proc, c16_t 
   uint8_t rank_indicator = 0;
   uint32_t precoded_sinr_dB = 0;
   uint8_t cqi = 0;
-  uint8_t i1[3];
-  uint8_t i2[1];
-
+  uint8_t i1[3] = {0};
+  uint8_t i2[1] = {0};
+  nfapi_nr_dl_tti_csi_rs_pdu_rel15_t csi_params = convert_csirs_pdu(csirs_config_pdu);
   nr_generate_csi_rs(frame_parms,
                      ue->nr_csi_info->csi_rs_generated_signal,
                      AMP,
                      ue->nr_csi_info,
-                     (nfapi_nr_dl_tti_csi_rs_pdu_rel15_t *) csirs_config_pdu,
+                     &csi_params,
                      proc->nr_slot_rx,
                      &N_cdm_groups,
                      &CDM_group_size,

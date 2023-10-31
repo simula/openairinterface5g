@@ -42,6 +42,7 @@
 #define NR_MAX_HARQ_PROCESSES 16
 #define NR_NB_REG_PER_CCE 6
 #define NR_NB_SC_PER_RB 12
+#define NR_MAX_NUM_LCID 32
 
 typedef enum {
   nr_FR1 = 0,
@@ -88,6 +89,8 @@ static inline int get_num_dmrs(uint16_t dmrs_mask ) {
   for (int i=0;i<16;i++) num_dmrs+=((dmrs_mask>>i)&1);
   return(num_dmrs);
 }
+
+uint64_t reverse_bits(uint64_t in, int n_bits);
 
 int get_first_ul_slot(int nrofDownlinkSlots, int nrofDownlinkSymbols, int nrofUplinkSymbols);
 int cce_to_reg_interleaving(const int R, int k, int n_shift, const int C, int L, const int N_regs);

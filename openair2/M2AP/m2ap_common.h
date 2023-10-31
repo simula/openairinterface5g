@@ -76,25 +76,11 @@ extern int asn1_xer_print;
 
 /** \brief Function callback prototype.
  **/
-typedef int (*m2ap_message_decoded_callback)(
-  instance_t instance,
-  uint32_t assocId,
-  uint32_t stream,
-  M2AP_M2AP_PDU_t *pdu);
+typedef int (*m2ap_message_decoded_callback)(instance_t instance, sctp_assoc_t assoc_id, uint32_t stream, M2AP_M2AP_PDU_t *pdu);
 
-typedef int (*m2ap_MCE_message_decoded_callback)(
-  instance_t instance,
-  uint32_t assocId,
-  uint32_t stream,
-  M2AP_M2AP_PDU_t *pdu);
+typedef int (*m2ap_MCE_message_decoded_callback)(instance_t instance, sctp_assoc_t assoc_id, uint32_t stream, M2AP_M2AP_PDU_t *pdu);
 
-typedef int (*m2ap_eNB_message_decoded_callback)(
-  instance_t instance,
-  uint32_t assocId,
-  uint32_t stream,
-  M2AP_M2AP_PDU_t *pdu);
-
-
+typedef int (*m2ap_eNB_message_decoded_callback)(instance_t instance, sctp_assoc_t assoc_id, uint32_t stream, M2AP_M2AP_PDU_t *pdu);
 
 /** \brief Encode a successfull outcome message
  \param buffer pointer to buffer in which data will be encoded
@@ -152,5 +138,6 @@ ssize_t m2ap_generate_unsuccessfull_outcome(
  @returns void
  **/
 void m2ap_handle_criticality(M2AP_Criticality_t criticality);
+/** @}*/
 
 #endif /* M2AP_COMMON_H_ */

@@ -80,7 +80,6 @@ unsigned short config_frames[4] = {2,9,11,13};
 #include "nfapi/oai_integration/vendor_ext.h"
 #include "gnb_config.h"
 #include "openair2/E1AP/e1ap_common.h"
-#include "openair2/E1AP/e1ap_api.h"
 
 #ifdef E2_AGENT
 #include "openair2/E2AP/flexric/src/agent/e2_agent_api.h"
@@ -289,15 +288,16 @@ void exit_function(const char *file, const char *function, const int line, const
   }
 }
 
-
-
-static int create_gNB_tasks(void) {
+static int create_gNB_tasks(ngran_node_t node_type)
+{
   uint32_t                        gnb_nb = RC.nb_nr_inst; 
   uint32_t                        gnb_id_start = 0;
   uint32_t                        gnb_id_end = gnb_id_start + gnb_nb;
   LOG_D(GNB_APP, "%s(gnb_nb:%d)\n", __FUNCTION__, gnb_nb);
   itti_wait_ready(1);
   LOG_I(PHY, "%s() Task ready initialize structures\n", __FUNCTION__);
+
+  RCconfig_verify(node_type);
 
   RCconfig_NR_L1();
   RCconfig_nr_prs();
@@ -314,13 +314,11 @@ static int create_gNB_tasks(void) {
 
   LOG_I(GNB_APP,"Allocating gNB_RRC_INST for %d instances\n",RC.nb_nr_inst);
 
-  RC.nrrrc = (gNB_RRC_INST **)malloc(RC.nb_nr_inst*sizeof(gNB_RRC_INST *));
-  LOG_I(PHY, "%s() RC.nb_nr_inst:%d RC.nrrrc:%p\n", __FUNCTION__, RC.nb_nr_inst, RC.nrrrc);
-  ngran_node_t node_type = get_node_type();
-  for (int gnb_id = gnb_id_start; (gnb_id < gnb_id_end) ; gnb_id++) {
-    RC.nrrrc[gnb_id] = (gNB_RRC_INST*)calloc(1,sizeof(gNB_RRC_INST));
-    LOG_I(PHY, "%s() Creating RRC instance RC.nrrrc[%d]:%p (%d of %d)\n", __FUNCTION__, gnb_id, RC.nrrrc[gnb_id], gnb_id+1, gnb_id_end);
-    configure_nr_rrc(gnb_id);
+  if (RC.nb_nr_inst > 0) {
+    AssertFatal(RC.nb_nr_inst == 1, "multiple RRC instances are not supported\n");
+    RC.nrrrc = calloc(1, sizeof(*RC.nrrrc));
+    RC.nrrrc[0] = calloc(1,sizeof(gNB_RRC_INST));
+    RCconfig_NRRRC(RC.nrrrc[0]);
   }
 
   if (RC.nb_nr_inst > 0 &&
@@ -404,12 +402,16 @@ static int create_gNB_tasks(void) {
     if (node_type == ngran_gNB_CU || node_type == ngran_gNB) {
       MessageDef *msg = RCconfig_NR_CU_E1(false);
       instance_t inst = 0;
-      createE1inst(UPtype, inst, &E1AP_SETUP_REQ(msg));
+      createE1inst(UPtype, inst, &E1AP_REGISTER_REQ(msg).net_config, NULL);
       cuup_init_n3(inst);
-      itti_free(TASK_UNKNOWN, msg);
-      getCxtE1(inst)->same_process = true;
-      ;
       RC.nrrrc[gnb_id_start]->e1_inst = inst; // stupid instance !!!*/
+
+      /* send E1 Setup Request to RRC */
+      MessageDef *new_msg = itti_alloc_new_message(TASK_GNB_APP, 0, E1AP_SETUP_REQ);
+      E1AP_SETUP_REQ(new_msg) = E1AP_REGISTER_REQ(msg).setup_req;
+      new_msg->ittiMsgHeader.originInstance = -1; /* meaning, it is local */
+      itti_send_msg_to_task(TASK_RRC_GNB, 0 /*unused by callee*/, new_msg);
+      itti_free(TASK_UNKNOWN, msg);
     }
 
     //Use check on x2ap to consider the NSA scenario 
@@ -563,7 +565,7 @@ void init_pdcp(void) {
     LINK_ENB_PDCP_TO_GTPV1U_BIT;
   
   if (!NODE_IS_DU(get_node_type())) {
-    nr_pdcp_layer_init();
+    nr_pdcp_layer_init(get_node_type() == ngran_gNB_CUCP);
     nr_pdcp_module_init(pdcp_initmask, 0);
   }
 }
@@ -635,8 +637,9 @@ int main( int argc, char **argv ) {
     RCconfig_NR_L1();
 
   // don't create if node doesn't connect to RRC/S1/GTP
+  const ngran_node_t node_type = get_node_type();
   if (NFAPI_MODE != NFAPI_MODE_PNF) {
-    int ret = create_gNB_tasks();
+    int ret = create_gNB_tasks(node_type);
     AssertFatal(ret == 0, "cannot create ITTI tasks\n");
   }
 
@@ -696,10 +699,13 @@ int main( int argc, char **argv ) {
   
   // OAI Wrapper 
   e2_agent_args_t oai_args = RCconfig_NR_E2agent();
-  AssertFatal(oai_args.sm_dir != NULL , "Please, specify the directory where the SMs are located in the config file, i.e., e2_agent = {near_ric_ip_addr = \"127.0.0.1\"; sm_dir = \"/usr/local/lib/flexric/\");} ");
+  AssertFatal(oai_args.sm_dir != NULL , "Please, specify the directory where the SMs are located in the config file, i.e., add in config file the next line: e2_agent = {near_ric_ip_addr = \"127.0.0.1\"; sm_dir = \"/usr/local/lib/flexric/\");} ");
+
   AssertFatal(oai_args.ip != NULL , "Please, specify the IP address of the nearRT-RIC in the config file, i.e., e2_agent = {near_ric_ip_addr = \"127.0.0.1\"; sm_dir = \"/usr/local/lib/flexric/\"");
 
-  fr_args_t args = {.ip = oai_args.ip}; // init_fr_args(0, NULL);
+  printf("After RCconfig_NR_E2agent %s %s \n",oai_args.sm_dir, oai_args.ip  );
+
+  fr_args_t args = { .ip = oai_args.ip }; // init_fr_args(0, NULL);
   memcpy(args.libs_dir, oai_args.sm_dir, 128);
 
   sleep(1);
@@ -709,7 +715,7 @@ int main( int argc, char **argv ) {
   const int mcc = rrc->configuration.mcc[0];
   const int mnc = rrc->configuration.mnc[0];
   const int mnc_digit_len = rrc->configuration.mnc_digit_length[0];
-  const ngran_node_t node_type = rrc->node_type;
+  // const ngran_node_t node_type = rrc->node_type;
   int nb_id = 0;
   int cu_du_id = 0;
   if (node_type == ngran_gNB) {
@@ -726,6 +732,7 @@ int main( int argc, char **argv ) {
      
   printf("[E2 NODE]: mcc = %d mnc = %d mnc_digit = %d nb_id = %d \n", mcc, mnc, mnc_digit_len, nb_id);
 
+  printf("[E2 NODE]: Args %s %s \n", args.ip, args.libs_dir);
   init_agent_api(mcc, mnc, mnc_digit_len, nb_id, cu_du_id, node_type, io, &args);
 //   }
 
@@ -735,6 +742,13 @@ int main( int argc, char **argv ) {
   if (NFAPI_MODE==NFAPI_MODE_PNF) {
     wait_nfapi_init("main?");
   }
+
+  // wait for F1 Setup Response before starting L1 for real
+  if (NODE_IS_DU(node_type) || NODE_IS_MONOLITHIC(node_type))
+    wait_f1_setup_response();
+
+  if (RC.nb_RU > 0)
+    start_NR_RU();
 
   if (RC.nb_nr_L1_inst > 0) {
     printf("wait RUs\n");

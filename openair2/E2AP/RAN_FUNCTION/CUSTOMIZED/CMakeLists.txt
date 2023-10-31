@@ -15,3 +15,6 @@ add_library(e2_ran_func_cust STATIC
   ../../flexric/src/util/time_now_us.c
           )
 
+target_link_libraries(e2_ran_func_cust PUBLIC asn1_nr_rrc nr_rrc asn1_nr_rrc_hdrs)
+# This dependency sucks! Create pointers and forward declarations!
+target_compile_definitions(e2_ran_func_cust PRIVATE ${E2AP_VERSION}  ${KPM_VERSION}  )

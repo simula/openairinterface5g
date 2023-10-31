@@ -106,7 +106,8 @@ class PhySim:
 		if self.ranCommitID != '':
 			mySSH.command('git checkout -f ' + self.ranCommitID, '\$', 30)
 		if self.ranAllowMerge:
-			imageTag = f'{self.ranBranch}-{self.ranCommitID[0:8]}'
+			branchName = self.ranBranch.replace('/','-')
+			imageTag = f'{branchName}-{self.ranCommitID[0:8]}'
 			if self.ranTargetBranch == '':
 				if (self.ranBranch != 'develop') and (self.ranBranch != 'origin/develop'):
 					mySSH.command('git merge --ff origin/develop -m "Temporary merge for CI"', '\$', 30)
@@ -160,7 +161,7 @@ class PhySim:
 		isRunning = False
 		count = 0
 		# Check whether the containers are in Running state or not under 2 mins
-		while(count < 2 and isRunning == False):
+		while(count < 5 and isRunning == False):
 			time.sleep(60)
 			mySSH.command('oc get pods -o wide -l app=physim | tee -a cmake_targets/log/physim_pods_summary.txt', '\$', 30, resync=True)
 			running_count = mySSH.getBefore().count('Running')

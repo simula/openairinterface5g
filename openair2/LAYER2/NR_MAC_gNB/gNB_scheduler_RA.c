@@ -159,7 +159,7 @@ static int16_t ssb_index_from_prach(module_id_t module_idP,
 void find_SSB_and_RO_available(gNB_MAC_INST *nrmac)
 {
   /* already mutex protected through nr_mac_config_scc() */
-  NR_SCHED_ENSURE_LOCKED(&nrmac->sched_lock);
+  //NR_SCHED_ENSURE_LOCKED(&nrmac->sched_lock);
 
   NR_COMMON_channels_t *cc = &nrmac->common_channels[0];
   NR_ServingCellConfigCommon_t *scc = cc->ServingCellConfigCommon;
@@ -1399,10 +1399,10 @@ static void nr_generate_Msg2(module_id_t module_idP,
     T(T_GNB_MAC_DL_RAR_PDU_WITH_DATA, T_INT(module_idP), T_INT(CC_id), T_INT(ra->RA_rnti), T_INT(frameP),
       T_INT(slotP), T_INT(0), T_BUFFER(&tx_req->TLVs[0].value.direct[0], tx_req->TLVs[0].length));
 
-    tx_req->PDU_length = pdsch_pdu_rel15->TBSize[0];
     tx_req->PDU_index = pduindex;
     tx_req->num_TLV = 1;
-    tx_req->TLVs[0].length = tx_req->PDU_length + 2;
+    tx_req->TLVs[0].length = pdsch_pdu_rel15->TBSize[0];
+    tx_req->PDU_length = compute_PDU_length(tx_req->num_TLV, pdsch_pdu_rel15->TBSize[0]);
     TX_req->SFN = frameP;
     TX_req->Number_of_PDUs++;
     TX_req->Slot = slotP;
@@ -1845,10 +1845,10 @@ static void nr_generate_Msg4(module_id_t module_idP,
     // DL TX request
     nfapi_nr_pdu_t *tx_req = &TX_req->pdu_list[TX_req->Number_of_PDUs];
     memcpy(tx_req->TLVs[0].value.direct, harq->transportBlock, sizeof(uint8_t) * harq->tb_size);
-    tx_req->PDU_length =  harq->tb_size;
     tx_req->PDU_index = pduindex;
     tx_req->num_TLV = 1;
-    tx_req->TLVs[0].length =  harq->tb_size + 2;
+    tx_req->TLVs[0].length =  harq->tb_size;
+    tx_req->PDU_length = compute_PDU_length(tx_req->num_TLV, tx_req->TLVs[0].length);
     TX_req->SFN = frameP;
     TX_req->Number_of_PDUs++;
     TX_req->Slot = slotP;
@@ -1879,28 +1879,21 @@ static void nr_check_Msg4_Ack(module_id_t module_id, int CC_id, frame_t frame, s
 
   NR_UE_sched_ctrl_t *sched_ctrl = &UE->UE_sched_ctrl;
   NR_UE_harq_t *harq = &sched_ctrl->harq_processes[current_harq_pid];
-  NR_mac_stats_t *stats = &UE->mac_stats;
 
   LOG_D(NR_MAC, "ue rnti 0x%04x, harq is waiting %d, round %d, frame %d %d, harq id %d\n", ra->rnti, harq->is_waiting, harq->round, frame, slot, current_harq_pid);
 
   if (harq->is_waiting == 0) {
     if (harq->round == 0) {
 
-      if (stats->dl.errors == 0) {
+      if (UE->Msg4_ACKed) {
         LOG_A(NR_MAC, "(UE RNTI 0x%04x) Received Ack of RA-Msg4. CBRA procedure succeeded!\n", ra->rnti);
-        UE->Msg4_ACKed = true;
         UE->ra_timer = 0;
 
         // Pause scheduling according to:
         // 3GPP TS 38.331 Section 12 Table 12.1-1: UE performance requirements for RRC procedures for UEs
-        const NR_ServingCellConfig_t *servingCellConfig = UE->CellGroup && UE->CellGroup->spCellConfig ? UE->CellGroup->spCellConfig->spCellConfigDedicated : NULL;
-        uint32_t delay_ms = servingCellConfig && servingCellConfig->downlinkBWP_ToAddModList ?
-            NR_RRC_SETUP_DELAY_MS + NR_RRC_BWP_SWITCHING_DELAY_MS : NR_RRC_SETUP_DELAY_MS;
-
-        sched_ctrl->rrc_processing_timer = (delay_ms << ra->DL_BWP.scs);
-        LOG_I(NR_MAC, "(%d.%d) Activating RRC processing timer for UE %04x with %d ms\n", frame, slot, UE->rnti, delay_ms);
+        nr_mac_enable_ue_rrc_processing_timer(RC.nrmac[module_id], UE, false);
       } else {
-        LOG_I(NR_MAC, "(ue rnti 0x%04x) RA Procedure failed at Msg4!\n", ra->rnti);
+        LOG_I(NR_MAC, "%4d.%2d UE %04x: RA Procedure failed at Msg4!\n", frame, slot, ra->rnti);
       }
 
       nr_clear_ra_proc(module_id, CC_id, frame, ra);

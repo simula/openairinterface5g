@@ -52,7 +52,11 @@
 
 // Fixme: a better place to be shure it is called 
 void read_cpu_hardware (void) __attribute__ ((constructor));
-void read_cpu_hardware (void) {__builtin_cpu_init(); }
+#if !defined(__arm__) && !defined(__aarch64__) 
+  void read_cpu_hardware (void) {__builtin_cpu_init(); }
+#else 
+  void read_cpu_hardware (void) {}
+#endif
 
 log_mem_cnt_t log_mem_d[2];
 int log_mem_flag = 0;
@@ -850,15 +854,6 @@ void flush_mem_to_file(void)
     }
   }
 }
-
-const char logmem_log_level[NUM_LOG_LEVEL] = {
-  [OAILOG_ERR] = 'E',
-  [OAILOG_WARNING] = 'W',
-  [OAILOG_ANALYSIS] = 'A',
-  [OAILOG_INFO] = 'I',
-  [OAILOG_DEBUG] = 'D',
-  [OAILOG_TRACE] = 'T',
-};
 
 static void log_output_memory(log_component_t *c, const char *file, const char *func, int line, int comp, int level, const char* format,va_list args)
 {

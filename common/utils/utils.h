@@ -56,23 +56,24 @@ static inline void *malloc16_clear( size_t size ) {
   return ptr;
 }
 
-
-static inline void *calloc_or_fail(size_t size) {
-  void *ptr = calloc(1, size);
+static inline void *calloc_or_fail(size_t nmemb, size_t size)
+{
+  void *ptr = calloc(nmemb, size);
 
   if (ptr == NULL) {
-    fprintf(stderr, "[UE] Failed to calloc %zu bytes", size);
+    fprintf(stderr, "Failed to calloc() %zu elements of %zu bytes: out of memory", nmemb, size);
     exit(EXIT_FAILURE);
   }
 
   return ptr;
 }
 
-static inline void *malloc_or_fail(size_t size) {
+static inline void *malloc_or_fail(size_t size)
+{
   void *ptr = malloc(size);
 
   if (ptr == NULL) {
-    fprintf(stderr, "[UE] Failed to malloc %zu bytes", size);
+    fprintf(stderr, "Failed to malloc() %zu bytes: out of memory", size);
     exit(EXIT_FAILURE);
   }
 
@@ -101,8 +102,6 @@ const char *hexdump(const void *data, size_t data_len, char *out, size_t out_len
 int hex_char_to_hex_value (char c);
 // Converts an hexadecimal ASCII coded string into its value.**
 int hex_string_to_hex_value (uint8_t *hex_value, const char *hex_string, int size);
-
-void *memcpy1(void *dst,const void *src,size_t n);
 
 void set_priority(int priority);
 

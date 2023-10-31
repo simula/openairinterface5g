@@ -54,16 +54,17 @@ fi
 ###############################
 ## echo and  family
 ###############################
-black='\E[30m'
-red='\E[31m'
-green='\E[32m'
-yellow='\E[33m'
-blue='\E[1;34m'
-magenta='\E[35m'
-cyan='\E[36m'
-white='\E[37m'
-reset_color='\E[00m'
-COLORIZE=1
+# only emit color if connected to a terminal, and if it supports colors
+if [ -t 1 ]; then
+  num_colors=$(tput colors)
+  if [ -n "$num_colors" ] && [ "$num_colors" -ge 8 ]; then
+    red='\E[31m'
+    green='\E[32m'
+    yellow='\E[33m'
+    blue='\E[1;34m'
+    reset_color='\E[00m'
+  fi
+fi
 
 cecho()  {
     # Color-echo
@@ -72,8 +73,7 @@ cecho()  {
     local default_msg="No Message."
     message=${1:-$default_msg}
     color=${2:-$green}
-    [ "$COLORIZE" = "1" ] && message="$color$message$reset_color"
-    echo -e "$message"
+    echo -e "$color$message$reset_color"
     return
 }
 
@@ -233,11 +233,8 @@ compilations() {
     $CMAKE --build . $verbose --target $targets -- -j$(nproc)
     ret=$?
   } > $dlog/$logfile 2>&1
-  if [ "$VERBOSE_CI" == "1" ]; then
-     echo "====== Start of log for $logfile ======"
-     cat $dlog/$logfile
-     echo "====== End of log for $logfile ======"
-  fi
+  # Print the errors and warnings for CI purposes
+  egrep -A3 "warning:|error:" $dlog/$logfile || true
   check_warnings "$dlog/$logfile"
   if [[ $ret -eq 0 ]]; then
      echo_success "$targets compiled"
@@ -324,8 +321,7 @@ check_install_usrp_uhd_driver(){
         $SUDO apt-get remove libuhd3.15.0 -y || true
         local distribution=$(get_distribution_release)
         if [[ "$distribution" == "ubuntu18.04" || "$distribution" == "ubuntu20.04" || "$distribution" == "ubuntu22.04" ]]; then
-            $SUDO apt-get remove libuhd4.0.0 -y || true
-            $SUDO apt-get remove libuhd4.1.0 -y || true
+            $SUDO apt-get remove libuhd4.?.? -y || true
         fi
         v=$(lsb_release -cs)
         $SUDO apt-add-repository --remove "deb http://files.ettus.com/binaries/uhd/repo/uhd/ubuntu/$v $v main"
@@ -355,7 +351,7 @@ check_install_usrp_uhd_driver(){
         $SUDO apt-get -y install python-tk  $boost_libs_ubuntu libusb-1.0-0-dev
         case "$(get_distribution_release)" in
           "ubuntu18.04" | "ubuntu20.04" | "ubuntu22.04")
-            $SUDO apt-get -y install libuhd-dev libuhd4.4.0 uhd-host
+            $SUDO apt-get -y install libuhd-dev libuhd4.5.0 uhd-host
             ;;
         esac
     elif [[ "$OS_BASEDISTRO" == "fedora" ]]; then
@@ -689,6 +685,15 @@ install_simde_from_source(){
     $SUDO rm -rf /tmp/simde
     git clone https://github.com/simd-everywhere/simde-no-tests.git /tmp/simde
     cd /tmp/simde
+    # we can specify a given version of SIMDE (sha-one or tag)
+    if [[ -v SIMDE_VERSION ]]; then
+      git checkout -f $SIMDE_VERSION
+    else
+      # At time of writing, last working commit for OAI
+      git checkout 389f360a66d4a3bec62b7d71ad8be877487809ba
+    fi
+    # Showing which version is used
+    git log -n1
     # brute force copy into /usr/include
     $SUDO \cp -rv ../simde /usr/include
 }
