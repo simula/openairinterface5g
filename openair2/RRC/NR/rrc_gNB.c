@@ -254,11 +254,19 @@ static int get_ssb_arfcn(const f1ap_served_cell_info_t *cell_info, const NR_MIB_
   uint32_t dl_arfcn = get_dl_arfcn(cell_info);
   int scs = get_ssb_scs(cell_info);
   int band = get_dl_band(cell_info);
-  uint64_t scaling = band < 100 ? 1 : 3;
+  // FR1 includes frequency bands from 410 MHz (ARFCN 82000) to 7125 MHz (ARFCN 875000)
+  // FR2 includes frequency bands from 24.25 GHz (ARFCN 2016667) to 71.0 GHz (ARFCN 2795832)
+  uint64_t scaling = 0;
+  if (dl_arfcn >= 82000 && dl_arfcn < 875000)
+    scaling = 1;
+  else if (dl_arfcn >= 2016667 && dl_arfcn < 2795832)
+    scaling = 4;
+  else
+    AssertFatal(false, "Invalid absoluteFrequencyPointA: %d\n", dl_arfcn);
+
 
   uint64_t freqpointa = from_nrarfcn(band, scs, dl_arfcn);
-  // offsetToPointA and kSSB are both on 15kHz SCS (see 38.211 sections 7.4.3.1
-  // and 4.4.4.2)
+  // offsetToPointA and kSSB are both on 15kHz SCS for FR1 and 60kHz SCS for FR2 (see 38.211 sections 7.4.3.1 and 4.4.4.2)
   // SSB uses the SCS of the cell and is 20 RBs wide, so use 10
   uint64_t freqssb = freqpointa + scaling * 15000 * (offsetToPointA * 12 + kssb)  + 10ll * 12 * (1 << scs) * 15000;
   int bw_index = get_supported_band_index(scs, band, get_dl_bw(cell_info));
@@ -1046,11 +1054,16 @@ static void rrc_gNB_generate_RRCReestablishment(rrc_gNB_ue_context_t *ue_context
   for (int srb_id = 1; srb_id < maxSRBs; srb_id++) {
     if (ue_p->Srb[srb_id].Active) {
       nr_pdcp_config_set_security(ue_p->rrc_ue_id, srb_id, security_mode, kRRCenc, kRRCint, kUPenc);
+      // TODO: should send E1 UE Bearer Modification with PDCP Reestablishment flag
+      nr_pdcp_reestablishment(ue_p->rrc_ue_id, srb_id, true);
     }
   }
 
   // TODO: should send E1 UE Bearer Modification with PDCP Reestablishment flag
-  nr_pdcp_reestablishment(ue_p->rrc_ue_id);
+  for (int drb_id = 1; drb_id <= MAX_DRBS_PER_UE; drb_id++) {
+    if (ue_p->established_drbs[drb_id - 1].status != DRB_INACTIVE)
+      nr_pdcp_reestablishment(ue_p->rrc_ue_id, drb_id, false);
+  }
 
   f1_ue_data_t ue_data = cu_get_f1_ue_data(ue_p->rrc_ue_id);
   RETURN_IF_INVALID_ASSOC_ID(ue_data);
@@ -2022,6 +2035,17 @@ unsigned int mask_flip(unsigned int x) {
   return((((x>>8) + (x<<8))&0xffff)>>6);
 }
 
+static pdusession_level_qos_parameter_t *get_qos_characteristics(const int qfi, rrc_pdu_session_param_t *pduSession)
+{
+  pdusession_t *pdu = &pduSession->param;
+  for (int i = 0; i < pdu->nb_qos; i++) {
+    if (qfi == pdu->qos[i].qfi)
+      return &pdu->qos[i];
+  }
+  AssertFatal(1 == 0, "The pdu session %d does not contain a qos flow with qfi = %d\n", pdu->pdusession_id, qfi);
+  return NULL;
+}
+
 void rrc_gNB_process_e1_bearer_context_setup_resp(e1ap_bearer_setup_resp_t *resp, instance_t instance)
 {
   gNB_RRC_INST *rrc = RC.nrrrc[0];
@@ -2055,12 +2079,34 @@ void rrc_gNB_process_e1_bearer_context_setup_resp(e1ap_bearer_setup_resp_t *resp
   rrc_pdu_session_param_t *RRC_pduSession = find_pduSession(UE, resp->pduSession[0].id, false);
   DevAssert(RRC_pduSession);
   for (int i = 0; i < nb_drb; i++) {
+    DRB_nGRAN_setup_t *drb_config = &resp->pduSession[0].DRBnGRanList[i];
     drbs[i].drb_id = resp->pduSession[0].DRBnGRanList[i].id;
     drbs[i].rlc_mode = rrc->configuration.um_on_default_drb ? RLC_MODE_UM : RLC_MODE_AM;
-    drbs[i].up_ul_tnl[0].tl_address = resp->pduSession[0].DRBnGRanList[i].UpParamList[0].tlAddress;
+    drbs[i].up_ul_tnl[0].tl_address = drb_config->UpParamList[0].tlAddress;
     drbs[i].up_ul_tnl[0].port = rrc->eth_params_s.my_portd;
-    drbs[i].up_ul_tnl[0].teid = resp->pduSession[0].DRBnGRanList[i].UpParamList[0].teId;
+    drbs[i].up_ul_tnl[0].teid = drb_config->UpParamList[0].teId;
     drbs[i].up_ul_tnl_length = 1;
+
+    /* pass QoS info to MAC */
+    int nb_qos_flows = drb_config->numQosFlowSetup;
+    drbs[i].drb_info.flows_to_be_setup_length = nb_qos_flows;
+    drbs[i].drb_info.flows_mapped_to_drb = (f1ap_flows_mapped_to_drb_t *)calloc(nb_qos_flows, sizeof(f1ap_flows_mapped_to_drb_t));
+    AssertFatal(drbs[i].drb_info.flows_mapped_to_drb, "could not allocate memory\n");
+    for (int j = 0; j < nb_qos_flows; j++) {
+      drbs[i].drb_info.flows_mapped_to_drb[j].qfi = drb_config->qosFlows[j].qfi;
+
+      pdusession_level_qos_parameter_t *in_qos_char = get_qos_characteristics(drb_config->qosFlows[j].qfi, RRC_pduSession);
+      f1ap_qos_characteristics_t *qos_char = &drbs[i].drb_info.flows_mapped_to_drb[j].qos_params.qos_characteristics;
+      if (in_qos_char->fiveQI_type == dynamic) {
+        qos_char->qos_type = dynamic;
+        qos_char->dynamic.fiveqi = in_qos_char->fiveQI;
+        qos_char->dynamic.qos_priority_level = in_qos_char->qos_priority;
+      } else {
+        qos_char->qos_type = non_dynamic;
+        qos_char->non_dynamic.fiveqi = in_qos_char->fiveQI;
+        qos_char->non_dynamic.qos_priority_level = in_qos_char->qos_priority;
+      }
+    }
     /* pass NSSAI info to MAC */
     drbs[i].nssai = RRC_pduSession->param.nssai;
   }
@@ -2256,7 +2302,11 @@ void *rrc_gnb_task(void *args_p) {
     itti_receive_msg(TASK_RRC_GNB, &msg_p);
     const char *msg_name_p = ITTI_MSG_NAME(msg_p);
     instance = ITTI_MSG_DESTINATION_INSTANCE(msg_p);
-    LOG_D(NR_RRC, "Received Msg %s\n", msg_name_p);
+    LOG_D(NR_RRC,
+          "RRC GNB Task Received %s for instance %ld from task %s\n",
+          ITTI_MSG_NAME(msg_p),
+          ITTI_MSG_DESTINATION_INSTANCE(msg_p),
+          ITTI_MSG_ORIGIN_NAME(msg_p));
     switch (ITTI_MSG_ID(msg_p)) {
       case TERMINATE_MESSAGE:
         LOG_W(NR_RRC, " *** Exiting NR_RRC thread\n");

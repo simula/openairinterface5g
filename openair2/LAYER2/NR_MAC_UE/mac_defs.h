@@ -162,7 +162,6 @@ typedef enum {
   UE_NOT_SYNC = 0,
   UE_SYNC,
   UE_PERFORMING_RA,
-  UE_WAIT_TX_ACK_MSG4,
   UE_CONNECTED
 } NR_UE_L2_STATE_t;
 
@@ -171,24 +170,36 @@ typedef enum {
   RA_4STEP
 } nr_ra_type_e;
 
+typedef struct {
+  // after multiplexing buffer remain for each lcid
+  int32_t LCID_buffer_remain;
+  // buffer status for each lcid
+  uint8_t LCID_status;
+  // Bj bucket usage per  lcid
+  int32_t Bj;
+  // Bucket size per lcid
+  int32_t bucket_size;
+  // logical channel group id for each LCID
+  uint8_t LCGID;
+} NR_LC_SCHEDULING_INFO;
+
+typedef struct {
+  // buffer status for each lcgid
+  uint8_t BSR; // should be more for mesh topology
+  // keep the number of bytes in rlc buffer for each lcgid
+  int32_t BSR_bytes;
+} NR_LCG_SCHEDULING_INFO;
+
 // LTE structure, might need to be adapted for NR
 typedef struct {
-  /// buffer status for each lcgid
-  uint8_t  BSR[NR_MAX_NUM_LCGID]; // should be more for mesh topology
-  /// keep the number of bytes in rlc buffer for each lcgid
-  int32_t  BSR_bytes[NR_MAX_NUM_LCGID];
-  /// after multiplexing buffer remain for each lcid
-  int32_t  LCID_buffer_remain[NR_MAX_NUM_LCID];
-  /// sum of all lcid buffer size
-  uint16_t  All_lcid_buffer_size_lastTTI;
-  /// buffer status for each lcid
-  uint8_t  LCID_status[NR_MAX_NUM_LCID];
+  // lcs scheduling info
+  NR_LC_SCHEDULING_INFO lc_sched_info[NR_MAX_NUM_LCID];
+  // lcg scheduling info
+  NR_LCG_SCHEDULING_INFO lcg_sched_info[NR_MAX_NUM_LCGID];
   /// SR pending as defined in 38.321
   uint8_t  SR_pending;
   /// SR_COUNTER as defined in 38.321
   uint16_t SR_COUNTER;
-  /// logical channel group ide for each LCID
-  uint8_t  LCGID[NR_MAX_NUM_LCID];
   /// retxBSR-Timer, default value is sf2560
   uint16_t retxBSR_Timer;
   /// retxBSR_SF, number of subframe before triggering a regular BSR
@@ -201,14 +212,9 @@ typedef struct {
   uint16_t sr_ProhibitTimer;
   /// sr ProhibitTime running
   uint8_t sr_ProhibitTimer_Running;
-  ///  default value to n5
-  uint16_t maxHARQ_Tx;
-  /// default value is false
-  uint16_t ttiBundling;
-  /// default value is release
-  struct DRX_Config *drx_config;
-  /// default value is release
-  struct MAC_MainConfig__phr_Config *phr_config;
+  // Maximum number of SR transmissions
+  uint32_t sr_TransMax;
+  int sr_id;
   ///timer before triggering a periodic PHR
   uint16_t periodicPHR_Timer;
   ///timer before triggering a prohibit PHR
@@ -221,16 +227,10 @@ typedef struct {
   int16_t prohibitPHR_SF;
   ///DL Pathloss Change in db
   uint16_t PathlossChange_db;
-
   /// default value is false
   uint16_t extendedBSR_Sizes_r10;
   /// default value is false
   uint16_t extendedPHR_r10;
-
-  //Bj bucket usage per  lcid
-  int16_t Bj[NR_MAX_NUM_LCID];
-  // Bucket size per lcid
-  int16_t bucket_size[NR_MAX_NUM_LCID];
 } NR_UE_SCHEDULING_INFO;
 
 typedef enum {
@@ -424,23 +424,23 @@ typedef struct ssb_list_info {
   uint8_t   nb_tx_ssb;
 } ssb_list_info_t;
 
+typedef struct nr_lcordered_info_s {
+  // logical channels ids ordered as per priority
+  int lcids_ordered;
+
+  // logical channel configurations reordered as per priority
+  NR_LogicalChannelConfig_t *logicalChannelConfig_ordered;
+} nr_lcordered_info_t;
+
 /*!\brief Top level UE MAC structure */
 typedef struct {
   NR_UE_L2_STATE_t state;
-  NR_CellGroupConfig_t            *cg;
   int                             servCellIndex;
-  NR_CSI_ReportConfig_t           *csirc;
   long                            physCellId;
   ////  MAC config
   int                             first_sync_frame;
   bool                            get_sib1;
   bool                            get_otherSI;
-  NR_DRX_Config_t                 *drx_Config;
-  NR_SchedulingRequestConfig_t    *schedulingRequestConfig;
-  NR_BSR_Config_t                 *bsr_Config;
-  NR_TAG_Config_t                 *tag_Config;
-  NR_PHR_Config_t                 *phr_Config;
-  NR_RNTI_Value_t                 *cs_RNTI;
   NR_MIB_t                        *mib;
   struct NR_SI_SchedulingInfo *si_SchedulingInfo;
   int si_window_start;
@@ -450,6 +450,9 @@ typedef struct {
   NR_UE_UL_BWP_t current_UL_BWP;
   NR_BWP_DownlinkCommon_t *bwp_dlcommon;
   NR_BWP_UplinkCommon_t *bwp_ulcommon;
+
+  bool harq_ACK_SpatialBundlingPUCCH;
+  bool harq_ACK_SpatialBundlingPUSCH;
 
   NR_UL_TIME_ALIGNMENT_t ul_time_alignment;
 
@@ -462,6 +465,7 @@ typedef struct {
   NR_SearchSpace_t *search_space_zero;
 
   NR_TDD_UL_DL_ConfigCommon_t *tdd_UL_DL_ConfigurationCommon;
+  NR_CrossCarrierSchedulingConfig_t *crossCarrierSchedulingConfig;
 
   bool phy_config_request_sent;
   frame_type_t frame_type;
@@ -493,9 +497,7 @@ typedef struct {
   fapi_nr_csirs_measurements_t csirs_measurements;
 
   /// Last NDI of UL HARQ processes
-  uint8_t UL_ndi[NR_MAX_HARQ_PROCESSES];
-  /// first ULTX of UL HARQ processes
-  int first_ul_tx[NR_MAX_HARQ_PROCESSES];
+  int UL_ndi[NR_MAX_HARQ_PROCESSES];
   ////	FAPI-like interface message
   fapi_nr_ul_config_request_t *ul_config_request;
   fapi_nr_dl_config_request_t *dl_config_request;
@@ -508,15 +510,21 @@ typedef struct {
   /// BSR report flag management
   uint8_t BSR_reporting_active;
 
-  /// LogicalChannelConfig has bearer.
-  bool active_RLC_bearer[NR_MAX_NUM_LCID];
+  // Pointers to LogicalChannelConfig indexed by LogicalChannelIdentity. Note NULL means LCHAN is inactive.
+  NR_LogicalChannelConfig_t *logicalChannelConfig[NR_MAX_NUM_LCID];
+
+  // order lc info
+  nr_lcordered_info_t lc_ordered_info[NR_MAX_NUM_LCID];
   NR_UE_SCHEDULING_INFO scheduling_info;
 
   /// PHR
   uint8_t PHR_reporting_active;
 
   int dmrs_TypeA_Position;
-  NR_P_Max_t *p_Max;
+  int p_Max;
+  int p_Max_alt;
+
+  long pdsch_HARQ_ACK_Codebook;
 
   NR_Type0_PDCCH_CSS_config_t type0_PDCCH_CSS_config;
   frequency_range_t frequency_range;

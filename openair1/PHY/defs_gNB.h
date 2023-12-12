@@ -142,10 +142,6 @@ typedef struct {
 typedef struct {
   /// Pointers to variables related to DLSCH harq process
   NR_DL_gNB_HARQ_t harq_process;
-  /// TX buffers for UE-spec transmission (antenna layers 1,...,4 after to precoding)
-  int32_t **txdataF;
-  /// Modulated symbols buffer
-  int32_t **mod_symbs;
   /// beamforming weights for UE-spec transmission (antenna ports 5 or 7..14), for each codeword, maximum 4 layers?
   int32_t ***ue_spec_bf_weights;
   /// Active flag for baseband transmitter processing
@@ -538,7 +534,10 @@ typedef struct {
 #define MAX_NUM_NR_RX_PRACH_PREAMBLES 4
 #define MAX_UL_PDUS_PER_SLOT 8
 #define MAX_NUM_NR_SRS_PDUS 8
-#define MAX_NUM_NR_UCI_PDUS 8
+// the current RRC resource allocation is that each UE gets its
+// "own" PUCCH resource (for F0) in a dedicated PRB in each slot
+// therefore, we can have up to "number of UE" UCI PDUs
+#define MAX_NUM_NR_UCI_PDUS MAX_MOBILES_PER_GNB
 
 /// Top-level PHY Data Structure for gNB
 typedef struct PHY_VARS_gNB_s {

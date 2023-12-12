@@ -428,6 +428,9 @@ static void get_channel_model_mode(configmodule_interface_t *cfg)
 int NB_UE_INST = 1;
 configmodule_interface_t *uniqCfg = NULL;
 
+// A global var to reduce the changes size
+ldpc_interface_t ldpc_interface = {0}, ldpc_interface_offload = {0};
+
 int main( int argc, char **argv ) {
   int set_exe_prio = 1;
   if (checkIfFedoraDistribution())
@@ -437,8 +440,6 @@ int main( int argc, char **argv ) {
   if (set_exe_prio)
     set_priority(79);
 
-  //uint8_t beta_ACK=0,beta_RI=0,beta_CQI=2;
-  PHY_VARS_NR_UE *UE[MAX_NUM_CCs];
   start_background_system();
 
   if ((uniqCfg = load_configmodule(argc, argv, CONFIG_ENABLECMDLINEONLY)) == NULL) {
@@ -467,8 +468,8 @@ int main( int argc, char **argv ) {
   itti_init(TASK_MAX, tasks_info);
 
   init_opt() ;
-  load_nrLDPClib(NULL);
- 
+  load_LDPClib(NULL, &ldpc_interface);
+
   if (ouput_vcd) {
     vcd_signal_dumper_init("/tmp/openair_dump_nrUE.vcd");
   }
@@ -477,6 +478,13 @@ int main( int argc, char **argv ) {
 #  define PACKAGE_VERSION "UNKNOWN-EXPERIMENTAL"
 #endif
   LOG_I(HW, "Version: %s\n", PACKAGE_VERSION);
+
+  PHY_vars_UE_g = malloc(sizeof(*PHY_vars_UE_g));
+  PHY_vars_UE_g[0] = malloc(sizeof(*PHY_vars_UE_g[0]) * MAX_NUM_CCs);
+  for (int CC_id = 0; CC_id < MAX_NUM_CCs; CC_id++) {
+    PHY_vars_UE_g[0][CC_id] = malloc(sizeof(*PHY_vars_UE_g[0][CC_id]));
+    memset(PHY_vars_UE_g[0][CC_id], 0, sizeof(*PHY_vars_UE_g[0][CC_id]));
+  }
 
   init_NR_UE(1, uecap_file, reconfig_file, rbconfig_file);
 
@@ -493,8 +501,6 @@ int main( int argc, char **argv ) {
     }
   }
 
-  PHY_vars_UE_g = malloc(sizeof(PHY_VARS_NR_UE **));
-  PHY_vars_UE_g[0] = malloc(sizeof(PHY_VARS_NR_UE *)*MAX_NUM_CCs);
   if (get_softmodem_params()->emulate_l1) {
     RCconfig_nr_ue_macrlc();
     get_channel_model_mode(uniqCfg);
@@ -510,10 +516,9 @@ int main( int argc, char **argv ) {
     start_oai_nrue_threads();
 
   if (!get_softmodem_params()->emulate_l1) {
-    for (int CC_id=0; CC_id<MAX_NUM_CCs; CC_id++) {
-      PHY_vars_UE_g[0][CC_id] = (PHY_VARS_NR_UE *)malloc(sizeof(PHY_VARS_NR_UE));
+    PHY_VARS_NR_UE *UE[MAX_NUM_CCs];
+    for (int CC_id = 0; CC_id < MAX_NUM_CCs; CC_id++) {
       UE[CC_id] = PHY_vars_UE_g[0][CC_id];
-      memset(UE[CC_id],0,sizeof(PHY_VARS_NR_UE));
 
       set_options(CC_id, UE[CC_id]);
       NR_UE_MAC_INST_t *mac = get_mac_inst(0);
