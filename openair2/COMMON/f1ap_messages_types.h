@@ -24,7 +24,6 @@
 
 #include <netinet/in.h>
 #include <netinet/sctp.h>
-#include "rlc.h"
 #include "s1ap_messages_types.h"
 #include "ngap_messages_types.h"
 
@@ -75,12 +74,7 @@
 #define F1AP_MAX_NO_OF_TNL_ASSOCIATIONS 32
 #define F1AP_MAX_NO_UE_ID 1024
 
-typedef struct f1ap_net_ip_address_s {
-  unsigned ipv4:1;
-  unsigned ipv6:1;
-  char ipv4_address[16];
-  char ipv6_address[46];
-} f1ap_net_ip_address_t;
+typedef net_ip_address_t f1ap_net_ip_address_t;
 
 typedef struct f1ap_net_config_t {
   f1ap_net_ip_address_t CU_f1_ip_address;
@@ -152,11 +146,16 @@ typedef struct f1ap_gnb_du_system_info_t {
 } f1ap_gnb_du_system_info_t;
 
 typedef struct f1ap_setup_req_s {
+  /// ulong transaction id
+  uint64_t transaction_id;
 
   // F1_Setup_Req payload
   uint64_t gNB_DU_id;
   char *gNB_DU_name;
-  
+
+  /// rrc version
+  uint8_t rrc_ver[3];
+
   /// number of DU cells available
   uint16_t num_cells_available; //0< num_cells_available <= 512;
   struct {
@@ -185,11 +184,17 @@ typedef struct served_cells_to_activate_s {
 } served_cells_to_activate_t;
 
 typedef struct f1ap_setup_resp_s {
+  /// ulong transaction id
+  uint64_t transaction_id;
   /// string holding gNB_CU_name
   char     *gNB_CU_name;
   /// number of DU cells to activate
   uint16_t num_cells_to_activate; //0< num_cells_to_activate <= 512;
   served_cells_to_activate_t cells_to_activate[F1AP_MAX_NB_CELLS];
+
+  /// rrc version
+  uint8_t rrc_ver[3];
+
 } f1ap_setup_resp_t;
 
 typedef struct f1ap_gnb_cu_configuration_update_s {

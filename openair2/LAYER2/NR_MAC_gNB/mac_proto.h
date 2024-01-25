@@ -142,9 +142,7 @@ void handle_nr_uci_pucch_2_3_4(module_id_t mod_id,
                                sub_frame_t slot,
                                const nfapi_nr_uci_pucch_pdu_format_2_3_4_t *uci_234);
 
-
-void config_uldci(const NR_SIB1_t *sib1,
-                  const NR_ServingCellConfigCommon_t *scc,
+void config_uldci(const NR_UE_ServingCell_Info_t *sc_info,
                   const nfapi_nr_pusch_pdu_t *pusch_pdu,
                   dci_pdu_rel15_t *dci_pdu_rel15,
                   nr_srs_feedback_t *srs_feedback,
@@ -201,7 +199,6 @@ void find_search_space(int ss_type,
 
 void nr_configure_pdcch(nfapi_nr_dl_tti_pdcch_pdu_rel15_t *pdcch_pdu,
                         NR_ControlResourceSet_t *coreset,
-                        bool is_sib1,
                         NR_sched_pdcch_t *pdcch);
 
 NR_sched_pdcch_t set_pdcch_structure(gNB_MAC_INST *gNB_mac,
@@ -225,8 +222,7 @@ void fill_pdcch_vrb_map(gNB_MAC_INST *mac,
                         int first_cce,
                         int aggregation);
 
-void fill_dci_pdu_rel15(const NR_ServingCellConfigCommon_t *scc,
-                        const NR_CellGroupConfig_t *CellGroup,
+void fill_dci_pdu_rel15(const NR_UE_ServingCell_Info_t *servingCellInfo,
                         const NR_UE_DL_BWP_t *current_DL_BWP,
                         const NR_UE_UL_BWP_t *current_UL_BWP,
                         nfapi_nr_dl_dci_pdu_t *pdcch_dci_pdu,
@@ -239,7 +235,11 @@ void fill_dci_pdu_rel15(const NR_ServingCellConfigCommon_t *scc,
                         long pdsch_HARQ_ACK_Codebook,
                         uint16_t cset0_bwp_size);
 
-void prepare_dci(const NR_CellGroupConfig_t *CellGroup, const NR_UE_DL_BWP_t *current_BWP, const NR_ControlResourceSet_t *coreset, dci_pdu_rel15_t *dci_pdu_rel15, nr_dci_format_t format);
+void prepare_dci(const NR_UE_ServingCell_Info_t *servingCellInfo,
+                 const NR_UE_DL_BWP_t *current_BWP,
+                 const NR_ControlResourceSet_t *coreset,
+                 dci_pdu_rel15_t *dci_pdu_rel15,
+                 nr_dci_format_t format);
 
 void set_r_pucch_parms(int rsetindex,
                        int r_pucch,
@@ -353,8 +353,7 @@ void nr_rx_sdu(const module_id_t gnb_mod_idP,
                const uint8_t ul_cqi,
                const uint16_t rssi);
 
-void create_dl_harq_list(NR_UE_sched_ctrl_t *sched_ctrl,
-                         const NR_PDSCH_ServingCellConfig_t *pdsch);
+void create_dl_harq_list(NR_UE_sched_ctrl_t *sched_ctrl, const NR_UE_ServingCell_Info_t *sc_info);
 
 void reset_dl_harq_list(NR_UE_sched_ctrl_t *sched_ctrl);
 
@@ -378,7 +377,8 @@ NR_pdsch_dmrs_t get_dl_dmrs_params(const NR_ServingCellConfigCommon_t *scc,
                                    const NR_tda_info_t *tda_info,
                                    const int Layers);
 
-uint16_t get_pm_index(const NR_UE_info_t *UE,
+uint16_t get_pm_index(const gNB_MAC_INST *nrmac,
+                      const NR_UE_info_t *UE,
                       int layers,
                       int xp_pdsch_antenna_ports);
 

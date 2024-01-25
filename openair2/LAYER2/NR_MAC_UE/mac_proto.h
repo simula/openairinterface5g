@@ -34,22 +34,130 @@
 #define __LAYER2_MAC_UE_PROTO_H__
 
 #include "mac_defs.h"
+#include "oai_asn1.h"
 #include "RRC/NR_UE/rrc_defs.h"
 
 #define NR_DL_MAX_DAI                            (4)                      /* TS 38.213 table 9.1.3-1 Value of counter DAI for DCI format 1_0 and 1_1 */
 #define NR_DL_MAX_NB_CW                          (2)                      /* number of downlink code word */
 
+// Macro updates DESTINATION with configuration from ORIGIN by swapping pointers
+// Old configuration is freed after completing configuration
+#define UPDATE_MAC_IE(DESTINATION, ORIGIN, TYPE) \
+  do {                                           \
+    TYPE *tmp = ORIGIN;                          \
+    ORIGIN = DESTINATION;                        \
+    DESTINATION = tmp;                           \
+  } while(0);                                    \
+
+// Same as above but swapping ASN1 elements that are not pointers
+#define UPDATE_MAC_NP_IE(DESTINATION, ORIGIN, TYPE) \
+  do {                                              \
+    TYPE tmp = ORIGIN;                              \
+    ORIGIN = DESTINATION;                           \
+    DESTINATION = tmp;                              \
+  } while(0);                                       \
+
+// Macro handles reception of SetupRelease element ORIGIN (see NR_SetupRelease.h)
+// If release (NR_SetupRelease_xxx_PR_release equivalent to 1), removing structure from DESTINATION
+// If setup (NR_SetupRelease_xxx_PR_setup equivalent to 2), add or modify structure in DESTINATION
+// Destination is not a SetupRelease structure
+#define HANDLE_SETUPRELEASE_DIRECT(DESTINATION, ORIGIN, TYPE, ASN_DEF) \
+  do {                                                                 \
+    if (ORIGIN->present == 1) {                                        \
+      asn1cFreeStruc(ASN_DEF, DESTINATION);                            \
+    }                                                                  \
+    if (ORIGIN->present == 2)                                          \
+      UPDATE_MAC_IE(DESTINATION, ORIGIN->choice.setup, TYPE);          \
+  } while(0);                                                          \
+
+// Macro handles reception of SetupRelease element ORIGIN (see NR_SetupRelease.h)
+// If release (NR_SetupRelease_xxx_PR_release equivalent to 1), removing structure from DESTINATION
+// If setup (NR_SetupRelease_xxx_PR_setup equivalent to 2), add or modify structure in DESTINATION
+// Destination is a SetupRelease structure
+#define HANDLE_SETUPRELEASE_IE(DESTINATION, ORIGIN, TYPE, ASN_DEF)          \
+  do {                                                                      \
+    if (ORIGIN->present == 1) {                                             \
+      asn1cFreeStruc(ASN_DEF, DESTINATION);                                 \
+    }                                                                       \
+    if (ORIGIN->present == 2) {                                             \
+      if (!DESTINATION)                                                     \
+        DESTINATION = calloc(1, sizeof(*DESTINATION));                      \
+      DESTINATION->present = ORIGIN->present;                               \
+      UPDATE_MAC_IE(DESTINATION->choice.setup, ORIGIN->choice.setup, TYPE); \
+    }                                                                       \
+  } while(0);                                                               \
+
+// Macro releases entries in list TARGET if the corresponding ID is found in list SOURCE.
+// Prints an error if ID not found in list.
+#define RELEASE_IE_FROMLIST(SOURCE, TARGET, FIELD)                                 \
+  do {                                                                             \
+    for (int iI = 0; iI < SOURCE->list.count; iI++) {                              \
+      long eL = *SOURCE->list.array[iI];                                           \
+      int iJ;                                                                      \
+      for (iJ = 0; iJ < TARGET->list.count; iJ++) {                                \
+        if (eL == TARGET->list.array[iJ]->FIELD)                                   \
+          break;                                                                   \
+      }                                                                            \
+      if (iJ == TARGET->list.count)                                                \
+        asn_sequence_del(&TARGET->list, iJ, 1);                                    \
+      else                                                                         \
+        LOG_E(NR_MAC, "Element not present in the list, impossible to release\n"); \
+    }                                                                              \
+  } while (0)                                                                      \
+
+// Macro adds or modifies entries of type TYPE in list TARGET with elements received in list SOURCE
+#define ADDMOD_IE_FROMLIST(SOURCE, TARGET, FIELD, TYPE) \
+  do {                                                  \
+    for (int iI = 0; iI < SOURCE->list.count; iI++) {   \
+      long eL = SOURCE->list.array[iI]->FIELD;          \
+      int iJ;                                           \
+      for (iJ = 0; iJ < TARGET->list.count; iJ++) {     \
+        if (eL == TARGET->list.array[iJ]->FIELD)        \
+          break;                                        \
+      }                                                 \
+      if (iJ == TARGET->list.count) {                   \
+        TYPE *nEW = calloc(1, sizeof(*nEW));            \
+        ASN_SEQUENCE_ADD(&TARGET->list, nEW);           \
+      }                                                 \
+      UPDATE_MAC_IE(TARGET->list.array[iJ],             \
+                    SOURCE->list.array[iI],             \
+                    TYPE);                              \
+    }                                                   \
+  } while (0)                                           \
+
+// Macro adds or modifies entries of type TYPE in list TARGET with elements received in list SOURCE
+// Action performed by function FUNC
+#define ADDMOD_IE_FROMLIST_WFUNCTION(SOURCE, TARGET, FIELD, TYPE, FUNC) \
+  do {                                                                  \
+    for (int iI = 0; iI < SOURCE->list.count; iI++) {                   \
+      long eL = SOURCE->list.array[iI]->FIELD;                          \
+      int iJ;                                                           \
+      for (iJ = 0; iJ < TARGET->list.count; iJ++) {                     \
+        if (eL == TARGET->list.array[iJ]->FIELD)                        \
+          break;                                                        \
+      }                                                                 \
+      if (iJ == TARGET->list.count) {                                   \
+        TYPE *nEW = calloc(1, sizeof(*nEW));                            \
+        ASN_SEQUENCE_ADD(&TARGET->list, nEW);                           \
+      }                                                                 \
+      FUNC(TARGET->list.array[iJ],                                      \
+           SOURCE->list.array[iI]);                                     \
+    }                                                                   \
+  } while (0)
+
 /**\brief initialize the field in nr_mac instance
    \param module_id      module id */
 void nr_ue_init_mac(module_id_t module_idP);
 
-void send_srb0_rrc(int rnti, const uint8_t *sdu, sdu_size_t sdu_len, void *data);
+void send_srb0_rrc(int ue_id, const uint8_t *sdu, sdu_size_t sdu_len, void *data);
 
 /**\brief apply default configuration values in nr_mac instance
    \param mac           mac instance */
 void nr_ue_mac_default_configs(NR_UE_MAC_INST_t *mac);
 
 void nr_ue_decode_mib(module_id_t module_id, int cc_id);
+
+void release_common_ss_cset(NR_BWP_PDCCH_t *pdcch);
 
 /**\brief decode SIB1 and other SIs pdus in NR_UE, from if_module dl_ind
    \param module_id      module id
@@ -64,6 +172,10 @@ int8_t nr_ue_decode_BCCH_DL_SCH(module_id_t module_id,
                                 uint8_t ack_nack,
                                 uint8_t *pduP,
                                 uint32_t pdu_len);
+
+void release_dl_BWP(NR_UE_MAC_INST_t *mac, int index);
+void release_ul_BWP(NR_UE_MAC_INST_t *mac, int index);
+void nr_release_mac_config_logicalChannelBearer(NR_UE_MAC_INST_t *mac, long channel_identity);
 
 void nr_rrc_mac_config_req_ue_logicalChannelBearer(module_id_t module_id,
                                                    struct NR_CellGroupConfig__rlc_BearerToAddModList *rlc_toadd_list,
@@ -83,12 +195,18 @@ void nr_rrc_mac_config_req_sib1(module_id_t module_id,
                                 NR_SI_SchedulingInfo_t *si_SchedulingInfo,
                                 NR_ServingCellConfigCommonSIB_t *scc);
 
-/**\brief initialization NR UE MAC instance(s), total number of MAC instance based on NB_NR_UE_MAC_INST*/
-NR_UE_MAC_INST_t * nr_l2_init_ue();
+void nr_rrc_mac_config_req_reset(module_id_t module_id, NR_UE_MAC_reset_cause_t cause);
 
-/**\brief fetch MAC instance by module_id, within 0 - (NB_NR_UE_MAC_INST-1)
+/**\brief initialization NR UE MAC instance(s)*/
+NR_UE_MAC_INST_t * nr_l2_init_ue(int nb_inst);
+
+/**\brief fetch MAC instance by module_id
    \param module_id index of MAC instance(s)*/
 NR_UE_MAC_INST_t *get_mac_inst(module_id_t module_id);
+
+void reset_mac_inst(NR_UE_MAC_INST_t *nr_mac);
+void reset_ra(RA_config_t *ra);
+void release_mac_configuration(NR_UE_MAC_INST_t *mac);
 
 /**\brief called at each slot, slot length based on numerology. now use u=0, scs=15kHz, slot=1ms
           performs BSR/SR/PHR procedures, random access procedure handler and DLSCH/ULSCH procedures.
@@ -317,20 +435,6 @@ void nr_ue_msg3_scheduler(NR_UE_MAC_INST_t *mac,
                           sub_frame_t current_slot,
                           uint8_t Msg3_tda_id);
 
-/* \brief Function called by PHY to process the received RAR and check that the preamble matches what was sent by the gNB. It provides the timing advance and t-CRNTI.
-@param Mod_id Index of UE instance
-@param CC_id Index to a component carrier
-@param frame Frame index
-@param ra_rnti RA_RNTI value
-@param dlsch_buffer  Pointer to dlsch_buffer containing RAR PDU
-@param t_crnti Pointer to PHY variable containing the T_CRNTI
-@param preamble_index Preamble Index used by PHY to transmit the PRACH.  This should match the received RAR to trigger the rest of
-random-access procedure
-@param selected_rar_buffer the output buffer for storing the selected RAR header and RAR payload
-@returns timing advance or 0xffff if preamble doesn't match
-*/
-int nr_ue_process_rar(nr_downlink_indication_t *dl_info, int pdu_id);
-
 void nr_ue_contention_resolution(module_id_t module_id, int cc_id, frame_t frame, int slot, NR_PRACH_RESOURCES_t *prach_resources);
 
 void nr_ra_failed(uint8_t mod_id, uint8_t CC_id, NR_PRACH_RESOURCES_t *prach_resources, frame_t frame, int slot);
@@ -384,7 +488,7 @@ void set_ra_rnti(NR_UE_MAC_INST_t *mac, fapi_nr_ul_config_prach_pdu *prach_pdu);
 void nr_Msg1_transmitted(module_id_t mod_id);
 
 void nr_Msg3_transmitted(module_id_t mod_id, uint8_t CC_id, frame_t frameP, slot_t slotP, uint8_t gNB_id);
-void nr_get_msg3_payload(module_id_t mod_id);
+void nr_get_msg3_payload(module_id_t mod_id, uint8_t *buf, int TBS_max);
 void send_msg3_rrc_request(module_id_t mod_id, int rnti);
 
 void nr_ue_msg2_scheduler(module_id_t mod_id, uint16_t rach_frame, uint16_t rach_slot, uint16_t *msg2_frame, uint16_t *msg2_slot);

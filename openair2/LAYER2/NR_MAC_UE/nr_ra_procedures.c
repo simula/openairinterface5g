@@ -39,6 +39,7 @@
 #include "LAYER2/NR_MAC_UE/mac_proto.h"
 
 #include <executables/softmodem-common.h>
+#include "openair2/LAYER2/RLC/rlc.h"
 
 int16_t get_prach_tx_power(module_id_t mod_id) {
 
@@ -77,8 +78,8 @@ void init_RA(module_id_t mod_id,
 
   prach_resources->RA_PREAMBLE_BACKOFF = 0;
   NR_SubcarrierSpacing_t prach_scs = *nr_rach_ConfigCommon->msg1_SubcarrierSpacing;
-  int n_prbs = get_N_RA_RB (prach_scs, mac->current_UL_BWP.scs);
-  int start_prb = rach_ConfigGeneric->msg1_FrequencyStart + mac->current_UL_BWP.BWPStart;
+  int n_prbs = get_N_RA_RB(prach_scs, mac->current_UL_BWP->scs);
+  int start_prb = rach_ConfigGeneric->msg1_FrequencyStart + mac->current_UL_BWP->BWPStart;
   // PRACH shall be as specified for QPSK modulated DFT-s-OFDM of equivalent RB allocation (38.101-1)
   prach_resources->RA_PCMAX = nr_get_Pcmax(mac, 2, false, prach_scs, cfg->carrier_config.dl_grid_size[prach_scs], true, n_prbs, start_prb);
   prach_resources->RA_PREAMBLE_TRANSMISSION_COUNTER = 1;
@@ -172,7 +173,7 @@ void init_RA(module_id_t mod_id,
 int8_t nr_get_DELTA_PREAMBLE(module_id_t mod_id, int CC_id, uint16_t prach_format)
 {
   NR_UE_MAC_INST_t *mac = get_mac_inst(mod_id);
-  NR_RACH_ConfigCommon_t *nr_rach_ConfigCommon = mac->current_UL_BWP.rach_ConfigCommon;
+  NR_RACH_ConfigCommon_t *nr_rach_ConfigCommon = mac->current_UL_BWP->rach_ConfigCommon;
   NR_SubcarrierSpacing_t scs = *nr_rach_ConfigCommon->msg1_SubcarrierSpacing;
   int prach_sequence_length = nr_rach_ConfigCommon->prach_RootSequenceIndex.present - 1;
   uint8_t prachConfigIndex, mu;
@@ -278,7 +279,7 @@ int nr_get_Po_NOMINAL_PUSCH(NR_PRACH_RESOURCES_t *prach_resources, module_id_t m
   int8_t receivedTargerPower;
   int8_t delta_preamble;
 
-  NR_RACH_ConfigCommon_t *nr_rach_ConfigCommon = mac->current_UL_BWP.rach_ConfigCommon;
+  NR_RACH_ConfigCommon_t *nr_rach_ConfigCommon = mac->current_UL_BWP->rach_ConfigCommon;
   long preambleReceivedTargetPower = nr_rach_ConfigCommon->rach_ConfigGeneric.preambleReceivedTargetPower;
   delta_preamble = nr_get_DELTA_PREAMBLE(mod_id, CC_id, prach_resources->prach_format);
 
@@ -383,11 +384,11 @@ void ra_preambles_config(NR_PRACH_RESOURCES_t *prach_resources, NR_UE_MAC_INST_t
   }
 
   RA_config_t *ra = &mac->ra;
-  NR_RACH_ConfigCommon_t *setup = mac->current_UL_BWP.rach_ConfigCommon;
+  NR_RACH_ConfigCommon_t *setup = mac->current_UL_BWP->rach_ConfigCommon;
   NR_RACH_ConfigGeneric_t *rach_ConfigGeneric = &setup->rach_ConfigGeneric;
 
-  if (mac->current_UL_BWP.msg3_DeltaPreamble) {
-    deltaPreamble_Msg3 = (*mac->current_UL_BWP.msg3_DeltaPreamble) * 2; // dB
+  if (mac->current_UL_BWP->msg3_DeltaPreamble) {
+    deltaPreamble_Msg3 = (*mac->current_UL_BWP->msg3_DeltaPreamble) * 2; // dB
     LOG_D(MAC, "In %s: deltaPreamble_Msg3 set to %ld\n", __FUNCTION__, deltaPreamble_Msg3);
   }
 
@@ -552,7 +553,7 @@ void nr_get_prach_resources(module_id_t mod_id,
   NR_UE_MAC_INST_t *mac = get_mac_inst(mod_id);
   RA_config_t *ra = &mac->ra;
 
-  NR_RACH_ConfigCommon_t *nr_rach_ConfigCommon = mac->current_UL_BWP.rach_ConfigCommon;
+  NR_RACH_ConfigCommon_t *nr_rach_ConfigCommon = mac->current_UL_BWP->rach_ConfigCommon;
 
   LOG_D(MAC, "In %s: getting PRACH resources frame (first_Msg3 %d)\n", __FUNCTION__, ra->first_Msg3);
 
@@ -590,8 +591,8 @@ void nr_Msg3_transmitted(module_id_t mod_id, uint8_t CC_id, frame_t frameP, slot
 
   NR_UE_MAC_INST_t *mac = get_mac_inst(mod_id);
   RA_config_t *ra = &mac->ra;
-  NR_RACH_ConfigCommon_t *nr_rach_ConfigCommon = mac->current_UL_BWP.rach_ConfigCommon;
-  long mu = mac->current_UL_BWP.scs;
+  NR_RACH_ConfigCommon_t *nr_rach_ConfigCommon = mac->current_UL_BWP->rach_ConfigCommon;
+  long mu = mac->current_UL_BWP->scs;
   int subframes_per_slot = nr_slots_per_frame[mu]/10;
 
   // start contention resolution timer (cnt in slots)
@@ -607,23 +608,25 @@ void nr_Msg3_transmitted(module_id_t mod_id, uint8_t CC_id, frame_t frameP, slot
   ra->ra_state = WAIT_CONTENTION_RESOLUTION;
 }
 
-void nr_get_msg3_payload(module_id_t mod_id)
+void nr_get_msg3_payload(module_id_t mod_id, uint8_t *buf, int TBS_max)
 {
   NR_UE_MAC_INST_t *mac = get_mac_inst(mod_id);
   RA_config_t *ra = &mac->ra;
-  uint8_t *pdu = mac->CCCH_pdu.payload;
-  const uint8_t sh_size = sizeof(NR_MAC_SUBHEADER_FIXED);
-  NR_MAC_SUBHEADER_FIXED *header = (NR_MAC_SUBHEADER_FIXED *) pdu;
-  pdu += sh_size;
-  int lcid = 0; // SRB0 for messages sent in MSG3
+  uint8_t *pdu = buf;
+  *(NR_MAC_SUBHEADER_FIXED *)pdu = (NR_MAC_SUBHEADER_FIXED){.LCID = UL_SCH_LCID_CCCH};
+  pdu += sizeof(NR_MAC_SUBHEADER_FIXED);
+  // here a big race condition: nothing ensure RRC thread has already pushed data to rlc
+  // there is no issue inside RLC,
+  // if RRC has called nr_rlc_srb_recv_sdu(),
+  // we are good even if the name is misleading (we send a ssrb msg, not receive if)
   tbs_size_t len = mac_rlc_data_req(mod_id,
-                                    ra->t_crnti,
+                                    mac->ue_id,
                                     0,
                                     0,
                                     ENB_FLAG_NO,
                                     MBMS_FLAG_NO,
-                                    lcid,
-                                    16, /* size of mac_ce above */
+                                    0, // SRB0 for messages sent in MSG3
+                                    TBS_max - sizeof(NR_MAC_SUBHEADER_FIXED), /* size of mac_ce above */
                                     (char *)pdu,
                                     0,
                                     0);
@@ -631,26 +634,16 @@ void nr_get_msg3_payload(module_id_t mod_id)
   // UE Contention Resolution Identity
   // Store the first 48 bits belonging to the uplink CCCH SDU within Msg3 to determine whether or not the
   // Random Access Procedure has been successful after reception of Msg4
+  // We copy from persisted memory to another persisted memory
   memcpy(ra->cont_res_id, pdu, sizeof(uint8_t) * 6);
   pdu += len;
-  int Msg3_size = len + sh_size;
-  // Build header
-  header->R = 0;
-  header->LCID = UL_SCH_LCID_CCCH;
-  const uint8_t TBS_max = 8 + sizeof(NR_MAC_SUBHEADER_SHORT) + sizeof(NR_MAC_SUBHEADER_SHORT); // Note: unclear the reason behind the selection of such TBS_max
+  AssertFatal(TBS_max >= pdu - buf, "Allocated resources are not enough for Msg3!\n");
   // Padding: fill remainder with 0
-  if (TBS_max - Msg3_size > 0) {
-    AssertFatal(TBS_max > Msg3_size, "Allocated resources are not enough for Msg3!\n");
-    LOG_D(NR_MAC, "Remaining %d bytes, filling with padding\n",TBS_max - Msg3_size);
-    ((NR_MAC_SUBHEADER_FIXED *) pdu)->R = 0;
-    ((NR_MAC_SUBHEADER_FIXED *) pdu)->LCID = UL_SCH_LCID_PADDING;
+  LOG_D(NR_MAC, "Remaining %ld bytes, filling with padding\n", pdu - buf);
+  while (pdu < buf + TBS_max - sizeof(NR_MAC_SUBHEADER_FIXED)) {
+    *(NR_MAC_SUBHEADER_FIXED *)pdu = (NR_MAC_SUBHEADER_FIXED){.LCID = UL_SCH_LCID_PADDING};
     pdu += sizeof(NR_MAC_SUBHEADER_FIXED);
-    memset(pdu, 0, TBS_max - Msg3_size - sizeof(NR_MAC_SUBHEADER_FIXED));
   }
-  // Dumping ULSCH payload
-  LOG_D(NR_MAC, "Dumping UL Msg3 MAC PDU with length %d: \n", TBS_max);
-  for(int k = 0; k < TBS_max; k++)
-    LOG_D(NR_MAC,"(%i): %i\n", k, pdu[k]);
 }
 
 /**
@@ -699,7 +692,7 @@ uint8_t nr_ue_get_rach(module_id_t mod_id,
   if (ra->ra_state > RA_UE_IDLE && ra->ra_state < RA_SUCCEEDED) {
 
     if (ra->RA_active == 0) {
-      NR_RACH_ConfigCommon_t *setup = mac->current_UL_BWP.rach_ConfigCommon;
+      NR_RACH_ConfigCommon_t *setup = mac->current_UL_BWP->rach_ConfigCommon;
       NR_RACH_ConfigGeneric_t *rach_ConfigGeneric = &setup->rach_ConfigGeneric;
       init_RA(mod_id, &ra->prach_resources, setup, rach_ConfigGeneric, ra->rach_ConfigDedicated);
 
@@ -709,7 +702,7 @@ uint8_t nr_ue_get_rach(module_id_t mod_id,
       int size_sdu = 0;
       uint8_t mac_ce[16] = {0};
       uint8_t *pdu = get_softmodem_params()->sa ? mac->CCCH_pdu.payload : mac_ce;
-      uint8_t *payload = pdu;
+      const uint8_t *payload = pdu;
 
       // Concerning the C-RNTI MAC CE, it has to be included if the UL transmission (Msg3) is not being made for the CCCH logical channel.
       // Therefore it has been assumed that this event only occurs only when RA is done and it is not SA mode.
@@ -821,12 +814,12 @@ uint8_t nr_ue_get_rach(module_id_t mod_id,
 void nr_get_RA_window(NR_UE_MAC_INST_t *mac)
 {
   RA_config_t *ra = &mac->ra;
-  NR_RACH_ConfigCommon_t *setup = mac->current_UL_BWP.rach_ConfigCommon;
+  NR_RACH_ConfigCommon_t *setup = mac->current_UL_BWP->rach_ConfigCommon;
   AssertFatal(&setup->rach_ConfigGeneric != NULL, "In %s: FATAL! rach_ConfigGeneric is NULL...\n", __FUNCTION__);
   NR_RACH_ConfigGeneric_t *rach_ConfigGeneric = &setup->rach_ConfigGeneric;
  
   int ra_ResponseWindow = rach_ConfigGeneric->ra_ResponseWindow;
-  int mu = mac->current_DL_BWP.scs;
+  int mu = mac->current_DL_BWP->scs;
 
   ra->RA_window_cnt = ra->RA_offset * nr_slots_per_frame[mu]; // taking into account the 2 frames gap introduced by OAI gNB
 

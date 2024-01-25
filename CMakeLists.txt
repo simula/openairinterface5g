@@ -300,8 +300,8 @@ set(E2AP_VERSION "E2AP_V2" CACHE STRING "E2AP version")
 set_property(CACHE E2AP_VERSION PROPERTY STRINGS "E2AP_V1" "E2AP_V2" "E2AP_V3")
 message(STATUS "Selected E2AP_VERSION: ${E2AP_VERSION}")
 
-set(KPM_VERSION "KPM_V2" CACHE STRING "The KPM SM version to use")
-set_property(CACHE KPM_VERSION PROPERTY STRINGS "KPM_V2" "KPM_V3")
+set(KPM_VERSION "KPM_V2_03" CACHE STRING "The KPM SM version to use")
+set_property(CACHE KPM_VERSION PROPERTY STRINGS "KPM_V2_03" "KPM_V3_00")
 message(STATUS "Selected KPM Version: ${KPM_VERSION}")
 
 
@@ -500,10 +500,10 @@ target_link_libraries(shlib_loader PRIVATE CONFIG_LIB)
 add_boolean_option(ENABLE_LDPC_T2 OFF "Build support for LDPC Offload to T2 library" OFF)
 set(ENV{PKG_CONFIG_PATH} "$ENV{PKG_CONFIG_PATH}:/usr/local/lib/x86_64-linux-gnu/pkgconfig")
 if (ENABLE_LDPC_T2)
-  pkg_check_modules(LIBDPDK_T2 REQUIRED libdpdk=20.11.7)
-  find_library(PMD_T2 NAMES rte_baseband_accl_ldpc HINTS "/opt/dpdk-t2/lib/x86_64-linux-gnu/")
+  pkg_check_modules(LIBDPDK_T2 REQUIRED libdpdk=20.11.9)
+  find_library(PMD_T2 NAMES rte_baseband_accl_ldpc HINTS ${LIBDPDK_T2_LIBRARY_DIRS})
   if (NOT PMD_T2)
-    message(FATAL_ERROR "could not find PMD T2")
+    message(FATAL_ERROR "could not find poll-mode driver for AccelerComm T2 LDPC Offload (rte_baseband_accl_ldpc.so)")
   endif()
   message(STATUS "T2 build: use ${PMD_T2}")
   add_library(ldpc_t2 MODULE ${OPENAIR1_DIR}/PHY/CODING/nrLDPC_decoder/nrLDPC_decoder_offload.c)
@@ -1433,7 +1433,7 @@ target_link_libraries(L2 PRIVATE x2ap s1ap lte_rrc m2ap)
 target_link_libraries(L2 PRIVATE asn1_lte_rrc_hdrs asn1_nr_rrc_hdrs)
 
 if(E2_AGENT)
-  target_link_libraries(L2 PUBLIC e2_agent e2_ran_func)
+  target_link_libraries(L2 PUBLIC e2_agent e2_agent_arg e2_ran_func_du_cucp_cuup)
   target_compile_definitions(L2 PRIVATE E2_AGENT)
   target_compile_definitions(L2 PRIVATE ${E2AP_VERSION} ${KPM_VERSION})
 endif()
@@ -1460,7 +1460,7 @@ target_link_libraries(e1_if PRIVATE asn1_nr_rrc_hdrs asn1_lte_rrc_hdrs asn1_f1ap
 
 target_link_libraries(L2_NR PRIVATE f1ap x2ap s1ap ngap nr_rrc e1ap nr_rlc)
 if(E2_AGENT)
-  target_link_libraries(L2_NR PUBLIC e2_agent e2_ran_func)
+  target_link_libraries(L2_NR PUBLIC e2_agent e2_agent_arg e2_ran_func_du_cucp_cuup)
   target_compile_definitions(L2_NR PRIVATE ${E2AP_VERSION} ${KPM_VERSION})
   target_compile_definitions(L2_NR PRIVATE E2_AGENT)
 endif()
@@ -1687,7 +1687,7 @@ set(libnas_ies_OBJS
 
 set (libnas_utils_OBJS
   ${NAS_SRC}COMMON/UTIL/device.c
-  ${NAS_SRC}COMMON/UTIL/memory.c
+  common/utils/mem/memory.c
   ${NAS_SRC}COMMON/UTIL/nas_timer.c
   ${NAS_SRC}COMMON/UTIL/socket.c
   ${NAS_SRC}COMMON/UTIL/stty.c
@@ -2052,7 +2052,6 @@ add_executable(nr-softmodem
   ${rrc_h}
   ${nr_rrc_h}
   ${s1ap_h}
-#  ${OPENAIR_BIN_DIR}/messages_xml.h
   ${OPENAIR_DIR}/executables/nr-gnb.c
   ${OPENAIR_DIR}/executables/nr-ru.c
   ${OPENAIR_DIR}/executables/nr-softmodem.c
@@ -2114,6 +2113,10 @@ target_link_libraries(nr-cuup PRIVATE
                       GTPV1U e1ap f1ap SIMU_ETH
                       z sctp dl pthread shlib_loader ${T_LIB})
 target_link_libraries(nr-cuup PRIVATE asn1_lte_rrc_hdrs asn1_nr_rrc_hdrs)
+if(E2_AGENT)
+  target_link_libraries(nr-cuup PRIVATE e2_agent e2_agent_arg e2_ran_func_cuup)
+  target_compile_definitions(nr-cuup PRIVATE ${E2AP_VERSION} ${KPM_VERSION} E2_AGENT)
+endif()
                      
 # nr-uesoftmodem is  UE implementation
 #######################################
@@ -2121,7 +2124,6 @@ target_link_libraries(nr-cuup PRIVATE asn1_lte_rrc_hdrs asn1_nr_rrc_hdrs)
 add_executable(nr-uesoftmodem
   ${rrc_h}
   ${s1ap_h}
-#  ${OPENAIR_BIN_DIR}/messages_xml.h
   ${OPENAIR_DIR}/executables/nr-uesoftmodem.c
   ${OPENAIR_DIR}/executables/nr-ue.c
   ${OPENAIR_DIR}/executables/softmodem-common.c
@@ -2439,9 +2441,6 @@ make_driver(nasmesh  ${OPENAIR2_DIR}/NETWORK_DRIVER/MESH ${nasmesh_src})
 # user space tool for configuring MESH IP driver
 ################
 add_executable(rb_tool
-  ${OPENAIR2_DIR}/NETWORK_DRIVER/MESH/constant.h
-  ${OPENAIR2_DIR}/NETWORK_DRIVER/MESH/ioctl.h
-  ${OPENAIR2_DIR}/NETWORK_DRIVER/MESH/rrc_nas_primitives.h
   ${OPENAIR2_DIR}/NETWORK_DRIVER/MESH/RB_TOOL/rb_tool.c
 )
 target_include_directories(rb_tool PRIVATE ${OPENAIR2_DIR}/NETWORK_DRIVER/MESH/)

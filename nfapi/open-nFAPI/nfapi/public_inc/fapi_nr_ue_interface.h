@@ -19,7 +19,7 @@
 #include <pthread.h>
 
 #include "stddef.h"
-#include "platform_types.h"
+#include "common/platform_types.h"
 #include "fapi_nr_ue_constants.h"
 #include "PHY/impl_defs_top.h"
 #include "PHY/impl_defs_nr.h"
@@ -348,6 +348,7 @@ typedef struct
   uint8_t  start_symbol_index;
   uint8_t  nr_of_symbols;
   uint32_t tbslbrm;
+  uint8_t ldpcBaseGraph;
   //Optional Data only included if indicated in pduBitmap
   nfapi_nr_ue_pusch_data_t pusch_data;
   nfapi_nr_ue_pusch_uci_t  pusch_uci;
@@ -491,6 +492,7 @@ typedef struct {
   uint16_t dlDmrsScramblingId;
   uint16_t pduBitmap;
   uint32_t k1_feedback;
+  uint8_t ldpcBaseGraph;
 } fapi_nr_dl_config_dlsch_pdu_rel15_t;
 
 typedef struct {
@@ -662,7 +664,8 @@ typedef struct
 typedef struct 
 {
   uint8_t prach_sequence_length;//RACH sequence length. Only short sequence length is supported for FR2. [38.211, sec 6.3.3.1] Value: 0 = Long sequence 1 = Short sequence
-  uint8_t prach_sub_c_spacing;//Subcarrier spacing of PRACH. [38.211 sec 4.2] Value:0->4
+  uint8_t prach_sub_c_spacing; // Subcarrier spacing of PRACH. [38.211 sec 4.2] Value: 0: 15 kHz 1: 30 kHz 2: 60 kHz 3: 120 kHz
+                               // 4: 1.25 kHz 5: 5 kHz
   uint8_t restricted_set_config;//PRACH restricted set config Value: 0: unrestricted 1: restricted set type A 2: restricted set type B
   uint8_t num_prach_fd_occasions;//Corresponds to the parameter 𝑀 in [38.211, sec 6.3.3.2] which equals the higher layer parameter msg1FDM Value: 1,2,4,8
   fapi_nr_num_prach_fd_occasions_t* num_prach_fd_occasions_list;
@@ -672,7 +675,7 @@ typedef struct
 } fapi_nr_prach_config_t;
 
 typedef struct {
-  uint16_t target_Nid_cell;
+  int16_t target_Nid_cell;
 } fapi_nr_synch_request_t;
 
 typedef struct {

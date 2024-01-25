@@ -28,7 +28,7 @@
 
 #ifndef RRC_MESSAGES_TYPES_H_
 #define RRC_MESSAGES_TYPES_H_
-
+#include "common/utils/mem/oai_memory.h"
 #include "as_message.h"
 #include "rrc_types.h"
 #include "s1ap_messages_types.h"
@@ -43,6 +43,7 @@
 #include "NR_RACH-ConfigCommon.h"
 #include "NR_ServingCellConfigCommon.h"
 #include "NR_ServingCellConfig.h"
+
 //-------------------------------------------------------------------------------------------//
 // Messages for RRC logging
 #if defined(DISABLE_ITTI_XER_PRINT)
@@ -73,6 +74,7 @@
 #define NAS_CELL_SELECTION_REQ(mSGpTR)  (mSGpTR)->ittiMsg.nas_cell_selection_req
 #define NAS_CONN_ESTABLI_REQ(mSGpTR)    (mSGpTR)->ittiMsg.nas_conn_establi_req
 #define NAS_UPLINK_DATA_REQ(mSGpTR)     (mSGpTR)->ittiMsg.nas_ul_data_req
+#define NAS_DETACH_REQ(mSGpTR)          (mSGpTR)->ittiMsg.nas_detach_req
 #define NAS_DEREGISTRATION_REQ(mSGpTR)  (mSGpTR)->ittiMsg.nas_deregistration_req
 
 #define NAS_RAB_ESTABLI_RSP(mSGpTR)     (mSGpTR)->ittiMsg.nas_rab_est_rsp
@@ -82,6 +84,7 @@
 #define NAS_PAGING_IND(mSGpTR)          (mSGpTR)->ittiMsg.nas_paging_ind
 #define NAS_CONN_ESTABLI_CNF(mSGpTR)    (mSGpTR)->ittiMsg.nas_conn_establi_cnf
 #define NAS_CONN_RELEASE_IND(mSGpTR)    (mSGpTR)->ittiMsg.nas_conn_release_ind
+#define NR_NAS_CONN_RELEASE_IND(mSGpTR) (mSGpTR)->ittiMsg.nr_nas_conn_release_ind
 #define NAS_UPLINK_DATA_CNF(mSGpTR)     (mSGpTR)->ittiMsg.nas_ul_data_cnf
 #define NAS_DOWNLINK_DATA_IND(mSGpTR)   (mSGpTR)->ittiMsg.nas_dl_data_ind
 
@@ -417,7 +420,7 @@ typedef struct NRRrcConfigurationReq_s {
 
 typedef struct NRDuDlReq_s {
   rnti_t rnti;
-  mem_block_t * buf;
+  uint8_t *buf;
   uint64_t srb_id;
 }  NRDuDlReq_t; 
 
@@ -427,6 +430,7 @@ typedef cell_info_req_t         NasCellSelectionReq;
 typedef nas_establish_req_t     NasConnEstabliReq;
 typedef ul_info_transfer_req_t  NasUlDataReq;
 typedef nas_deregistration_req_t NasDeregistrationReq;
+typedef nas_detach_req_t        NasDetachReq;
 
 typedef rab_establish_rsp_t     NasRabEstRsp;
 
@@ -451,6 +455,16 @@ typedef struct nrrrc_frame_process_s {
   int frame;
   int gnb_id;
 } NRRrcFrameProcess;
+
+typedef enum NR_Release_Cause_e {
+  RRC_CONNECTION_FAILURE,
+  RRC_RESUME_FAILURE,
+  OTHER,
+} NR_Release_Cause_t;
+
+typedef struct nr_nas_conn_release_ind {
+  NR_Release_Cause_t cause;
+} NRNasConnReleaseInd;
 
 // eNB: RLC -> RRC messages
 typedef struct rlc_sdu_indication_s {

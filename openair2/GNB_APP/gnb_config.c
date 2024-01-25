@@ -278,7 +278,8 @@ void fill_scc_sim(NR_ServingCellConfigCommon_t *scc,uint64_t *ssb_bitmap,int N_R
   scc->downlinkConfigCommon->frequencyInfoDL->scs_SpecificCarrierList.list.array[0]->offsetToCarrier=0;
   scc->downlinkConfigCommon->frequencyInfoDL->scs_SpecificCarrierList.list.array[0]->subcarrierSpacing=mu_dl;
   scc->downlinkConfigCommon->frequencyInfoDL->scs_SpecificCarrierList.list.array[0]->carrierBandwidth=N_RB_DL;
-  scc->downlinkConfigCommon->initialDownlinkBWP->genericParameters.locationAndBandwidth=275*(N_RB_DL-1);
+  scc->downlinkConfigCommon->initialDownlinkBWP->genericParameters.locationAndBandwidth =
+      PRBalloc_to_locationandbandwidth(N_RB_DL, 0);
   scc->downlinkConfigCommon->initialDownlinkBWP->genericParameters.subcarrierSpacing=mu_dl;//NR_SubcarrierSpacing_kHz30;
   *scc->downlinkConfigCommon->initialDownlinkBWP->pdcch_ConfigCommon->choice.setup->controlResourceSetZero=12;
   *scc->downlinkConfigCommon->initialDownlinkBWP->pdcch_ConfigCommon->choice.setup->searchSpaceZero=0;
@@ -298,7 +299,7 @@ void fill_scc_sim(NR_ServingCellConfigCommon_t *scc,uint64_t *ssb_bitmap,int N_R
   scc->uplinkConfigCommon->frequencyInfoUL->scs_SpecificCarrierList.list.array[0]->subcarrierSpacing=mu_ul;
   scc->uplinkConfigCommon->frequencyInfoUL->scs_SpecificCarrierList.list.array[0]->carrierBandwidth=N_RB_UL;
   *scc->uplinkConfigCommon->frequencyInfoUL->p_Max=20;
-  scc->uplinkConfigCommon->initialUplinkBWP->genericParameters.locationAndBandwidth=275*(N_RB_UL-1);
+  scc->uplinkConfigCommon->initialUplinkBWP->genericParameters.locationAndBandwidth = PRBalloc_to_locationandbandwidth(N_RB_UL, 0);
   scc->uplinkConfigCommon->initialUplinkBWP->genericParameters.subcarrierSpacing=mu_ul;//NR_SubcarrierSpacing_kHz30;
   scc->uplinkConfigCommon->initialUplinkBWP->rach_ConfigCommon->choice.setup->rach_ConfigGeneric.prach_ConfigurationIndex=98;
   scc->uplinkConfigCommon->initialUplinkBWP->rach_ConfigCommon->choice.setup->rach_ConfigGeneric.msg1_FDM=NR_RACH_ConfigGeneric__msg1_FDM_one;
@@ -1152,18 +1153,20 @@ static f1ap_setup_req_t *RC_read_F1Setup(uint64_t id,
 
   req->cell[0].info.measurement_timing_information = "0";
 
-  int buf_len = 3; // this is what we assume in monolithic
-  req->cell[0].sys_info = calloc(1, sizeof(*req->cell[0].sys_info));
-  AssertFatal(req->cell[0].sys_info != NULL, "out of memory\n");
-  f1ap_gnb_du_system_info_t *sys_info = req->cell[0].sys_info;
-  sys_info->mib = calloc(buf_len, sizeof(*sys_info->mib));
-  DevAssert(sys_info->mib != NULL);
-  DevAssert(mib != NULL);
-  sys_info->mib_length = encode_MIB_NR(mib, 0, sys_info->mib, buf_len);
-  DevAssert(sys_info->mib_length == buf_len);
-
   if (get_softmodem_params()->sa) {
-    // in NSA we don't transmit SIB1
+    // in NSA we don't transmit SIB1, so cannot fill DU system information
+    // so cannot send MIB either
+
+    int buf_len = 3; // this is what we assume in monolithic
+    req->cell[0].sys_info = calloc(1, sizeof(*req->cell[0].sys_info));
+    AssertFatal(req->cell[0].sys_info != NULL, "out of memory\n");
+    f1ap_gnb_du_system_info_t *sys_info = req->cell[0].sys_info;
+    sys_info->mib = calloc(buf_len, sizeof(*sys_info->mib));
+    DevAssert(sys_info->mib != NULL);
+    DevAssert(mib != NULL);
+    sys_info->mib_length = encode_MIB_NR(mib, 0, sys_info->mib, buf_len);
+    DevAssert(sys_info->mib_length == buf_len);
+
     DevAssert(sib1 != NULL);
     NR_SIB1_t *bcch_SIB1 = sib1->message.choice.c1->choice.systemInformationBlockType1;
     sys_info->sib1 = calloc(NR_MAX_SIB_LENGTH / 8, sizeof(*sys_info->sib1));
@@ -1171,6 +1174,9 @@ static f1ap_setup_req_t *RC_read_F1Setup(uint64_t id,
     AssertFatal(enc_rval.encoded > 0, "ASN1 message encoding failed (%s, %lu)!\n", enc_rval.failed_type->name, enc_rval.encoded);
     sys_info->sib1_length = (enc_rval.encoded + 7) / 8;
   }
+
+  int num = read_version(TO_STRING(NR_RRC_VERSION), &req->rrc_ver[0], &req->rrc_ver[1], &req->rrc_ver[2]);
+  AssertFatal(num == 3, "could not read RRC version string %s\n", TO_STRING(NR_RRC_VERSION));
 
   return req;
 }
@@ -2266,33 +2272,3 @@ ngran_node_t get_node_type(void)
     return ngran_gNB;
   }
 }
-
-#ifdef E2_AGENT
-
-e2_agent_args_t RCconfig_NR_E2agent(void)
-{
-  paramdef_t e2agent_params[] = E2AGENT_PARAMS_DESC;
-  int ret = config_get(config_get_if(), e2agent_params, sizeofArray(e2agent_params), CONFIG_STRING_E2AGENT);
-  if (ret < 0) {
-    LOG_W(GNB_APP, "configuration file does not contain a \"%s\" section, applying default parameters from FlexRIC\n", CONFIG_STRING_E2AGENT);
-    return (e2_agent_args_t) { 0 };
-  }
-
-  bool enabled = config_isparamset(e2agent_params, E2AGENT_CONFIG_SMDIR_IDX)
-              && config_isparamset(e2agent_params, E2AGENT_CONFIG_IP_IDX);
-  e2_agent_args_t dst = {.enabled = enabled};
-  if (!enabled) {
-    LOG_W(GNB_APP, "E2 agent is DISABLED (for activation, define .%s.{%s,%s} parameters)\n", CONFIG_STRING_E2AGENT, E2AGENT_CONFIG_IP, E2AGENT_CONFIG_SMDIR);
-    return dst;
-  }
-
-  if (e2agent_params[E2AGENT_CONFIG_SMDIR_IDX].strptr != NULL)
-    dst.sm_dir = *e2agent_params[E2AGENT_CONFIG_SMDIR_IDX].strptr;
-
-  if (e2agent_params[E2AGENT_CONFIG_IP_IDX].strptr != NULL)
-    dst.ip = *e2agent_params[E2AGENT_CONFIG_IP_IDX].strptr;
-
-  return dst;
-}
-
-#endif // E2_AGENT

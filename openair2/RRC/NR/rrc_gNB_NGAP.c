@@ -623,8 +623,7 @@ int rrc_gNB_process_NGAP_DOWNLINK_NAS(MessageDef *msg_p, instance_t instance, mu
   PROTOCOL_CTXT_SET_BY_INSTANCE(&ctxt, instance, GNB_FLAG_YES, UE->rrc_ue_id, 0, 0);
 
   /* Create message for PDCP (DLInformationTransfer_t) */
-  length = do_NR_DLInformationTransfer(instance,
-                                       buffer,
+  length = do_NR_DLInformationTransfer(buffer,
                                        sizeof(buffer),
                                        rrc_gNB_get_next_transaction_identifier(instance),
                                        req->nas_pdu.length,
@@ -788,9 +787,7 @@ void rrc_gNB_process_NGAP_PDUSESSION_SETUP_REQ(MessageDef *msg_p, instance_t ins
     pdu_session_to_setup_t *pdu = bearer_req.pduSession + bearer_req.numPDUSessions;
     bearer_req.numPDUSessions++;
     pdu->sessionId = session->pdusession_id;
-    nssai_t *nssai = &msg->allowed_nssai[i];
-    pdu->nssai.sst = nssai->sst;
-    pdu->nssai.sd = nssai->sd;
+    pdu->nssai = msg->pdusession_setup_params[i].nssai;
     if (cuup_nssai.sst == 0)
       cuup_nssai = pdu->nssai; /* for CU-UP selection below */
     pdu->integrityProtectionIndication = rrc->security.do_drb_integrity ? E1AP_IntegrityProtectionIndication_required : E1AP_IntegrityProtectionIndication_not_needed;

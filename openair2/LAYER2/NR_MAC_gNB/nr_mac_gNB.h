@@ -223,11 +223,13 @@ typedef struct {
   NR_CellGroupConfig_t *CellGroup;
   /// Preambles for contention-free access
   NR_preamble_ue_t preambles;
+  int contention_resolution_timer;
   /// CFRA flag
   bool cfra;
   // BWP for RA
   NR_UE_DL_BWP_t DL_BWP;
   NR_UE_UL_BWP_t UL_BWP;
+  NR_UE_ServingCell_Info_t sc_info;
 } NR_RA_t;
 
 /*! \brief gNB common channels */
@@ -699,6 +701,7 @@ typedef struct {
   NR_UE_sched_ctrl_t UE_sched_ctrl;
   NR_UE_DL_BWP_t current_DL_BWP;
   NR_UE_UL_BWP_t current_UL_BWP;
+  NR_UE_ServingCell_Info_t sc_info;
   NR_mac_stats_t mac_stats;
   /// currently active CellGroupConfig
   NR_CellGroupConfig_t *CellGroup;
@@ -710,7 +713,6 @@ typedef struct {
   // UE selected beam index
   uint8_t UE_beam_index;
   bool Msg4_ACKed;
-  uint32_t ra_timer;
   float ul_thr_ue;
   float dl_thr_ue;
   long pdsch_HARQ_ACK_Codebook;
@@ -850,6 +852,7 @@ typedef struct gNB_MAC_INST_s {
   uint8_t min_grant_prb;
   uint8_t min_grant_mcs;
   bool identity_pm;
+  int precoding_matrix_size[NR_MAX_NB_LAYERS];
 
   nr_mac_rrc_ul_if_t mac_rrc;
   f1_config_t f1_config;

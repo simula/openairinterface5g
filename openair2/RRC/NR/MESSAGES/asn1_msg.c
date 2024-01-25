@@ -242,10 +242,7 @@ uint8_t do_SIB23_NR(rrc_gNB_carrier_data_t *carrier)
   return((enc_rval.encoded+7)/8);
 }
 
-//------------------------------------------------------------------------------
-int do_RRCReject(uint8_t Mod_id,
-                 uint8_t *const buffer)
-//------------------------------------------------------------------------------
+int do_RRCReject(uint8_t *const buffer)
 {
     asn_enc_rval_t                                   enc_rval;
     NR_DL_CCCH_Message_t                             dl_ccch_msg;
@@ -877,66 +874,63 @@ uint8_t do_NR_RRCReconfigurationComplete(uint8_t *buffer, size_t buffer_size, co
   return((enc_rval.encoded+7)/8);
 }
 
-uint8_t do_RRCSetupComplete(uint8_t Mod_id, uint8_t *buffer, size_t buffer_size,
-                            const uint8_t Transaction_id, uint8_t sel_plmn_id, const int dedicatedInfoNASLength, const char *dedicatedInfoNAS){
-  asn_enc_rval_t enc_rval;
-  
-  NR_UL_DCCH_Message_t  ul_dcch_msg;
-  NR_RRCSetupComplete_t *RrcSetupComplete;
-  memset((void *)&ul_dcch_msg,0,sizeof(NR_UL_DCCH_Message_t));
-
-  uint8_t buf[6];
-
+uint8_t do_RRCSetupComplete(uint8_t *buffer,
+                            size_t buffer_size,
+                            const uint8_t Transaction_id,
+                            uint8_t sel_plmn_id,
+                            const int dedicatedInfoNASLength,
+                            const char *dedicatedInfoNAS)
+{
+  NR_UL_DCCH_Message_t ul_dcch_msg = {0};
   ul_dcch_msg.message.present = NR_UL_DCCH_MessageType_PR_c1;
   ul_dcch_msg.message.choice.c1 = CALLOC(1,sizeof(struct NR_UL_DCCH_MessageType__c1));
   ul_dcch_msg.message.choice.c1->present = NR_UL_DCCH_MessageType__c1_PR_rrcSetupComplete;
   ul_dcch_msg.message.choice.c1->choice.rrcSetupComplete = CALLOC(1, sizeof(NR_RRCSetupComplete_t));
-  RrcSetupComplete                       = ul_dcch_msg.message.choice.c1->choice.rrcSetupComplete;
-  RrcSetupComplete->rrc_TransactionIdentifier    = Transaction_id;
-  RrcSetupComplete->criticalExtensions.present   = NR_RRCSetupComplete__criticalExtensions_PR_rrcSetupComplete;
+  NR_RRCSetupComplete_t *RrcSetupComplete = ul_dcch_msg.message.choice.c1->choice.rrcSetupComplete;
+  RrcSetupComplete->rrc_TransactionIdentifier = Transaction_id;
+  RrcSetupComplete->criticalExtensions.present = NR_RRCSetupComplete__criticalExtensions_PR_rrcSetupComplete;
   RrcSetupComplete->criticalExtensions.choice.rrcSetupComplete = CALLOC(1, sizeof(NR_RRCSetupComplete_IEs_t));
-  // RrcSetupComplete->criticalExtensions.choice.rrcSetupComplete->nonCriticalExtension = CALLOC(1,
-  //   sizeof(*RrcSetupComplete->criticalExtensions.choice.rrcSetupComplete->nonCriticalExtension));
-  RrcSetupComplete->criticalExtensions.choice.rrcSetupComplete->selectedPLMN_Identity = sel_plmn_id;
-  RrcSetupComplete->criticalExtensions.choice.rrcSetupComplete->registeredAMF = NULL;
+  NR_RRCSetupComplete_IEs_t *ies = RrcSetupComplete->criticalExtensions.choice.rrcSetupComplete;
+  ies->selectedPLMN_Identity = sel_plmn_id;
+  ies->registeredAMF = NULL;
 
-  RrcSetupComplete->criticalExtensions.choice.rrcSetupComplete->ng_5G_S_TMSI_Value = CALLOC(1, sizeof(struct NR_RRCSetupComplete_IEs__ng_5G_S_TMSI_Value));
-  RrcSetupComplete->criticalExtensions.choice.rrcSetupComplete->ng_5G_S_TMSI_Value->present = NR_RRCSetupComplete_IEs__ng_5G_S_TMSI_Value_PR_ng_5G_S_TMSI;
-  RrcSetupComplete->criticalExtensions.choice.rrcSetupComplete->ng_5G_S_TMSI_Value->choice.ng_5G_S_TMSI.size = 6;
-  RrcSetupComplete->criticalExtensions.choice.rrcSetupComplete->ng_5G_S_TMSI_Value->choice.ng_5G_S_TMSI.buf = buf;
-  RrcSetupComplete->criticalExtensions.choice.rrcSetupComplete->ng_5G_S_TMSI_Value->choice.ng_5G_S_TMSI.buf[0] = 0x12;
-  RrcSetupComplete->criticalExtensions.choice.rrcSetupComplete->ng_5G_S_TMSI_Value->choice.ng_5G_S_TMSI.buf[1] = 0x34;
-  RrcSetupComplete->criticalExtensions.choice.rrcSetupComplete->ng_5G_S_TMSI_Value->choice.ng_5G_S_TMSI.buf[2] = 0x56;
-  RrcSetupComplete->criticalExtensions.choice.rrcSetupComplete->ng_5G_S_TMSI_Value->choice.ng_5G_S_TMSI.buf[3] = 0x78;
-  RrcSetupComplete->criticalExtensions.choice.rrcSetupComplete->ng_5G_S_TMSI_Value->choice.ng_5G_S_TMSI.buf[4] = 0x9A;
-  RrcSetupComplete->criticalExtensions.choice.rrcSetupComplete->ng_5G_S_TMSI_Value->choice.ng_5G_S_TMSI.buf[5] = 0xBC;
+  ies->ng_5G_S_TMSI_Value = CALLOC(1, sizeof(struct NR_RRCSetupComplete_IEs__ng_5G_S_TMSI_Value));
+  ies->ng_5G_S_TMSI_Value->present = NR_RRCSetupComplete_IEs__ng_5G_S_TMSI_Value_PR_ng_5G_S_TMSI;
+  NR_NG_5G_S_TMSI_t *stmsi = &ies->ng_5G_S_TMSI_Value->choice.ng_5G_S_TMSI;
+  stmsi->size = 6;
+  stmsi->buf = calloc(stmsi->size, sizeof(*stmsi->buf));
+  AssertFatal(stmsi->buf != NULL, "out of memory\n");
+  stmsi->buf[0] = 0x12;
+  stmsi->buf[1] = 0x34;
+  stmsi->buf[2] = 0x56;
+  stmsi->buf[3] = 0x78;
+  stmsi->buf[4] = 0x9A;
+  stmsi->buf[5] = 0xBC;
 
-  memset(&RrcSetupComplete->criticalExtensions.choice.rrcSetupComplete->dedicatedNAS_Message,0,sizeof(OCTET_STRING_t));
-  OCTET_STRING_fromBuf(&RrcSetupComplete->criticalExtensions.choice.rrcSetupComplete->dedicatedNAS_Message,dedicatedInfoNAS,dedicatedInfoNASLength);
+  memset(&ies->dedicatedNAS_Message,0,sizeof(OCTET_STRING_t));
+  OCTET_STRING_fromBuf(&ies->dedicatedNAS_Message, dedicatedInfoNAS, dedicatedInfoNASLength);
   if ( LOG_DEBUGFLAG(DEBUG_ASN1) ) {
     xer_fprint(stdout, &asn_DEF_NR_UL_DCCH_Message, (void *)&ul_dcch_msg);
   }
 
-  enc_rval = uper_encode_to_buffer(&asn_DEF_NR_UL_DCCH_Message,
-                                   NULL,
-                                   (void *)&ul_dcch_msg,
-                                   buffer,
-                                   buffer_size);
+  asn_enc_rval_t enc_rval = uper_encode_to_buffer(&asn_DEF_NR_UL_DCCH_Message,
+                                                  NULL,
+                                                  (void *)&ul_dcch_msg,
+                                                  buffer,
+                                                  buffer_size);
   AssertFatal(enc_rval.encoded > 0,"ASN1 message encoding failed (%s, %lu)!\n",
               enc_rval.failed_type->name,enc_rval.encoded);
   LOG_D(NR_RRC,"RRCSetupComplete Encoded %zd bits (%zd bytes)\n",enc_rval.encoded,(enc_rval.encoded+7)/8);
 
+  ASN_STRUCT_FREE_CONTENTS_ONLY(asn_DEF_NR_UL_DCCH_Message, &ul_dcch_msg);
   return((enc_rval.encoded+7)/8);
 }
 
-//------------------------------------------------------------------------------
-uint8_t do_NR_DLInformationTransfer(uint8_t Mod_id,
-                                    uint8_t *buffer,
+uint8_t do_NR_DLInformationTransfer(uint8_t *buffer,
                                     size_t buffer_len,
                                     uint8_t transaction_id,
                                     uint32_t pdu_length,
                                     uint8_t *pdu_buffer)
-//------------------------------------------------------------------------------
 {
   NR_DL_DCCH_Message_t dl_dcch_msg = {0};
   dl_dcch_msg.message.present = NR_DL_DCCH_MessageType_PR_c1;
@@ -985,7 +979,8 @@ uint8_t do_NR_ULInformationTransfer(uint8_t **buffer, uint32_t pdu_length, uint8
     return encoded;
 }
 
-uint8_t do_RRCReestablishmentRequest(uint8_t Mod_id, uint8_t *buffer, uint16_t c_rnti) {
+uint8_t do_RRCReestablishmentRequest(uint8_t *buffer, uint16_t c_rnti)
+{
   asn_enc_rval_t enc_rval;
   NR_UL_CCCH_Message_t ul_ccch_msg;
   NR_RRCReestablishmentRequest_t *rrcReestablishmentRequest;
@@ -1193,7 +1188,8 @@ void free_defaultMeasConfig(NR_MeasConfig_t *mc)
   ASN_STRUCT_FREE(asn_DEF_NR_MeasConfig, mc);
 }
 
-uint8_t do_NR_Paging(uint8_t Mod_id, uint8_t *buffer, uint32_t tmsi) {
+uint8_t do_NR_Paging(uint8_t Mod_id, uint8_t *buffer, uint32_t tmsi)
+{
   LOG_D(NR_RRC, "[gNB %d] do_NR_Paging start\n", Mod_id);
   NR_PCCH_Message_t pcch_msg;
   pcch_msg.message.present           = NR_PCCH_MessageType_PR_c1;

@@ -37,7 +37,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "platform_types.h"
+#include "common/platform_types.h"
 #include "commonDef.h"
 #include "common/platform_constants.h"
 
@@ -59,7 +59,6 @@
 #include "as_message.h"
 #include "common/utils/nr/nr_common.h"
 
-#define NB_NR_UE_INST 1
 #define NB_CNX_UE 2//MAX_MANAGED_RG_PER_MOBILE
 #define MAX_MEAS_OBJ 7
 #define MAX_MEAS_CONFIG 7
@@ -83,7 +82,7 @@ typedef enum Rrc_State_NR_e {
   RRC_STATE_IDLE_NR = 0,
   RRC_STATE_INACTIVE_NR,
   RRC_STATE_CONNECTED_NR,
-
+  RRC_STATE_DETACH_NR,
   RRC_STATE_FIRST_NR = RRC_STATE_IDLE_NR,
   RRC_STATE_LAST_NR = RRC_STATE_CONNECTED_NR,
 } Rrc_State_NR_t;
@@ -148,17 +147,25 @@ typedef struct NR_UE_Timers_Constants_s {
   // timers status
   bool T300_active;
   bool T301_active;
+  bool T302_active;
   bool T304_active;
   bool T310_active;
   bool T311_active;
   bool T319_active;
+  bool T320_active;
+  bool T325_active;
+  bool T390_active;
   // timers
   uint32_t T300_cnt;
   uint32_t T301_cnt;
+  uint32_t T302_cnt;
   uint32_t T304_cnt;
   uint32_t T310_cnt;
   uint32_t T311_cnt;
   uint32_t T319_cnt;
+  uint32_t T320_cnt;
+  uint32_t T325_cnt;
+  uint32_t T390_cnt;
   // counters
   uint32_t N310_cnt;
   uint32_t N311_cnt;
@@ -167,10 +174,14 @@ typedef struct NR_UE_Timers_Constants_s {
   uint32_t N311_k;
   uint32_t T300_k;
   uint32_t T301_k;
+  uint32_t T302_k;
   uint32_t T304_k;
   uint32_t T310_k;
   uint32_t T311_k;
   uint32_t T319_k;
+  uint32_t T320_k;
+  uint32_t T325_k;
+  uint32_t T390_k;
 } NR_UE_Timers_Constants_t;
 
 typedef enum {
@@ -194,8 +205,7 @@ typedef struct rrcPerNB {
 } rrcPerNB_t;
 
 typedef struct NR_UE_RRC_INST_s {
-  NR_MeasConfig_t        *meas_config;
-
+  instance_t ue_id;
   rrcPerNB_t perNB[NB_CNX_UE];
 
   char                           *uecap_file;
@@ -210,7 +220,7 @@ typedef struct NR_UE_RRC_INST_s {
   NR_BWP_Id_t dl_bwp_id;
   NR_BWP_Id_t ul_bwp_id;
 
-  /* KeNB as computed from parameters within USIM card */
+  /* KgNB as computed from parameters within USIM card */
   uint8_t kgnb[32];
   /* Used integrity/ciphering algorithms */
   //RRC_LIST_TYPE(NR_SecurityAlgorithmConfig_t, NR_SecurityAlgorithmConfig) SecurityAlgorithmConfig_list;

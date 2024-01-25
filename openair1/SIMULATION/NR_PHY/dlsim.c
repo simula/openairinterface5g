@@ -54,15 +54,13 @@
 #include "NR_UE_PHY_INTERFACE/NR_IF_Module.h"
 
 #include "LAYER2/NR_MAC_UE/mac_proto.h"
-//#include "LAYER2/NR_MAC_gNB/mac_proto.h"
-//#include "openair2/LAYER2/NR_MAC_UE/mac_proto.h"
+#include "LAYER2/NR_MAC_gNB/mac_rrc_dl_handler.h"
 #include "LAYER2/NR_MAC_gNB/mac_proto.h"
 #include "NR_asn_constant.h"
 #include "RRC/NR/nr_rrc_config.h"
 #include "openair1/SIMULATION/RF/rf.h"
 #include "openair1/SIMULATION/TOOLS/sim.h"
 #include "openair1/SIMULATION/NR_PHY/nr_unitary_defs.h"
-//#include "openair1/SIMULATION/NR_PHY/nr_dummy_functions.c"
 #include "PHY/NR_REFSIG/ptrs_nr.h"
 #include "NR_RRCReconfiguration.h"
 #define inMicroS(a) (((double)(a))/(get_cpu_freq_GHz()*1000.0))
@@ -138,14 +136,6 @@ void nr_dlsim_preprocessor(module_id_t module_id,
   NR_UE_DL_BWP_t *current_BWP = &UE_info->current_DL_BWP;
   NR_ServingCellConfigCommon_t *scc = RC.nrmac[0]->common_channels[0].ServingCellConfigCommon;
 
-  //TODO better implementation needed
-  //for now artificially set candidates for the required aggregation levels
-  sched_ctrl->search_space->nrofCandidates->aggregationLevel1 = NR_SearchSpace__nrofCandidates__aggregationLevel1_n0;
-  sched_ctrl->search_space->nrofCandidates->aggregationLevel2 = NR_SearchSpace__nrofCandidates__aggregationLevel2_n0;
-  sched_ctrl->search_space->nrofCandidates->aggregationLevel4 = NR_SearchSpace__nrofCandidates__aggregationLevel4_n1;
-  sched_ctrl->search_space->nrofCandidates->aggregationLevel8 = NR_SearchSpace__nrofCandidates__aggregationLevel8_n1;
-  sched_ctrl->search_space->nrofCandidates->aggregationLevel16 = NR_SearchSpace__nrofCandidates__aggregationLevel16_n0;
-
   uint8_t nr_of_candidates = 0;
   if (g_mcsIndex < 4) {
     find_aggregation_candidates(&sched_ctrl->aggregation_level,
@@ -180,8 +170,14 @@ void nr_dlsim_preprocessor(module_id_t module_id,
   sched_pdsch->time_domain_allocation = get_dl_tda(RC.nrmac[module_id], scc, slot);
   AssertFatal(sched_pdsch->time_domain_allocation >= 0,"Unable to find PDSCH time domain allocation in list\n");
 
-  sched_pdsch->tda_info = get_dl_tda_info(current_BWP, sched_ctrl->search_space->searchSpaceType->present, sched_pdsch->time_domain_allocation,
-                                          NR_MIB__dmrs_TypeA_Position_pos2, 1, NR_RNTI_C, sched_ctrl->coreset->controlResourceSetId, false);
+  sched_pdsch->tda_info = get_dl_tda_info(current_BWP,
+                                          sched_ctrl->search_space->searchSpaceType->present,
+                                          sched_pdsch->time_domain_allocation,
+                                          NR_MIB__dmrs_TypeA_Position_pos2,
+                                          1,
+                                          TYPE_C_RNTI_,
+                                          sched_ctrl->coreset->controlResourceSetId,
+                                          false);
 
   sched_pdsch->dmrs_parms = get_dl_dmrs_params(scc,
                                                current_BWP,
@@ -227,35 +223,21 @@ nrUE_params_t *get_nrUE_params(void) {
 }
 
 
-void validate_input_pmi(nr_pdsch_AntennaPorts_t pdsch_AntennaPorts, int nrOfLayers, int pmi)
+void validate_input_pmi(nfapi_nr_config_request_scf_t *gNB_config,
+                        nr_pdsch_AntennaPorts_t pdsch_AntennaPorts,
+                        int nrOfLayers,
+                        int pmi)
 {
   if (pmi == 0)
     return;
 
+  nfapi_nr_pm_pdu_t *pmi_pdu = &gNB_config->pmi_list.pmi_pdu[pmi - 1]; // pmi 0 is identity matrix
+  AssertFatal(pmi == pmi_pdu->pm_idx, "PMI %d doesn't match to the one in precoding matrix %d\n", pmi, pmi_pdu->pm_idx);
+  AssertFatal(nrOfLayers == pmi_pdu->numLayers, "Number of layers %d doesn't match to the one in precoding matrix %d for PMI %d\n",
+              nrOfLayers, pmi_pdu->numLayers, pmi);
   int num_antenna_ports = pdsch_AntennaPorts.N1 * pdsch_AntennaPorts.N2 * pdsch_AntennaPorts.XP;
-  int N1 = pdsch_AntennaPorts.N1;
-  int N2 = pdsch_AntennaPorts.N2;
-  int O1 = N1 > 1 ? 4 : 1;
-  int O2 = N2 > 1 ? 4 : 1;
-  int K1, K2;
-  if (num_antenna_ports > 2)
-    get_K1_K2(N1, N2, &K1, &K2);
-  else {
-    K1 = 1; K2 = 1;
-  }
-  int num_pmi = 1; // pmi = 0 is the identity matrix
-  switch (nrOfLayers) {
-    case 1 :
-      num_pmi += N1 * O1 * N2 * O2 * 4;
-      AssertFatal(pmi < num_pmi, "Input PMI index %d exceeds the limit of configured matrices %d for %d layers\n", pmi, num_pmi, nrOfLayers);
-      return;
-    case 2 :
-      num_pmi += N1 * O1 * N2 * O2 * K1 * K2 * 2;
-      AssertFatal(pmi < num_pmi, "Input PMI index %d exceeds the limit of conigured matrices %d for %d layers\n", pmi, num_pmi, nrOfLayers);
-      break;
-    default :
-      AssertFatal(false, "Precoding with more than 2 nrOfLayers not yet supported\n");
-  }
+  AssertFatal(num_antenna_ports == pmi_pdu->num_ant_ports, "Configured antenna ports %d does not match precoding matrix AP size %d for PMI %d\n",
+              num_antenna_ports, pmi_pdu->num_ant_ports, pmi);
 }
 
 
@@ -614,6 +596,7 @@ int main(int argc, char **argv)
   InitSinLUT();
 
   get_softmodem_params()->phy_test = 1;
+  get_softmodem_params()->usim_test = 1;
   get_softmodem_params()->do_ra = 0;
   set_softmodem_optmask(SOFTMODEM_DLSIM_BIT);
 
@@ -712,7 +695,7 @@ int main(int argc, char **argv)
   gNB->ap_N2 = pdsch_AntennaPorts.N2;
   gNB->ap_XP = pdsch_AntennaPorts.XP;
 
-  validate_input_pmi(pdsch_AntennaPorts, g_nrOfLayers, g_pmi);
+  validate_input_pmi(&gNB_mac->config[0], pdsch_AntennaPorts, g_nrOfLayers, g_pmi);
 
   NR_UE_NR_Capability_t* UE_Capability_nr = CALLOC(1,sizeof(NR_UE_NR_Capability_t));
   prepare_sim_uecap(UE_Capability_nr,scc,mu,
@@ -852,7 +835,7 @@ int main(int argc, char **argv)
     nr_gold_pdsch(UE, i, UE->scramblingID_dlsch[i]);
   }
 
-  nr_l2_init_ue();
+  nr_l2_init_ue(1);
   UE_mac = get_mac_inst(0);
   ue_init_config_request(UE_mac, mu);
 
@@ -879,10 +862,13 @@ int main(int argc, char **argv)
   // generate signal
   AssertFatal(input_fd==NULL,"Not ready for input signal file\n");
 
+  // clone CellGroup to have a separate copy at UE
+  NR_CellGroupConfig_t *UE_CellGroup = clone_CellGroupConfig(secondaryCellGroup);
+
   //Configure UE
   NR_BCCH_BCH_Message_t *mib = get_new_MIB_NR(scc);
   nr_rrc_mac_config_req_mib(0, 0, mib->message.choice.mib, false);
-  nr_rrc_mac_config_req_cg(0, 0, secondaryCellGroup);
+  nr_rrc_mac_config_req_cg(0, 0, UE_CellGroup);
 
   UE_mac->state = UE_CONNECTED;
   UE_mac->ra.ra_state = RA_SUCCEEDED;
@@ -1409,7 +1395,7 @@ void update_dmrs_config(NR_CellGroupConfig_t *scg, int8_t* dmrs_arg)
   }
 
   /* Additional DMRS positions 0 ,1 ,2 and 3 */
-  if(dmrs_arg[1] >= 0 && dmrs_arg[1] <4 ) {
+  if (dmrs_arg[1] >= 0 && dmrs_arg[1] < 4) {
     add_pos = dmrs_arg[1];
   } else {
     AssertFatal(1==0,"Incorrect Additional Position, valid options 0-pos1, 1-pos1, 2-pos2, 3-pos3\n");
@@ -1468,7 +1454,19 @@ void update_dmrs_config(NR_CellGroupConfig_t *scg, int8_t* dmrs_arg)
     if (dmrs_config->dmrs_AdditionalPosition == NULL) {
       dmrs_config->dmrs_AdditionalPosition = calloc(1,sizeof(*dmrs_MappingtypeA->choice.setup->dmrs_AdditionalPosition));
     }
-    *dmrs_config->dmrs_AdditionalPosition = add_pos;
+    switch (add_pos) {
+      case 0:
+        *dmrs_config->dmrs_AdditionalPosition = NR_DMRS_DownlinkConfig__dmrs_AdditionalPosition_pos0;
+        break;
+      case 1:
+        *dmrs_config->dmrs_AdditionalPosition = NR_DMRS_DownlinkConfig__dmrs_AdditionalPosition_pos1;
+        break;
+      case 3:
+        *dmrs_config->dmrs_AdditionalPosition = NR_DMRS_DownlinkConfig__dmrs_AdditionalPosition_pos3;
+        break;
+      default:
+        AssertFatal(false, "DMRS additional position %d not valid\n", add_pos);
+    }
   } else { // if NULL, Value pos2
     free(dmrs_config->dmrs_AdditionalPosition);
     dmrs_config->dmrs_AdditionalPosition = NULL;

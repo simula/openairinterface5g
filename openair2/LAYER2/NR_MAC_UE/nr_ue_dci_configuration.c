@@ -86,13 +86,14 @@ void fill_dci_search_candidates(const NR_SearchSpace_t *ss,
   rel15->number_of_candidates = i;
 }
 
-NR_ControlResourceSet_t *ue_get_coreset(const NR_UE_MAC_INST_t *mac, const int coreset_id)
+NR_ControlResourceSet_t *ue_get_coreset(const NR_BWP_PDCCH_t *config, const int coreset_id)
 {
+  if (config->commonControlResourceSet && coreset_id == config->commonControlResourceSet->controlResourceSetId)
+    return config->commonControlResourceSet;
   NR_ControlResourceSet_t *coreset = NULL;
-  for (int i = 0; i < FAPI_NR_MAX_CORESET_PER_BWP; i++) {
-    if (mac->BWP_coresets[i] != NULL &&
-        mac->BWP_coresets[i]->controlResourceSetId == coreset_id) {
-      coreset = mac->BWP_coresets[i];
+  for (int i = 0; i < config->list_Coreset.count; i++) {
+    if (config->list_Coreset.array[i]->controlResourceSetId == coreset_id) {
+      coreset = config->list_Coreset.array[i];
       break;
     }
   }
@@ -107,20 +108,20 @@ void config_dci_pdu(NR_UE_MAC_INST_t *mac,
                     const int slot,
                     const NR_SearchSpace_t *ss)
 {
-
-  const NR_UE_DL_BWP_t *current_DL_BWP = &mac->current_DL_BWP;
-  const NR_UE_UL_BWP_t *current_UL_BWP = &mac->current_UL_BWP;
+  const NR_UE_DL_BWP_t *current_DL_BWP = mac->current_DL_BWP;
+  const NR_UE_UL_BWP_t *current_UL_BWP = mac->current_UL_BWP;
   NR_BWP_Id_t dl_bwp_id = current_DL_BWP ? current_DL_BWP->bwp_id : 0;
+  NR_BWP_PDCCH_t *pdcch_config = &mac->config_BWP_PDCCH[dl_bwp_id];
 
   fapi_nr_dl_config_dci_dl_pdu_rel15_t *rel15 = &dl_config->dl_config_list[dl_config->number_pdus].dci_config_pdu.dci_config_rel15;
 
   const int coreset_id = *ss->controlResourceSetId;
   NR_ControlResourceSet_t *coreset;
   if(coreset_id > 0) {
-    coreset = ue_get_coreset(mac, coreset_id);
+    coreset = ue_get_coreset(pdcch_config, coreset_id);
     rel15->coreset.CoreSetType = NFAPI_NR_CSET_CONFIG_PDCCH_CONFIG;
   } else {
-    coreset = mac->coreset0;
+    coreset = pdcch_config->coreset0;
     rel15->coreset.CoreSetType = NFAPI_NR_CSET_CONFIG_MIB_SIB1;
   }
 
@@ -153,9 +154,7 @@ void config_dci_pdu(NR_UE_MAC_INST_t *mac,
     rel15->coreset.pdcch_dmrs_scrambling_id = mac->physCellId;
   }
 
-  rel15->num_dci_options = (mac->ra.ra_state == WAIT_RAR ||
-                           rnti_type == NR_RNTI_SI) ?
-                           1 : 2;
+  rel15->num_dci_options = (mac->ra.ra_state == WAIT_RAR || rnti_type == TYPE_SI_RNTI_) ? 1 : 2;
 
   if (ss->searchSpaceType->present == NR_SearchSpace__searchSpaceType_PR_ue_Specific) {
     if (ss->searchSpaceType->choice.ue_Specific->dci_Formats ==
@@ -175,48 +174,46 @@ void config_dci_pdu(NR_UE_MAC_INST_t *mac,
     rel15->dci_format_options[1] = NR_UL_DCI_FORMAT_0_0;
   }
 
+  NR_UE_ServingCell_Info_t *sc_info = &mac->sc_info;
   // loop over RNTI type and configure resource allocation for DCI
   for (int i = 0; i < rel15->num_dci_options; i++) {
     rel15->ss_type_options[i] = ss->searchSpaceType->present;
     const int dci_format = rel15->dci_format_options[i];
     uint16_t alt_size = 0;
     if(current_DL_BWP) {
-
       // computing alternative size for padding
       dci_pdu_rel15_t temp_pdu;
       if(dci_format == NR_DL_DCI_FORMAT_1_0)
-        alt_size =
-            nr_dci_size(current_DL_BWP,
-                        current_UL_BWP,
-                        mac->crossCarrierSchedulingConfig,
-                        mac->pdsch_HARQ_ACK_Codebook,
-                        &temp_pdu,
-                        NR_UL_DCI_FORMAT_0_0,
-                        rnti_type,
-                        coreset,
-                        dl_bwp_id,
-                        ss->searchSpaceType->present,
-                        mac->type0_PDCCH_CSS_config.num_rbs,
-                        0);
+        alt_size = nr_dci_size(current_DL_BWP,
+                               current_UL_BWP,
+                               sc_info,
+                               mac->pdsch_HARQ_ACK_Codebook,
+                               &temp_pdu,
+                               NR_UL_DCI_FORMAT_0_0,
+                               rnti_type,
+                               coreset,
+                               dl_bwp_id,
+                               ss->searchSpaceType->present,
+                               mac->type0_PDCCH_CSS_config.num_rbs,
+                               0);
       if(dci_format == NR_UL_DCI_FORMAT_0_0)
-        alt_size =
-            nr_dci_size(current_DL_BWP,
-                        current_UL_BWP,
-                        mac->crossCarrierSchedulingConfig,
-                        mac->pdsch_HARQ_ACK_Codebook,
-                        &temp_pdu,
-                        NR_DL_DCI_FORMAT_1_0,
-                        rnti_type,
-                        coreset,
-                        dl_bwp_id,
-                        ss->searchSpaceType->present,
-                        mac->type0_PDCCH_CSS_config.num_rbs,
-                        0);
+        alt_size = nr_dci_size(current_DL_BWP,
+                               current_UL_BWP,
+                               sc_info,
+                               mac->pdsch_HARQ_ACK_Codebook,
+                               &temp_pdu,
+                               NR_DL_DCI_FORMAT_1_0,
+                               rnti_type,
+                               coreset,
+                               dl_bwp_id,
+                               ss->searchSpaceType->present,
+                               mac->type0_PDCCH_CSS_config.num_rbs,
+                               0);
     }
 
     rel15->dci_length_options[i] = nr_dci_size(current_DL_BWP,
                                                current_UL_BWP,
-                                               mac->crossCarrierSchedulingConfig,
+                                               sc_info,
                                                mac->pdsch_HARQ_ACK_Codebook,
                                                &mac->def_dci_pdu_rel15[dl_config->slot][dci_format],
                                                dci_format,
@@ -235,7 +232,7 @@ void config_dci_pdu(NR_UE_MAC_INST_t *mac,
   int sps = 0;
 
   switch(rnti_type) {
-    case NR_RNTI_C:
+    case TYPE_C_RNTI_:
       // we use DL BWP dedicated
       sps = current_DL_BWP->cyclicprefix ? 12 : 14;
       // for SPS=14 8 MSBs in positions 13 down to 6
@@ -243,28 +240,28 @@ void config_dci_pdu(NR_UE_MAC_INST_t *mac,
       rel15->rnti = mac->crnti;
       rel15->SubcarrierSpacing = current_DL_BWP->scs;
       break;
-    case NR_RNTI_RA:
+    case TYPE_RA_RNTI_:
       // we use the initial DL BWP
       sps = current_DL_BWP->cyclicprefix == NULL ? 14 : 12;
       monitoringSymbolsWithinSlot = (ss->monitoringSymbolsWithinSlot->buf[0]<<(sps-8)) | (ss->monitoringSymbolsWithinSlot->buf[1]>>(16-sps));
       rel15->rnti = mac->ra.ra_rnti;
       rel15->SubcarrierSpacing = current_DL_BWP->scs;
       break;
-    case NR_RNTI_P:
+    case TYPE_P_RNTI_:
       break;
-    case NR_RNTI_CS:
+    case TYPE_CS_RNTI_:
       break;
-    case NR_RNTI_TC:
+    case TYPE_TC_RNTI_:
       // we use the initial DL BWP
       sps = current_DL_BWP->cyclicprefix == NULL ? 14 : 12;
       monitoringSymbolsWithinSlot = (ss->monitoringSymbolsWithinSlot->buf[0]<<(sps-8)) | (ss->monitoringSymbolsWithinSlot->buf[1]>>(16-sps));
       rel15->rnti = mac->ra.t_crnti;
       rel15->SubcarrierSpacing = current_DL_BWP->scs;
       break;
-    case NR_RNTI_SP_CSI:
+    case TYPE_SP_CSI_RNTI_:
       break;
-    case NR_RNTI_SI:
-      sps=14;
+    case TYPE_SI_RNTI_:
+      sps = 14;
       // for SPS=14 8 MSBs in positions 13 down to 6
       monitoringSymbolsWithinSlot = (ss->monitoringSymbolsWithinSlot->buf[0]<<(sps-8)) | (ss->monitoringSymbolsWithinSlot->buf[1]>>(16-sps));
       rel15->rnti = SI_RNTI; // SI-RNTI - 3GPP TS 38.321 Table 7.1-1: RNTI values
@@ -272,15 +269,15 @@ void config_dci_pdu(NR_UE_MAC_INST_t *mac,
       if(mac->frequency_range == FR2)
         rel15->SubcarrierSpacing = mac->mib->subCarrierSpacingCommon + 2;
       break;
-    case NR_RNTI_SFI:
+    case TYPE_SFI_RNTI_:
       break;
-    case NR_RNTI_INT:
+    case TYPE_INT_RNTI_:
       break;
-    case NR_RNTI_TPC_PUSCH:
+    case TYPE_TPC_PUSCH_RNTI_:
       break;
-    case NR_RNTI_TPC_PUCCH:
+    case TYPE_TPC_PUCCH_RNTI_:
       break;
-    case NR_RNTI_TPC_SRS:
+    case TYPE_TPC_SRS_RNTI_:
       break;
     default:
       break;
@@ -413,6 +410,7 @@ bool monitior_dci_for_other_SI(NR_UE_MAC_INST_t *mac,
     return false;
   const int si_window_slots = 5 << si_SchedulingInfo->si_WindowLength;
   const int abs_slot = frame * slots_per_frame + slot;
+  const int bwp_id = mac->current_DL_BWP->bwp_id;
   for (int n = 0; n < si_SchedulingInfo->schedulingInfoList.list.count; n++) {
     struct NR_SchedulingInfo *sched_Info = si_SchedulingInfo->schedulingInfoList.list.array[n];
     if(mac->si_window_start == -1) {
@@ -437,10 +435,10 @@ bool monitior_dci_for_other_SI(NR_UE_MAC_INST_t *mac,
       get_monitoring_period_offset(ss, &period, &offset);
       for (int i = 0; i < duration; i++) {
         if (((frame * slots_per_frame + slot - offset - i) % period) == 0) {
-          int N = mac->ssb_list.nb_tx_ssb;
+          int N = mac->ssb_list[bwp_id].nb_tx_ssb;
           int K = 0; // k_th transmitted SSB
           for (int i = 0; i < mac->mib_ssb; i++) {
-            if(mac->ssb_list.tx_ssb[i].transmitted)
+            if(mac->ssb_list[bwp_id].tx_ssb[i].transmitted)
               K++;
           }
           // numbering current frame and slot in terms of monitoring occasions in window
@@ -460,8 +458,10 @@ bool monitior_dci_for_other_SI(NR_UE_MAC_INST_t *mac,
 
 void ue_dci_configuration(NR_UE_MAC_INST_t *mac, fapi_nr_dl_config_request_t *dl_config, const frame_t frame, const int slot)
 {
-  const NR_UE_DL_BWP_t *current_DL_BWP = &mac->current_DL_BWP;
-  int scs = mac->get_sib1 ? get_softmodem_params()->numerology : current_DL_BWP->scs;
+  const NR_UE_DL_BWP_t *current_DL_BWP = mac->current_DL_BWP;
+  NR_BWP_Id_t dl_bwp_id = current_DL_BWP ? current_DL_BWP->bwp_id : 0;
+  NR_BWP_PDCCH_t *pdcch_config = &mac->config_BWP_PDCCH[dl_bwp_id];
+  int scs = current_DL_BWP ? current_DL_BWP->scs : get_softmodem_params()->numerology;
   const int slots_per_frame = nr_slots_per_frame[scs];
   if (mac->get_sib1) {
     int ssb_sc_offset_norm;
@@ -483,53 +483,49 @@ void ue_dci_configuration(NR_UE_MAC_INST_t *mac, fapi_nr_dl_config_request_t *dl
                                           mac->mib_ssb,
                                           1, // If the UE is not configured with a periodicity, the UE assumes a periodicity of a half frame
                                           ssb_offset_point_a);
-    if(mac->search_space_zero == NULL)
-      mac->search_space_zero=calloc(1,sizeof(*mac->search_space_zero));
-    if(mac->coreset0 == NULL)
-      mac->coreset0 = calloc(1,sizeof(*mac->coreset0));
-    fill_coresetZero(mac->coreset0, &mac->type0_PDCCH_CSS_config);
-    fill_searchSpaceZero(mac->search_space_zero, slots_per_frame, &mac->type0_PDCCH_CSS_config);
-    if (is_ss_monitor_occasion(frame, slot, slots_per_frame, mac->search_space_zero)) {
+    if (pdcch_config->search_space_zero == NULL)
+      pdcch_config->search_space_zero = calloc(1, sizeof(*pdcch_config->search_space_zero));
+    if (pdcch_config->coreset0 == NULL)
+      pdcch_config->coreset0 = calloc(1, sizeof(*pdcch_config->coreset0));
+    fill_coresetZero(pdcch_config->coreset0, &mac->type0_PDCCH_CSS_config);
+    fill_searchSpaceZero(pdcch_config->search_space_zero, slots_per_frame, &mac->type0_PDCCH_CSS_config);
+    if (is_ss_monitor_occasion(frame, slot, slots_per_frame, pdcch_config->search_space_zero)) {
       LOG_D(NR_MAC, "Monitoring DCI for SIB1 in frame %d slot %d\n", frame, slot);
-      config_dci_pdu(mac, dl_config, NR_RNTI_SI, slot, mac->search_space_zero);
+      config_dci_pdu(mac, dl_config, TYPE_SI_RNTI_, slot, pdcch_config->search_space_zero);
     }
   }
   if (mac->get_otherSI) {
     // If searchSpaceOtherSystemInformation is set to zero,
     // PDCCH monitoring occasions for SI message reception in SI-window
     // are same as PDCCH monitoring occasions for SIB1
-    const NR_SearchSpace_t *ss = mac->otherSI_SS ? mac->otherSI_SS : mac->search_space_zero;
+    const NR_SearchSpace_t *ss = pdcch_config->otherSI_SS ? pdcch_config->otherSI_SS : pdcch_config->search_space_zero;
     // TODO configure SI-window
     if (monitior_dci_for_other_SI(mac, ss, slots_per_frame, frame, slot)) {
       LOG_D(NR_MAC, "Monitoring DCI for other SIs in frame %d slot %d\n", frame, slot);
-      config_dci_pdu(mac, dl_config, NR_RNTI_SI, slot, ss);
+      config_dci_pdu(mac, dl_config, TYPE_SI_RNTI_, slot, ss);
     }
   }
   if (mac->state == UE_PERFORMING_RA &&
       mac->ra.ra_state >= WAIT_RAR) {
     // if RA is ongoing use RA search space
-    if (is_ss_monitor_occasion(frame, slot, slots_per_frame, mac->ra_SS)) {
-      int rnti_type = mac->ra.ra_state == WAIT_RAR ? NR_RNTI_RA : NR_RNTI_TC;
-      config_dci_pdu(mac, dl_config, rnti_type, slot, mac->ra_SS);
+    if (is_ss_monitor_occasion(frame, slot, slots_per_frame, pdcch_config->ra_SS)) {
+      int rnti_type = mac->ra.ra_state == WAIT_RAR ? TYPE_RA_RNTI_ : TYPE_TC_RNTI_;
+      config_dci_pdu(mac, dl_config, rnti_type, slot, pdcch_config->ra_SS);
     }
   }
   else if (mac->state == UE_CONNECTED) {
-    bool found = false;
-    for (int i = 0; i < FAPI_NR_MAX_SS; i++) {
-      if (mac->BWP_searchspaces[i] != NULL) {
-        found = true;
-        NR_SearchSpace_t *ss = mac->BWP_searchspaces[i];
-        if (is_ss_monitor_occasion(frame, slot, slots_per_frame, ss))
-          config_dci_pdu(mac, dl_config, NR_RNTI_C, slot, ss);
-      }
+    for (int i = 0; i < pdcch_config->list_SS.count; i++) {
+      NR_SearchSpace_t *ss = pdcch_config->list_SS.array[i];
+      if (is_ss_monitor_occasion(frame, slot, slots_per_frame, ss))
+        config_dci_pdu(mac, dl_config, TYPE_C_RNTI_, slot, ss);
     }
-    if (!found && mac->ra_SS) {
+    if (pdcch_config->list_SS.count == 0 && pdcch_config->ra_SS) {
       // If the UE has not been provided a Type3-PDCCH CSS set or a USS set and
       // the UE has received a C-RNTI and has been provided a Type1-PDCCH CSS set,
       // the UE monitors PDCCH candidates for DCI format 0_0 and DCI format 1_0
       // with CRC scrambled by the C-RNTI in the Type1-PDCCH CSS set
-      if (is_ss_monitor_occasion(frame, slot, slots_per_frame, mac->ra_SS))
-        config_dci_pdu(mac, dl_config, NR_RNTI_C, slot, mac->ra_SS);
+      if (is_ss_monitor_occasion(frame, slot, slots_per_frame, pdcch_config->ra_SS))
+        config_dci_pdu(mac, dl_config, TYPE_C_RNTI_, slot, pdcch_config->ra_SS);
     }
   }
 }
