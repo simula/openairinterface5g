@@ -90,3 +90,7 @@ openairinterface5g
 │   └── UTILS
 └── targets           : Top-level wrappers for unitary simulation for PHY channels, system-level emulation (eNB-UE with and without S1), and realtime eNB and UE and RRH GW.
 </pre>
+
+# Acknowledgment
+
+This research was conducted as part of the “Raksha: 5G Security for Critical Communications” project, funded by the Research Council of Norway under the "IKTPLUSS-IKT og digital innovasjon" program (grant agreement No. 312122), https://prosjektbanken.forskningsradet.no/en/project/FORISS/312122
