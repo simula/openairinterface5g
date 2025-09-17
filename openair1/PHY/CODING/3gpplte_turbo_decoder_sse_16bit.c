@@ -52,12 +52,6 @@
   #include <string.h>
 #endif
 
-#ifdef MEX
-  #include "mex.h"
-#endif
-
-//#define DEBUG_LOGMAP
-
 #ifdef DEBUG_LOGMAP
   #define print_shorts(s,x) fprintf(fdsse4,"%s %d,%d,%d,%d,%d,%d,%d,%d\n",s,(x)[0],(x)[1],(x)[2],(x)[3],(x)[4],(x)[5],(x)[6],(x)[7])
 #endif
@@ -933,20 +927,11 @@ void init_td16(void) {
 
   for (ind=0; ind<188; ind++) {
     n = f1f2mat[ind].nb_bits;
-    base_interleaver=il_tb+f1f2mat[ind].beg_index;
-#ifdef MEX
-    // This is needed for the Mex implementation to make the memory persistent
-    pi2tab16[ind] = mxMalloc((n+8)*sizeof(int));
-    pi5tab16[ind] = mxMalloc((n+8)*sizeof(int));
-    pi4tab16[ind] = mxMalloc((n+8)*sizeof(int));
-    pi6tab16[ind] = mxMalloc((n+8)*sizeof(int));
-#else
+    base_interleaver = il_tb + f1f2mat[ind].beg_index;
     pi2tab16[ind] = malloc((n+8)*sizeof(int));
     pi5tab16[ind] = malloc((n+8)*sizeof(int));
     pi4tab16[ind] = malloc((n+8)*sizeof(int));
-    pi6tab16[ind] = malloc((n+8)*sizeof(int));
-#endif
-
+    pi6tab16[ind] = malloc((n + 8) * sizeof(int));
     for (i=i2=0; i2<8; i2++) {
       j=i2;
 
@@ -1012,7 +997,7 @@ uint8_t phy_threegpplte_turbo_decoder16(int16_t *y,
 #elif defined(__arm__) || defined(__aarch64__)
   int16x8_t *yp128;
   //  int16x8_t tmp128[(n+8)>>3];
-  int16x8_t tmp, zeros=vdupq_n_s16(0);
+  int16x8_t tmp = {}, zeros = {};
   const uint16_t __attribute__ ((aligned (16))) _Powers[8]=
   { 1, 2, 4, 8, 16, 32, 64, 128};
   uint16x8_t Powers= vld1q_u16(_Powers);
@@ -1391,8 +1376,6 @@ uint8_t phy_threegpplte_turbo_decoder16(int16_t *y,
   fclose(fdsse4);
 #endif
 #if defined(__x86_64__) || defined(__i386__)
-  simde_mm_empty();
-  simde_m_empty();
 #endif
   if (iteration_cnt > max_iterations)
     set_abort(ab, true);

@@ -123,11 +123,10 @@ void seq_arr_erase_it(seq_arr_t* arr, void* start_it, void* end_it, void (*free_
     return;
 
   if (free_func != NULL) {
-    void* start_it = seq_arr_front(arr);
-    void* end_it = seq_arr_end(arr);
-    while (start_it != end_it) {
-      free_func(start_it);
-      start_it = seq_arr_next(arr, start_it);
+    void* it = start_it;
+    while (it != end_it) {
+      free_func(it);
+      it = seq_arr_next(arr, it);
     }
   }
 

@@ -27,11 +27,27 @@
 
 struct F1AP_F1AP_PDU;
 
+/* F1 Reset */
+struct F1AP_F1AP_PDU *encode_f1ap_reset(const f1ap_reset_t *msg);
+bool decode_f1ap_reset(const struct F1AP_F1AP_PDU *pdu, f1ap_reset_t *out);
+void free_f1ap_reset(f1ap_reset_t *msg);
+bool eq_f1ap_reset(const f1ap_reset_t *a, const f1ap_reset_t *b);
+f1ap_reset_t cp_f1ap_reset(const f1ap_reset_t *orig);
+
+/* F1 Reset Ack */
+struct F1AP_F1AP_PDU *encode_f1ap_reset_ack(const f1ap_reset_ack_t *msg);
+bool decode_f1ap_reset_ack(const struct F1AP_F1AP_PDU *pdu, f1ap_reset_ack_t *out);
+void free_f1ap_reset_ack(f1ap_reset_ack_t *msg);
+bool eq_f1ap_reset_ack(const f1ap_reset_ack_t *a, const f1ap_reset_ack_t *b);
+f1ap_reset_ack_t cp_f1ap_reset_ack(const f1ap_reset_ack_t *orig);
+
 struct F1AP_F1AP_PDU *encode_f1ap_setup_request(const f1ap_setup_req_t *msg);
 bool decode_f1ap_setup_request(const struct F1AP_F1AP_PDU *pdu, f1ap_setup_req_t *out);
 f1ap_setup_req_t cp_f1ap_setup_request(const f1ap_setup_req_t *msg);
 bool eq_f1ap_setup_request(const f1ap_setup_req_t *a, const f1ap_setup_req_t *b);
 void free_f1ap_setup_request(const f1ap_setup_req_t *msg);
+f1ap_served_cell_info_t copy_f1ap_served_cell_info(const f1ap_served_cell_info_t *src);
+void free_f1ap_cell(const f1ap_served_cell_info_t *info, const f1ap_gnb_du_system_info_t *sys_info);
 
 /* F1 Setup Response */
 struct F1AP_F1AP_PDU *encode_f1ap_setup_response(const f1ap_setup_resp_t *msg);

@@ -157,8 +157,8 @@ int main(int n, char **v)
 
     /* read event from file */
     if (fread(&length, 4, 1, in) != 1) break;
-    if (ebuf.omaxsize < length) {
-      ebuf.omaxsize = (length + 65535) & ~65535;
+    if (ebuf.omaxsize < length + 4) {
+      ebuf.omaxsize = (length + 4 + 65535) & ~65535;
       ebuf.obuf = realloc(ebuf.obuf, ebuf.omaxsize);
       if (ebuf.obuf == NULL) { printf("out of memory\n"); exit(1); }
     }

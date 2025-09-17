@@ -36,19 +36,18 @@ static void get_NGU_S1U_addr(char **addr, uint16_t *port)
   uint32_t gnb_port_for_NGU = 0;
   char *gnb_ipv4_address_for_S1U = NULL;
   uint32_t gnb_port_for_S1U = 0;
-  char gtpupath[MAX_OPTNAME_SIZE * 2 + 8];
 
-  paramdef_t GNBSParams[] = GNBSPARAMS_DESC;
-  paramdef_t NETParams[] = GNBNETPARAMS_DESC;
-  LOG_I(GTPU, "Configuring GTPu\n");
-
-  /* get number of active eNodeBs */
-  config_get(config_get_if(), GNBSParams, sizeofArray(GNBSParams), NULL);
+  // get gNB params
+  GET_PARAMS(GNBSParams, GNBSPARAMS_DESC, NULL);
   num_gnbs = GNBSParams[GNB_ACTIVE_GNBS_IDX].numelt;
   AssertFatal(num_gnbs > 0, "Failed to parse config file no active gNodeBs in %s \n", GNB_CONFIG_STRING_ACTIVE_GNBS);
 
+  // Config GTPu
+  char gtpupath[MAX_OPTNAME_SIZE * 2 + 8];
+  LOG_I(GTPU, "Configuring GTPu\n");
   sprintf(gtpupath, "%s.[%i].%s", GNB_CONFIG_STRING_GNB_LIST, 0, GNB_CONFIG_STRING_NETWORK_INTERFACES_CONFIG);
-  config_get(config_get_if(), NETParams, sizeofArray(NETParams), gtpupath);
+  GET_PARAMS(NETParams, GNBNETPARAMS_DESC, gtpupath);
+
   char *address;
   if (NETParams[GNB_IPV4_ADDRESS_FOR_NG_AMF_IDX].strptr != NULL) {
     LOG_I(GTPU, "SA mode \n");
@@ -67,21 +66,31 @@ static void get_NGU_S1U_addr(char **addr, uint16_t *port)
   return;
 }
 
+/**
+ * @brief Prepares an E1AP_REGISTER_REQ message for gNB-CU-UP/CP registration
+ *
+ * This function creates and populates an E1AP_REGISTER_REQ message using system
+ * configuration parameters. It supports both integrated CU-CP/UP and E1 splits,
+ * fetching RAN, PLMN, NSSAIs, and network configuration.
+ *
+ * @param entity Specifies the entity type (CU-CP or CU-UP. If NULL, assumes integrated CU-CP/UP
+ *
+ * @return A pointer to the E1AP_REGISTER_REQ message or NULL on allocation failure
+ */
 MessageDef *RCconfig_NR_CU_E1(const E1_t *entity)
 {
   MessageDef *msgConfig = itti_alloc_new_message(TASK_GNB_APP, 0, E1AP_REGISTER_REQ);
   if (!msgConfig)
     return NULL;
 
-  paramdef_t GNBSParams[] = GNBSPARAMS_DESC;
-  paramdef_t GNBParams[] = GNBPARAMS_DESC;
-  paramlist_def_t GNBParamList = {GNB_CONFIG_STRING_GNB_LIST, NULL, 0};
-  config_get(config_get_if(), GNBSParams, sizeofArray(GNBSParams), NULL);
-  char aprefix[MAX_OPTNAME_SIZE * 2 + 8];
-  sprintf(aprefix, "%s.[%i]", GNB_CONFIG_STRING_GNB_LIST, 0);
+  GET_PARAMS(GNBSParams, GNBSPARAMS_DESC, NULL);
   int num_gnbs = GNBSParams[GNB_ACTIVE_GNBS_IDX].numelt;
   AssertFatal(num_gnbs == 1, "Support only one gNB per process\n");
-  config_getlist(config_get_if(), &GNBParamList, GNBParams, sizeofArray(GNBParams), NULL);
+  GET_PARAMS_LIST(GNBParamList, GNBParams, GNBPARAMS_DESC, GNB_CONFIG_STRING_GNB_LIST, NULL);
+
+  char aprefix[MAX_OPTNAME_SIZE * 2 + 8];
+  sprintf(aprefix, "%s.[%i]", GNB_CONFIG_STRING_GNB_LIST, 0);
+
   paramdef_t *gnbParms = GNBParamList.paramarray[0];
   e1ap_setup_req_t *e1Setup = &E1AP_REGISTER_REQ(msgConfig).setup_req;
 
@@ -90,15 +99,11 @@ MessageDef *RCconfig_NR_CU_E1(const E1_t *entity)
     if (*gnbParms[GNB_GNB_NAME_IDX].strptr)
       e1Setup->gNB_cu_up_name = *(gnbParms[GNB_GNB_NAME_IDX].strptr);
 
-    paramdef_t PLMNParams[] = GNBPLMNPARAMS_DESC;
-    paramlist_def_t PLMNParamList = {GNB_CONFIG_STRING_PLMN_LIST, NULL, 0};
-    /* map parameter checking array instances to parameter definition array instances */
-    checkedparam_t config_check_PLMNParams[] = PLMNPARAMS_CHECK;
+    // Only 5GC supported
+    e1Setup->cn_support = cn_support_5GC;
 
-    for (int I = 0; I < sizeofArray(PLMNParams); ++I)
-      PLMNParams[I].chkPptr = &(config_check_PLMNParams[I]);
-
-    config_getlist(config_get_if(), &PLMNParamList, PLMNParams, sizeofArray(PLMNParams), aprefix);
+    // get and config PLMN params
+    GET_PARAMS_LIST(PLMNParamList, PLMNParams, GNBPLMNPARAMS_DESC, GNB_CONFIG_STRING_PLMN_LIST, aprefix, PLMNPARAMS_CHECK);
     int numPLMNs = PLMNParamList.numelt;
     e1Setup->supported_plmns = numPLMNs;
 
@@ -107,14 +112,12 @@ MessageDef *RCconfig_NR_CU_E1(const E1_t *entity)
       e1Setup->plmn[I].id.mnc = *PLMNParamList.paramarray[I][GNB_MOBILE_NETWORK_CODE_IDX].uptr;
       e1Setup->plmn[I].id.mnc_digit_length = *PLMNParamList.paramarray[I][GNB_MNC_DIGIT_LENGTH].uptr;
 
+      // get and config SNSSAI params
       char snssaistr[MAX_OPTNAME_SIZE*2 + 8];
       sprintf(snssaistr, "%s.[%i].%s.[%i]", GNB_CONFIG_STRING_GNB_LIST, 0, GNB_CONFIG_STRING_PLMN_LIST, I);
-      paramlist_def_t SNSSAIParamList = {GNB_CONFIG_STRING_SNSSAI_LIST, NULL, 0};
-      paramdef_t SNSSAIParams[] = GNBSNSSAIPARAMS_DESC;
-      config_getlist(config_get_if(), &SNSSAIParamList, SNSSAIParams, sizeof(SNSSAIParams) / sizeof(paramdef_t), snssaistr);
+      GET_PARAMS_LIST(SNSSAIParamList, SNSSAIParams, GNBSNSSAIPARAMS_DESC, GNB_CONFIG_STRING_SNSSAI_LIST, snssaistr);
       e1Setup->plmn[I].supported_slices = SNSSAIParamList.numelt;
-      e1Setup->plmn[I].slice = calloc(SNSSAIParamList.numelt, sizeof(*e1Setup->plmn[I].slice));
-      AssertFatal(e1Setup->plmn[I].slice != NULL, "out of memory\n");
+      e1Setup->plmn[I].slice = calloc_or_fail(SNSSAIParamList.numelt, sizeof(*e1Setup->plmn[I].slice));
       for (int s = 0; s < SNSSAIParamList.numelt; ++s) {
         e1ap_nssai_t *slice = &e1Setup->plmn[I].slice[s];
         slice->sst = *SNSSAIParamList.paramarray[s][GNB_SLICE_SERVICE_TYPE_IDX].uptr;
@@ -134,9 +137,7 @@ MessageDef *RCconfig_NR_CU_E1(const E1_t *entity)
     E1AP_REGISTER_REQ(msgConfig).gnb_id = gnb_id;
 
     if (entity != NULL) {
-      paramlist_def_t GNBE1ParamList = {GNB_CONFIG_STRING_E1_PARAMETERS, NULL, 0};
-      paramdef_t GNBE1Params[] = GNBE1PARAMS_DESC;
-      config_getlist(config_get_if(), &GNBE1ParamList, GNBE1Params, sizeofArray(GNBE1Params), aprefix);
+      GET_PARAMS_LIST(GNBE1ParamList, GNBE1Params, GNBE1PARAMS_DESC, GNB_CONFIG_STRING_E1_PARAMETERS, aprefix);
       paramdef_t *e1Parms = GNBE1ParamList.paramarray[0];
       strcpy(e1ap_nc->CUCP_e1_ip_address.ipv4_address, *(e1Parms[GNB_CONFIG_E1_IPV4_ADDRESS_CUCP].strptr));
       e1ap_nc->CUCP_e1_ip_address.ipv4 = 1;

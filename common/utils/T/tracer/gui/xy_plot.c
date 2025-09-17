@@ -280,6 +280,22 @@ void xy_plot_set_range(gui *_gui, widget *_this,
   gunlock(g);
 }
 
+void xy_plot_get_range(gui *_gui, widget *_this,
+    float *xmin, float *xmax, float *ymin, float *ymax)
+{
+  struct gui *g = _gui;
+  struct xy_plot_widget *this = _this;
+
+  glock(g);
+
+  *xmin = this->xmin;
+  *xmax = this->xmax;
+  *ymin = this->ymin;
+  *ymax = this->ymax;
+
+  gunlock(g);
+}
+
 void xy_plot_set_points(gui *_gui, widget *_this, int plot,
     int npoints, float *x, float *y)
 {

@@ -5,10 +5,20 @@ idefix:
   AttachScript: sudo python3 ci_ctl_qtel.py /dev/ttyUSB2 wup
   DetachScript: sudo python3 ci_ctl_qtel.py /dev/ttyUSB2 detach
   NetworkScript: ip a show dev wwan0
+  #Tracing:
+  #  Start: 'sudo rm -f ci_qlog/*; nohup sudo -b QLog/QLog -s ci_qlog -f NR5G.cfg &'
+  #  Stop: 'sudo killall QLog'
+  #  Collect: 'sudo mv ci_qlog/* %%log_dir%%/'
   IF: wwan0
   MTU: 1500
-  Trace: True
-  LogStore: /media/usb-drive/ci_qlogs
+
+raspix:
+  Host: raspix
+  AttachScript: sudo /opt/mbim_scripts/start_quectel_mbim.sh
+  DetachScript: sudo /opt/mbim_scripts/stop_quectel_mbim.sh
+  NetworkScript: ip a show dev wwan0
+  IF: wwan0
+  MTU: 1500
 
 up2:
   Host: up2
@@ -28,8 +38,8 @@ up2-fhi72:
 
 up2-aerial:
   Host: up2
-  AttachScript: sudo /opt/mbim-aerial/start_quectel_mbim.sh
-  DetachScript: sudo /opt/mbim-aerial/stop_quectel_mbim.sh
+  AttachScript: sudo /opt/mbim-fhi72/start_quectel_mbim.sh
+  DetachScript: sudo /opt/mbim-fhi72/stop_quectel_mbim.sh
   NetworkScript: ip a show dev wwan0
   IF: wwan0
   MTU: 1500
@@ -46,7 +56,6 @@ adb_ue_1:
   NetworkScript: adb -s R3CM40LZPHT shell "ip address show | grep rmnet_data0"
   CmdPrefix: adb -s R3CM40LZPHT shell
   MTU: 1500
-  LogStore: /media/usb-drive/ci_adb_1-logs
 adb_ue_2:
   Host: nano
   InitScript: /home/oaicicd/ci_ctl_adb.sh initialize 5200c00db4413517
@@ -59,177 +68,226 @@ adb_ue_2:
   NetworkScript: adb -s 5200c00db4413517 shell "ip address show | grep rmnet"
   CmdPrefix: adb -s 5200c00db4413517 shell
   MTU: 1500
-  LogStore: /media/usb-drive/ci_adb_2-logs
 
 oc-cn5g:
   Host: avra
-  Namespace: "oaicicd-core-for-ci-ran"
-  CNPath: "/opt/oai-cn5g-fed-develop-2024-april-00102"
   NetworkScript: echo "inet 172.21.6.102"
   RunIperf3Server: False
+  Deploy: "! scripts/oc-cn5g-deploy.sh /opt/oai-cn5g-fed-develop-2025-jun oaicicd-core-for-ci-ran"
+  Undeploy: "! scripts/oc-cn5g-undeploy.sh /opt/oai-cn5g-fed-develop-2025-jun oaicicd-core-for-ci-ran"
+  LogCollect: "! scripts/oc-cn5g-logcollect.sh /opt/oai-cn5g-fed-develop-2025-jun oaicicd-core-for-ci-ran %%log_dir%%"
 
 oc-cn5g-20897:
   Host: cacofonix
-  Namespace: "oaicicd-core-for-fhi72"
-  CNPath: "/opt/oai-cn5g-fed-develop-2024-april-20897"
   NetworkScript: echo "inet 172.21.6.105"
   RunIperf3Server: False
+  Deploy: "! scripts/oc-cn5g-deploy.sh /opt/oai-cn5g-fed-develop-2025-jan oaicicd-core-for-fhi72"
+  Undeploy: "! scripts/oc-cn5g-undeploy.sh /opt/oai-cn5g-fed-develop-2025-jan oaicicd-core-for-fhi72"
+  LogCollect: "! scripts/oc-cn5g-logcollect.sh /opt/oai-cn5g-fed-develop-2025-jan oaicicd-core-for-fhi72 %%log_dir%%"
+
+oc-cn5g-00102-ho:
+  Host: groot
+  NetworkScript: echo "inet 172.21.6.111"
+  RunIperf3Server: False
+  Deploy: "! scripts/oc-cn5g-deploy.sh /opt/oai-cn5g-fed-develop-2025-jan oaicicd-core-for-ho"
+  Undeploy: "! scripts/oc-cn5g-undeploy.sh /opt/oai-cn5g-fed-develop-2025-jan oaicicd-core-for-ho"
+  LogCollect: "! scripts/oc-cn5g-logcollect.sh /opt/oai-cn5g-fed-develop-2025-jan oaicicd-core-for-ho %%log_dir%%"
+
+oc-cn5g-20897-aerial:
+  Host: gracehopper1-oai
+  NetworkScript: echo "inet 172.21.6.105"
+  RunIperf3Server: False
+  Deploy: "! scripts/oc-cn5g-deploy.sh /opt/oai-cn5g-fed-develop-2025-jan oaicicd-core-for-nvidia-aerial"
+  Undeploy: "! scripts/oc-cn5g-undeploy.sh /opt/oai-cn5g-fed-develop-2025-jan oaicicd-core-for-nvidia-aerial"
+  LogCollect: "! scripts/oc-cn5g-logcollect.sh /opt/oai-cn5g-fed-develop-2025-jan oaicicd-core-for-nvidia-aerial %%log_dir%%"
 
 matix-cn5g:
   Host: matix
   NetworkScript: docker exec prod-trf-gen ip a show dev eth0
-  CmdPrefix: docker exec prod-trf-gen
   RunIperf3Server: False
+  Deploy: "cd /opt/oai-cn5g-fed-v2-jun-2025/docker-compose && python3 ./core-network.py --type start-basic"
+  Undeploy: "cd /opt/oai-cn5g-fed-v2-jun-2025/docker-compose && python3 ./core-network.py --type stop-basic"
+  LogCollect:
+    - "docker logs oai-smf > %%log_dir%%/oai-smf.log"
+    - "docker logs oai-amf > %%log_dir%%/oai-amf.log"
+    - "docker logs oai-upf > %%log_dir%%/oai-upf.log"
 
 porcepix-cn4g:
   Host: porcepix
   NetworkScript: docker exec prod-trf-gen ip a show dev eth0
   CmdPrefix: docker exec prod-trf-gen
-
-porcepix-cn5g:
-  Host: porcepix
-  NetworkScript: docker exec prod-trf-gen ip a show dev eth0
-  CmdPrefix: docker exec prod-trf-gen
-  RunIperf3Server: False
+  Deploy: "! scripts/magma-epc-deploy.sh /opt/oai-epc-magma/docker-compose.yml"
+  Undeploy: "docker compose -f /opt/oai-epc-magma/docker-compose.yml down"
+  LogCollect: "! scripts/magma-epc-logcollect.sh %%log_dir%%"
 
 nano-cn4g:
   Host: nano
   NetworkScript: docker exec prod-trf-gen ip a show dev eth0
   CmdPrefix: docker exec prod-trf-gen
+  Deploy: "! scripts/magma-epc-deploy.sh /opt/oai-epc-magma/docker-compose.yml"
+  Undeploy: "docker compose -f /opt/oai-epc-magma/docker-compose.yml down"
+  LogCollect: "! scripts/magma-epc-logcollect.sh %%log_dir%%"
 
 ltebox-nano:
   Host: nano
   NetworkScript: ip a show dev tun1
+  Deploy:
+    - "sudo su -c 'screen -dm -S simulated_hss /opt/hss_sim0609/starthss'"
+    - "sleep 1"
+    - "sudo /opt/ltebox/tools/start_mme && sudo /opt/ltebox/tools/start_xGw &"
+    - "sleep 1"
+  Undeploy: "sudo /opt/ltebox/tools/stop_xGw; sudo /opt/ltebox/tools/stop_mme; sudo killall screen"
+  LogCollect: "cp /opt/hss_sim0609/hss.log /opt/ltebox/var/log/{mmeLog.0,s1apcLog.0,s1apsLog.0,s11cLog.0,libLog.0,xGwLog.0} %%log_dir%%"
 
 sabox-nepes:
   Host: nepes
   NetworkScript: ip a show dev tun1
+  Deploy:
+    - "sudo su -c 'screen -dm -S simulated_5g_hss /opt/hss_sim0609/start_5g_hss'"
+    - "sleep 1"
+    - "sudo /opt/ltebox/tools/start_sabox < /dev/null &> /dev/null"
+    - "sleep 1"
+  LogCollect: "cp /opt/hss_sim0609/hss.log /opt/ltebox/var/log/{amfLog.0,ngapcLog.0,ngapcommonLog.0,ngapsLog.0,xGwLog.0,upfLog.0} %%log_dir%%"
+  Undeploy: "sudo /opt/ltebox/tools/stop_sabox; sudo killall screen"
 
 ltebox-nepes:
   Host: nepes
   NetworkScript: ip a show dev tun1
+  Deploy:
+    - "sudo su -c 'screen -dm -S simulated_hss /opt/hss_sim0609/starthss'"
+    - "sleep 1"
+    - "sudo /opt/ltebox/tools/start_mme && sudo /opt/ltebox/tools/start_xGw &"
+    - "sleep 1"
+  Undeploy: "sudo /opt/ltebox/tools/stop_xGw; sudo /opt/ltebox/tools/stop_mme; sudo killall screen"
+  LogCollect: "cp /opt/hss_sim0609/hss.log /opt/ltebox/var/log/{mmeLog.0,s1apcLog.0,s1apsLog.0,s11cLog.0,libLog.0,xGwLog.0} %%log_dir%%"
 
 amarisoft_ue:
   Host: amariue
-  InitScript: /root/lteue-linux-2023-10-27/ue/lteue /root/oaicicd/ran_sa_aw2s_asue/aw2s-multi-00102-20.cfg &
-  TermScript: /root/2023-10-27/libs/ws.js -t 10 127.0.0.1:9002 '{"message":"quit"}' || killall -KILL lteue-avx2
+  InitScript: /root/lteue-linux-2025-03-15/lteue /root/oaicicd/ran_sa_aw2s_asue_20MHz_redcap/aw2s-multi-00102-20.cfg &
+  TermScript: /root/lteue-linux-2025-03-15/ws.js -t 10 127.0.0.1:9002 '{"message":"quit"}' || killall -KILL lteue-avx2
+  NetworkScript: ip netns exec ue1 ip a show dev pdn0
+  #Tracing:
+  #  Start: '' # nothing to be done
+  #  Stop: '' # nothing to be done
+  #  Collect: 'cp /tmp/ue.log %%log_dir%%'
 amarisoft_ue_2x2:
   Host: amariue
-  InitScript: /root/lteue-linux-2023-10-27/ue/lteue /root/oaicicd/ran_sa_aw2s_asue_2x2/aw2s-multi-00102-2x2-v2.cfg &
-  TermScript: /root/2023-10-27/libs/ws.js -t 10 127.0.0.1:9002 '{"message":"quit"}' || killall -KILL lteue-avx2
+  InitScript: /root/lteue-linux-2025-03-15/lteue /root/oaicicd/ran_sa_aw2s_asue_20MHz_2x2/aw2s-multi-00102-2x2-v2.cfg &
+  TermScript: /root/lteue-linux-2025-03-15/ws.js -t 10 127.0.0.1:9002 '{"message":"quit"}' || killall -KILL lteue-avx2
+  NetworkScript: ip netns exec ue1 ip a show dev pdn0
 amarisoft_ue_fhi72:
   Host: amariue
-  InitScript: /root/lteue-linux-2023-10-27/ue/lteue /root/oaicicd/ran_sa_fhi72_asue_2x2_benetel550/fhi72-multi-20897-2x2.cfg &
-  TermScript: /root/2023-10-27/libs/ws.js -t 10 127.0.0.1:9002 '{"message":"quit"}' || killall -KILL lteue-avx2
+  InitScript: /root/lteue-linux-2025-03-15/lteue /root/oaicicd/ran_sa_fhi72_asue_2x2_benetel550/fhi72-multi-20897-2x2.cfg &
+  TermScript: /root/lteue-linux-2025-03-15/ws.js -t 10 127.0.0.1:9002 '{"message":"quit"}' || killall -KILL lteue-avx2
 amarisoft_ue_1:
   Host: amariue
-  AttachScript: /root/2023-10-27/libs/ws.js 127.0.0.1:9002 '{"message":"power_on","ue_id":1}'
-  DetachScript: /root/2023-10-27/libs/ws.js 127.0.0.1:9002 '{"message":"power_off","ue_id":1}'
+  AttachScript: /root/lteue-linux-2025-03-15/ws.js 127.0.0.1:9002 '{"message":"power_on","ue_id":1}'
+  DetachScript: /root/lteue-linux-2025-03-15/ws.js 127.0.0.1:9002 '{"message":"power_off","ue_id":1}'
   NetworkScript: ip netns exec ue1 ip a show dev pdn0
   CmdPrefix: ip netns exec ue1
   MTU: 1500
 amarisoft_ue_2:
   Host: amariue
-  AttachScript: /root/2023-10-27/libs/ws.js 127.0.0.1:9002 '{"message":"power_on","ue_id":2}'
-  DetachScript: /root/2023-10-27/libs/ws.js 127.0.0.1:9002 '{"message":"power_off","ue_id":2}'
+  AttachScript: /root/lteue-linux-2025-03-15/ws.js 127.0.0.1:9002 '{"message":"power_on","ue_id":2}'
+  DetachScript: /root/lteue-linux-2025-03-15/ws.js 127.0.0.1:9002 '{"message":"power_off","ue_id":2}'
   NetworkScript: ip netns exec ue2 ip a show dev pdn0
   CmdPrefix: ip netns exec ue2
   MTU: 1500
 amarisoft_ue_3:
   Host: amariue
-  AttachScript: /root/2023-10-27/libs/ws.js 127.0.0.1:9002 '{"message":"power_on","ue_id":3}'
-  DetachScript: /root/2023-10-27/libs/ws.js 127.0.0.1:9002 '{"message":"power_off","ue_id":3}'
+  AttachScript: /root/lteue-linux-2025-03-15/ws.js 127.0.0.1:9002 '{"message":"power_on","ue_id":3}'
+  DetachScript: /root/lteue-linux-2025-03-15/ws.js 127.0.0.1:9002 '{"message":"power_off","ue_id":3}'
   NetworkScript: ip netns exec ue3 ip a show dev pdn0
   CmdPrefix: ip netns exec ue3
   MTU: 1500
 amarisoft_ue_4:
   Host: amariue
-  AttachScript: /root/2023-10-27/libs/ws.js 127.0.0.1:9002 '{"message":"power_on","ue_id":4}'
-  DetachScript: /root/2023-10-27/libs/ws.js 127.0.0.1:9002 '{"message":"power_off","ue_id":4}'
+  AttachScript: /root/lteue-linux-2025-03-15/ws.js 127.0.0.1:9002 '{"message":"power_on","ue_id":4}'
+  DetachScript: /root/lteue-linux-2025-03-15/ws.js 127.0.0.1:9002 '{"message":"power_off","ue_id":4}'
   NetworkScript: ip netns exec ue4 ip a show dev pdn0
   CmdPrefix: ip netns exec ue4
   MTU: 1500
 amarisoft_ue_5:
   Host: amariue
-  AttachScript: /root/2023-10-27/libs/ws.js 127.0.0.1:9002 '{"message":"power_on","ue_id":5}'
-  DetachScript: /root/2023-10-27/libs/ws.js 127.0.0.1:9002 '{"message":"power_off","ue_id":5}'
+  AttachScript: /root/lteue-linux-2025-03-15/ws.js 127.0.0.1:9002 '{"message":"power_on","ue_id":5}'
+  DetachScript: /root/lteue-linux-2025-03-15/ws.js 127.0.0.1:9002 '{"message":"power_off","ue_id":5}'
   NetworkScript: ip netns exec ue5 ip a show dev pdn0
   CmdPrefix: ip netns exec ue5
   MTU: 1500
 amarisoft_ue_6:
   Host: amariue
-  AttachScript: /root/2023-10-27/libs/ws.js 127.0.0.1:9002 '{"message":"power_on","ue_id":6}'
-  DetachScript: /root/2023-10-27/libs/ws.js 127.0.0.1:9002 '{"message":"power_off","ue_id":6}'
+  AttachScript: /root/lteue-linux-2025-03-15/ws.js 127.0.0.1:9002 '{"message":"power_on","ue_id":6}'
+  DetachScript: /root/lteue-linux-2025-03-15/ws.js 127.0.0.1:9002 '{"message":"power_off","ue_id":6}'
   NetworkScript: ip netns exec ue6 ip a show dev pdn0
   CmdPrefix: ip netns exec ue6
   MTU: 1500
 amarisoft_ue_7:
   Host: amariue
-  AttachScript: /root/2023-10-27/libs/ws.js 127.0.0.1:9002 '{"message":"power_on","ue_id":7}'
-  DetachScript: /root/2023-10-27/libs/ws.js 127.0.0.1:9002 '{"message":"power_off","ue_id":7}'
+  AttachScript: /root/lteue-linux-2025-03-15/ws.js 127.0.0.1:9002 '{"message":"power_on","ue_id":7}'
+  DetachScript: /root/lteue-linux-2025-03-15/ws.js 127.0.0.1:9002 '{"message":"power_off","ue_id":7}'
   NetworkScript: ip netns exec ue7 ip a show dev pdn0
   CmdPrefix: ip netns exec ue7
   MTU: 1500
 amarisoft_ue_8:
   Host: amariue
-  AttachScript: /root/2023-10-27/libs/ws.js 127.0.0.1:9002 '{"message":"power_on","ue_id":8}'
-  DetachScript: /root/2023-10-27/libs/ws.js 127.0.0.1:9002 '{"message":"power_off","ue_id":8}'
+  AttachScript: /root/lteue-linux-2025-03-15/ws.js 127.0.0.1:9002 '{"message":"power_on","ue_id":8}'
+  DetachScript: /root/lteue-linux-2025-03-15/ws.js 127.0.0.1:9002 '{"message":"power_off","ue_id":8}'
   NetworkScript: ip netns exec ue8 ip a show dev pdn0
   CmdPrefix: ip netns exec ue8
   MTU: 1500
 amarisoft_ue_9:
   Host: amariue
-  AttachScript: /root/2023-10-27/libs/ws.js 127.0.0.1:9002 '{"message":"power_on","ue_id":9}'
-  DetachScript: /root/2023-10-27/libs/ws.js 127.0.0.1:9002 '{"message":"power_off","ue_id":9}'
+  AttachScript: /root/lteue-linux-2025-03-15/ws.js 127.0.0.1:9002 '{"message":"power_on","ue_id":9}'
+  DetachScript: /root/lteue-linux-2025-03-15/ws.js 127.0.0.1:9002 '{"message":"power_off","ue_id":9}'
   NetworkScript: ip netns exec ue9 ip a show dev pdn0
   CmdPrefix: ip netns exec ue9
   MTU: 1500
 amarisoft_ue_10:
   Host: amariue
-  AttachScript: /root/2023-10-27/libs/ws.js 127.0.0.1:9002 '{"message":"power_on","ue_id":10}'
-  DetachScript: /root/2023-10-27/libs/ws.js 127.0.0.1:9002 '{"message":"power_off","ue_id":10}'
+  AttachScript: /root/lteue-linux-2025-03-15/ws.js 127.0.0.1:9002 '{"message":"power_on","ue_id":10}'
+  DetachScript: /root/lteue-linux-2025-03-15/ws.js 127.0.0.1:9002 '{"message":"power_off","ue_id":10}'
   NetworkScript: ip netns exec ue10 ip a show dev pdn0
   CmdPrefix: ip netns exec ue10
   MTU: 1500
 amarisoft_ue_11:
   Host: amariue
-  AttachScript: /root/2023-10-27/libs/ws.js 127.0.0.1:9002 '{"message":"power_on","ue_id":11}'
-  DetachScript: /root/2023-10-27/libs/ws.js 127.0.0.1:9002 '{"message":"power_off","ue_id":11}'
+  AttachScript: /root/lteue-linux-2025-03-15/ws.js 127.0.0.1:9002 '{"message":"power_on","ue_id":11}'
+  DetachScript: /root/lteue-linux-2025-03-15/ws.js 127.0.0.1:9002 '{"message":"power_off","ue_id":11}'
   NetworkScript: ip netns exec ue11 ip a show dev pdn0
   CmdPrefix: ip netns exec ue11
   MTU: 1500
 amarisoft_ue_12:
   Host: amariue
-  AttachScript: /root/2023-10-27/libs/ws.js 127.0.0.1:9002 '{"message":"power_on","ue_id":12}'
-  DetachScript: /root/2023-10-27/libs/ws.js 127.0.0.1:9002 '{"message":"power_off","ue_id":12}'
+  AttachScript: /root/lteue-linux-2025-03-15/ws.js 127.0.0.1:9002 '{"message":"power_on","ue_id":12}'
+  DetachScript: /root/lteue-linux-2025-03-15/ws.js 127.0.0.1:9002 '{"message":"power_off","ue_id":12}'
   NetworkScript: ip netns exec ue12 ip a show dev pdn0
   CmdPrefix: ip netns exec ue12
   MTU: 1500
 amarisoft_ue_13:
   Host: amariue
-  AttachScript: /root/2023-10-27/libs/ws.js 127.0.0.1:9002 '{"message":"power_on","ue_id":13}'
-  DetachScript: /root/2023-10-27/libs/ws.js 127.0.0.1:9002 '{"message":"power_off","ue_id":13}'
+  AttachScript: /root/lteue-linux-2025-03-15/ws.js 127.0.0.1:9002 '{"message":"power_on","ue_id":13}'
+  DetachScript: /root/lteue-linux-2025-03-15/ws.js 127.0.0.1:9002 '{"message":"power_off","ue_id":13}'
   NetworkScript: ip netns exec ue13 ip a show dev pdn0
   CmdPrefix: ip netns exec ue13
   MTU: 1500
 amarisoft_ue_14:
   Host: amariue
-  AttachScript: /root/2023-10-27/libs/ws.js 127.0.0.1:9002 '{"message":"power_on","ue_id":14}'
-  DetachScript: /root/2023-10-27/libs/ws.js 127.0.0.1:9002 '{"message":"power_off","ue_id":14}'
+  AttachScript: /root/lteue-linux-2025-03-15/ws.js 127.0.0.1:9002 '{"message":"power_on","ue_id":14}'
+  DetachScript: /root/lteue-linux-2025-03-15/ws.js 127.0.0.1:9002 '{"message":"power_off","ue_id":14}'
   NetworkScript: ip netns exec ue14 ip a show dev pdn0
   CmdPrefix: ip netns exec ue14
   MTU: 1500
 amarisoft_ue_15:
   Host: amariue
-  AttachScript: /root/2023-10-27/libs/ws.js 127.0.0.1:9002 '{"message":"power_on","ue_id":15}'
-  DetachScript: /root/2023-10-27/libs/ws.js 127.0.0.1:9002 '{"message":"power_off","ue_id":15}'
+  AttachScript: /root/lteue-linux-2025-03-15/ws.js 127.0.0.1:9002 '{"message":"power_on","ue_id":15}'
+  DetachScript: /root/lteue-linux-2025-03-15/ws.js 127.0.0.1:9002 '{"message":"power_off","ue_id":15}'
   NetworkScript: ip netns exec ue15 ip a show dev pdn0
   CmdPrefix: ip netns exec ue15
   MTU: 1500
 amarisoft_ue_16:
   Host: amariue
-  AttachScript: /root/2023-10-27/libs/ws.js 127.0.0.1:9002 '{"message":"power_on","ue_id":16}'
-  DetachScript: /root/2023-10-27/libs/ws.js 127.0.0.1:9002 '{"message":"power_off","ue_id":16}'
+  AttachScript: /root/lteue-linux-2025-03-15/ws.js 127.0.0.1:9002 '{"message":"power_on","ue_id":16}'
+  DetachScript: /root/lteue-linux-2025-03-15/ws.js 127.0.0.1:9002 '{"message":"power_off","ue_id":16}'
   NetworkScript: ip netns exec ue16 ip a show dev pdn0
   CmdPrefix: ip netns exec ue16
   MTU: 1500
@@ -260,6 +318,15 @@ rfsim5g_ue:
   NetworkScript: docker exec rfsim5g-oai-nr-ue ip a show dev oaitun_ue1
   CmdPrefix: docker exec rfsim5g-oai-nr-ue
   IF: oaitun_ue1
+  AttachScript: docker start rfsim5g-oai-nr-ue
+  DetachScript: docker stop rfsim5g-oai-nr-ue
+  MTU: 1500
+# for tests with second PDU session ID 2, needs to match requested PDU session name
+rfsim5g_ue_pdu_2:
+  Host: "%%current_host%%"
+  NetworkScript: docker exec rfsim5g-oai-nr-ue ip a show dev oaitun_ue1p2
+  CmdPrefix: docker exec rfsim5g-oai-nr-ue
+  IF: oaitun_ue1p2
   AttachScript: docker start rfsim5g-oai-nr-ue
   DetachScript: docker stop rfsim5g-oai-nr-ue
   MTU: 1500
@@ -350,6 +417,15 @@ rfsim5g_ext_dn:
   NetworkScript: docker exec rfsim5g-oai-ext-dn ip a show dev eth0
   CmdPrefix: docker exec rfsim5g-oai-ext-dn
 
+oai_ext_dn:
+  Host: "%%current_host%%"
+  NetworkScript: docker exec oai-ext-dn ip a show dev eth0
+  CmdPrefix: docker exec oai-ext-dn
+
+rfsim5g_5gc_fixed_ip:
+  Host: "%%current_host%%"
+  NetworkScript: echo "inet 12.1.1.1"
+
 rfsim4g_ue:
   Host: "%%current_host%%"
   NetworkScript: docker exec rfsim4g-oai-lte-ue0 ip a show dev oaitun_ue1
@@ -378,23 +454,9 @@ rfsim4g_enb_fembms:
 
 rfsim4g_ue_fembms:
   Host: "%%current_host%%"
-  NetworkScript: docker exec rfsim4g-oai-lte-ue0 ip a show dev oaitun_uem1
+  NetworkScript: docker exec rfsim4g-oai-lte-ue0 ip a show dev oaitun_uem2
   CmdPrefix: docker exec rfsim4g-oai-lte-ue0
-  IF: oaitun_uem1
-
-l2sim5g_ue:
-  Host: "%%current_host%%"
-  AttachScript: docker start l2sim-oai-nr-ue0
-  DetachScript: docker stop l2sim-oai-nr-ue0
-  NetworkScript: docker exec l2sim-oai-nr-ue0 ip a show dev oaitun_ue1
-  CmdPrefix: docker exec l2sim-oai-nr-ue0
-  IF: oaitun_ue1
-  MTU: 1500
-
-l2sim5g_ext_dn:
-  Host: "%%current_host%%"
-  NetworkScript: docker exec l2sim-oai-ext-dn ip a show dev eth0
-  CmdPrefix: docker exec l2sim-oai-ext-dn
+  IF: oaitun_uem2
 
 l2sim4g_ue:
   Host: "%%current_host%%"
@@ -410,6 +472,92 @@ l2sim4g_ext_dn:
   NetworkScript: docker exec l2sim4g-trf-gen ip a show dev eth0
   CmdPrefix: docker exec l2sim4g-trf-gen
 
-test:
-  Host: localhost
-  NetworkScript: echo "inet 127.0.0.1 mtu 1500"
+rfsim5g_multiue1:
+  Host: "%%current_host%%"
+  NetworkScript: docker exec rfsim5g-oai-nr-ue ip a show dev oaitun_ue1
+  CmdPrefix: docker exec rfsim5g-oai-nr-ue
+  IF: oaitun_ue1
+  AttachScript: docker start rfsim5g-oai-nr-ue
+  DetachScript: docker stop rfsim5g-oai-nr-ue
+  MTU: 1500
+
+rfsim5g_multiue2:
+  Host: "%%current_host%%"
+  NetworkScript: docker exec rfsim5g-oai-nr-ue ip a show dev oaitun_ue2
+  CmdPrefix: docker exec rfsim5g-oai-nr-ue
+  IF: oaitun_ue2
+  AttachScript: true
+  DetachScript: true
+  MTU: 1500
+
+rfsim5g_multiue3:
+  Host: "%%current_host%%"
+  NetworkScript: docker exec rfsim5g-oai-nr-ue ip a show dev oaitun_ue3
+  CmdPrefix: docker exec rfsim5g-oai-nr-ue
+  IF: oaitun_ue3
+  AttachScript: "true"
+  DetachScript: "true"
+  MTU: 1500
+
+rfsim5g_multiue4:
+  Host: "%%current_host%%"
+  NetworkScript: docker exec rfsim5g-oai-nr-ue ip a show dev oaitun_ue4
+  CmdPrefix: docker exec rfsim5g-oai-nr-ue
+  IF: oaitun_ue4
+  AttachScript: "true"
+  DetachScript: "true"
+  MTU: 1500
+
+rfsim5g_multiue5:
+  Host: "%%current_host%%"
+  NetworkScript: docker exec rfsim5g-oai-nr-ue ip a show dev oaitun_ue5
+  CmdPrefix: docker exec rfsim5g-oai-nr-ue
+  IF: oaitun_ue5
+  AttachScript: "true"
+  DetachScript: "true"
+  MTU: 1500
+
+rfsim5g_multiue6:
+  Host: "%%current_host%%"
+  NetworkScript: docker exec rfsim5g-oai-nr-ue ip a show dev oaitun_ue6
+  CmdPrefix: docker exec rfsim5g-oai-nr-ue
+  IF: oaitun_ue6
+  AttachScript: "true"
+  DetachScript: "true"
+  MTU: 1500
+
+rfsim5g_multiue7:
+  Host: "%%current_host%%"
+  NetworkScript: docker exec rfsim5g-oai-nr-ue ip a show dev oaitun_ue7
+  CmdPrefix: docker exec rfsim5g-oai-nr-ue
+  IF: oaitun_ue7
+  AttachScript: "true"
+  DetachScript: "true"
+  MTU: 1500
+
+rfsim5g_multiue8:
+  Host: "%%current_host%%"
+  NetworkScript: docker exec rfsim5g-oai-nr-ue ip a show dev oaitun_ue8
+  CmdPrefix: docker exec rfsim5g-oai-nr-ue
+  IF: oaitun_ue8
+  AttachScript: "true"
+  DetachScript: "true"
+  MTU: 1500
+
+rfsim5g_multiue9:
+  Host: "%%current_host%%"
+  NetworkScript: docker exec rfsim5g-oai-nr-ue ip a show dev oaitun_ue9
+  CmdPrefix: docker exec rfsim5g-oai-nr-ue
+  IF: oaitun_ue9
+  AttachScript: "true"
+  DetachScript: "true"
+  MTU: 1500
+
+rfsim5g_multiue10:
+  Host: "%%current_host%%"
+  NetworkScript: docker exec rfsim5g-oai-nr-ue ip a show dev oaitun_ue10
+  CmdPrefix: docker exec rfsim5g-oai-nr-ue
+  IF: oaitun_ue10
+  AttachScript: "true"
+  DetachScript: "true"
+  MTU: 1500

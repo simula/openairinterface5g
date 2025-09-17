@@ -31,33 +31,26 @@
 */
 
 #include "openair2/NR_PHY_INTERFACE/NR_IF_Module.h"
-#include "LAYER2/NR_MAC_COMMON/nr_mac_extern.h"
+#include <stdbool.h>
+#include <stdlib.h>
+#include <string.h>
 #include "LAYER2/NR_MAC_gNB/mac_proto.h"
-#include "common/ran_context.h"
+#include "common/platform_constants.h"
+#include "common/utils/T/T.h"
 #include "executables/softmodem-common.h"
-#include "nfapi/oai_integration/vendor_ext.h" 
 #include "nfapi/oai_integration/gnb_ind_vars.h"
-#include "openair2/PHY_INTERFACE/queue_t.h"
+#include "nfapi/oai_integration/vendor_ext.h"
+#include "nfapi_interface.h"
 #include "openair2/NR_PHY_INTERFACE/nr_sched_response.h"
+#include "openair2/PHY_INTERFACE/queue_t.h"
+#include "utils.h"
+#include "nfapi/oai_integration/nfapi_pnf.h"
 
 #define MAX_IF_MODULES 100
 
 static NR_IF_Module_t *nr_if_inst[MAX_IF_MODULES];
-extern int oai_nfapi_harq_indication(nfapi_harq_indication_t *harq_ind);
-extern int oai_nfapi_crc_indication(nfapi_crc_indication_t *crc_ind);
-extern int oai_nfapi_cqi_indication(nfapi_cqi_indication_t *cqi_ind);
-extern int oai_nfapi_sr_indication(nfapi_sr_indication_t *ind);
-extern int oai_nfapi_rx_ind(nfapi_rx_indication_t *ind);
-extern int oai_nfapi_nr_slot_indication(nfapi_nr_slot_indication_scf_t *ind);
-extern int oai_nfapi_nr_rx_data_indication(nfapi_nr_rx_data_indication_t *ind);
-extern int oai_nfapi_nr_crc_indication(nfapi_nr_crc_indication_t *ind);
-extern int oai_nfapi_nr_srs_indication(nfapi_nr_srs_indication_t *ind);
-extern int oai_nfapi_nr_uci_indication(nfapi_nr_uci_indication_t *ind);
-extern int oai_nfapi_nr_rach_indication(nfapi_nr_rach_indication_t *ind);
-extern uint8_t nfapi_mode;
 
-
-void handle_nr_rach(NR_UL_IND_t *UL_info)
+static void handle_nr_rach(NR_UL_IND_t *UL_info)
 {
   if (NFAPI_MODE == NFAPI_MODE_PNF) {
     if (UL_info->rach_ind.number_of_pdus > 0) {
@@ -67,34 +60,32 @@ void handle_nr_rach(NR_UL_IND_t *UL_info)
     }
     return;
   }
-
-  int frame_diff = UL_info->frame - UL_info->rach_ind.sfn;
-  if (frame_diff < 0) {
-    frame_diff += 1024;
-  }
-  bool in_timewindow = frame_diff == 0 || (frame_diff == 1 && UL_info->slot < 7);
-
-  if (UL_info->rach_ind.number_of_pdus > 0 && in_timewindow) {
-    LOG_D(MAC,"UL_info[Frame %d, Slot %d] Calling initiate_ra_proc RACH:SFN/SLOT:%d/%d\n",
-          UL_info->frame, UL_info->slot, UL_info->rach_ind.sfn, UL_info->rach_ind.slot);
+  if (UL_info->rach_ind.number_of_pdus) {
+    LOG_D(MAC,
+          "UL_info[Frame %d, Slot %d] Calling initiate_ra_proc RACH:SFN/SLOT:%d/%d\n",
+          UL_info->frame,
+          UL_info->slot,
+          UL_info->rach_ind.sfn,
+          UL_info->rach_ind.slot);
     for (int i = 0; i < UL_info->rach_ind.number_of_pdus; i++) {
-      if (UL_info->rach_ind.pdu_list[i].num_preamble > 1) {
-	LOG_E(MAC, "Not more than 1 preamble per RACH PDU supported, ignoring the rest\n");
+      nfapi_nr_prach_indication_pdu_t *rach = UL_info->rach_ind.pdu_list + i;
+      if (rach->num_preamble > 1) {
+        LOG_E(MAC, "Not more than 1 preamble per RACH PDU supported, ignoring the rest\n");
       }
       nr_initiate_ra_proc(UL_info->module_id,
                           UL_info->CC_id,
                           UL_info->rach_ind.sfn,
                           UL_info->rach_ind.slot,
-                          UL_info->rach_ind.pdu_list[i].preamble_list[0].preamble_index,
-                          UL_info->rach_ind.pdu_list[i].freq_index,
-                          UL_info->rach_ind.pdu_list[i].symbol_index,
-                          UL_info->rach_ind.pdu_list[i].preamble_list[0].timing_advance);
+                          rach->preamble_list[0].preamble_index,
+                          rach->freq_index,
+                          rach->symbol_index,
+                          rach->preamble_list[0].timing_advance,
+                          rach->preamble_list[0].preamble_pwr);
     }
   }
 }
 
-
-void handle_nr_uci(NR_UL_IND_t *UL_info)
+static void handle_nr_uci(NR_UL_IND_t *UL_info)
 {
   if(NFAPI_MODE == NFAPI_MODE_PNF) {
     if (UL_info->uci_ind.num_ucis > 0) {
@@ -107,7 +98,7 @@ void handle_nr_uci(NR_UL_IND_t *UL_info)
 
   const module_id_t mod_id = UL_info->module_id;
   const frame_t frame = UL_info->uci_ind.sfn;
-  const sub_frame_t slot = UL_info->uci_ind.slot;
+  const slot_t slot = UL_info->uci_ind.slot;
   int num_ucis = UL_info->uci_ind.num_ucis;
   nfapi_nr_uci_t *uci_list = UL_info->uci_ind.uci_list;
 
@@ -138,27 +129,28 @@ void handle_nr_uci(NR_UL_IND_t *UL_info)
 
 }
 
+struct sfn_slot {
+  int sfn;
+  int slot;
+};
 static bool crc_sfn_slot_matcher(void *wanted, void *candidate)
 {
-  nfapi_p7_message_header_t *msg = candidate;
-  int sfn_sf = *(int*)wanted;
+  nfapi_nr_p7_message_header_t *msg = candidate;
+  struct sfn_slot *sfn_sf = (struct sfn_slot *)wanted;
 
-  switch (msg->message_id)
-  {
-    case NFAPI_NR_PHY_MSG_TYPE_CRC_INDICATION:
-    {
+  switch (msg->message_id) {
+    case NFAPI_NR_PHY_MSG_TYPE_CRC_INDICATION: {
       nfapi_nr_crc_indication_t *ind = candidate;
-      return NFAPI_SFNSLOT2SFN(sfn_sf) == ind->sfn && NFAPI_SFNSLOT2SLOT(sfn_sf) == ind->slot;
+      return sfn_sf->sfn == ind->sfn && sfn_sf->slot == ind->slot;
     }
 
     default:
       LOG_E(NR_MAC, "sfn_slot_match bad ID: %d\n", msg->message_id);
-
   }
   return false;
 }
 
-void handle_nr_ulsch(NR_UL_IND_t *UL_info)
+static void handle_nr_ulsch(NR_UL_IND_t *UL_info)
 {
   if(NFAPI_MODE == NFAPI_MODE_PNF) {
     if (UL_info->crc_ind.number_crcs > 0) {
@@ -176,9 +168,6 @@ void handle_nr_ulsch(NR_UL_IND_t *UL_info)
   }
 
   if (UL_info->rx_ind.number_of_pdus > 0 && UL_info->crc_ind.number_crcs > 0) {
-    // see nr_fill_indication about why this mutex is necessary
-    int rc = pthread_mutex_lock(&UL_info->crc_rx_mutex);
-    DevAssert(rc == 0);
     AssertFatal(UL_info->rx_ind.number_of_pdus == UL_info->crc_ind.number_crcs,
                 "number_of_pdus %d, number_crcs %d\n",
                 UL_info->rx_ind.number_of_pdus, UL_info->crc_ind.number_crcs);
@@ -188,12 +177,12 @@ void handle_nr_ulsch(NR_UL_IND_t *UL_info)
       LOG_D(NR_PHY, "UL_info->crc_ind.pdu_list[%d].rnti:%04x "
                     "UL_info->rx_ind.pdu_list[%d].rnti:%04x\n",
                     i, crc->rnti, i, rx->rnti);
+      AssertFatal(crc->rnti == rx->rnti, "mis-match between CRC RNTI %04x and RX RNTI %04x\n", crc->rnti, rx->rnti);
 
-      AssertFatal(crc->rnti == rx->rnti, "mis-match between CRC RNTI %04x and RX RNTI %04x\n",
-                  crc->rnti, rx->rnti);
-
-      AssertFatal(crc->harq_id == rx->harq_id, "mis-match between CRC HARQ ID %04x and RX HARQ ID %04x\n",
-                  crc->harq_id, rx->harq_id);
+      AssertFatal(crc->harq_id == rx->harq_id,
+                  "mis-match between CRC HARQ ID %04x and RX HARQ ID %04x\n",
+                  crc->harq_id,
+                  rx->harq_id);
 
       LOG_D(NR_MAC,
             "%4d.%2d Calling rx_sdu (CRC %s/tb_crc_status %d)\n",
@@ -214,17 +203,14 @@ void handle_nr_ulsch(NR_UL_IND_t *UL_info)
                 crc->timing_advance,
                 crc->ul_cqi,
                 crc->rssi);
-      handle_nr_ul_harq(UL_info->CC_id, UL_info->module_id, UL_info->frame, UL_info->slot, crc);
     }
     UL_info->rx_ind.number_of_pdus = 0;
     UL_info->crc_ind.number_crcs = 0;
-    rc = pthread_mutex_unlock(&UL_info->crc_rx_mutex);
-    DevAssert(rc == 0);
   }
 }
 
-void handle_nr_srs(NR_UL_IND_t *UL_info) {
-
+static void handle_nr_srs(NR_UL_IND_t *UL_info)
+{
   if(NFAPI_MODE == NFAPI_MODE_PNF) {
     if (UL_info->srs_ind.number_of_pdus > 0) {
       LOG_D(PHY,"PNF Sending UL_info->srs_ind.number_of_pdus: %d, SFN/SF:%d.%d \n",
@@ -237,7 +223,7 @@ void handle_nr_srs(NR_UL_IND_t *UL_info) {
 
   const module_id_t module_id = UL_info->module_id;
   const frame_t frame = UL_info->srs_ind.sfn;
-  const sub_frame_t slot = UL_info->srs_ind.slot;
+  const slot_t slot = UL_info->srs_ind.slot;
   const int num_srs = UL_info->srs_ind.number_of_pdus;
   nfapi_nr_srs_indication_pdu_t *srs_list = UL_info->srs_ind.pdu_list;
 
@@ -369,8 +355,7 @@ static void match_crc_rx_pdu(nfapi_nr_rx_data_indication_t *rx_ind, nfapi_nr_crc
     rx_ind_unmatched->pdu_list = calloc(rx_ind_unmatched->number_of_pdus, sizeof(nfapi_nr_pdu_t));
     for (int i = 0; i < rx_ind->number_of_pdus; i++) {
       if (!crc_ind_has_rnti(crc_ind, rx_ind->pdu_list[i].rnti)) {
-        LOG_I(NR_MAC, "rx_ind->pdu_list[%d].rnti %d does not match any crc_ind pdu rnti\n",
-              i, rx_ind->pdu_list[i].rnti);
+        LOG_I(NR_MAC, "rx_ind->pdu_list[%d].rnti %x does not match any crc_ind pdu rnti\n", i, rx_ind->pdu_list[i].rnti);
         rx_ind_unmatched->pdu_list[num_unmatched_rxs] = rx_ind->pdu_list[i];
         num_unmatched_rxs++;
         remove_rx_pdu(rx_ind, i);
@@ -394,7 +379,15 @@ static void match_crc_rx_pdu(nfapi_nr_rx_data_indication_t *rx_ind, nfapi_nr_crc
   }
 }
 
-static void run_scheduler(module_id_t module_id, int CC_id, int frame, int slot)
+extern void handle_nr_slot_ind(uint16_t sfn, uint16_t slot);
+static void pnf_send_slot_ind(module_id_t module_id, int CC_id, int frame, int slot)
+{
+  (void)module_id;
+  (void)CC_id;
+  handle_nr_slot_ind(frame, slot);
+}
+
+static void run_scheduler_monolithic(module_id_t module_id, int CC_id, int frame, int slot)
 {
   NR_IF_Module_t *ifi = nr_if_inst[module_id];
 
@@ -447,7 +440,7 @@ void NR_UL_indication(NR_UL_IND_t *UL_info) {
   nfapi_nr_uci_indication_t *uci_ind = NULL;
   nfapi_nr_rx_data_indication_t *rx_ind = NULL;
   nfapi_nr_crc_indication_t *crc_ind = NULL;
-  if (get_softmodem_params()->emulate_l1 || NFAPI_MODE == NFAPI_MODE_AERIAL)
+  if (NFAPI_MODE == NFAPI_MODE_VNF || NFAPI_MODE == NFAPI_MODE_AERIAL)
   {
     if (gnb_rach_ind_queue.num_items > 0) {
       LOG_D(NR_MAC, "gnb_rach_ind_queue size = %zu\n", gnb_rach_ind_queue.num_items);
@@ -465,7 +458,7 @@ void NR_UL_indication(NR_UL_IND_t *UL_info) {
       LOG_D(NR_MAC, "gnb_rx_ind_queue size = %zu and gnb_crc_ind_queue size = %zu\n",
             gnb_rx_ind_queue.num_items, gnb_crc_ind_queue.num_items);
       rx_ind = get_queue(&gnb_rx_ind_queue);
-      int sfn_slot = NFAPI_SFNSLOT2HEX(rx_ind->sfn, rx_ind->slot);
+      struct sfn_slot sfn_slot = {.sfn = rx_ind->sfn, .slot = rx_ind->slot};
       crc_ind = unqueue_matching(&gnb_crc_ind_queue,
                                  MAX_QUEUE_SIZE,
                                  crc_sfn_slot_matcher,
@@ -485,29 +478,35 @@ void NR_UL_indication(NR_UL_IND_t *UL_info) {
     }
   }
 
-  handle_nr_rach(UL_info);
+  if (UL_info->rach_ind.number_of_pdus > 0)
+    handle_nr_rach(UL_info);
   handle_nr_uci(UL_info);
   handle_nr_ulsch(UL_info);
   handle_nr_srs(UL_info);
 
-  if (get_softmodem_params()->emulate_l1 || NFAPI_MODE == NFAPI_MODE_AERIAL) {
+  if (NFAPI_MODE == NFAPI_MODE_VNF || NFAPI_MODE == NFAPI_MODE_AERIAL) {
     free_unqueued_nfapi_indications(rach_ind, uci_ind, rx_ind, crc_ind);
   }
 }
 
 NR_IF_Module_t *NR_IF_Module_init(int Mod_id) {
   AssertFatal(Mod_id<MAX_MODULES,"Asking for Module %d > %d\n",Mod_id,MAX_IF_MODULES);
-  LOG_I(PHY,"Installing callbacks for IF_Module - UL_indication\n");
+  LOG_D(PHY, "Installing callbacks for IF_Module - UL_indication\n");
 
   if (nr_if_inst[Mod_id]==NULL) {
     nr_if_inst[Mod_id] = (NR_IF_Module_t*)malloc(sizeof(NR_IF_Module_t));
     memset((void*)nr_if_inst[Mod_id],0,sizeof(NR_IF_Module_t));
 
-    LOG_I(MAC,"Allocating shared L1/L2 interface structure for instance %d @ %p\n",Mod_id,nr_if_inst[Mod_id]);
+    LOG_D(MAC, "Allocating shared L1/L2 interface structure for instance %d @ %p\n", Mod_id, nr_if_inst[Mod_id]);
 
     nr_if_inst[Mod_id]->CC_mask=0;
     nr_if_inst[Mod_id]->NR_UL_indication = NR_UL_indication;
-    nr_if_inst[Mod_id]->NR_slot_indication = run_scheduler;
+    if (NFAPI_MODE == NFAPI_MONOLITHIC)
+      nr_if_inst[Mod_id]->NR_slot_indication = run_scheduler_monolithic;
+    else if (NFAPI_MODE == NFAPI_MODE_PNF)
+      nr_if_inst[Mod_id]->NR_slot_indication = pnf_send_slot_ind;
+    else // NFAPI_MODE_VNF
+      NULL;
     AssertFatal(pthread_mutex_init(&nr_if_inst[Mod_id]->if_mutex,NULL)==0,
                 "allocation of nr_if_inst[%d]->if_mutex fails\n",Mod_id);
   }

@@ -36,16 +36,51 @@
 #include "f1ap_cu_interface_management.h"
 #include "f1ap_default_values.h"
 #include "lib/f1ap_interface_management.h"
-#include "lib/f1ap_lib_common.h"
 
 int CU_handle_RESET_ACKNOWLEDGE(instance_t instance, sctp_assoc_t assoc_id, uint32_t stream, F1AP_F1AP_PDU_t *pdu)
 {
-  AssertFatal(1 == 0, "Not implemented yet\n");
+  DevAssert(pdu != NULL);
+
+  f1ap_reset_ack_t ack = {0};
+  /* Decode */
+  if (!decode_f1ap_reset_ack(pdu, &ack)) {
+    LOG_E(F1AP, "cannot decode F1AP Reset acknowledgement\n");
+    free_f1ap_reset_ack(&ack);
+    return -1;
+  }
+  /* Send to RRC (ITTI) */
+  MessageDef *message_p = itti_alloc_new_message(TASK_CU_F1, 0, F1AP_RESET_ACK);
+  message_p->ittiMsgHeader.originInstance = assoc_id;
+  F1AP_RESET_ACK(message_p) = ack; /* "move" message into ITTI, RRC thread will free it */
+  itti_send_msg_to_task(TASK_RRC_GNB, GNB_MODULE_ID_TO_INSTANCE(instance), message_p);
+  return 0;
 }
 
 int CU_send_RESET_ACKNOWLEDGE(sctp_assoc_t assoc_id, const f1ap_reset_ack_t *ack)
 {
   AssertFatal(1 == 0, "Not implemented yet\n");
+}
+
+void CU_send_RESET(sctp_assoc_t assoc_id, const f1ap_reset_t *reset)
+{
+  uint8_t *buffer = NULL;
+  uint32_t len = 0;
+
+  /* Encode F1 Reset */
+  F1AP_F1AP_PDU_t *pdu = encode_f1ap_reset(reset);
+  if (pdu == NULL) {
+    LOG_E(F1AP, "failed to create asn.1 message for f1ap reset\n");
+    return;
+  }
+
+  /* encode ASN.1 PER */
+  int encoded = f1ap_encode_pdu(pdu, &buffer, &len);
+  ASN_STRUCT_FREE(asn_DEF_F1AP_F1AP_PDU, pdu);
+  if (encoded <= 0) {
+    LOG_E(F1AP, "Failed to encode F1 reset\n");
+    return;
+  }
+  f1ap_itti_send_sctp_data_req(assoc_id, buffer, len);
 }
 
 /**
@@ -143,7 +178,6 @@ int CU_handle_gNB_DU_CONFIGURATION_UPDATE(instance_t instance, sctp_assoc_t asso
   message_p->ittiMsgHeader.originInstance = assoc_id;
   f1ap_gnb_du_configuration_update_t *req = &F1AP_GNB_DU_CONFIGURATION_UPDATE(message_p); // RRC thread will free it
   *req = msg; // copy F1 message to ITTI
-  free_f1ap_du_configuration_update(&msg);
   LOG_D(F1AP, "Sending F1AP_GNB_DU_CONFIGURATION_UPDATE ITTI message \n");
   itti_send_msg_to_task(TASK_RRC_GNB, GNB_MODULE_ID_TO_INSTANCE(instance), message_p);
   return 0;
@@ -161,7 +195,7 @@ int CU_send_gNB_DU_CONFIGURATION_UPDATE_ACKNOWLEDGE(sctp_assoc_t assoc_id, f1ap_
     LOG_E(F1AP, "Failed to encode F1 gNB-DU Configuration Update Acknowledge\n");
     return -1;
   }
-  LOG_DUMPMSG(F1AP, LOG_DUMP_CHAR, buffer, len, "F1AP gNB-DU CONFIGURATION UPDATE : ");
+  LOG_DUMPMSG(F1AP, DEBUG_F1AP, buffer, len, "F1AP gNB-DU CONFIGURATION UPDATE : ");
   ASN_STRUCT_FREE(asn_DEF_F1AP_F1AP_PDU, pdu);
   f1ap_itti_send_sctp_data_req(assoc_id, buffer, len);
   return 0;
@@ -186,7 +220,7 @@ int CU_send_gNB_CU_CONFIGURATION_UPDATE(sctp_assoc_t assoc_id, f1ap_gnb_cu_confi
     LOG_E(F1AP, "Failed to encode F1 gNB-CU Configuration Update\n");
     return -1;
   }
-  LOG_DUMPMSG(F1AP, LOG_DUMP_CHAR, buffer, len, "F1AP gNB-CU CONFIGURATION UPDATE : ");
+  LOG_DUMPMSG(F1AP, DEBUG_F1AP, buffer, len, "F1AP gNB-CU CONFIGURATION UPDATE : ");
   ASN_STRUCT_FREE(asn_DEF_F1AP_F1AP_PDU, pdu);
   f1ap_itti_send_sctp_data_req(assoc_id, buffer, len);
   return 0;

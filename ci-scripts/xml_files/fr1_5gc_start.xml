@@ -31,8 +31,9 @@
 	</TestCaseExclusionList>
 
 	<testCase id="000100">
-		<class>Initialize_5GCN</class>
+		<class>DeployCoreNetwork</class>
 		<desc>Initialize 5GC</desc>
+		<cn_id>sabox-nepes</cn_id>
 	</testCase>
 
 </testCaseList>

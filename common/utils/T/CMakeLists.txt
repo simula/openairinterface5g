@@ -49,7 +49,7 @@ add_custom_target(generate_T DEPENDS T_IDs.h check_vcd)
 # headers have really been created, we make this headers library explicitly
 # depend on the generated headers.
 add_library(T_headers INTERFACE)
-add_dependencies(T_headers T_IDs.h T_messages.txt.h)
+add_dependencies(T_headers T_IDs.h generate_T)
 target_include_directories(T_headers INTERFACE ${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_CURRENT_SOURCE_DIR})
 
 if(T_TRACER)

@@ -56,6 +56,7 @@
 #include "dummy_functions.c"
 #include "executables/thread-common.h"
 #include "common/ran_context.h"
+#include "executables/softmodem-common.h"
 void feptx_ofdm(RU_t *ru, int frame, int subframe);
 void feptx_prec(RU_t *ru, int frame, int subframe);
 
@@ -89,7 +90,6 @@ static int cmpdouble(const void *p1, const void *p2) {
 }
 RAN_CONTEXT_t RC;
 
-int emulate_rf = 0;
 void handler(int sig) {
   void *array[10];
   size_t size;
@@ -891,7 +891,7 @@ int main(int argc, char **argv) {
   set_glog_onlinelog(true);
   // enable these lines if you need debug info
   set_glog(loglvl);
-  SET_LOG_DEBUG(UE_TIMING);
+  // SET_LOG_DEBUG(DEBUG_UE_TIMING);
   // moreover you need to init itti with the following line
   // however itti will catch all signals, so ctrl-c won't work anymore
   // alternatively you can disable ITTI completely in CMakeLists.txt
@@ -2121,7 +2121,8 @@ int main(int argc, char **argv) {
   else
     return(0);
 }
-/* temporary dummy implem of get_softmodem_optmask, till basic simulators implemented as device */
-uint64_t get_softmodem_optmask(void) {
-  return 0;
+static softmodem_params_t softmodem_params;
+softmodem_params_t *get_softmodem_params(void)
+{
+  return &softmodem_params;
 }

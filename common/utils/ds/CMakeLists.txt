@@ -1,5 +1,6 @@
 add_library(ds OBJECT
             byte_array.c
+            byte_array_producer.c
             seq_arr.c
 )
 

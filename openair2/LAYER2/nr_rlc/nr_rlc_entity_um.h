@@ -80,5 +80,6 @@ void nr_rlc_entity_um_discard_sdu(nr_rlc_entity_t *_entity, int sdu_id);
 void nr_rlc_entity_um_reestablishment(nr_rlc_entity_t *_entity);
 void nr_rlc_entity_um_delete(nr_rlc_entity_t *entity);
 int nr_rlc_entity_um_available_tx_space(nr_rlc_entity_t *entity);
+int nr_rlc_entity_um_tx_list_occupancy(nr_rlc_entity_t *_entity);
 
 #endif /* _NR_RLC_ENTITY_UM_H_ */

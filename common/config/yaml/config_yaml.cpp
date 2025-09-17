@@ -25,6 +25,7 @@ extern "C" {
 #include "common/config/config_userapi.h"
 void *config_allocate_new(configmodule_interface_t *cfg, int sz, bool autoFree);
 void config_check_valptr(configmodule_interface_t *cfg, paramdef_t *cfgoptions, int elt_sz, int nb_elt);
+int config_common_getdefault(configmodule_interface_t *cfg, paramdef_t *cfgoption, char *prefix);
 }
 #include <cstring>
 #include <string>
@@ -42,68 +43,6 @@ class YamlConfig {
   }
 };
 
-void SetDefault(configmodule_interface_t *cfg, paramdef_t *param)
-{
-  switch (param->type) {
-    case TYPE_INT:
-      *param->iptr = param->defintval;
-      break;
-    case TYPE_UINT:
-      *param->uptr = param->defuintval;
-      break;
-    case TYPE_STRING:
-      if (param->defstrval != nullptr) {
-        if (param->numelt == 0) {
-          config_check_valptr(cfg, param, 1, strlen(param->defstrval) + 1);
-        }
-        sprintf(*param->strptr, "%s", param->defstrval);
-      }
-      break;
-    case TYPE_INT8:
-      *param->i8ptr = param->defintval;
-      break;
-    case TYPE_UINT8:
-      *param->i8ptr = param->defuintval;
-      break;
-    case TYPE_INT16:
-      *param->i16ptr = param->defintval;
-      break;
-    case TYPE_UINT16:
-      *param->u16ptr = param->defuintval;
-      break;
-    case TYPE_INT64:
-      *param->i64ptr = param->defint64val;
-      break;
-    case TYPE_UINT64:
-      *param->u64ptr = param->defint64val;
-      break;
-    case TYPE_DOUBLE:
-      *param->dblptr = param->defdblval;
-      break;
-    case TYPE_MASK:
-      *param->uptr = param->defuintval;
-      break;
-    case TYPE_STRINGLIST:
-      if (param->defstrlistval != nullptr) {
-        param->strlistptr = param->defstrlistval;
-      }
-      break;
-    case TYPE_INTARRAY:
-      if (param->defintarrayval) {
-        param->iptr = param->defintarrayval;
-      }
-      break;
-    case TYPE_UINTARRAY:
-      if (param->defintarrayval) {
-        param->uptr = (uint32_t *)param->defintarrayval;
-      }
-      break;
-    default:
-      AssertFatal(false, "Unhandled type %d", param->type);
-  }
-  param->paramflags |= PARAMFLAG_PARAMSETDEF;
-}
-
 void SetNonDefault(configmodule_interface_t *cfg, const YAML::Node &node, paramdef_t *param)
 {
   auto optname = std::string(param->optname);
@@ -120,8 +59,11 @@ void SetNonDefault(configmodule_interface_t *cfg, const YAML::Node &node, paramd
       sprintf(*param->strptr, "%s", setting.c_str());
       break;
     }
+    case TYPE_INT8:
+      *param->i8ptr = node[optname].as<int8_t>();
+      break;
     case TYPE_UINT8:
-      *param->i8ptr = node[optname].as<uint8_t>();
+      *param->u8ptr = node[optname].as<uint8_t>();
       break;
     case TYPE_INT16:
       *param->i16ptr = node[optname].as<int16_t>();
@@ -183,20 +125,28 @@ void SetNonDefault(configmodule_interface_t *cfg, const YAML::Node &node, paramd
       }
       break;
     }
+    case TYPE_IPV4ADDR: {
+      std::string ipv4addr = node[optname].as<std::string>();
+      char* ipv4addr_ptr = strdup(ipv4addr.c_str());
+      int rst = config_assign_ipv4addr(cfg, param, ipv4addr_ptr);
+      free(ipv4addr_ptr);
+      if (rst < 0) {
+        fprintf(stderr,"[LIBCONFIG] %s not valid for %s \n", ipv4addr.c_str(), optname.c_str());
+      }
+      break;
+    }
     default:
       AssertFatal(false, "Unhandled type %d", param->type);
   }
   param->paramflags |= PARAMFLAG_PARAMSET;
 }
 
-void GetParams(configmodule_interface_t *cfg, const YAML::Node &node, paramdef_t *params, int num_params)
+void GetParam(configmodule_interface_t *cfg, const YAML::Node &node, paramdef_t *param)
 {
-  for (auto i = 0; i < num_params; i++) {
-    if (node && node[std::string(params[i].optname)]) {
-      SetNonDefault(cfg, node, &params[i]);
-    } else {
-      SetDefault(cfg, &params[i]);
-    }
+  if (node && node[std::string(param->optname)]) {
+    SetNonDefault(cfg, node, param);
+  } else {
+    config_common_getdefault(cfg, param, nullptr);
   }
 }
 
@@ -211,7 +161,15 @@ extern "C" int config_yaml_init(configmodule_interface_t *cfg)
   pthread_mutex_init(&cfg->memBlocks_mutex, NULL);
   memset(cfg->oneBlock, 0, sizeof(cfg->oneBlock));
 
-  config_yaml::config = new config_yaml::YamlConfig(std::string(cfgP[0]));
+  try {
+    config_yaml::config = new config_yaml::YamlConfig(std::string(cfgP[0]));
+  } catch (const YAML::BadFile &e) {
+    fprintf(stderr, "[CONFIG] Error loading YAML file '%s': %s\n", cfgP[0], e.what());
+    return -1;
+  } catch (const YAML::Exception &e) {
+    fprintf(stderr, "[CONFIG] Error parsing YAML file '%s': %s\n", cfgP[0], e.what());
+    return -1;
+  }
   return 0;
 }
 
@@ -231,14 +189,14 @@ YAML::Node find_node(const std::string &prefix, YAML::Node node)
     if (key.at(0) == '[' && key.back() == ']') {
       // The key is an index to a sequence
       if (!current.IsSequence()) {
-        throw std::invalid_argument("Incorrect yaml file structure");
+        throw std::invalid_argument("Expected a sequence at " + key);
       }
       int index = std::stoi(key.substr(1, key.size() - 2));
       current = current[index];
       continue;
     }
     if (!current.IsMap()) {
-      throw std::invalid_argument("Incorrect yaml file structure");
+      throw std::invalid_argument("Expected a map at " + key);
     }
     if (!current[key]) {
       return config_yaml::invalid_node;
@@ -254,8 +212,14 @@ extern "C" int config_yaml_get(configmodule_interface_t *cfg, paramdef_t *cfgopt
   if (prefix != nullptr) {
     p = std::string(prefix);
   }
-  auto node = find_node(p, YAML::Clone(config_yaml::config->config));
-  if (node == config_yaml::invalid_node) {
+  YAML::Node node;
+  try {
+    node = find_node(p, YAML::Clone(config_yaml::config->config));
+    if (node == config_yaml::invalid_node) {
+      return -1;
+    }
+  } catch (const std::invalid_argument &e) {
+    fprintf(stderr, "[CONFIG] Error finding node '%s': %s\n", p.c_str(), e.what());
     return -1;
   }
   for (auto i = 0; i < numoptions; i++) {
@@ -264,8 +228,15 @@ extern "C" int config_yaml_get(configmodule_interface_t *cfg, paramdef_t *cfgopt
       config_check_valptr(cfg, &cfgoptions[i], sizeof(void *), 1);
     }
   }
-  config_yaml::GetParams(cfg, node, cfgoptions, numoptions);
-  return 0;
+  for (int i = 0; i < numoptions; i++) {
+    try {
+      config_yaml::GetParam(cfg, node, &cfgoptions[i]);
+    } catch (const YAML::Exception &e) {
+      fprintf(stderr, "[CONFIG] Config error: prefix: %s, setting: %s, error: %s\n", p.c_str(), cfgoptions[i].optname, e.what());
+      return -1;
+    }
+  }
+  return numoptions;
 }
 
 extern "C" int config_yaml_getlist(configmodule_interface_t *cfg,
@@ -286,10 +257,10 @@ extern "C" int config_yaml_getlist(configmodule_interface_t *cfg,
     return -1;
   }
 
+  ParamList->numelt = node.size();
   if (!node.IsSequence()) {
     return -1;
   }
-  ParamList->numelt = node.size();
 
   if (ParamList->numelt > 0 && params != NULL) {
     ParamList->paramarray = static_cast<paramdef_t **>(config_allocate_new(cfg, ParamList->numelt * sizeof(paramdef_t *), true));
@@ -305,7 +276,14 @@ extern "C" int config_yaml_getlist(configmodule_interface_t *cfg,
         }
       }
 
-      config_yaml::GetParams(cfg, node[i], ParamList->paramarray[i], numparams);
+      for (int j = 0; j < numparams; j++) {
+        try {
+          config_yaml::GetParam(cfg, node[i], &ParamList->paramarray[i][j]);
+        } catch (const YAML::Exception &e) {
+          fprintf(stderr, "[CONFIG] Config error: prefix: %s, setting: %s, error: %s\n", path, ParamList->paramarray[i][j].optname, e.what());
+          return -1;
+        }
+      }
     }
   }
 

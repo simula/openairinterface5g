@@ -86,14 +86,6 @@ int emm_msg_decode(EMM_msg *msg, uint8_t *buffer, uint32_t len) {
   LOG_FUNC_IN;
   int header_result;
   int decode_result;
-  uint8_t *buffer_log = buffer;
-  uint32_t len_log = len;
-  int down_link;
-# if ((defined(NAS_BUILT_IN_EPC) && defined(NAS_MME)))
-  down_link = 0;
-# else
-  down_link = 1;
-# endif
   /* First decode the EMM message header */
   header_result = _emm_msg_decode_header(&msg->header, buffer, len);
 
@@ -247,14 +239,13 @@ int emm_msg_decode(EMM_msg *msg, uint8_t *buffer, uint32_t len) {
   if (decode_result < 0) {
     LOG_TRACE(ERROR, "EMM-MSG   - Failed to decode L3 EMM message 0x%x "
               "(%d)", msg->header.message_type, decode_result);
-    LOG_FUNC_RETURN (decode_result);
+    LOG_FUNC_RETURN(decode_result);
   } else {
-#if ((defined(NAS_BUILT_IN_EPC) && defined(NAS_MME)) || (defined(ENABLE_NAS_UE_LOGGING) && defined(NAS_BUILT_IN_UE) && defined(NAS_UE)))
     /* Message has been decoded and security header removed, handle it has a plain message */
-    nas_itti_plain_msg((char *) buffer_log, (nas_message_t *) msg, len_log, down_link);
+#if defined(NAS_BUILT_IN_EPC)
+    nas_itti_plain_msg((char *)buffer_log, (nas_message_t *)msg, len_log, 0);
 #endif
   }
-
   LOG_FUNC_RETURN (header_result + decode_result);
 }
 
@@ -279,13 +270,6 @@ int emm_msg_encode(EMM_msg *msg, uint8_t *buffer, uint32_t len) {
   LOG_FUNC_IN;
   int header_result;
   int encode_result;
-  uint8_t *buffer_log = buffer;
-  int down_link;
-# if ((defined(NAS_BUILT_IN_EPC) && defined(NAS_MME)))
-  down_link = 1;
-# else
-  down_link = 0;
-# endif
   /* First encode the EMM message header */
   header_result = _emm_msg_encode_header(&msg->header, buffer, len);
 
@@ -443,8 +427,8 @@ int emm_msg_encode(EMM_msg *msg, uint8_t *buffer, uint32_t len) {
     LOG_TRACE(ERROR, "EMM-MSG   - Failed to encode L3 EMM message 0x%x "
               "(%d)", msg->header.message_type, encode_result);
   } else {
-#if ((defined(NAS_BUILT_IN_EPC) && defined(NAS_MME)) || (defined(ENABLE_NAS_UE_LOGGING) && defined(NAS_BUILT_IN_UE) && defined(NAS_UE)))
-    nas_itti_plain_msg((char *) buffer_log, (nas_message_t *) msg, header_result + encode_result, down_link);
+#if defined(NAS_BUILT_IN_EPC)
+    nas_itti_plain_msg((char *)buffer_log, (nas_message_t *)msg, header_result + encode_result, 1);
 #endif
   }
 

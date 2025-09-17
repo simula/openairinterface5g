@@ -33,15 +33,12 @@
 #include "mac_proto.h"
 #include "mac_defs.h"
 #include "assertions.h"
-#include "LAYER2/NR_MAC_UE/mac_extern.h"
 #include "mac_defs.h"
 #include "common/utils/nr/nr_common.h"
 #include "executables/softmodem-common.h"
 #include <stdio.h>
 
-void fill_dci_search_candidates(const NR_SearchSpace_t *ss,
-                                fapi_nr_dl_config_dci_dl_pdu_rel15_t *rel15,
-                                const uint32_t Y)
+void fill_dci_search_candidates(const NR_SearchSpace_t *ss, fapi_nr_dl_config_dci_dl_pdu_rel15_t *rel15, const uint32_t Y)
 {
   LOG_T(NR_MAC_DCI, "Filling search candidates for DCI\n");
 
@@ -107,11 +104,11 @@ NR_ControlResourceSet_t *ue_get_coreset(const NR_BWP_PDCCH_t *config, const int 
   return coreset;
 }
 
-void config_dci_pdu(NR_UE_MAC_INST_t *mac,
-                    fapi_nr_dl_config_request_t *dl_config,
-                    const int rnti_type,
-                    const int slot,
-                    const NR_SearchSpace_t *ss)
+static void config_dci_pdu(NR_UE_MAC_INST_t *mac,
+                           fapi_nr_dl_config_request_t *dl_config,
+                           const int rnti_type,
+                           const int slot,
+                           const NR_SearchSpace_t *ss)
 {
   const NR_UE_DL_BWP_t *current_DL_BWP = mac->current_DL_BWP;
   const NR_UE_UL_BWP_t *current_UL_BWP = mac->current_UL_BWP;
@@ -320,6 +317,11 @@ void config_dci_pdu(NR_UE_MAC_INST_t *mac,
   if (ss->searchSpaceType->present == NR_SearchSpace__searchSpaceType_PR_ue_Specific)
     Y = get_Y(ss, slot, rel15->rnti);
   fill_dci_search_candidates(ss, rel15, Y);
+  // not scheduling DCI reception if there are no candidates
+  if (rel15->number_of_candidates == 0) {
+    LOG_E(NR_MAC, "No candidates in this DCI, not scheduling it");
+    return;
+  }
 
   #ifdef DEBUG_DCI
     for (int i = 0; i < rel15->num_dci_options; i++) {
@@ -341,78 +343,10 @@ void config_dci_pdu(NR_UE_MAC_INST_t *mac,
   dl_config->number_pdus += 1;
 }
 
-
-void get_monitoring_period_offset(const NR_SearchSpace_t *ss, int *period, int *offset)
-{
-  switch(ss->monitoringSlotPeriodicityAndOffset->present) {
-    case NR_SearchSpace__monitoringSlotPeriodicityAndOffset_PR_sl1:
-      *period = 1;
-      *offset = 0;
-      break;
-    case NR_SearchSpace__monitoringSlotPeriodicityAndOffset_PR_sl2:
-      *period = 2;
-      *offset = ss->monitoringSlotPeriodicityAndOffset->choice.sl2;
-      break;
-    case NR_SearchSpace__monitoringSlotPeriodicityAndOffset_PR_sl4:
-      *period = 4;
-      *offset = ss->monitoringSlotPeriodicityAndOffset->choice.sl4;
-      break;
-    case NR_SearchSpace__monitoringSlotPeriodicityAndOffset_PR_sl5:
-      *period = 5;
-      *offset = ss->monitoringSlotPeriodicityAndOffset->choice.sl5;
-      break;
-    case NR_SearchSpace__monitoringSlotPeriodicityAndOffset_PR_sl8:
-      *period = 8;
-      *offset = ss->monitoringSlotPeriodicityAndOffset->choice.sl8;
-      break;
-    case NR_SearchSpace__monitoringSlotPeriodicityAndOffset_PR_sl10:
-      *period = 10;
-      *offset = ss->monitoringSlotPeriodicityAndOffset->choice.sl10;
-      break;
-    case NR_SearchSpace__monitoringSlotPeriodicityAndOffset_PR_sl16:
-      *period = 16;
-      *offset = ss->monitoringSlotPeriodicityAndOffset->choice.sl16;
-      break;
-    case NR_SearchSpace__monitoringSlotPeriodicityAndOffset_PR_sl20:
-      *period = 20;
-      *offset = ss->monitoringSlotPeriodicityAndOffset->choice.sl20;
-      break;
-    case NR_SearchSpace__monitoringSlotPeriodicityAndOffset_PR_sl40:
-      *period = 40;
-      *offset = ss->monitoringSlotPeriodicityAndOffset->choice.sl40;
-      break;
-    case NR_SearchSpace__monitoringSlotPeriodicityAndOffset_PR_sl80:
-      *period = 80;
-      *offset = ss->monitoringSlotPeriodicityAndOffset->choice.sl80;
-      break;
-    case NR_SearchSpace__monitoringSlotPeriodicityAndOffset_PR_sl160:
-      *period = 160;
-      *offset = ss->monitoringSlotPeriodicityAndOffset->choice.sl160;
-      break;
-    case NR_SearchSpace__monitoringSlotPeriodicityAndOffset_PR_sl320:
-      *period = 320;
-      *offset = ss->monitoringSlotPeriodicityAndOffset->choice.sl320;
-      break;
-    case NR_SearchSpace__monitoringSlotPeriodicityAndOffset_PR_sl640:
-      *period = 640;
-      *offset = ss->monitoringSlotPeriodicityAndOffset->choice.sl640;
-      break;
-    case NR_SearchSpace__monitoringSlotPeriodicityAndOffset_PR_sl1280:
-      *period = 1280;
-      *offset = ss->monitoringSlotPeriodicityAndOffset->choice.sl1280;
-      break;
-    case NR_SearchSpace__monitoringSlotPeriodicityAndOffset_PR_sl2560:
-      *period = 2560;
-      *offset = ss->monitoringSlotPeriodicityAndOffset->choice.sl2560;
-      break;
-  default:
-    AssertFatal(1==0,"Invalid monitoring slot periodicity value\n");
-    break;
-  }
-}
-
 bool is_ss_monitor_occasion(const int frame, const int slot, const int slots_per_frame, const NR_SearchSpace_t *ss)
 {
+  if (!ss)
+    return false;
   const int duration = ss->duration ? *ss->duration : 1;
   bool monitor = false;
   int period, offset;
@@ -432,20 +366,18 @@ bool search_space_monitoring_ocasion_other_si(NR_UE_MAC_INST_t *mac,
                                               const int abs_slot,
                                               const int frame,
                                               const int slot,
-                                              const int slots_per_frame,
-                                              const int bwp_id)
+                                              const int slots_per_frame)
 {
   const int duration = ss->duration ? *ss->duration : 1;
   int period, offset;
   get_monitoring_period_offset(ss, &period, &offset);
   for (int i = 0; i < duration; i++) {
     if (((frame * slots_per_frame + slot - offset - i) % period) == 0) {
-      int N = mac->ssb_list[bwp_id].nb_tx_ssb;
-      int K = mac->ssb_list->nb_ssb_per_index[mac->mib_ssb];
-
+      int N = mac->ssb_list.nb_tx_ssb;
+      int K = mac->ssb_list.nb_ssb_per_index[mac->mib_ssb];
       // numbering current frame and slot in terms of monitoring occasions in window
-      int current_monitor_occasion =
-          ((abs_slot - mac->si_window_start) % period) + (duration * (abs_slot - mac->si_window_start) / period);
+      int rel_slot = abs_slot - mac->si_SchedInfo.si_window_start;
+      int current_monitor_occasion = (rel_slot % period) + (duration * rel_slot / period);
       return current_monitor_occasion % N == K;
     }
   }
@@ -453,77 +385,42 @@ bool search_space_monitoring_ocasion_other_si(NR_UE_MAC_INST_t *mac,
   return false;
 }
 
-bool is_window_valid(NR_UE_MAC_INST_t *mac, int window_slots, int abs_slot)
+static bool is_window_valid(NR_UE_MAC_INST_t *mac, int window_slots, int abs_slot, int slots_per_frame)
 {
-  if (mac->si_window_start == -1) {
+  if (mac->si_SchedInfo.si_window_start == -1) {
     // out of window
     return false;
-  } else if (abs_slot > mac->si_window_start + window_slots) {
+  } else if ((abs_slot - mac->si_SchedInfo.si_window_start + MAX_FRAME_NUMBER * slots_per_frame)
+                 % (MAX_FRAME_NUMBER * slots_per_frame)
+             >= window_slots) {
     // window expired
-    mac->si_window_start = -1;
+    mac->si_SchedInfo.si_window_start = -1;
     return false;
   }
   return true;
 }
 
-bool monitor_dci_for_other_SI(NR_UE_MAC_INST_t *mac,
-                              const NR_SearchSpace_t *ss,
-                              const int slots_per_frame,
-                              const int frame,
-                              const int slot)
+static bool monitor_dci_for_other_SI(NR_UE_MAC_INST_t *mac,
+                                     const NR_SearchSpace_t *ss,
+                                     const int si_idx,
+                                     const int slots_per_frame,
+                                     const int frame,
+                                     const int slot)
 {
-  const struct NR_SI_SchedulingInfo *si_SchedulingInfo = mac->si_SchedulingInfo;
-  const struct NR_SI_SchedulingInfo_v1700 *si_SchedulingInfo_v1700 = mac->si_SchedulingInfo_v1700;
-  // 5.2.2.3.2 in 331
-
-  if (!si_SchedulingInfo_v1700 && !si_SchedulingInfo) {
-    LOG_D(NR_MAC_DCI, "No scheduling info provided in SIB1\n");
-    return false;
-  }
-
+  // according to 5.2.2.3.2 in 331
   const int abs_slot = frame * slots_per_frame + slot;
-  const int bwp_id = mac->current_DL_BWP->bwp_id;
+  const si_schedinfo_config_t *config = mac->si_SchedInfo.si_SchedInfo_list.array[si_idx];
+  const int window_slots = 5 << mac->si_SchedInfo.si_WindowLength;
+  const int x = (config->si_WindowPosition - 1) * window_slots;
+  const int T = 8 << config->si_Periodicity; // radio frame periodicity
 
-  if (si_SchedulingInfo) {
-    const int si_window_slots = 5 << si_SchedulingInfo->si_WindowLength;
-    for (int n = 0; n < si_SchedulingInfo->schedulingInfoList.list.count; n++) {
-      struct NR_SchedulingInfo *sched_Info = si_SchedulingInfo->schedulingInfoList.list.array[n];
-      if (mac->si_window_start == -1) {
-        int x = n * si_window_slots;
-        int T = 8 << sched_Info->si_Periodicity; // radio frame periodicity
-        if ((frame % T) == (x / slots_per_frame) && (x % slots_per_frame == 0))
-          mac->si_window_start = abs_slot; // in terms of absolute slot number
-      }
-      bool check_valid = is_window_valid(mac, si_window_slots, abs_slot);
-      if (check_valid && search_space_monitoring_ocasion_other_si(mac, ss, abs_slot, frame, slot, slots_per_frame, bwp_id)) {
-        return true;
-      }
-    }
+  if (mac->si_SchedInfo.si_window_start == -1) {
+    if ((frame % T) == (x / slots_per_frame) && (slot == x % slots_per_frame))
+      mac->si_SchedInfo.si_window_start = abs_slot; // in terms of absolute slot number
   }
+  if (is_window_valid(mac, window_slots, abs_slot, slots_per_frame))
+    return search_space_monitoring_ocasion_other_si(mac, ss, abs_slot, frame, slot, slots_per_frame);
 
-  if (si_SchedulingInfo_v1700) {
-    for (int n = 0; n < si_SchedulingInfo_v1700->schedulingInfoList2_r17.list.count; n++) {
-      struct NR_SchedulingInfo2_r17 *sched_Info = si_SchedulingInfo_v1700->schedulingInfoList2_r17.list.array[n];
-
-      const int T = 8 << sched_Info->si_Periodicity_r17;
-      const int window_slots = 5 << 1; // 10 slots
-      const int x = ((sched_Info->si_WindowPosition_r17 - 1) * window_slots); //  currently window starts from slot 0, maybe + 1?
-      const int N = 10; // TS 38.211
-
-      if (mac->si_window_start == -1) {
-        // this condition will calculate where SI-window starts
-        // 5.2.2.3.2
-        if ((frame % T == floor(x / N)) && (slot == x % N)) {
-          mac->si_window_start = abs_slot;
-        }
-      }
-
-      bool check_valid = is_window_valid(mac, window_slots, abs_slot);
-      if (check_valid && (sched_Info->si_WindowPosition_r17 - 1) == slot) {
-        return search_space_monitoring_ocasion_other_si(mac, ss, abs_slot, frame, slot, slots_per_frame, bwp_id);
-      }
-    }
-  }
   return false;
 }
 
@@ -533,7 +430,7 @@ void ue_dci_configuration(NR_UE_MAC_INST_t *mac, fapi_nr_dl_config_request_t *dl
   NR_BWP_Id_t dl_bwp_id = current_DL_BWP ? current_DL_BWP->bwp_id : 0;
   NR_BWP_PDCCH_t *pdcch_config = &mac->config_BWP_PDCCH[dl_bwp_id];
   int scs = current_DL_BWP ? current_DL_BWP->scs : get_softmodem_params()->numerology;
-  const int slots_per_frame = nr_slots_per_frame[scs];
+  const int slots_per_frame = get_slots_per_frame_from_scs(scs);
   if (mac->get_sib1) {
     int ssb_sc_offset_norm;
     if (mac->ssb_subcarrier_offset < 24 && mac->frequency_range == FR1)
@@ -565,27 +462,31 @@ void ue_dci_configuration(NR_UE_MAC_INST_t *mac, fapi_nr_dl_config_request_t *dl
       config_dci_pdu(mac, dl_config, TYPE_SI_RNTI_, slot, mac->search_space_zero);
     }
   }
-  if (mac->get_otherSI) {
+  for (int i = 0; i < MAX_SI_GROUPS; i++) {
+    if (!mac->get_otherSI[i])
+      continue;
     // If searchSpaceOtherSystemInformation is set to zero,
     // PDCCH monitoring occasions for SI message reception in SI-window
     // are same as PDCCH monitoring occasions for SIB1
-    const NR_SearchSpace_t *ss = pdcch_config->otherSI_SS ? pdcch_config->otherSI_SS : mac->search_space_zero;
+    const NR_SearchSpace_t *ss = get_common_search_space(mac, pdcch_config->otherSI_SS_id == -1 ? 0 : pdcch_config->otherSI_SS_id);
     // TODO configure SI-window
-    if (monitor_dci_for_other_SI(mac, ss, slots_per_frame, frame, slot)) {
+    if (monitor_dci_for_other_SI(mac, ss, i, slots_per_frame, frame, slot)) {
       LOG_D(NR_MAC_DCI, "Monitoring DCI for other SIs in frame %d slot %d\n", frame, slot);
       config_dci_pdu(mac, dl_config, TYPE_SI_RNTI_, slot, ss);
     }
   }
-  if (mac->state == UE_PERFORMING_RA && mac->ra.ra_state >= nrRA_WAIT_RAR) {
+  RA_config_t *ra = &mac->ra;
+  if (mac->state == UE_PERFORMING_RA && ra->ra_state >= nrRA_WAIT_RAR) {
+    const NR_SearchSpace_t *ra_SS = get_common_search_space(mac, pdcch_config->ra_SS_id);
     // if RA is ongoing use RA search space
-    if (is_ss_monitor_occasion(frame, slot, slots_per_frame, pdcch_config->ra_SS)) {
+    if (is_ss_monitor_occasion(frame, slot, slots_per_frame, ra_SS)) {
       nr_rnti_type_t rnti_type = 0;
-      if (mac->ra.ra_type == RA_4_STEP) {
-        rnti_type = mac->ra.ra_state == nrRA_WAIT_RAR ? TYPE_RA_RNTI_ : TYPE_TC_RNTI_;
+      if (ra->ra_type == RA_4_STEP) {
+        rnti_type = ra->ra_state == nrRA_WAIT_RAR ? TYPE_RA_RNTI_ : TYPE_TC_RNTI_;
       } else {
         rnti_type = TYPE_MSGB_RNTI_;
       }
-      config_dci_pdu(mac, dl_config, rnti_type, slot, pdcch_config->ra_SS);
+      config_dci_pdu(mac, dl_config, rnti_type, slot, ra_SS);
     }
   } else if (mac->state == UE_CONNECTED) {
     for (int i = 0; i < pdcch_config->list_SS.count; i++) {
@@ -593,13 +494,14 @@ void ue_dci_configuration(NR_UE_MAC_INST_t *mac, fapi_nr_dl_config_request_t *dl
       if (is_ss_monitor_occasion(frame, slot, slots_per_frame, ss))
         config_dci_pdu(mac, dl_config, TYPE_C_RNTI_, slot, ss);
     }
-    if (pdcch_config->list_SS.count == 0 && pdcch_config->ra_SS) {
+    const NR_SearchSpace_t *ra_SS = get_common_search_space(mac, pdcch_config->ra_SS_id);
+    if (pdcch_config->list_SS.count == 0 && ra_SS) {
       // If the UE has not been provided a Type3-PDCCH CSS set or a USS set and
       // the UE has received a C-RNTI and has been provided a Type1-PDCCH CSS set,
       // the UE monitors PDCCH candidates for DCI format 0_0 and DCI format 1_0
       // with CRC scrambled by the C-RNTI in the Type1-PDCCH CSS set
-      if (is_ss_monitor_occasion(frame, slot, slots_per_frame, pdcch_config->ra_SS))
-        config_dci_pdu(mac, dl_config, TYPE_C_RNTI_, slot, pdcch_config->ra_SS);
+      if (is_ss_monitor_occasion(frame, slot, slots_per_frame, ra_SS))
+        config_dci_pdu(mac, dl_config, TYPE_C_RNTI_, slot, ra_SS);
     }
   }
 }

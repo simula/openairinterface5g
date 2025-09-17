@@ -41,9 +41,9 @@ RUN /bin/sh oaienv && \
     scl enable gcc-toolset-13 "\
     CXXFLAGS='-Werror -fstack-protector-strong' CFLAGS='-Werror -fstack-protector-strong' ./build_oai -c --ninja \
       --eNB --gNB --RU --UE --nrUE \
-      --build-e2 --cmake-opt -DXAPP_MULTILANGUAGE=OFF --cmake-opt \
-      -DKPM_VERSION=$KPM_VERSION --cmake-opt -DE2AP_VERSION=$E2AP_VERSION \
+      --build-e2 --cmake-opt -DKPM_VERSION=$KPM_VERSION --cmake-opt -DE2AP_VERSION=$E2AP_VERSION \
       --build-lib 'telnetsrv enbscope uescope nrscope' \
+      --build-tool-opt -k10 \
       -w USRP -t Ethernet \
       --noavx512" && \
     echo "---- ldd on executables ----" && \
@@ -56,7 +56,6 @@ RUN mkdir -p openair2/E2AP/flexric/build && \
     cd openair2/E2AP/flexric/build && \
     scl enable gcc-toolset-13 "\
     cmake -GNinja -DCMAKE_BUILD_TYPE=Release \
-          -DXAPP_MULTILANGUAGE=OFF \
           -DKPM_VERSION=$KPM_VERSION \
           -DE2AP_VERSION=$E2AP_VERSION .. &&\
     ninja && \

@@ -185,7 +185,7 @@ Some libraries have further dependencies and might not build on every system:
 - `enbscope`, `uescope`, `nrscope`: libforms/X
 - `ldpc_cuda`: CUDA
 - `websrv`: npm and others
-- `ldpc_t2`: DPDK with patch
+- `ldpc_aal`: DPDK with patch
 
 # Running `cmake` directly
 

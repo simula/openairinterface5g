@@ -53,7 +53,10 @@ int decode_authentication_response_parameter(AuthenticationResponseParameter *au
 #endif
   return decoded;
 }
-int encode_authentication_response_parameter(AuthenticationResponseParameter *authenticationresponseparameter, uint8_t iei, uint8_t *buffer, uint32_t len)
+int encode_authentication_response_parameter(const AuthenticationResponseParameter *authenticationresponseparameter,
+                                             uint8_t iei,
+                                             uint8_t *buffer,
+                                             uint32_t len)
 {
   uint8_t *lenPtr;
   uint32_t encoded = 0;

@@ -19,40 +19,53 @@
  *      contact@openairinterface.org
  */
 
-#include <string.h>
+
 #include <math.h>
-#include <unistd.h>
-#include <pthread.h>
-
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include "common/utils/assertions.h"
+#include "executables/softmodem-common.h"
+#include "common/platform_types.h"
+#include "openair2/LAYER2/NR_MAC_COMMON/nr_mac_common.h"
+#include "NR_PHY_INTERFACE/NR_IF_Module.h"
 #include "common/config/config_userapi.h"
-#include "common/utils/load_module_shlib.h"
-#include "common/utils/LOG/log.h"
-#include "common/ran_context.h" 
-
-#include "SIMULATION/TOOLS/sim.h"
-#include "SIMULATION/RF/rf.h"
-#include "PHY/types.h"
-#include "PHY/defs_gNB.h"
 #include "PHY/defs_nr_UE.h"
-#include "SCHED_NR/sched_nr.h"
-#include "SCHED_NR_UE/phy_frame_config_nr.h"
-#include "PHY/phy_vars_nr_ue.h"
-#include "PHY/NR_REFSIG/refsig_defs_ue.h"
-#include "PHY/MODULATION/nr_modulation.h"
-#include "PHY/MODULATION/modulation_eNB.h"
-#include "PHY/MODULATION/modulation_UE.h"
 #include "PHY/INIT/nr_phy_init.h"
-#include "PHY/NR_TRANSPORT/nr_transport_proto.h"
+#include "PHY/MODULATION/nr_modulation.h"
 #include "PHY/NR_TRANSPORT/nr_transport_common_proto.h"
+#include "PHY/NR_TRANSPORT/nr_transport_proto.h"
 #include "PHY/NR_UE_TRANSPORT/nr_transport_proto_ue.h"
 #include "nr_unitary_defs.h"
-#include <openair2/LAYER2/NR_MAC_COMMON/nr_mac_common.h>
-#include <openair2/RRC/LTE/rrc_vars.h>
-#include <executables/softmodem-common.h>
-#include <openair2/RRC/NR_UE/rrc_defs.h>
-#include <openair3/ocp-gtpu/gtp_itf.h>
+#include "openair2/RRC/LTE/rrc_vars.h"
+#include "PHY/NR_UE_TRANSPORT/nr_transport_ue.h"
+#include "PHY/TOOLS/tools_defs.h"
+#include "PHY/defs_RU.h"
+#include "PHY/defs_gNB.h"
+#include "PHY/defs_nr_UE.h"
+#include "PHY/defs_nr_common.h"
+#include "PHY/impl_defs_nr.h"
+#include "PHY/phy_vars_nr_ue.h"
+#include "SCHED_NR/phy_frame_config_nr.h"
+#include "SCHED_NR/sched_nr.h"
+#include "SIMULATION/TOOLS/sim.h"
+#include "T.h"
+#include "assertions.h"
+#include "common/config/config_load_configmodule.h"
+#include "common/ran_context.h"
+#include "common/utils/LOG/log.h"
+#include "common/utils/T/T.h"
+#include "common/utils/load_module_shlib.h"
+#include "common_lib.h"
+#include "defs.h"
 #include "executables/nr-uesoftmodem.h"
+#include "fapi_nr_ue_interface.h"
 #include "nfapi/oai_integration/vendor_ext.h"
+#include "nfapi_interface.h"
+#include "nfapi_nr_interface_scf.h"
+#include "nr_common.h"
+#include "time_meas.h"
 
 #define NR_PRACH_DEBUG 1
 #define PRACH_WRITE_OUTPUT_DEBUG 1
@@ -69,7 +82,6 @@ openair0_config_t openair0_cfg[MAX_CARDS];
 //uint8_t nfapi_mode=0;
 uint64_t downlink_frequency[MAX_NUM_CCs][4];
 int32_t uplink_frequency_offset[MAX_NUM_CCs][4];
-uint16_t sl_ahead = 0;
 uint32_t N_RB_DL = 106;
 
 NR_IF_Module_t *NR_IF_Module_init(int Mod_id) { return (NULL); }
@@ -77,7 +89,6 @@ nfapi_mode_t nfapi_getmode(void) { return NFAPI_MODE_UNKNOWN; }
 void init_downlink_harq_status(NR_DL_UE_HARQ_t *dl_harq) { }
 
 /* temporary dummy implem of get_softmodem_optmask, till basic simulators implemented as device */
-uint64_t get_softmodem_optmask(void) {return 0;}
 static softmodem_params_t softmodem_params;
 softmodem_params_t *get_softmodem_params(void) {
   return &softmodem_params;
@@ -113,25 +124,25 @@ nrUE_params_t *get_nrUE_params(void) {
 }
 
 void processSlotTX(void *arg) {}
-int NB_UE_INST = 1;
 configmodule_interface_t *uniqCfg = NULL;
 int main(int argc, char **argv){
 
-  char c;
+  stop = false;
+  __attribute__((unused)) struct sigaction oldaction;
+  sigaction(SIGINT, &sigint_action, &oldaction);
+
   get_softmodem_params()->sl_mode = 0;
   double sigma2, sigma2_dB = 0, SNR, snr0 = -2.0, snr1 = 0.0, ue_speed0 = 0.0, ue_speed1 = 0.0;
   double **s_re, **s_im, **r_re, **r_im, iqim = 0.0, delay_avg = 0, ue_speed = 0, fs=-1, bw;
-  int i, l, aa, aarx, trial, n_frames = 1, prach_start, rx_prach_start; //, ntrials=1;
+  int i, l, aa, aarx, trial, n_frames = 1, rx_prach_start; //, ntrials=1;
   c16_t **txdata;
   int N_RB_UL = 106, delay = 0, NCS_config = 13, rootSequenceIndex = 1, threequarter_fs = 0, mu = 1, fd_occasion = 0, loglvl = OAILOG_INFO, numRA = 0, prachStartSymbol = 0;
   uint8_t snr1set = 0, ue_speed1set = 0, transmission_mode = 1, n_tx = 1, n_rx = 1, awgn_flag = 0, msg1_frequencystart = 0, num_prach_fd_occasions = 1, prach_format=0;
-  uint8_t config_index = 98, prach_sequence_length = 1, restrictedSetConfig = 0, N_dur, N_t_slot, start_symbol;
-  uint16_t Nid_cell = 0, preamble_tx = 0, preamble_delay, format, format0, format1;
+  uint8_t config_index = 98, prach_sequence_length = 1, restrictedSetConfig = 0;
+  uint16_t Nid_cell = 0, preamble_tx = 0, preamble_delay, format0, format1;
   uint32_t tx_lev = 10000, prach_errors = 0; //,tx_lev_dB;
   uint64_t SSB_positions = 0x01;
   uint16_t RA_sfn_index;
-  uint8_t N_RA_slot;
-  uint8_t config_period;
   int prachOccasion = 0;
   double DS_TDL = .03;
 
@@ -155,6 +166,7 @@ int main(int argc, char **argv){
 
   randominit(0);
 
+  int c;
   while ((c = getopt (argc, argv, "--:O:hHaA:Cc:l:r:p:g:m:n:s:S:t:x:y:v:V:z:N:F:d:Z:L:R:E")) != -1) {
 
     /* ignore long options starting with '--', option '-O' and their arguments that are handled by configmodule */
@@ -390,7 +402,7 @@ int main(int argc, char **argv){
   // Configure log
   logInit();
   set_glog(loglvl);
-  SET_LOG_DEBUG(PRACH); 
+  SET_LOG_DEBUG(DEBUG_PRACH);
 
   // Configure gNB and RU
   RC.gNB = (PHY_VARS_gNB**) malloc(2*sizeof(PHY_VARS_gNB *));
@@ -453,6 +465,7 @@ int main(int argc, char **argv){
   ru->nb_rx          = n_rx;
   ru->num_gNB        = 1;
   ru->gNB_list[0]    = gNB;
+  gNB->num_RU = 1;
   gNB->gNB_config.carrier_config.num_tx_ant.value = 1;
   gNB->gNB_config.carrier_config.num_rx_ant.value = 1;
   if (mu == 0)
@@ -469,25 +482,24 @@ int main(int argc, char **argv){
   gNB->gNB_config.prach_config.num_prach_fd_occasions.value = num_prach_fd_occasions;
   gNB->gNB_config.prach_config.num_prach_fd_occasions_list = (nfapi_nr_num_prach_fd_occasions_t *) malloc(num_prach_fd_occasions*sizeof(nfapi_nr_num_prach_fd_occasions_t));
 
-  gNB->proc.slot_rx       = slot;
+  gNB->proc.slot_rx = slot;
+  frequency_range_t freq_range = get_freq_range_from_arfcn(absoluteFrequencyPointA);
+  nr_prach_info_t prach_info = get_nr_prach_occasion_info_from_index(config_index, freq_range, frame_parms->frame_type);
+  int ret = get_nr_prach_sched_from_info(prach_info,
+                                         config_index,
+                                         frame,
+                                         slot,
+                                         mu,
+                                         freq_range,
+                                         &RA_sfn_index,
+                                         frame_parms->frame_type);
 
-  int ret = get_nr_prach_info_from_index(config_index,
-					 (int)frame,
-					 (int)slot,
-					 absoluteFrequencyPointA,
-					 mu,
-					 frame_parms->frame_type,
-					 &format,
-					 &start_symbol,
-					 &N_t_slot,
-					 &N_dur,
-					 &RA_sfn_index,
-					 &N_RA_slot,
-					 &config_period);
-
-  if (ret == 0) {printf("No prach in %d.%d, mu %d, config_index %d\n",frame,slot,mu,config_index); exit(-1);}
-  format0 = format&0xff;      // first column of format from table
-  format1 = (format>>8)&0xff; // second column of format from table
+  if (ret == 0) {
+    printf("No prach in %d.%d, mu %d, config_index %d\n", frame, slot, mu, config_index);
+    exit(-1);
+  }
+  format0 = prach_info.format & 0xff; // first column of format from table
+  format1 = (prach_info.format >> 8) & 0xff; // second column of format from table
 
   if (format1 != 0xff) {
     switch(format0) {
@@ -549,13 +561,17 @@ int main(int argc, char **argv){
   prach_config->num_prach_fd_occasions_list[fd_occasion].k1.value                        = msg1_frequencystart;
   prach_config->restricted_set_config.value                                              = restrictedSetConfig;
   prach_config->prach_sequence_length.value                                              = prach_sequence_length;
+  prach_config->prach_sub_c_spacing.value                                                = mu;
   prach_pdu->num_cs                                                                      = get_NCS(NCS_config, format0, restrictedSetConfig);
   prach_config->num_prach_fd_occasions_list[fd_occasion].num_root_sequences.value        = 1+(64/(N_ZC/prach_pdu->num_cs));
   prach_pdu->prach_format                                                                = prach_format;
 
   memcpy((void*)&ru->config,(void*)&RC.gNB[0]->gNB_config,sizeof(ru->config));
   RC.nb_nr_L1_inst=1;
-  set_tdd_config_nr(&gNB->gNB_config, mu, 7, 6, 2, 4);
+  // TDD configuration
+  gNB->gNB_config.tdd_table.tdd_period.value = 6;
+  do_tdd_config_sim(gNB, mu);
+
   phy_init_nr_gNB(gNB);
   nr_phy_init_RU(ru);
 
@@ -577,7 +593,7 @@ int main(int argc, char **argv){
   ue_prach_config        = &UE->nrUE_config.prach_config;
   txdata = UE->common_vars.txData;
 
-  UE->prach_vars[0]->amp        = AMP;
+  ue_prach_pdu->prach_tx_power = AMP;
   ue_prach_pdu->root_seq_id     = rootSequenceIndex;
   ue_prach_pdu->num_cs          = get_NCS(NCS_config, format0, restrictedSetConfig);
   ue_prach_pdu->restricted_set  = restrictedSetConfig;
@@ -650,34 +666,34 @@ int main(int argc, char **argv){
                        ue_prach_config->num_prach_fd_occasions_list[fd_occasion].prach_root_sequence_index,
                        UE->X_u);
 
-  generate_nr_prach(UE, 0, frame, slot);
+  int prach_start = subframe * frame_parms->samples_per_subframe;
+  int slot_start = frame_parms->get_samples_slot_timestamp(slot, frame_parms, 0);
+  c16_t *tx[frame_parms->nb_antennas_rx];
+  for (int i = 0; i < frame_parms->nb_antennas_rx; i++)
+    tx[i] = txdata[i] + slot_start;
+  generate_nr_prach(UE, 0, frame, slot, tx);
 
   /* tx_lev_dB not used later, no need to set */
   //tx_lev_dB = (unsigned int) dB_fixed(tx_lev);
 
-  prach_start = subframe*frame_parms->samples_per_subframe;
-
-  #ifdef NR_PRACH_DEBUG
+#ifdef NR_PRACH_DEBUG
   LOG_M("txsig0.m", "txs0", &txdata[0][subframe*frame_parms->samples_per_subframe], frame_parms->samples_per_subframe, 1, 1);
     LOG_M("txsig0_frame.m","txs0", txdata[0],frame_parms->samples_per_frame,1,1);
   #endif
 
-  // multipath channel
-  // dump_nr_prach_config(&gNB->frame_parms,subframe);
-
   for (i = 0; i < frame_parms->samples_per_subframe; i++) {
     for (aa=0; aa<1; aa++) {
       if (awgn_flag == 0) {
-        s_re[aa][i] = ((double)(((short *)&txdata[aa][prach_start]))[(i<<1)]);
-        s_im[aa][i] = ((double)(((short *)&txdata[aa][prach_start]))[(i<<1)+1]);
+        s_re[aa][i] = txdata[aa][prach_start + i].r;
+        s_im[aa][i] = txdata[aa][prach_start + i].i;
       } else {
         for (aarx=0; aarx<gNB->frame_parms.nb_antennas_rx; aarx++) {
           if (aa==0) {
-            r_re[aarx][i] = ((double)(((short *)&txdata[aa][prach_start]))[(i<<1)]);
-            r_im[aarx][i] = ((double)(((short *)&txdata[aa][prach_start]))[(i<<1)+1]);
+            r_re[aa][i] = txdata[aa][prach_start + i].r;
+            r_im[aa][i] = txdata[aa][prach_start + i].i;
           } else {
-            r_re[aarx][i] += ((double)(((short *)&txdata[aa][prach_start]))[(i<<1)]);
-            r_im[aarx][i] += ((double)(((short *)&txdata[aa][prach_start]))[(i<<1)+1]);
+            r_re[aa][i] += txdata[aa][prach_start + i].r;
+            r_im[aa][i] += txdata[aa][prach_start + i].i;
           }
         }
       }
@@ -705,15 +721,15 @@ int main(int argc, char **argv){
   uint16_t preamble_rx, preamble_energy;
 
 
-  for (SNR=snr0; SNR<snr1; SNR+=.1) {
-    for (ue_speed=ue_speed0; ue_speed<ue_speed1; ue_speed+=10) {
+  for (SNR = snr0; SNR < snr1 && !stop; SNR += .1) {
+    for (ue_speed = ue_speed0; ue_speed < ue_speed1 && !stop; ue_speed += 10) {
       delay_avg = 0.0;
       // max Doppler shift
       UE2gNB->max_Doppler = 1.9076e9*(ue_speed/3.6)/3e8;
       printf("n_frames %d SNR %f\n",n_frames,SNR);
       prach_errors=0;
 
-      for (trial=0; trial<n_frames; trial++) {
+      for (trial = 0; trial < n_frames && !stop; trial++) {
 
 	if (input_fd==NULL) {
           sigma2_dB = 10*log10((double)tx_lev) - SNR - 10*log10(N_RB_UL*12/N_ZC);
@@ -737,8 +753,9 @@ int main(int argc, char **argv){
 
           for (i = 0; i< frame_parms->samples_per_subframe; i++) {
             for (aa = 0; aa < frame_parms->nb_antennas_rx; aa++) {
-              ((short*) &ru->common.rxdata[aa][rx_prach_start])[2*i] = (short) (.167*(r_re[aa][i] +sqrt(sigma2/2)*gaussdouble(0.0,1.0)));
-              ((short*) &ru->common.rxdata[aa][rx_prach_start])[2*i+1] = (short) (.167*(r_im[aa][i] + (iqim*r_re[aa][i]) + sqrt(sigma2/2)*gaussdouble(0.0,1.0)));
+              c16_t *tmp = (c16_t *)ru->common.rxdata[aa] + rx_prach_start + i;
+              tmp->r = (short)(.167 * (r_re[aa][i] + sqrt(sigma2 / 2) * gaussdouble(0.0, 1.0)));
+              tmp->i = (short)(.167 * (r_im[aa][i] + (iqim * r_re[aa][i]) + sqrt(sigma2 / 2) * gaussdouble(0.0, 1.0)));
             }
           }
 	} else {
@@ -752,16 +769,11 @@ int main(int argc, char **argv){
 
 	for (l = 0; l < frame_parms->symbols_per_slot; l++) {
 	  for (aa = 0; aa < frame_parms->nb_antennas_rx; aa++) {
-	    nr_slot_fep_ul(frame_parms,
-			   (int32_t *)ru->common.rxdata[aa],
-			   (int32_t *)ru->common.rxdataF[aa],
-			   l,
-			   slot,
-			   ru->N_TA_offset);
-	  }
-	}
-	
-        rx_nr_prach_ru(ru, prach_format, numRA, prachStartSymbol, prachOccasion, frame, slot);
+      nr_slot_fep_ul(frame_parms, ru->common.rxdata[aa], ru->common.rxdataF[aa], l, slot, ru->N_TA_offset);
+    }
+  }
+
+        rx_nr_prach_ru(ru, prach_format, numRA, 0, prachStartSymbol, slot, prachOccasion, frame, slot);
 
         for (int i = 0; i < ru->nb_rx; ++i)
           gNB->prach_vars.rxsigF[i] = ru->prach_rxsigF[prachOccasion][i];
@@ -814,7 +826,7 @@ int main(int argc, char **argv){
 
   phy_free_nr_gNB(gNB);
   // allocated in set_tdd_config_nr()
-  int nb_slots_to_set = TDD_CONFIG_NB_FRAMES*(1<<mu)*NR_NUMBER_OF_SUBFRAMES_PER_FRAME;
+  int nb_slots_to_set = (1<<mu)*NR_NUMBER_OF_SUBFRAMES_PER_FRAME;
   free(gNB->gNB_config.prach_config.num_prach_fd_occasions_list);
   for (int i = 0; i < nb_slots_to_set; ++i)
     free(gNB->gNB_config.tdd_table.max_tdd_periodicity_list[i].max_num_of_symbol_per_slot_list);

@@ -3,6 +3,7 @@
 genids
 tracer/enb
 tracer/gnb
+tracer/gnb_mac
 tracer/extract_config
 tracer/record
 tracer/replay

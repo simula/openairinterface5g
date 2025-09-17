@@ -2,7 +2,6 @@ services:
     oai-gnb:
         image: ${REGISTRY:-oaisoftwarealliance}/oai-gnb-fhi72:${TAG:-develop}
         cap_add:
-            - SYS_ADMIN
             - IPC_LOCK
             - SYS_NICE
         cap_drop:
@@ -10,22 +9,25 @@ services:
         container_name: oai-gnb
         environment:
             TZ: Europe/Paris
-            USE_ADDITIONAL_OPTIONS: --sa --thread-pool 6,7,8,9
+            USE_ADDITIONAL_OPTIONS: --thread-pool 7,8,9,10,11,12
         devices:
             - /dev/vfio:/dev/vfio/
         volumes:
             - ../../conf_files/gnb.sa.band77.273prb.fhi72.4x4-vvdn.conf:/opt/oai-gnb/etc/gnb.conf
             - /dev/hugepages:/dev/hugepages
         # Please change these values based on your system
-        cpuset: "0,1,2,3,4,5,6,7,8,9"
+        cpuset: "0,1,2,3,4,5,6,7,8,9,10,11,12"
         networks:
             oai-net:
                 ipv4_address: 172.21.18.20
         healthcheck:
-           test: /bin/bash -c "pgrep nr-softmodem"
-           interval: 10s
+           test: /bin/bash -c "/opt/oai-gnb/bin/check-prach-io.sh"
+           start_period: 15s
+           start_interval: 500ms
+           interval: 5s
            timeout: 5s
-           retries: 5
+           retries: 10
+
 networks:
     oai-net:
         driver: macvlan

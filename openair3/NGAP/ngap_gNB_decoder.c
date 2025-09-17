@@ -26,16 +26,17 @@
  * \date 2020
  * \version 0.1
  */
-
- 
-#include <stdio.h>
-
-#include "assertions.h"
-
-#include "intertask_interface.h"
-
-#include "ngap_common.h"
 #include "ngap_gNB_decoder.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include "ngap_msg_includes.h"
+#include "T.h"
+#include "aper_decoder.h"
+#include "asn_application.h"
+#include "asn_codecs.h"
+#include "assertions.h"
+#include "common/utils/T/T.h"
+#include "ngap_common.h"
 
 static int ngap_gNB_decode_initiating_message(NGAP_NGAP_PDU_t *pdu) {
   asn_encode_to_new_buffer_result_t res = { NULL, {0, NULL, NULL} };

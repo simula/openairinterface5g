@@ -62,6 +62,8 @@ OAI supports different radio heads, the following are tested in the CI:
 ## NSA setup with COTS UE
 
 This setup requires an EPC, an OAI eNB and gNB, and a COTS Phone. A dedicated page describe the setup can be found [here](https://gitlab.eurecom.fr/oai/openairinterface5g/wikis/home/gNB-COTS-UE-testing).
+The `--nsa` flag must be used to run gNB in non-standalone mode.
+
 
 ### Launch eNB
 
@@ -72,29 +74,35 @@ sudo ./lte-softmodem -O ../../../targets/PROJECTS/GENERIC-LTE-EPC/CONF/enb.band7
 ### Launch gNB
 
 ```bash
-sudo ./nr-softmodem -O ../../../targets/PROJECTS/GENERIC-LTE-EPC/CONF/gnb.band78.tm1.106PRB.usrpn300.conf
+sudo ./nr-softmodem -O ../../../targets/PROJECTS/GENERIC-LTE-EPC/CONF/gnb.band78.tm1.106PRB.usrpn300.conf --nsa
 ```
 
 You should see the X2 messages in Wireshark and at the eNB.
 
 ## SA setup with OAI NR-UE
 
-The sa flag is used to run gNB in standalone mode.
+The standalone mode is the default mode. 
 
-In order to run gNB and UE in standalone mode, the `--sa` flag is needed.
+Before tag `2024.w45`, the default mode was NSA. Thus, in the past, to run
+either the gNB or the UE in standalone mode, it was necessary to provide the
+`--sa` flag in the command line. This is not necessary anymore; if in doubt,
+you can provide `--sa` on the command line. The gNB will ignore this option if
+not relevant; the UE might complain that it does not know this option, which
+means that standalone is already active.
 
-At the gNB the `--sa` flag does the following:
-- The RRC encodes SIB1 according to the configuration file and transmits it through NR-BCCH-DL-SCH.
+The default (SA) mode does the following:
+- At the gNB:
+* The RRC encodes SIB1 according to the configuration file and transmits it through NR-BCCH-DL-SCH.
 
-At the UE the --sa flag will:
-- Decode SIB1 and starts the 5G NR Initial Access Procedure for SA:
+- At the UE:
+* Decode SIB1 and starts the 5G NR Initial Access Procedure for SA:
   1) 5G-NR RRC Connection Setup
   2) NAS Authentication and Security
   3) 5G-NR AS Security Procedure
   4) 5G-NR RRC Reconfiguration
   5) Start Downlink and Uplink Data Transfer
 
-Command line parameters for UE in `--sa` mode:
+Command line parameters for UE in standalone mode:
 - `-C` : downlink carrier frequency in Hz (default value 0)
 - `--CO` : uplink frequency offset for FDD in Hz (default value 0)
 - `--numerology` : numerology index (default value 1)
@@ -111,8 +119,8 @@ To simplify the configuration for the user testing OAI UE with OAI gNB, the latt
 You can run this, using USRPs, on two separate machines:
 
 ```shell
-sudo ./nr-softmodem -O ../../../targets/PROJECTS/GENERIC-NR-5GC/CONF/gnb.sa.band78.fr1.106PRB.usrpb210.conf --gNBs.[0].min_rxtxtime 6 --sa
-sudo ./nr-uesoftmodem -r 106 --numerology 1 --band 78 -C 3619200000 --ssb 516 --sa
+sudo ./nr-softmodem -O ../../../targets/PROJECTS/GENERIC-NR-5GC/CONF/gnb.sa.band78.fr1.106PRB.usrpb210.conf --gNBs.[0].min_rxtxtime 6
+sudo ./nr-uesoftmodem -r 106 --numerology 1 --band 78 -C 3619200000 --ssb 516
 ```
 
 With the **RFsimulator** (on the same machine), just add the option `--rfsim` to both gNB and NR UE command lines.
@@ -128,7 +136,15 @@ Here are some useful command line options for the NR UE:
 | Parameter                | Description                                                                                                   |
 |--------------------------|---------------------------------------------------------------------------------------------------------------|
 | `--ue-scan-carrier`      | Scan for cells in current bandwidth. This option can be used if the SSB position of the gNB is unknown. If multiple cells are detected, the UE will try to connect to the first cell. By default, this option is disabled and the UE attempts to only decode SSB given by `--ssb`. |
-| `--ue-fo-compensation`   | Enables the frequency offset compensation at the UE. Useful when running over the air and/or without an external clock/time source. |
+| `--ue-fo-compensation`   | Enables the initial frequency offset compensation at the UE. Useful when running over the air and/or without an external clock/time source. |
+| `--cont-fo-comp`         | Enables the continuous frequency offset (FO) estimation and compensation.  Parameter value `1` specifies that the main FO contribution comes from the local oscillator's (LO) accuracy.  Parameter value `2` specifies that the main FO contribution comes from Doppler shift. |
+| `--initial-fo`           | Sets the known initial frequency offset. Useful especially with large Doppler frequency, e.g. LEO satellite.  |
+| `--freq-sync-P`          | Sets the coefficient for the Proportional part of the PI-controller for the continuous frequency offset compensation. Default value 0.01. |
+| `--freq-sync-I`          | Sets the coefficient for the Integrating part of the PI-controller for the continuous frequency offset compensation. Default value 0.001. |
+| `--ntn-initial-time-drift` | Sets the initial NTN DL time drift (feeder link and service link), given in µs/s.                           |
+| `--autonomous-ta`        | Enables the autonomous TA update, based on DL drift (useful if main contribution to DL drift is movement, e.g. LEO satellite). |
+| `--time-sync-P`          | Sets the coefficient for the Proportional part of the PI-controller for the time synchronization. Default value 0.5. |
+| `--time-sync-I`          | Sets the coefficient for the Integrating part of the PI-controller for the time synchronization. Default value 0.0. |
 | `--usrp-args`            | Equivalent to the `sdr_addrs` field in the gNB config file. Used to identify the USRP and set some basic parameters (like the clock source).  |
 | `--clock-source`         | Sets the clock source (internal or external).                                                                 |
 | `--time-source`          | Sets the time source (internal or external).                                                                  |
@@ -159,7 +175,7 @@ This option is available for the following combinations of operation modes and g
 e.g.
 
 ```shell
-sudo ./nr-uesoftmodem --sa -r 106 --numerology 1 --band 78 -C 3319680000 --ue-nb-ant-tx 2 --ue-nb-ant-rx 2 --uecap_file /opt/oai-nr-ue/etc/uecap.xml
+sudo ./nr-uesoftmodem -r 106 --numerology 1 --band 78 -C 3319680000 --ue-nb-ant-tx 2 --ue-nb-ant-rx 2 --uecap_file /opt/oai-nr-ue/etc/uecap.xml
 ```
 
 ## How to run a NTN configuration
@@ -213,15 +229,52 @@ Or by providing this the the command line parameters:
 
 ### gNB
 
-The main parameter to cope with the large NTN propagation delay is the cellSpecificKoffset.
-This parameter is the scheduling offset used for the timing relationships that are modified for NTN (see TS 38.213).
+The main parameters to cope with the large NTN propagation delay are cellSpecificKoffset, ta-Common, ta-CommonDrift and the ephemeris data (satellite position and velocity vectors).
+
+The parameter `ntn-UlSyncValidityDuration-r17` indicates the maximum time duration from epochtime during which the UE can apply assistance information without having acquired new assistance information. i.e this enables UE to re-read SIB19 before timer with value ulSyncValidityDuration expires. The unit of the field is in seconds. Example values for GEO: 240s, MEO: 20s, LEO: 5s.
+As epochtime is not implemented yet, UE starts the timer from the TTI where SIB19 is received with ntn-UlSyncValidityDuration-r17 IE.
+
+The parameter `cellSpecificKoffset_r17` is the scheduling offset used for the timing relationships that are modified for NTN (see TS 38.213).
 The unit of the field Koffset is number of slots for a given subcarrier spacing of 15 kHz.
 
-This parameter can be provided to the gNB in the conf file as `cellSpecificKoffset_r17` in the section `servingCellConfigCommon`.
+The parameter `ta-Common-r17` is used to provide the propagation delay between the reference point (at the gNB) and the satellite.
+The granularity of ta-Common is 4.072 × 10^(-3) µs. Values are given in unit of corresponding granularity.
+
+The parameter `ta-CommonDrift-r17` indicates the drift rate of the common TA.
+The granularity of ta-CommonDrift is 0.2 × 10^(-3) µs/s. Values are given in unit of corresponding granularity.
+
+The satellite position and velocity vartors are provided using the following parameters:
+
+`positionX-r17`, `positionY-r17`, `positionZ-r17`:
+X, Y, Z coordinate of satellite position state vector in ECEF. Unit is meter.
+Step of 1.3 m. Actual value = field value * 1.3.
+
+`velocityVX-r17`, `velocityVY-r17`, `velocityVZ-r17`:
+X, Y, Z coordinate of satellite velocity state vector in ECEF. Unit is meter/second.
+Step of 0.06 m/s. Actual value = field value * 0.06.
+
+These parameters can be provided to the gNB in the conf file in the section `servingCellConfigCommon`:
 ```
 ...
-      cellSpecificKoffset_r17 = 478; # GEO satellite
-#      cellSpecificKoffset_r17 = 40; # LEO satellite
+# GEO satellite
+      cellSpecificKoffset_r17                                       = 478;
+      ta-Common-r17                                                 = 58629666; # 238.74 ms
+      positionX-r17                                                 = 0;
+      positionY-r17                                                 = 0;
+      positionZ-r17                                                 = 32433846;
+      velocityVX-r17                                                = 0;
+      velocityVY-r17                                                = 0;
+      velocityVZ-r17                                                = 0;
+# LEO satellite
+#      cellSpecificKoffset_r17                                       = 40;
+#      ta-Common-r17                                                 = 4634000; # 18.87 ms
+#      ta-CommonDrift-r17                                            = -230000; # -46 µs/s
+#      positionX-r17                                                 = 0;
+#      positionY-r17                                                 = -2166908; # -2816980.4 m
+#      positionZ-r17                                                 =  4910784; #  6384019.2 m
+#      velocityVX-r17                                                = 0;
+#      velocityVY-r17                                                = 115246; # 6914.76 m/s
+#      velocityVZ-r17                                                =  50853; # 3051.18 m/s
 ...
 ```
 
@@ -254,10 +307,11 @@ To enable this feature, the `disable_harq` flag has to be added to the gNB conf 
 ...
 ```
 
-So with these modifications to the file `targets/PROJECTS/GENERIC-NR-5GC/CONF/gnb.sa.band66.fr1.25PRB.usrpx300.conf` an example gNB command for FDD, 5 MHz BW, 15 kHz SCS, transparent GEO satellite 5G NR NTN is this:
+The settings for a transparent GEO satellite scenario are already provided in the file `ci-scripts/conf_files/gnb.sa.band254.u0.25prb.rfsim.ntn.conf`.
+Using this conf file, an example gNB command for FDD, 5 MHz BW, 15 kHz SCS, transparent GEO satellite 5G NR NTN is this:
 ```
 cd cmake_targets
-sudo ./ran_build/build/nr-softmodem -O ../targets/PROJECTS/GENERIC-NR-5GC/CONF/gnb.sa.band66.fr1.25PRB.usrpx300.conf --sa --rfsim --rfsimulator.prop_delay 238.74
+sudo ./ran_build/build/nr-softmodem -O ../ci-scripts/conf_files/gnb.sa.band254.u0.25prb.rfsim.ntn.conf --rfsim
 ```
 
 To configure NTN gNB with 32 HARQ processes in downlink and uplink, add these settings in conf files under section `gNBs.[0]`
@@ -273,32 +327,49 @@ To simulate a LEO satellite channel model with rfsimulator in UL (DL is simulate
 @include "channelmod_rfsimu_LEO_satellite.conf"
 ```
 
-So with these modifications to the file `targets/PROJECTS/GENERIC-NR-5GC/CONF/gnb.sa.band66.fr1.25PRB.usrpx300.conf` an example gNB command for FDD, 5 MHz BW, 15 kHz SCS, trasparent LEO satellite 5G NR NTN is this:
+The settings for a transparent LEO satellite scenario are already provided in the file `ci-scripts/conf_files/gnb.sa.band254.u0.25prb.rfsim.ntn-leo.conf`.
+Using this conf file, an example gNB command for FDD, 5 MHz BW, 15 kHz SCS, trasparent LEO satellite 5G NR NTN is this:
 ```
 cd cmake_targets
-sudo ./ran_build/build/nr-softmodem -O ../targets/PROJECTS/GENERIC-NR-5GC/CONF/gnb.sa.band66.fr1.25PRB.usrpx300.conf --sa --rfsim --rfsimulator.prop_delay 20
+sudo ./ran_build/build/nr-softmodem -O ../ci-scripts/conf_files/gnb.sa.band254.u0.25prb.rfsim.ntn-leo.conf --rfsim
 ```
 
 ### NR UE
 
-At UE side, there are two main parameters to cope with the large NTN propagation delay, cellSpecificKoffset and ta-Common.
-`cellSpecificKoffset` is the same as for gNB and can be provided to the UE via command line parameter `--ntn-koffset`.
-`ta-Common` is a common timing advance and can be provided to the UE via command line parameter `--ntn-ta-common` in milliseconds.
+At UE side, only few parameters have to be provided, as the UE receives most relevant parameters via SIB19 from the gNB.
+But to calculate the UE specific TA, the UE position has to be provided in the `ue.conf` file.
+Also the LEO channel model has to be configured, e.g. by using an `@include` statement, just like on the gNB side:
+```
+...
+position0 = {
+    x = 0.0;
+    y = 0.0;
+    z = 6377900.0;
+}
+
+@include "channelmod_rfsimu_LEO_satellite.conf"
+```
 
 So an example NR UE command for FDD, 5MHz BW, 15 kHz SCS, transparent GEO satellite 5G NR NTN is this:
 ```
 cd cmake_targets
-sudo ./ran_build/build/nr-uesoftmodem --band 66 -C 2152680000 --CO -400000000 -r 25 --numerology 0 --ssb 48 --sa --rfsim --rfsimulator.prop_delay 238.74 --ntn-koffset 478 --ntn-ta-common 477.48
+sudo ./ran_build/build/nr-uesoftmodem -O ../targets/PROJECTS/GENERIC-NR-5GC/CONF/ue.conf --band 254 -C 2488400000 --CO -873500000 -r 25 --numerology 0 --ssb 60 --rfsim --rfsimulator.prop_delay 238.74
 ```
 
-For LEO satellites a third parameter specifying the NTN propagation delay drift has ben added, ta-CommonDrift.
-`ta-CommonDrift` provides the drift rate of the common timing advance and can be provided to the UE via command line parameter `--ntn-ta-commondrift` in microseconds per second.
+For LEO satellite scenarios, the parameter `--ntn-initial-time-drift` must be provided via command line, as the UE needs this value to compensate for the time drift during initial sync, before SIB19 was received.
+This parameter provides the drift rate of the complete DL timing (incl. feeder link and service link) in µs/s.
 Also, to perform an autonomous TA update based on the DL drift, the boolean parameter `--autonomous-ta` should be added in case of a LEO satellite scenario.
+
+For LEO satellite scenario we assume the LO to be very accurate and the main FO contribution comes from Doppler shift.
+Therefore, we use the command line parameter `--cont-fo-comp 2` to continuously compensate the DL Doppler and pre-compensate the UL Doppler.
+The initial Doppler frequency offset must be provided via command line with the parameter `--initial-fo`.
+
+For other information on optional NR UE command line options, please refer [here](#optional-nr-ue-command-line-options).
 
 So an example NR UE command for FDD, 5MHz BW, 15 kHz SCS, transparent LEO satellite 5G NR NTN is this:
 ```
 cd cmake_targets
-sudo ./ran_build/build/nr-uesoftmodem --band 66 -C 2152680000 --CO -400000000 -r 25 --numerology 0 --ssb 48 --sa --rfsim --rfsimulator.prop_delay 20 --rfsimulator.options chanmod -O ../targets/PROJECTS/GENERIC-NR-5GC/CONF/channelmod_rfsimu_LEO_satellite.conf --time-sync-I 0.2 --ntn-koffset 40 --ntn-ta-common 37.74 --ntn-ta-commondrift -50 --autonomous-ta
+sudo ./ran_build/build/nr-uesoftmodem -O ../targets/PROJECTS/GENERIC-NR-5GC/CONF/ue.conf --band 254 -C 2488400000 --CO -873500000 -r 25 --numerology 0 --ssb 60 --rfsim --rfsimulator.prop_delay 20 --rfsimulator.options chanmod --time-sync-I 0.1 --ntn-initial-time-drift -46 --autonomous-ta --initial-fo 57340 --cont-fo-comp 2
 ```
 
 # Specific OAI modes

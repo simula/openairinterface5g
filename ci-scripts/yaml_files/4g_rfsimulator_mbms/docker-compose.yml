@@ -1,6 +1,6 @@
 services:
     oai_enb0:
-        image: ${REGISTRY:-oaisoftwarealliance}/oai-enb:${TAG:-develop}
+        image: ${REGISTRY:-oaisoftwarealliance}/${ENB_IMG:-oai-enb}:${TAG:-develop}
         privileged: true
         container_name: rfsim4g-oai-enb
         networks:
@@ -8,6 +8,7 @@ services:
                 ipv4_address: 192.168.61.20
         environment:
             TZ: Europe/Paris
+            ASAN_OPTIONS: detect_leaks=0
             USE_ADDITIONAL_OPTIONS: --rfsim --noS1 --log_config.global_log_options level,nocolor,time
         volumes:
             - ../../conf_files/enb.band7.tm1.25prb.rfsim.mbms.conf:/opt/oai-enb/etc/enb.conf
@@ -18,7 +19,7 @@ services:
             retries: 5
 
     oai_ue0:
-        image: ${REGISTRY:-oaisoftwarealliance}/oai-lte-ue:${TAG:-develop}
+        image: ${REGISTRY:-oaisoftwarealliance}/${LTEUE_IMG:-oai-lte-ue}:${TAG:-develop}
         privileged: true
         container_name: rfsim4g-oai-lte-ue0
         networks:
@@ -31,6 +32,7 @@ services:
         environment:
             TZ: Europe/Paris
             HOSTNAME: oai_ue0
+            ASAN_OPTIONS: detect_leaks=0
             USE_ADDITIONAL_OPTIONS: -C 2680000000 -r 25 --ue-rxgain 140 --ue-txgain 120 --rfsim --noS1 --rfsimulator.serveraddr 192.168.61.20 --log_config.global_log_options level,nocolor,time --noS1
         volumes:
             - ../../conf_files/lteue.usim-mbs.conf:/opt/oai-lte-ue/etc/ue_usim.conf

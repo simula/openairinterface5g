@@ -65,7 +65,7 @@ Note: only LTTng 2.3.8 is supported.
 1. **Run gNB:**
 
     ```bash
-    ./$binary_path -O $configuration_file PARALLEL_SINGLE_THREAD --rfsimulator.serveraddr server --rfsim --sa -E
+    ./$binary_path -O $configuration_file PARALLEL_SINGLE_THREAD --rfsimulator.serveraddr server --rfsim -E
     ```
 
 ## Verifying Tracepoints

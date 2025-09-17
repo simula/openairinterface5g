@@ -32,16 +32,13 @@
 	<testCase id="100001">
 		<class>Create_Workspace</class>
 		<desc>Create new Workspace</desc>
-		<eNB_instance>0</eNB_instance>
-		<eNB_serverId>0</eNB_serverId>
+		<node>alambix</node>
 	</testCase>
 	<testCase id="000001">
 		<class>Build_Image</class>
 		<desc>Cross-Compile for ARM64</desc>
 		<kind>build_cross_arm64</kind>
-		<eNB_instance>0</eNB_instance>
-		<eNB_serverId>0</eNB_serverId>
-		<forced_workspace_cleanup>True</forced_workspace_cleanup>
+		<node>alambix</node>
 	</testCase>
 
 </testCaseList>

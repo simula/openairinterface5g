@@ -3,7 +3,8 @@
 First, read the [basic usage](./basic.md) to compile things.
 
 It is possible to use `wireshark` to analyse MAC PDUs for UEs,
-MIBs, SIBs, and random accesses seen by the eNodeB.
+MIBs, SIBs, and random accesses seen by the eNodeB. It also
+works for the gNB, as well as for the nrUE.
 
 ## Live usage
 
@@ -19,6 +20,14 @@ Then run:
 ```shell
 ./macpdu2wireshark -d ../T_messages.txt -live
 ```
+
+Note: in some cases a MAC PDU may be bigger than the size of an UDP payload
+(slightly less than 64 KiB). This is particularily the case for large
+bandwidths in NR and MIMO. In this case macpdu2wireshark, sending UDP packets
+in its default mode of operations, will fail. By using the option `-to-file`
+a pcap file may be directly generated. You need to configure wireshark to
+process the generated files (run `macpdu2wireshark -h` to see how to
+configure wireshark for this case).
 
 For other options of `macpdu2wireshark`, run:
 

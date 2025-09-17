@@ -1,10 +1,6 @@
   - Build_Proxy
   - Build_Cluster_Image
   - Pull_Cluster_Image
-  - Build_PhySim
-  - Run_CUDATest
-  - Run_T2Test
-  - Run_NRulsimTest
   - Build_eNB
   - Initialize_eNB
   - Terminate_eNB
@@ -18,25 +14,17 @@
   - Ping
   - Iperf
   - Iperf2_Unidir
-  - Deploy_EPC
-  - Undeploy_EPC
-  - Initialize_HSS
-  - Terminate_HSS
-  - Initialize_MME
-  - Terminate_MME
-  - Initialize_SPGW
-  - Terminate_SPGW
-  - Initialize_5GCN
-  - Terminate_5GCN
+  - DeployCoreNetwork
+  - UndeployCoreNetwork
   - IdleSleep
   - Build_Image
   - Build_Run_Tests
   - Deploy_Object
   - Undeploy_Object
   - Cppcheck_Analysis
-  - Deploy_Run_PhySim
-  - DeployGenObject
-  - UndeployGenObject
+  - Deploy_Run_OC_PhySim
+  - Build_Deploy_Docker_PhySim
+  - Build_Deploy_Source_PhySim
   - LicenceAndFormattingCheck
   - Push_Local_Registry
   - Pull_Local_Registry

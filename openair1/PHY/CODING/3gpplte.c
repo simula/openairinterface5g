@@ -450,7 +450,7 @@ t_interleaver_codebook *f1f2mat;
 short *il_tb;
 __attribute__((constructor)) static void init_interleaver(void) {
   int totSize=0;
-  f1f2mat=(t_interleaver_codebook*) malloc(sizeof(*f1f2mat) * sizeof(f1f2) / sizeof(*f1f2));
+  f1f2mat = malloc_or_fail(sizeof(*f1f2mat) * sizeof(f1f2) / sizeof(*f1f2));
   for (int i=0; i < sizeof(f1f2)/sizeof(*f1f2) ; i++) {
     f1f2mat[i].nb_bits=f1f2[i].nb_bits;
     f1f2mat[i].f1=f1f2[i].f1;
@@ -458,7 +458,7 @@ __attribute__((constructor)) static void init_interleaver(void) {
     f1f2mat[i].beg_index=totSize;
     totSize+=f1f2mat[i].nb_bits;
   }
-  il_tb=(short*)malloc(sizeof(*il_tb)*totSize);
+  il_tb = malloc_or_fail(sizeof(*il_tb) * totSize);
   int idx=0;
   for (int i=0; i < sizeof(f1f2)/sizeof(*f1f2) ; i++)
     for (uint64_t j=0; j<f1f2[i].nb_bits; j++)

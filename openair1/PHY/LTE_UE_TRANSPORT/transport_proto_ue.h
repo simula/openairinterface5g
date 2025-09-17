@@ -1082,16 +1082,6 @@ int pss_sss_extract(PHY_VARS_UE *phy_vars_ue,
                     int32_t sss_ext[4][72],
                     uint8_t subframe);
 
-/*! \brief Extract only PSS resource elements
-  @param phy_vars_ue Pointer to UE variables
-  @param[out] pss_ext contain the PSS signals after the extraction
-@param subframe
-  @returns 0 on success
-*/
-int pss_only_extract(PHY_VARS_UE *phy_vars_ue,
-                     int32_t pss_ext[4][72],
-                     uint8_t subframe);
-
 /*! \brief Extract only SSS resource elements
   @param phy_vars_ue Pointer to UE variables
   @param[out] sss_ext contain the SSS signals after the extraction
@@ -1659,8 +1649,7 @@ void compute_prach_seq(uint16_t rootSequenceIndex,
                        uint8_t zeroCorrelationZoneConfig,
                        uint8_t highSpeedFlag,
                        frame_type_t frame_type,
-                       uint32_t X_u[64][839]);
-
+                       c16_t X_u[64][839]);
 
 void init_prach_tables(int N_ZC);
 

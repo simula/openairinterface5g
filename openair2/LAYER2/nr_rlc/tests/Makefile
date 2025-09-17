@@ -2,7 +2,7 @@ CC=gcc
 CFLAGS=-Wall -g --coverage -I. -I../../../.. -D_STANDALONE_TESTING_
 
 LIB=nr_rlc_entity.o nr_rlc_entity_am.o nr_rlc_entity_um.o nr_rlc_entity_tm.o \
-    nr_rlc_pdu.o nr_rlc_sdu.o time_stat.o
+    nr_rlc_pdu.o nr_rlc_sdu.o nr_rlc_rx_manager.o time_stat.o
 
 tests:
 	@./run_tests.sh

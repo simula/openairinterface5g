@@ -54,7 +54,7 @@ fi
 # the source directory to show correct line numbers
 docker run --rm -it \
   -v $COREDUMP:/tmp/coredump \
-  -v $SOURCES:/opt/$TYPEPATH/src \
+  -v $SOURCES:/oai-ran/ \
   --entrypoint bash \
   $IMAGE \
   -c "gdb --dir=src/cmake_targets/ran_build/build $EXEC /tmp/coredump"

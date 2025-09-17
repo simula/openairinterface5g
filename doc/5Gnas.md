@@ -1,106 +1,109 @@
-<style type="text/css" rel="stylesheet">
+**5GS NAS Overview and OAI Implementation status**
 
-body {
-   font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
-   font-size: 13px;
-   line-height: 18px;
-   color: #fff;
-   background-color: #110F14;
-}
-  h2 { margin-left: 20px; }
-  h3 { margin-left: 40px; }
-  h4 { margin-left: 60px; }
+This document provides an overview of the 5G System Non-Access Stratum (5GS NAS) protocol as specified in 3GPP TS 24.501. It highlights key message types involved in Mobility and Session Management and explains how these are implemented within the OAI software stack. The document outlines the structure of the OAI codebase by detailing current support for encoding, decoding, and unit testing of specific NAS messages, and explains how the UE handles USIM simulation and message generation.
 
-.func2 { margin-left: 20px; }
-.func3 { margin-left: 40px; }
-.func4 { margin-left: 60px; }
+[TOC]
 
-</style>
+# About 5GS NAS
 
+The 5G System Non-Access Stratum (5GS NAS) is defined in 3GPP TS 24.501. It operates within the control plane, facilitating communication between the User Equipment (UE) and the Access and Mobility Management Function (AMF) over the N1 interface.
 
-This tuto for 5G gNB NAS design
-{: .text-center}
+Key 5GS NAS messages:
 
-# source files
+* Mobility Management (5GMM): Handles UE registration, deregistration, authentication and tracking area updates. 5GMM also manages transitions between idle and connected states.
+* Session Management (5GSM): Establishes, modifies, and releases PDU sessions. Coordinates with the Session Management Function (SMF) to manage user-plane resources.
 
-openair2/RRC/NR/nr_ngap_gNB.c: skeleton for interface with NGAP
-openair3/NAS/COMMON/milenage.h: a simple milenage implementation, depend only on crypto library
-openair3/NAS/COMMON/NR_NAS_defs.h: messages defined for NAS implemented in C: C struct, C enums and automatic conversion to labels for debug messages
-openair3/NAS/COMMON/nr_common.c: 5G NAS common code between gNB and UE
-openair3/UICC/usim_interface.c: UICC simulation for USIM messages
+# OAI Implementation Status
 
-openair3/NAS/NR_UE/ue_process_nas.c: NAS code for UE
+The following tables lists implemented NAS messages and whether there is an encoder or decoder function, and if a corresponding unit test exists.
 
-openair3/NAS/gNB/network_process_nas.c: NAS code for gNB running without 5GC
+| Type  | Message                                   | Encoding | Decoding | Unit test |
+|-------|-------------------------------------------|----------|----------|------------|
+| 5GMM  | Service Request                           | yes      | yes      | yes        |
+| 5GMM  | Service Accept                            | yes      | yes      | yes        |
+| 5GMM  | Service Reject                            | yes      | yes      | yes        |
+| 5GMM  | Authentication Response                   | yes      | no       | no         |
+| 5GMM  | Identity Response                         | yes      | no       | no         |
+| 5GMM  | Security Mode Complete                    | yes      | no       | no         |
+| 5GMM  | Uplink NAS Transport                      | yes      | no       | no         |
+| 5GMM  | Registration Request                      | yes      | yes      | no         |
+| 5GMM  | Registration Accept                       | yes      | yes      | yes        |
+| 5GMM  | Registration Complete                     | yes      | yes      | no         |
+| 5GMM  | Deregistration Request (UE originating)   | yes      | no       | no         |
+| 5GSM  | PDU Session Establishment Request         | yes      | no       | no         |
+| 5GSM  | PDU Session Establishment Accept          | no       | yes      | no         |
 
-openair3/TEST/test5Gnas.c: unitary testing of NAS messages: encodes+decode a standard network entry, mixing code from UE and 5GC (or gNB in noCore)
+## Code Structure
 
-# USIM simulation
-A new USIM simulation, that parameters are in regular OAI config files
+[openair3/NAS/NR_UE/nr_nas_msg.c](../openair3/NAS/NR_UE/nr_nas_msg.c):
+* NAS procedures and message handlers/callbacks
+* Integration with RRC (ITTI) and SDAP
+* Invokes enc/dec libraries
+* Handles 5GMM state and mode
 
-## To open the USIM
-init_uicc() takes a parameter: the name of the block in the config file
-In case we run several UEs in one process, the variable section name allows to make several UEs configurations in one config file.
+[openair3/NAS/NR_UE/5GS/fgs_nas_lib.c](../openair3/NAS/NR_UE/5GS/fgs_nas_lib.c):
+[openair3/NAS/NR_UE/5GS/NR_NAS_defs.h](../openair3/NAS/NR_UE/5GS/NR_NAS_defs.h):
+* encoding and decoding functions for 5G NAS message headers and payloads
+* relies on 5GMM/5GSM messages libs for payload encoding
 
-The NAS implementation uses this possibility.
+[openair3/NAS/NR_UE/5GS/fgs_nas_utils.h](../openair3/NAS/NR_UE/5GS/fgs_nas_utils.h):
+* NAS helpers, macros
 
-# UE side
-UEprocessNAS() is the entry for all messages.
-It decodes the message type and call the specific function for each messgae
+[openair3/NAS/NR_UE/5GS/5GMM](../openair3/NAS/NR_UE/5GS/5GMM):
+* encoding/decoding functions and definitions for 5GMM NAS messages payloads
 
-## Identityrequest + IdentityResponse
-When the UE receives the request, it stores the 5GC request parameters in the UE context ( UE->uicc pointer)
-It calls "scheduleNAS", that would trigger a answer (seeing general archtecture, it will probly be a itti message to future RRC or NGAP thread).  
+[openair3/NAS/NR_UE/5GS/5GMM/MSG/fgmm_lib.c](../openair3/NAS/NR_UE/5GS/5GMM/MSG/fgmm_lib.c):
+[openair3/NAS/NR_UE/5GS/5GMM/MSG/fgmm_lib.h](../openair3/NAS/NR_UE/5GS/5GMM/MSG/fgmm_lib.h):
+* encoding/decoding functions and definitions for common 5GMM IEs
 
-When the scheduler wants to encode the answer, it calls identityResponse()
-The UE search for a section in the config file called "uicc"
-it encodes the NAS answer with the IMSI, as a 4G compatible authentication.
-A future release would encode 5G SUPI as native 5G UICC.
+[openair3/NAS/NR_UE/5GS/5GSM](../openair3/NAS/NR_UE/5GS/5GSM):
+* encoding and decoding functions for 5GSM NAS messages payloads
 
-## Authenticationrequest + authenticationResponse
-When the UE receives the request, it stores the 5GC request parameters in the UE context ( UE->uicc pointer)
-It calls "scheduleNAS", that would trigger a answer (seeing general archtecture, it will probly be a itti message to future RRC or NGAP thread).  
+# USIM Simulation
 
-When the scheduler wants to encode the answer, it calls authenticationResponse()
-The UE search for a section in the config file called "uicc"
-It uses the Milenage parameters of this section to encode a milenage response
-A future release would encode 5G new authentication cyphering functions.
+OAI includes a simulated USIM implementation that reads its parameters from standard configuration files. This allows for rapid prototyping and testing without relying on a physical UICC card. The USIM-related configuration is handled via the `init_uicc()` function.
 
-## SecurityModeCommand + securityModeComplete
-When the UE receives the request it will:
-Selected NAS security algorithms: store it for future encoding
-Replayed UE security capabilities: check if it is equal to UE capabilities it sent to the 5GC
-IMEISV request: to implement
-ngKSI: Key set Indicator, similator to 4G to select a ciphering keys set
+## Configuration
 
-When the scheduler wants to encode the answer, it calls registrationComplete() 
+The simulation reads values from a named section in the config file.
 
-## registrationComplete
-To be defined in UE, this NAS message is done after RRC sequence completes
+**Config options in the `uicc` section**:
 
-# gNB side
-gNB NGAP thread receives the NAS message from PHY layers
-In normal mode, it send it to the core network with no decoding.
+| Parameter     | Description                       | Default value                              |
+|---------------|-----------------------------------|--------------------------------------------|
+| `imsi`        | User IMSI                         | `2089900007487`                            |
+| `nmc_size`    | Number of digits in NMC           | `2`                                        |
+| `key`         | Subscription key (Ki)             | `fec86ba6eb707ed08905757b1bb44b8f`         |
+| `opc`         | OPc value                         | `c42449363bbad02b66d16bc975d77cc1`         |
+| `amf`         | AMF value                         | `8000`                                     |
+| `sqn`         | Sequence number                   | `000000`                                   |
+| `dnn`         | Default DNN (APN)                 | `oai`                                      |
+| `nssai_sst`   | NSSAI slice/service type          | `1`                                        |
+| `nssai_sd`    | NSSAI slice differentiator        | `0xffffff`                                 |
+| `imeisv`      | IMEISV string                     | `6754567890123413`                         |
 
-Here after, the gNB mode "noCore" processing in gNB: NGAP calls the entry function: processNAS() instead of forwarding the packet to the 5GC
+These are parsed and stored in the `uicc_t` structure.
 
-## RRCModeComplete + Identityrequest
-When the gNB completes RRC attach, it sends a first message to NGAP thread.
-Normal processing sends NGAP initial UE message, in noCore mode, it should call: identityRequest() that encode the NAS identity request inside the gNB.  
-The gNB NGAP thread then should call the piece of code that forward the message to the UE as when it receives a NAS message from 5GC.  
+## Initialization
 
-## All NAS coming from UE
-When NGAP thread receives a NAS message from lower layers, it encapsulates it to forward it to the 5GC. In "noCore" mode it calls processNAS(). 
+The UE calls `init_uicc` via `checkUicc` to allocate memory for the `uicc_t` structure member and load parameters using `config_get()` from the selected config section. Then the UICC structure is stored in the NAS context. `nr_ue_nas_t`, to be used to fill identity and security credentials when generating responses to 5GC messages such as `Identity Response`, `Authentication Response`, and `Security Mode Complete`.
 
-This function stores in the gNB the NAS data, then it should encode the next message (identity, authentication, security mode) or do nothing (registration complete).
+## Milenage Authentication and Key Derivation
 
+When the UE receives a **5GMM Authentication Request**, the function `generateAuthenticationResp` generates a valid `Authentication Response` with the necessary derived NAS and AS security keys. The function `derive_ue_keys` parses the Authentication Request and performs the entire 5G AKA key hierarchy:
 
-<div class="panel panel-info">
-**Note**
-{: .panel-heading}
-<div class="panel-body">
+* Extracts the `RAND` and `SQN`
+* Performs Milenage Algorithms f2-f5 using `f2345()` from the UICC input
+* Computes the `RES` using `transferRES()`
+* Derives the keys `KAUSF`, `KSEAF`, `KAMF`, `KNASenc`/`KNASint` via `derive_knas()` and `KGNB` for RRC ciphering (via `derive_kgnb()`)
 
+## Security Mode Complete
 
-</div>
-</div>
+When the UE receives a **Security Mode Command** from the 5GC, it responds with a `Security Mode Complete` message. This message is protected with the newly established NAS security context and may carry additional payloads, including the UE’s identity and a nested NAS message (e.g., `Registration Request`) in the `FGSNasMessageContainer`. The function responsible for building and securing this response is `generateSecurityModeComplete`.
+
+### IMEISV
+
+The **IMEISV**, is encoded using the `fill_imeisv()` helper. This function extracts each digit from the configured `imeisvStr` in the UICC context and populates the mobile identity structure.
+
+See TS 24.501 §4.4 for reference.
 

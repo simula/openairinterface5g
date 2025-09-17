@@ -47,22 +47,20 @@
         <testCase id="111111">
                 <class>Pull_Local_Registry</class>
                 <desc>Pull Images from Local Registry</desc>
-                <test_svr_id>0</test_svr_id>
-                <images_to_pull>oai-enb oai-lte-ue</images_to_pull>
+                <node>localhost</node>
+                <images>oai-enb-asan oai-lte-ue-asan</images>
         </testCase>
         <testCase id="800813">
                 <class>Create_Workspace</class>
                 <desc>Create new Workspace</desc>
-                <eNB_instance>0</eNB_instance>
-                <eNB_serverId>0</eNB_serverId>
+                <node>localhost</node>
         </testCase>
         <testCase id="000011">
                 <class>Deploy_Object</class>
                 <desc>Deploy Cassandra Database</desc>
+                <node>localhost</node>
                 <yaml_path>ci-scripts/yaml_files/4g_rfsimulator_fdd_10MHz</yaml_path>
                 <services>cassandra db_init</services>
-                <eNB_instance>0</eNB_instance>
-                <eNB_serverId>0</eNB_serverId>
         </testCase>
 
         <testCase id="000001">
@@ -80,43 +78,42 @@
         <testCase id="000012">
                 <class>Deploy_Object</class>
                 <desc>Deploy OAI 4G CoreNetwork</desc>
+                <node>localhost</node>
                 <yaml_path>ci-scripts/yaml_files/4g_rfsimulator_fdd_10MHz</yaml_path>
                 <services>oai_hss redis magma_mme oai_spgwc oai_spgwu trf_gen</services>
-                <eNB_instance>0</eNB_instance>
-                <eNB_serverId>0</eNB_serverId>
         </testCase>
 
         <testCase id="000013">
                 <class>Deploy_Object</class>
                 <desc>Deploy OAI 4G eNB RF sim (FDD 10MHz)</desc>
+                <node>localhost</node>
                 <yaml_path>ci-scripts/yaml_files/4g_rfsimulator_fdd_10MHz</yaml_path>
                 <services>oai_enb0</services>
-                <eNB_instance>0</eNB_instance>
-                <eNB_serverId>0</eNB_serverId>
         </testCase>
 
         <testCase id="000014">
                 <class>Deploy_Object</class>
                 <desc>Deploy OAI 4G LTE-UE RF sim (FDD 10MHz)</desc>
+                <node>localhost</node>
                 <yaml_path>ci-scripts/yaml_files/4g_rfsimulator_fdd_10MHz</yaml_path>
                 <services>oai_ue0</services>
-                <eNB_instance>0</eNB_instance>
-                <eNB_serverId>0</eNB_serverId>
         </testCase>
 
         <testCase id="000015">
                 <class>Attach_UE</class>
                 <desc>Attach OAI UE (Wait for IP)</desc>
                 <id>rfsim4g_ue</id>
-                <nodes>cacofonix</nodes>
+                <nodes>acamas</nodes>
         </testCase>
 
         <testCase id="020011">
                 <class>Ping</class>
                 <desc>Ping Traffic-Gen from LTE-UE</desc>
                 <id>rfsim4g_ue</id>
-                <nodes>cacofonix</nodes>
-                <ping_args> -c 20 192.168.61.11</ping_args>
+                <nodes>acamas</nodes>
+                <svr_id>rfsim4g_ext_dn</svr_id>
+                <svr_node>acamas</svr_node>
+                <ping_args>-c 20</ping_args>
                 <ping_packetloss_threshold>5</ping_packetloss_threshold>
         </testCase>
 
@@ -124,8 +121,10 @@
                 <class>Ping</class>
                 <desc>Ping LTE-UE from Traffic-Gen</desc>
                 <id>rfsim4g_ext_dn</id>
-                <nodes>cacofonix</nodes>
-                <ping_args>-c 20 12.0.0.2</ping_args>
+                <nodes>acamas</nodes>
+                <svr_id>rfsim4g_ue</svr_id>
+                <svr_node>acamas</svr_node>
+                <ping_args>-c 20</ping_args>
                 <ping_packetloss_threshold>5</ping_packetloss_threshold>
         </testCase>
 
@@ -133,9 +132,9 @@
                 <class>Iperf</class>
                 <desc>Iperf UDP DL</desc>
                 <id>rfsim4g_ue</id>
-                <nodes>cacofonix</nodes>
+                <nodes>acamas</nodes>
                 <svr_id>rfsim4g_ext_dn</svr_id>
-                <svr_node>cacofonix</svr_node>
+                <svr_node>acamas</svr_node>
                 <iperf_args>-u -t 30 -b 2M -R</iperf_args>
                 <iperf_packetloss_threshold>25</iperf_packetloss_threshold>
                 <iperf_bitrate_threshold>80</iperf_bitrate_threshold>
@@ -145,9 +144,9 @@
                 <class>Iperf</class>
                 <desc>Iperf UDP UL</desc>
                 <id>rfsim4g_ue</id>
-                <nodes>cacofonix</nodes>
+                <nodes>acamas</nodes>
                 <svr_id>rfsim4g_ext_dn</svr_id>
-                <svr_node>cacofonix</svr_node>
+                <svr_node>acamas</svr_node>
                 <iperf_args>-u -t 30 -b 1M</iperf_args>
                 <iperf_packetloss_threshold>25</iperf_packetloss_threshold>
                 <iperf_bitrate_threshold>80</iperf_bitrate_threshold>
@@ -157,16 +156,16 @@
                 <class>Undeploy_Object</class>
                 <always_exec>true</always_exec>
                 <desc>Undeploy all OAI 4G stack</desc>
+                <node>localhost</node>
                 <yaml_path>ci-scripts/yaml_files/4g_rfsimulator_fdd_10MHz</yaml_path>
-                <eNB_instance>0</eNB_instance>
-                <eNB_serverId>0</eNB_serverId>
         </testCase>
 
         <testCase id="222222">
                 <class>Clean_Test_Server_Images</class>
                 <always_exec>true</always_exec>
                 <desc>Clean Test Images on Test Server</desc>
-                <test_svr_id>0</test_svr_id>
+                <node>localhost</node>
+                <images>oai-enb-asan oai-lte-ue-asan</images>
         </testCase>
 
 </testCaseList>

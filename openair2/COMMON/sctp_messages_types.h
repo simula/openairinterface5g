@@ -36,11 +36,22 @@
 #define SCTP_INIT_MSG_MULTI_CNF(mSGpTR)        (mSGpTR)->ittiMsg.sctp_init_msg_multi_cnf
 #define SCTP_CLOSE_ASSOCIATION(mSGpTR)         (mSGpTR)->ittiMsg.sctp_close_association
 
-enum sctp_state_e {
-  SCTP_STATE_CLOSED,
-  SCTP_STATE_SHUTDOWN,
-  SCTP_STATE_ESTABLISHED,
-  SCTP_STATE_UNREACHABLE
+#define SCTP_STATES \
+    ITEM(SCTP_STATE_CLOSED) \
+    ITEM(SCTP_STATE_SHUTDOWN) \
+    ITEM(SCTP_STATE_ESTABLISHED) \
+    ITEM(SCTP_STATE_UNREACHABLE)
+
+typedef enum {
+#define ITEM(state) state,
+    SCTP_STATES
+#undef ITEM
+} sctp_state_e;
+
+static const char *sctp_state_s[] __attribute__((unused)) = {
+#define ITEM(state) #state,
+    SCTP_STATES
+#undef ITEM
 };
 
 typedef struct sctp_new_association_req_s {
@@ -112,7 +123,7 @@ typedef struct sctp_new_association_resp_s {
   uint16_t in_streams;
 
   /* State of the association at SCTP level */
-  enum sctp_state_e sctp_state;
+  sctp_state_e sctp_state;
 } sctp_new_association_resp_t;
 
 typedef struct sctp_data_ind_s {

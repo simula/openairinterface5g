@@ -20,6 +20,7 @@
 
 #include "stddef.h"
 #include <stdint.h>
+#include "nfapi_common_interface.h"
 
 // Constants - update based on implementation
 #define NFAPI_MAX_PHY_RF_INSTANCES 2
@@ -27,8 +28,11 @@
 #define NFAPI_PNF_PARAM_GENERAL_OUI_LENGTH 3
 #define NFAPI_MAX_NUM_RF_BANDS 16
 
-#define NFAPI_MAX_PACKED_MESSAGE_SIZE 8192
-
+#ifdef ENABLE_WLS
+#define NFAPI_MAX_PACKED_MESSAGE_SIZE 1024*1024*2
+#else
+#define NFAPI_MAX_PACKED_MESSAGE_SIZE 32768
+#endif
 // The following definition control the size of arrays used in the interface.
 // These may be changed if desired. They are used in the encoder to make sure 
 // that the user has not specified a 'count' larger than the max array, and also
@@ -92,19 +96,19 @@ typedef signed short	int16_t;
 typedef signed char		int8_t;
 
 typedef struct {
-	uint16_t phy_id;
-	uint16_t message_id;
-	uint16_t message_length;
-	uint16_t spare;
+  uint16_t phy_id;
+  uint16_t message_id;
+  uint16_t message_length;
+  uint16_t spare;
 } nfapi_p4_p5_message_header_t;
 
 typedef struct {
-	uint16_t phy_id;
-	uint16_t message_id;
-	uint16_t message_length;
-	uint16_t m_segment_sequence; /* This consists of 3 fields - namely, M, Segement & Sequence number*/
-	uint32_t checksum;
-	uint32_t transmit_timestamp;
+  uint16_t phy_id;
+  uint16_t message_id;
+  uint16_t message_length;
+  uint16_t m_segment_sequence; /* This consists of 3 fields - namely, M, Segement & Sequence number*/
+  uint32_t checksum;
+  uint32_t transmit_timestamp;
 } nfapi_p7_message_header_t;
 
 #define NFAPI_PHY_ID_NA 0
@@ -114,25 +118,20 @@ typedef struct {
 #define NFAPI_P7_GET_MORE(_mss) ( ((_mss) & 0x8000) >> 15 )
 #define NFAPI_P7_GET_SEGMENT(_mss) ( ((_mss) & 0x7F00) >> 8 )
 #define NFAPI_P7_GET_SEQUENCE(_mss) ( (_mss) & 0x00FF )
-#define NFAPI_P7_SET_MSS(_more, _segm, _sequ) ( (((_more) & 0x1) << 7) | (((_segm) & 0x7) << 4) | ((_sequ) & 0xF) )
+#define NFAPI_NR_P7_SET_MSS(_more, _segm, _sequ) ( (((_more) & 0x1) << 15) | (((_segm) & 0x7F) << 8) | ((_sequ) & 0xFF) )
+#define NFAPI_P7_SET_MSS(_more, _segm, _sequ) ( (((_more) & 0x1) << 7) | (((_segm) & 0x7F) << 4) | ((_sequ) & 0xF) )
 
-typedef struct {
-	uint16_t tag;
-	uint16_t length;
-} nfapi_tl_t;
 #define NFAPI_TAG_LENGTH_PACKED_LEN 4
 
 // Convenience methods to convert between SFN/SLOT formats
-#define NFAPI_SFNSLOT2DEC(_sfn,_slot) ( _sfn*20 + _slot  )  // total count of slots
-#define NFAPI_SFNSLOTDEC2SFNSLOT(_sfnslot_dec) ((((_sfnslot_dec) / 20) << 6) | (((_sfnslot_dec) - (((_sfnslot_dec) / 20) * 20)) & 0x3F))
+#define NFAPI_SLOTNUM(_mu) (10 << (_mu))
+#define NFAPI_SLOTLEN(_mu) (1000.f / (1 << _mu))
 
-#define NFAPI_SFNSLOT2SFN(_sfnslot) ((_sfnslot) >> 6)
-#define NFAPI_SFNSLOT2SLOT(_sfnslot) ((_sfnslot) & 0x3F)
-#define NFAPI_SFNSLOTDEC2SFN(_sfnslot_dec) ((_sfnslot_dec) / 20)
-#define NFAPI_SFNSLOTDEC2SLOT(_sfnslot_dec) ((_sfnslot_dec) % 20)
-#define NFAPI_SFNSLOT2HEX(_sfn,_slot) ((_sfn << 6) | (_slot & 0x3F))
+#define NFAPI_SFNSLOT2DEC(_mu, _sfn, _slot) ((_sfn) * NFAPI_SLOTNUM(_mu) + (_slot))
+#define NFAPI_SFNSLOTDEC2SFN(_mu, _sfnslot_dec) ((_sfnslot_dec) / NFAPI_SLOTNUM(_mu))
+#define NFAPI_SFNSLOTDEC2SLOT(_mu, _sfnslot_dec) ((_sfnslot_dec) % NFAPI_SLOTNUM(_mu))
 
-#define NFAPI_MAX_SFNSLOTDEC 1024*20 // 20 is for numerology 1
+#define NFAPI_MAX_SFNSLOTDEC(_mu) (1024 * NFAPI_SLOTNUM(_mu))
 
 // Convenience methods to convert between SFN/SFN formats
 #define NFAPI_SFNSF2DEC(_sfnsf) ((((_sfnsf) >> 4) * 10) + ((_sfnsf) & 0xF))
@@ -2537,29 +2536,6 @@ typedef struct {
 	nfapi_vendor_extension_tlv_t vendor_extension;
 } nfapi_timing_info_t;
 
-typedef struct {
-	nfapi_p7_message_header_t header;
-	
-	uint32_t last_sfn;
-	uint32_t last_slot;
-	uint32_t time_since_last_timing_info;
-	
-	uint32_t dl_tti_jitter;
-	uint32_t tx_data_request_jitter;
-	uint32_t ul_tti_jitter;
-	uint32_t ul_dci_jitter;
-
-	int32_t dl_tti_latest_delay;
-	int32_t tx_data_request_latest_delay;
-	int32_t ul_tti_latest_delay;
-	int32_t ul_dci_latest_delay;
-	
-	int32_t dl_tti_earliest_arrival;
-	int32_t tx_data_request_earliest_arrival;
-	int32_t ul_tti_earliest_arrival;
-	int32_t ul_dci_earliest_arrival;
-	nfapi_vendor_extension_tlv_t vendor_extension;
-} nfapi_nr_timing_info_t;
 
 typedef struct {
 	nfapi_tl_t tl;
@@ -3772,160 +3748,6 @@ typedef struct
 // Configuration options for the encode decode functions
 //
 
-/*! Configuration options for the p7 pack unpack functions
- *
- */
-typedef struct nfapi_p7_codec_config {
-
-	/*! Optional call back to allow the user to define the memory allocator. 
-	 *  \param size The size of the memory to allocate
-	 *  \return a pointer to a valid memory block or 0 if it has failed.
-	 *
-	 * If not set the nfapi unpack functions will use malloc
-	 */
-	void* (*allocate)(size_t size);
-
-	/*! Optional call back to allow the user to define the memory deallocator. 
-	 *  \param ptr A poiner to a memory block allocated by the allocate callback
-	 * 
-	 *	If not set the client should use free
-	 */
-	void (*deallocate)(void* ptr);
-
-	/*! Optional call back function to handle unpacking vendor extension tlv.
-	 *  \param tl A pointer to a decoded tag length structure
-	 *  \param ppReadPackedMsg A handle to the read buffer. 
-	 *  \param end The end of the read buffer
-	 *  \param ve A handle to a vendor extention structure that the call back should allocate if the structure can be decoded
-	 *  \param config A pointer to the p7 codec configuration
-	 *  \return return 0 if packed successfully, -1 if failed.
-	 *
-	 *  If not set the tlv will be skipped
-	 *
-	 *  Client should use the help methods in nfapi.h to decode the vendor extention.
-	 * 
-	 *  \todo Add code example
-	 */
-	int (*unpack_vendor_extension_tlv)(nfapi_tl_t* tl, uint8_t **ppReadPackedMsg, uint8_t *end, void** ve, struct nfapi_p7_codec_config* config);
-
-	/*! Optional call back function to handle packing vendor extension tlv. 
-	 *  \param ve A pointer to a vendor extention structure.
-	 *  \param ppWritePackedMsg A handle to the write buffer
-	 *  \param end The end of the write buffer. The callee should make sure not to write beyond the end
-	 *  \param config A pointer to the p7 codec configuration
-	 *  \return return 0 if packed successfully, -1 if failed.
-	 * 
-	 *  If not set the the tlv will be skipped
-	 * 
-	 *  Client should use the help methods in nfapi.h to encode the vendor extention
-	 * 
-	 *  \todo Add code example
-	 */
-	int (*pack_vendor_extension_tlv)(void* ve, uint8_t **ppWritePackedMsg, uint8_t *end, struct nfapi_p7_codec_config* config);
-
-	/*! Optional call back function to handle unpacking vendor extension messages. 
-	 *  \param header A pointer to a decode P7 message header for the vendor extention message
-	 *  \param ppReadPackedMsg A handle to the encoded data buffer
-	 *  \param end A pointer to the end of the encoded data buffer
-	 *  \param config  A pointer to the p7 codec configuration
-	 *  \return 0 if unpacked successfully, -1 if failed
-	 *
-	 *  If not set the message will be ignored
-	 *
-	 *  If the message if is unknown the function should return -1
-	 */
-	int (*unpack_p7_vendor_extension)(nfapi_p7_message_header_t* header, uint8_t **ppReadPackedMsg, uint8_t *end, struct nfapi_p7_codec_config* config);
-
-	/*! Optional call back function to handle packing vendor extension messages. 
-	 *  \param header A poiner to a P7 message structure for the venfor extention message
-	 *  \param ppWritePackedmsg A handle to the buffer to write the encoded message into
-	 *  \param end A pointer to the end of the buffer
-	 *  \param cofig A pointer to the p7 codec configuration
-	 *  \return 0 if packed successfully, -1 if failed
-	 * 
-	 * If not set the the message will be ingored
-	 *	 
-	 *  If the message if is unknown the function should return -1
-	 */
-	int (*pack_p7_vendor_extension)(nfapi_p7_message_header_t* header, uint8_t **ppWritePackedmsg, uint8_t *end, struct nfapi_p7_codec_config* config);
-
-	/*! Optional user data that will be passed back with callbacks
-	 */
-	void* user_data;
-
-} nfapi_p7_codec_config_t;
-
-/*! Configuration options for the p4 & p5 pack unpack functions
- *
- */
-typedef struct nfapi_p4_p5_codec_config {
-
-	/*! Optional call back to allow the user to define the memory allocator.
-     *  \param size The size of the memory to allocate
-	 *  \return a pointer to a valid memory block or 0 if it has failed.
-	 *
-	 *  If not set the nfapi unpack functions will use malloc
-	 */
-	void* (*allocate)(size_t size);
-
-	/*! Optional call back to allow the user to define the memory deallocator. 
-	 *  \param ptr A poiner to a memory block allocated by the allocate callback
-	 *
-	 *  If not set free will be used
-	 */
-	void (*deallocate)(void* ptr);
-
-	/*! Optional call back function to handle unpacking vendor extension tlv.
-	 *  \param tl A pointer to a decoded tag length structure
-	 *  \param ppReadPackedMsg A handle to the data buffer to decode
-	 *  \param end A pointer to the end of the buffer
-	 *  \param ve A handle to a vendor extention structure that will be allocated by this callback
-	 *  \param config A pointer to the P4/P5 codec configuration
-	 *  \return 0 if unpacked successfully, -1 if failed
-	 *  
-	 *  If not set the tlv will be skipped
-	 */
-	int (*unpack_vendor_extension_tlv)(nfapi_tl_t* tl, uint8_t **ppReadPackedMsg, uint8_t *end, void** ve, struct nfapi_p4_p5_codec_config* config);
-
-	/*! Optional call back function to handle packing vendor extension tlv. 
-	 *  \param ve
-	 *  \param ppWritePackedMsg A handle to the data buffer pack the tlv into
-	 *  \param end A pointer to the end of the buffer
-	 *  \param config A pointer to the P4/P5 codec configuration
-	 *  \return 0 if packed successfully, -1 if failed
-	 *
-	 *  If not set the the tlv will be skipped
-	 */
-	int (*pack_vendor_extension_tlv)(void* ve, uint8_t **ppWritePackedMsg, uint8_t *end, struct nfapi_p4_p5_codec_config* config);
-
-	/*! Optional call back function to handle unpacking vendor extension messages. 
-	 *  \param header A pointer to a decode P4/P5 message header
-	 *  \param ppReadPackgedMsg A handle to the data buffer to decode
-	 *  \param end A pointer to the end of the buffer
-	 *  \param config A pointer to the P4/P5 codec configuration
-	 *  \return 0 if packed successfully, -1 if failed
-	 *
-	 * If not set the message will be ignored
-	 */
-	int (*unpack_p4_p5_vendor_extension)(nfapi_p4_p5_message_header_t* header, uint8_t **ppReadPackedMsg, uint8_t *end, struct nfapi_p4_p5_codec_config* config);
-
-	/*! Optional call back function to handle packing vendor extension messages.
-	 *  \param header A pointer to the P4/P5 message header to be encoded
-	 *  \param ppWritePackedMsg A handle to the data buffer pack the message into
-	 *  \param end A pointer to the end of the buffer
-	 *  \param config A pointer to the P4/P5 codec configuration
-	 *  \return 0 if packed successfully, -1 if failed
-	 *  
-	 *  If not set the the message will be ingored
-	 */
-	int (*pack_p4_p5_vendor_extension)(nfapi_p4_p5_message_header_t* header, uint8_t **ppwritepackedmsg, uint8_t *end, struct nfapi_p4_p5_codec_config* config);
-
-	/*! Optional user data that will be passed back with callbacks
-	 */
-	void* user_data;
-
-} nfapi_p4_p5_codec_config_t;
-
 //
 // Functions
 // 
@@ -3979,21 +3801,7 @@ int nfapi_p4_message_unpack(void *pMessageBuf, uint32_t messageBufLen, void *pUn
  * 
  */
 int nfapi_p5_message_pack(void *pMessageBuf, uint32_t messageBufLen, void *pPackedBuf, uint32_t packedBufLen, nfapi_p4_p5_codec_config_t* config);
-int nfapi_nr_p5_message_pack(void *pMessageBuf, uint32_t messageBufLen, void *pPackedBuf, uint32_t packedBufLen, nfapi_p4_p5_codec_config_t* config);
 
-/*! \brief Packs a NFAPI P5 message body
- *  \param header A pointer to the header of the P5 message
- *  \param ppWritePackedMsg A pointer to the buffer where to pack the P5 message
- *  \param end Pointer to the end of the packing buffer
- *  \param config A pointer to the nfapi configuration structure
- *  \return 0 means success, -1 means failure.
- *
- * The function will decode a byte stream pointed to by pMessageBuf into a nfapi p5 message structure pointer to by pUnpackedBuf
- */
-uint8_t pack_nr_p5_message_body(nfapi_p4_p5_message_header_t* header,
-                                uint8_t** ppWritePackedMsg,
-                                uint8_t* end,
-                                nfapi_p4_p5_codec_config_t* config);
 
 /*! \brief Decodes an NFAPI P5 message header
  *  \param pMessageBuf A pointer to an encoded P5 message header
@@ -4017,7 +3825,6 @@ int nfapi_p5_message_header_unpack(void *pMessageBuf, uint32_t messageBufLen, vo
  *
  * The function will decode a byte stream pointed to by pMessageBuf into a nfapi p5 message structure pointer to by pUnpackedBuf 
  */
-int nfapi_nr_p5_message_unpack(void *pMessageBuf, uint32_t messageBufLen, void *pUnpackedBuf, uint32_t unpackedBufLen, nfapi_p4_p5_codec_config_t* config);
 int nfapi_p5_message_unpack(void *pMessageBuf, uint32_t messageBufLen, void *pUnpackedBuf, uint32_t unpackedBufLen, nfapi_p4_p5_codec_config_t* config);
 
 /*! \brief Encodes an NFAPI P7 message to a buffer
@@ -4031,7 +3838,6 @@ int nfapi_p5_message_unpack(void *pMessageBuf, uint32_t messageBufLen, void *pUn
  * 
  */
 int nfapi_p7_message_pack(void *pMessageBuf, void *pPackedBuf, uint32_t packedBufLen, nfapi_p7_codec_config_t* config);
-int nfapi_nr_p7_message_pack(void *pMessageBuf, void *pPackedBuf, uint32_t packedBufLen, nfapi_p7_codec_config_t* config);
 
 /*! \brief Decodes an NFAPI P7 message header
  *  \param pMessageBuf A pointer to an encoded P7 message header
@@ -4057,7 +3863,6 @@ int nfapi_p7_message_header_unpack(void *pMessageBuf, uint32_t messageBufLen, vo
  * The function will decode a byte stream pointed to by pMessageBuf into a nfapi p7 message structure pointer to by pUnpackedBuf 
  */
 int nfapi_p7_message_unpack(void *pMessageBuf, uint32_t messageBufLen, void *pUnpackedBuf, uint32_t unpackedBufLen, nfapi_p7_codec_config_t* config);
-int nfapi_nr_p7_message_unpack(void *pMessageBuf, uint32_t messageBufLen, void *pUnpackedBuf, uint32_t unpackedBufLen, nfapi_p7_codec_config_t* config);
 
 /*! \brief Calculates the checksum of a  message
  *
@@ -4082,43 +3887,5 @@ int nfapi_p7_update_checksum(uint8_t* buffer, uint32_t len);
   *  \return 0 means success, -1 means failure.
  */
 int nfapi_p7_update_transmit_timestamp(uint8_t* buffer, uint32_t timestamp);
-
-/*! \brief Encodes a nfapi_nr_srs_normalized_channel_iq_matrix_t to a buffer
- *
- *  \param pMessageBuf A pointer to a nfapi_nr_srs_normalized_channel_iq_matrix_t structure
- *  \param pPackedBuf A pointer to the buffer that the nfapi_nr_srs_normalized_channel_iq_matrix_t will be packed into
- *  \param packedBufLen The size of the buffer
- *  \return number of bytes written to the buffer
- */
-int pack_nr_srs_normalized_channel_iq_matrix(void *pMessageBuf, void *pPackedBuf, uint32_t packedBufLen);
-
-/*! \brief Decodes a nfapi_nr_srs_normalized_channel_iq_matrix_t from a buffer
- *
- *  \param pMessageBuf A pointer to an encoded nfapi_nr_srs_normalized_channel_iq_matrix_t
- *  \param messageBufLen The size of the encoded nfapi_nr_srs_normalized_channel_iq_matrix_t
- *  \param pUnpackedBuf A pointer to the nfapi_nr_srs_normalized_channel_iq_matrix_t
- *  \param unpackedBufLen The size of nfapi_nr_srs_normalized_channel_iq_matrix_t structure.
- *  \return 0 means success, -1 means failure.
- */
-int unpack_nr_srs_normalized_channel_iq_matrix(void *pMessageBuf, uint32_t messageBufLen, void *pUnpackedBuf, uint32_t unpackedBufLen);
-
-/*! \brief Encodes a nfapi_nr_srs_beamforming_report_t to a buffer
- *
- *  \param pMessageBuf A pointer to a nfapi_nr_srs_beamforming_report_t structure
- *  \param pPackedBuf A pointer to the buffer that the nfapi_nr_srs_beamforming_report_t will be packed into
- *  \param packedBufLen The size of the buffer
- *  \return number of bytes written to the buffer
- */
-int pack_nr_srs_beamforming_report(void *pMessageBuf, void *pPackedBuf, uint32_t packedBufLen);
-
-/*! \brief Decodes a nfapi_nr_srs_beamforming_report_t from a buffer
- *
- *  \param pMessageBuf A pointer to an encoded nfapi_nr_srs_beamforming_report_t
- *  \param messageBufLen The size of the encoded nfapi_nr_srs_beamforming_report_t
- *  \param pUnpackedBuf A pointer to the nfapi_nr_srs_beamforming_report_t
- *  \param unpackedBufLen The size of nfapi_nr_srs_beamforming_report_t structure.
- *  \return 0 means success, -1 means failure.
- */
-int unpack_nr_srs_beamforming_report(void *pMessageBuf, uint32_t messageBufLen, void *pUnpackedBuf, uint32_t unpackedBufLen);
 
 #endif /* _NFAPI_INTERFACE_H_ */

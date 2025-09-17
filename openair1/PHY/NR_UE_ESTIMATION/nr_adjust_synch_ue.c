@@ -47,7 +47,7 @@ int nr_adjust_synch_ue(NR_DL_FRAME_PARMS *frame_parms,
   VCD_SIGNAL_DUMPER_DUMP_FUNCTION_BY_NAME(VCD_SIGNAL_DUMPER_FUNCTIONS_UE_ADJUST_SYNCH, VCD_FUNCTION_IN);
 
   // search for maximum position within the cyclic prefix
-  for (int i = -frame_parms->nb_prefix_samples/2; i < frame_parms->nb_prefix_samples/2; i++) {
+  for (int i = -frame_parms->nb_prefix_samples; i < frame_parms->nb_prefix_samples; i++) {
     int temp = 0;
 
     int j = (i < 0) ? (i + frame_parms->ofdm_symbol_size) : i;

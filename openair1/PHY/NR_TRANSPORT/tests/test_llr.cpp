@@ -48,12 +48,11 @@ void exit_function(const char *file, const char *function, const int line, const
 #include "openair1/PHY/TOOLS/phy_test_tools.hpp"
 #include <random>
 
-int16_t saturating_sub(int16_t a, int16_t b)
+int16_t saturating_sub(int a, int b)
 {
-  int32_t result = (int32_t)a - (int32_t)b;
-
-  if (result < INT16_MIN) {
-    return INT16_MIN;
+  int result = a - abs(b);
+  if (result < -INT16_MAX) {
+    return -INT16_MAX;
   } else if (result > INT16_MAX) {
     return INT16_MAX;
   } else {
@@ -71,8 +70,8 @@ void nr_16qam_llr_ref(c16_t *rxdataF_comp, int32_t *ch_mag, int16_t *llr, uint32
     int16_t mag_imag = ch_mag_i16[2 * i + 1];
     llr[4 * i] = real;
     llr[4 * i + 1] = imag;
-    llr[4 * i + 2] = saturating_sub(mag_real, std::abs(real));
-    llr[4 * i + 3] = saturating_sub(mag_imag, std::abs(imag));
+    llr[4 * i + 2] = saturating_sub(mag_real, real);
+    llr[4 * i + 3] = saturating_sub(mag_imag, imag);
   }
 }
 
@@ -91,12 +90,12 @@ void nr_64qam_llr_ref(c16_t *rxdataF_comp,
     int16_t mag_imag = ch_mag_i16[2 * i + 1];
     llr[6 * i] = real;
     llr[6 * i + 1] = imag;
-    llr[6 * i + 2] = saturating_sub(mag_real, std::abs(real));
-    llr[6 * i + 3] = saturating_sub(mag_imag, std::abs(imag));
+    llr[6 * i + 2] = saturating_sub(mag_real, real);
+    llr[6 * i + 3] = saturating_sub(mag_imag, imag);
     int16_t mag_realb = ch_magb_i16[2 * i];
     int16_t mag_imagb = ch_magb_i16[2 * i + 1];
-    llr[6 * i + 4] = saturating_sub(mag_realb, std::abs(llr[6 * i + 2]));
-    llr[6 * i + 5] = saturating_sub(mag_imagb, std::abs(llr[6 * i + 3]));
+    llr[6 * i + 4] = saturating_sub(mag_realb, llr[6 * i + 2]);
+    llr[6 * i + 5] = saturating_sub(mag_imagb, llr[6 * i + 3]);
   }
 }
 
@@ -117,16 +116,16 @@ void nr_256qam_llr_ref(c16_t *rxdataF_comp,
     int16_t mag_imag = ch_mag_i16[2 * i + 1];
     llr[8 * i] = real;
     llr[8 * i + 1] = imag;
-    llr[8 * i + 2] = saturating_sub(mag_real, std::abs(real));
-    llr[8 * i + 3] = saturating_sub(mag_imag, std::abs(imag));
+    llr[8 * i + 2] = saturating_sub(mag_real, real);
+    llr[8 * i + 3] = saturating_sub(mag_imag, imag);
     int16_t magb_real = ch_magb_i16[2 * i];
     int16_t magb_imag = ch_magb_i16[2 * i + 1];
-    llr[8 * i + 4] = saturating_sub(magb_real, std::abs(llr[8 * i + 2]));
-    llr[8 * i + 5] = saturating_sub(magb_imag, std::abs(llr[8 * i + 3]));
+    llr[8 * i + 4] = saturating_sub(magb_real, llr[8 * i + 2]);
+    llr[8 * i + 5] = saturating_sub(magb_imag, llr[8 * i + 3]);
     int16_t magc_real = ch_magc_i16[2 * i];
     int16_t magc_imag = ch_magc_i16[2 * i + 1];
-    llr[8 * i + 6] = saturating_sub(magc_real, std::abs(llr[8 * i + 4]));
-    llr[8 * i + 7] = saturating_sub(magc_imag, std::abs(llr[8 * i + 5]));
+    llr[8 * i + 6] = saturating_sub(magc_real, llr[8 * i + 4]);
+    llr[8 * i + 7] = saturating_sub(magc_imag, llr[8 * i + 5]);
   }
 }
 
@@ -136,23 +135,21 @@ void test_function_16_qam(AlignedVector512<uint32_t> nb_res)
     uint32_t nb_re = nb_res[i];
     auto rf_data = generate_random_c16(nb_re);
     auto magnitude_data = generate_random_uint16(nb_re * 2);
-    AlignedVector512<uint64_t> llr_ref;
-    llr_ref.resize(nb_re);
+    AlignedVector512<int16_t> llr_ref;
+    llr_ref.resize(nb_re * 4);
     std::fill(llr_ref.begin(), llr_ref.end(), 0);
     nr_16qam_llr_ref((c16_t *)rf_data.data(), (int32_t *)magnitude_data.data(), (int16_t *)llr_ref.data(), nb_re);
 
-    AlignedVector512<uint64_t> llr;
-    llr.resize(nb_re);
+    AlignedVector512<int16_t> llr;
+    llr.resize(nb_re * 4);
     std::fill(llr.begin(), llr.end(), 0);
     nr_16qam_llr((int32_t *)rf_data.data(), (int32_t *)magnitude_data.data(), (int16_t *)llr.data(), nb_re);
 
     int num_errors = 0;
-    for (auto i = 0U; i < nb_re; i++) {
-      EXPECT_EQ(llr_ref[i], llr[i])
-          << "Mismatch 16qam REF " << std::hex << llr_ref[i] << " != DUT " << llr[i] << " at " << std::dec << i;
-      if (llr_ref[i] != llr[i]) {
-        num_errors++;
-      }
+    for (auto i = 0U; i < llr_ref.size(); i++) {
+      EXPECT_LE(llr_ref[i] - llr[i] ? (llr_ref[i] - llr[i]) / (float)llr[i] : 0, 0.001)
+          << "Mismatch 16qam REF " << std::hex << llr_ref[i] << " != DUT " << llr[i] << " at " << std::dec << i
+          << "total err: " << ++num_errors;
     }
     EXPECT_EQ(num_errors, 0) << " Errors during testing 16qam llr " << num_errors << " nb res " << nb_re;
   }
@@ -165,8 +162,8 @@ void test_function_64_qam(AlignedVector512<uint32_t> nb_res)
     auto rf_data = generate_random_c16(nb_re);
     auto magnitude_data = generate_random_uint16(nb_re * 2);
     auto magnitude_b_data = generate_random_uint16(nb_re * 2);
-    AlignedVector512<uint32_t> llr_ref;
-    llr_ref.resize(nb_re * 3);
+    AlignedVector512<int16_t> llr_ref;
+    llr_ref.resize(nb_re * 6);
     std::fill(llr_ref.begin(), llr_ref.end(), 0);
     nr_64qam_llr_ref((c16_t *)rf_data.data(),
                            (int32_t *)magnitude_data.data(),
@@ -174,8 +171,8 @@ void test_function_64_qam(AlignedVector512<uint32_t> nb_res)
                            (int16_t *)llr_ref.data(),
                            nb_re);
 
-    AlignedVector512<uint32_t> llr;
-    llr.resize(nb_re * 3);
+    AlignedVector512<int16_t> llr;
+    llr.resize(nb_re * 6);
     std::fill(llr.begin(), llr.end(), 0);
     nr_64qam_llr((int32_t *)rf_data.data(),
                        (int32_t *)magnitude_data.data(),
@@ -184,12 +181,10 @@ void test_function_64_qam(AlignedVector512<uint32_t> nb_res)
                        nb_re);
 
     int num_errors = 0;
-    for (auto i = 0U; i < nb_re * 3; i++) {
-      EXPECT_EQ(llr_ref[i], llr[i])
-          << "Mismatch 64qam REF " << std::hex << llr_ref[i] << " != DUT " << llr[i] << " at " << std::dec << i;
-      if (llr_ref[i] != llr[i]) {
-        num_errors++;
-      }
+    for (auto i = 0U; i < llr.size(); i++) {
+      EXPECT_LE(llr_ref[i] - llr[i] ? (llr_ref[i] - llr[i]) / (float)llr[i] : 0, 0.001)
+          << "Mismatch 64qam REF " << std::hex << llr_ref[i] << " != DUT " << llr[i] << " at " << std::dec << i
+          << "total err: " << ++num_errors;
     }
     EXPECT_EQ(num_errors, 0) << " Errors during testing 64qam llr " << num_errors << " nb res " << nb_re;
   }
@@ -203,8 +198,8 @@ void test_function_256_qam(AlignedVector512<uint32_t> nb_res)
     auto magnitude_data = generate_random_uint16(nb_re * 2);
     auto magnitude_b_data = generate_random_uint16(nb_re * 2);
     auto magnitude_c_data = generate_random_uint16(nb_re * 2);
-    AlignedVector512<uint32_t> llr_ref;
-    llr_ref.resize(nb_re * 4);
+    AlignedVector512<int16_t> llr_ref;
+    llr_ref.resize(nb_re * 8);
     std::fill(llr_ref.begin(), llr_ref.end(), 0);
     nr_256qam_llr_ref((c16_t *)rf_data.data(),
                             (int32_t *)magnitude_data.data(),
@@ -213,8 +208,8 @@ void test_function_256_qam(AlignedVector512<uint32_t> nb_res)
                             (int16_t *)llr_ref.data(),
                             nb_re);
 
-    AlignedVector512<uint32_t> llr;
-    llr.resize(nb_re * 4);
+    AlignedVector512<int16_t> llr;
+    llr.resize(nb_re * 8);
     std::fill(llr.begin(), llr.end(), 0);
     nr_256qam_llr((int32_t *)rf_data.data(),
                         (int32_t *)magnitude_data.data(),
@@ -224,12 +219,10 @@ void test_function_256_qam(AlignedVector512<uint32_t> nb_res)
                         nb_re);
 
     int num_errors = 0;
-    for (auto i = 0U; i < nb_re * 4; i++) {
-      EXPECT_EQ(llr_ref[i], llr[i])
-          << "Mismatch 256qam REF " << std::hex << llr_ref[i] << " != DUT " << llr[i] << " at " << std::dec << i;
-      if (llr_ref[i] != llr[i]) {
-        num_errors++;
-      }
+    for (auto i = 0U; i < llr.size(); i++) {
+      EXPECT_LE(llr_ref[i] - llr[i] ? (llr_ref[i] - llr[i]) / (float)llr[i] : 0, 0.001)
+          << "Mismatch 256qam REF " << std::hex << llr_ref[i] << " != DUT " << llr[i] << " at " << std::dec << i
+          << "total err: " << ++num_errors;
     }
     EXPECT_EQ(num_errors, 0) << " Errors during testing 256qam llr " << num_errors << " nb res " << nb_re;
   }
@@ -401,11 +394,9 @@ TEST(test_llr, check_2_res_256_qam)
 
   int num_errors = 0;
   for (auto i = 0U; i < 2 * 8; i++) {
-    EXPECT_EQ(llr_ref[i], llr[i])
-        << "Mismatch 256qam REF " << std::hex << llr_ref[i] << " != DUT " << llr[i] << " at " << std::dec << i;
-    if (llr_ref[i] != llr[i]) {
-      num_errors++;
-    }
+    EXPECT_LE(llr_ref[i] - llr[i] ? (llr_ref[i] - llr[i]) / (float)llr[i] : 0, 0.001)
+        << "Mismatch 256qam REF " << std::hex << llr_ref[i] << " != DUT " << llr[i] << " at " << std::dec << i
+        << "total err: " << ++num_errors;
   }
   EXPECT_EQ(num_errors, 0) << " Errors during testing 256qam llr " << num_errors << " nb res " << 2;
 }

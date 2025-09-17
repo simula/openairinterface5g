@@ -202,7 +202,7 @@ void dlsch_unscrambling(LTE_DL_FRAME_PARMS *frame_parms,
   for (i=0; i<(1+(G>>5)); i++) {
     for (j=0; j<32; j++,k++) {
 #ifdef DEBUG_SCRAMBLING
-      printf("unscrambling %d : %d xor %d =",k,llr[k],(s>>j)&1);
+      printf("unscrambling %d : %d xor %u =", k, llr[k], (s >> j) & 1);
 #endif
       llr[k] = ((2*((s>>j)&1))-1)*llr[k];
 #ifdef DEBUG_SCRAMBLING

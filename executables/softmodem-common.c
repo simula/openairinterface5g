@@ -41,56 +41,33 @@
 #include "softmodem-common.h"
 #include "nfapi/oai_integration/vendor_ext.h"
 
-
-static softmodem_params_t softmodem_params;
 char *parallel_config=NULL;
 char *worker_config=NULL;
 int usrp_tx_thread = 0;
-char *nfapi_str=NULL;
 uint8_t nfapi_mode=0;
 
-static mapping softmodem_funcs[] = MAPPING_SOFTMODEM_FUNCTIONS;
 static struct timespec start;
 
-uint64_t get_softmodem_optmask(void) {
-  return softmodem_params.optmask;
-}
-
-uint64_t set_softmodem_optmask(uint64_t bitmask) {
-  softmodem_params.optmask = softmodem_params.optmask | bitmask;
-  return softmodem_params.optmask;
-}
-
-uint64_t clear_softmodem_optmask(uint64_t bitmask)
-{
-  softmodem_params.optmask = softmodem_params.optmask & (~bitmask);
-  return softmodem_params.optmask;
-}
-
+static softmodem_params_t softmodem_params;
 softmodem_params_t *get_softmodem_params(void) {
   return &softmodem_params;
 }
 
-int32_t check_execmask(uint64_t execmask) {
-  char *softmodemfunc=map_int_to_str(softmodem_funcs, execmask);
-  if (softmodemfunc != NULL) {
-  	  set_softmodem_optmask(execmask);
-  	  return 0;
-  } 
-  return -1;
-}
-char *get_softmodem_function(uint64_t *sofmodemfunc_mask_ptr) {
-  uint64_t fmask=(get_softmodem_optmask()&SOFTMODEM_FUNC_BITS);
-  char *softmodemfunc=map_int_to_str(softmodem_funcs, fmask);
-  if (sofmodemfunc_mask_ptr != NULL)
-  	  *sofmodemfunc_mask_ptr=fmask;
-  if (softmodemfunc != NULL) {
-  	  return softmodemfunc;
-  }
+char *get_softmodem_function(void)
+{
+  optmask_t fmask = *get_softmodem_optmask();
+  if (fmask.bit.SOFTMODEM_ENB_BIT)
+    return "enb";
+  if (fmask.bit.SOFTMODEM_GNB_BIT)
+    return "gnb";
+  if (fmask.bit.SOFTMODEM_4GUE_BIT)
+    return "4Gue";
+  if (fmask.bit.SOFTMODEM_5GUE_BIT)
+    return "5Gue";
   return "???";
 }
 
-void get_common_options(configmodule_interface_t *cfg, uint32_t execmask)
+void get_common_options(configmodule_interface_t *cfg)
 {
   int32_t stats_disabled = 0;
   uint32_t online_log_messages=0;
@@ -100,14 +77,15 @@ void get_common_options(configmodule_interface_t *cfg, uint32_t execmask)
   uint32_t noS1 = 0, nonbiot = 0;
   uint32_t rfsim = 0, do_forms = 0;
   uint32_t enable_imscope = 0;
+  uint32_t enable_imscope_record = 0;
   int nfapi_index = 0;
   char *logmem_filename = NULL;
-  check_execmask(execmask);
 
   paramdef_t cmdline_params[] = CMDLINE_PARAMS_DESC;
   checkedparam_t cmdline_CheckParams[] = CMDLINE_PARAMS_CHECK_DESC;
+  static_assert(sizeofArray(cmdline_params) == sizeofArray(cmdline_CheckParams),
+                "cmdline_params and cmdline_CheckParams should have the same size");
   int numparams = sizeofArray(cmdline_params);
-  AssertFatal(numparams == sizeofArray(cmdline_CheckParams), "Error in arrays size (%d!=%lu)\n", numparams, sizeofArray(cmdline_CheckParams));
   config_set_checkfunctions(cmdline_params, cmdline_CheckParams, numparams);
   config_get(cfg, cmdline_params, numparams, NULL);
   nfapi_index = config_paramidx_fromname(cmdline_params, numparams, "nfapi");
@@ -116,9 +94,10 @@ void get_common_options(configmodule_interface_t *cfg, uint32_t execmask)
 
   paramdef_t cmdline_logparams[] =CMDLINE_LOGPARAMS_DESC ;
   checkedparam_t cmdline_log_CheckParams[] = CMDLINE_LOGPARAMS_CHECK_DESC;
-  int numlogparams = sizeofArray(cmdline_logparams);
-  AssertFatal(numlogparams == sizeofArray(cmdline_log_CheckParams), "Error in arrays size (%d!=%lu)\n", numlogparams, sizeofArray(cmdline_log_CheckParams));
+  static_assert(sizeofArray(cmdline_logparams) == sizeofArray(cmdline_log_CheckParams),
+                "cmdline_logparams and cmdline_log_CheckParams should have the same size");
 
+  int numlogparams = sizeofArray(cmdline_logparams);
   config_set_checkfunctions(cmdline_logparams, cmdline_log_CheckParams, numlogparams);
   config_get(cfg, cmdline_logparams, numlogparams, NULL);
 
@@ -135,7 +114,7 @@ void get_common_options(configmodule_interface_t *cfg, uint32_t execmask)
   }
   
   if (start_telnetclt) {
-    set_softmodem_optmask(SOFTMODEM_TELNETCLT_BIT);
+    IS_SOFTMODEM_TELNETCLT = true;
   }
 
   if (logmem_filename != NULL && strlen(logmem_filename) > 0) {
@@ -144,23 +123,27 @@ void get_common_options(configmodule_interface_t *cfg, uint32_t execmask)
   }
 
   if (noS1) {
-    set_softmodem_optmask(SOFTMODEM_NOS1_BIT);
+    IS_SOFTMODEM_NOS1 = true;
   }
 
   if (nonbiot) {
-    set_softmodem_optmask(SOFTMODEM_NONBIOT_BIT);
+    IS_SOFTMODEM_NONBIOT = true;
   }
 
   if (rfsim) {
-    set_softmodem_optmask(SOFTMODEM_RFSIM_BIT);
+    IS_SOFTMODEM_RFSIM = true;
   }
 
   if (do_forms) {
-    set_softmodem_optmask(SOFTMODEM_DOSCOPE_BIT);
+    IS_SOFTMODEM_DOSCOPE = true;
   }
 
   if (enable_imscope) {
-    set_softmodem_optmask(SOFTMODEM_IMSCOPE_BIT);
+    IS_SOFTMODEM_IMSCOPE_ENABLED = true;
+  }
+
+  if (enable_imscope_record) {
+    IS_SOFTMODEM_IMSCOPE_RECORD_ENABLED = true;
   }
 
   if (start_websrv) {
@@ -172,8 +155,26 @@ void get_common_options(configmodule_interface_t *cfg, uint32_t execmask)
   if(worker_config != NULL)   set_worker_conf(worker_config);
   nfapi_setmode(nfapi_mode);
   if (stats_disabled)
-    set_softmodem_optmask(SOFTMODEM_NOSTATS_BIT);
+    IS_SOFTMODEM_NOSTATS = true;
 }
+
+void softmodem_verify_mode(const softmodem_params_t *p)
+{
+  if (IS_SA_MODE(p)) {
+    LOG_I(UTIL, "running in SA mode (no --phy-test, --do-ra, --nsa option present)\n");
+    return;
+  }
+
+  if (p->phy_test)
+    LOG_I(UTIL, "running in phy-test mode (--phy-test)\n");
+  if (p->do_ra)
+    LOG_I(UTIL, "running in do-ra mode (--do-ra)\n");
+  if (p->nsa)
+    LOG_I(UTIL, "running in NSA mode (--nsa)\n");
+  int num_modes = p->phy_test + p->do_ra + p->nsa;
+  AssertFatal(num_modes == 1, "--phy-test, --do-ra, and --nsa are mutually exclusive\n");
+}
+
 void softmodem_printresources(int sig, telnet_printfunc_t pf) {
   struct rusage usage;
   struct timespec stop;

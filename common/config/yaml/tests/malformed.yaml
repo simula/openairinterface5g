@@ -1,0 +1,13 @@
+test:
+  -
+bad_file:
+  - "testvalue1"
+  - "testvalue2"
+  - "testvalue3"
+  - "testvalue4"
+  - "testvalue5"
+  - "testvalue6"
+  - "testvalue7"
+  - "testvalue8"
+  - "testvalue9"
+  - "testvalue10" - yaml error

@@ -44,7 +44,7 @@ int m3ap_encode_pdu(M3AP_M3AP_PDU_t *pdu, uint8_t **buffer, uint32_t *len)
   DevAssert(buffer != NULL);
   DevAssert(len != NULL);
 
-  if (asn1_xer_print) {
+  if (LOG_DEBUGFLAG(DEBUG_ASN1)) {
     xer_fprint(stdout, &asn_DEF_M3AP_M3AP_PDU, (void *)pdu);
   }
 

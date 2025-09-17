@@ -79,49 +79,18 @@ typedef enum nrLDPC_outMode {
 } e_nrLDPC_outMode;
 
 /**
-   Structure containing LDPC parameters per CB
-*/
-typedef struct nrLDPC_params_per_cb {
-  uint32_t E_cb;
-  uint8_t status_cb;
-  uint8_t* p_status_cb;
-} nrLDPC_params_per_cb_t;
-
-/**
    Structure containing LDPC decoder parameters.
  */
 typedef struct nrLDPC_dec_params {
     uint8_t BG; /**< Base graph */
     uint16_t Z; /**< Lifting size */
     uint8_t R; /**< Decoding rate: Format 15,13,... for code rates 1/5, 1/3,... */
-    uint16_t F; /**< Filler bits */
-    uint8_t Qm; /**< Modulation */
-    uint8_t rv;
     uint8_t numMaxIter; /**< Maximum number of iterations */
-    int E;
+    int Kprime; /**< Size of the payload bits and CRC bits in the code block */
     e_nrLDPC_outMode outMode; /**< Output format */
-    int crc_type;
-    int (*check_crc)(uint8_t* decoded_bytes, uint32_t n, uint8_t crc_type);
-    uint8_t setCombIn;
-    nrLDPC_params_per_cb_t perCB[NR_LDPC_MAX_NUM_CB];
+    int crc_type; /**< Size and type of the parity check bits (16, 24A or 24B) */
+    int (*check_crc)(uint8_t* decoded_bytes, uint32_t n, uint8_t crc_type); /**< Parity check function */
 } t_nrLDPC_dec_params;
-
-/**
-   Structure containing LDPC offload parameters.
- */
-typedef struct nrLDPCoffload_params {
-    uint8_t BG; /**< Base graph */
-    uint16_t Z;
-    uint16_t Kr;
-    uint8_t rv;
-    uint16_t n_cb;
-    uint16_t F; /**< Filler bits */
-    uint8_t Qm; /**< Modulation */
-    uint8_t C;
-    uint8_t numMaxIter;
-    uint8_t setCombIn;
-    nrLDPC_params_per_cb_t perCB[NR_LDPC_MAX_NUM_CB];
-} t_nrLDPCoffload_params;
 
 /**
    Structure containing LDPC decoder processing time statistics.

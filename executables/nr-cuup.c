@@ -31,12 +31,12 @@
 #include "openair2/F1AP/f1ap_ids.h"
 #include "openair2/GNB_APP/gnb_config.h"
 #include "nr_pdcp/nr_pdcp_oai_api.h"
+#include "common/utils/time_manager/time_manager.h"
 
 RAN_CONTEXT_t RC;
 THREAD_STRUCT thread_struct;
 uint64_t downlink_frequency[MAX_NUM_CCs][4];
 int32_t uplink_frequency_offset[MAX_NUM_CCs][4];
-int asn1_xer_print;
 int oai_exit = 0;
 instance_t CUuniqInstance = 0;
 
@@ -102,16 +102,12 @@ ngran_node_t get_node_type()
   return ngran_gNB_CUUP;
 }
 
-rlc_op_status_t rlc_data_req(const protocol_ctxt_t *const pc,
-                             const srb_flag_t sf,
-                             const MBMS_flag_t mf,
-                             const rb_id_t rb_id,
-                             const mui_t mui,
-                             const confirm_t c,
-                             const sdu_size_t size,
-                             uint8_t *const buf,
-                             const uint32_t *const a,
-                             const uint32_t *const b)
+rlc_op_status_t nr_rlc_data_req(const protocol_ctxt_t *const ctxt_pP,
+                                const srb_flag_t srb_flagP,
+                                const rb_id_t rb_idP,
+                                const mui_t muiP,
+                                sdu_size_t sdu_sizeP,
+                                uint8_t *sdu_pP)
 {
   abort();
   return 0;
@@ -121,16 +117,6 @@ int nr_rlc_get_available_tx_space(const rnti_t rntiP, const logical_chan_id_t ch
 {
   abort();
   return 0;
-}
-
-void nr_rlc_add_drb(int rnti, int drb_id, const NR_RLC_BearerConfig_t *rlc_BearerConfig)
-{
-  abort();
-}
-
-void prepare_and_send_ue_context_modification_f1(rrc_gNB_ue_context_t *ue_context_p, e1ap_bearer_setup_resp_t *e1ap_resp)
-{
-  abort();
 }
 
 f1ap_cudu_inst_t *getCxt(instance_t instanceP)
@@ -145,6 +131,7 @@ f1ap_cudu_inst_t *getCxt(instance_t instanceP)
   return &fake;
 }
 configmodule_interface_t *uniqCfg = NULL;
+
 int main(int argc, char **argv)
 {
   /// static configuration for NR at the moment
@@ -152,6 +139,16 @@ int main(int argc, char **argv)
     exit_fun("[SOFTMODEM] Error, configuration module init failed\n");
   }
   logInit();
+
+  // start time manager with some reasonable default for the running mode
+  // (may be overwritten in configuration file or command line)
+  void nr_pdcp_ms_tick(void);
+  time_manager_tick_function_t tick_functions[] = {
+    nr_pdcp_ms_tick
+  };
+  int tick_functions_count = 1;
+  time_manager_start(tick_functions, tick_functions_count, TIME_SOURCE_REALTIME);
+
   // strdup to put the sring in the core file for post mortem identification
   LOG_I(HW, "Version: %s\n", strdup(OAI_PACKAGE_VERSION));
   set_softmodem_sighandler();
@@ -169,6 +166,7 @@ int main(int argc, char **argv)
   MessageDef *msg = RCconfig_NR_CU_E1(&e1type);
   AssertFatal(msg != NULL, "Send init to task for E1AP UP failed\n");
   itti_send_msg_to_task(TASK_CUUP_E1, 0, msg);
+  LOG_D(E1AP, "Send E1AP REGISTER REQ to TASK_CUUP_E1\n");
 
   #ifdef E2_AGENT
   //////////////////////////////////
@@ -188,6 +186,8 @@ int main(int argc, char **argv)
 
   printf("TYPE <CTRL-C> TO TERMINATE\n");
   itti_wait_tasks_end(NULL);
+
+  time_manager_finish();
 
   logClean();
   printf("Bye.\n");

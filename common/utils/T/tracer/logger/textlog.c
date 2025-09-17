@@ -11,7 +11,7 @@
 
 enum format_item_type {
   INSTRING,
-  INT, ULONG, STRING, BUFFER };
+  INT, ULONG, FLOAT, STRING, BUFFER };
 
 struct format_item {
   enum format_item_type type;
@@ -67,6 +67,7 @@ static void _event(void *p, event e)
   case INSTRING: PUTS(&l->o, l->f[i].s); break;
   case INT:      PUTI(&l->o, e.e[l->f[i].event_arg].i); break;
   case ULONG:    PUTUL(&l->o, e.e[l->f[i].event_arg].ul); break;
+  case FLOAT:    PUTF(&l->o, e.e[l->f[i].event_arg].f); break;
   case STRING:   PUTS_CLEAN(&l->o, e.e[l->f[i].event_arg].s); break;
   case BUFFER:
     PUTS(&l->o, "{buffer size:");
@@ -106,6 +107,7 @@ static int find_argument(char *name, database_event_format f,
   *event_arg = i;
   if (!strcmp(f.type[i], "int"))         *it = INT;
   else if (!strcmp(f.type[i], "ulong"))  *it = ULONG;
+  else if (!strcmp(f.type[i], "float"))  *it = FLOAT;
   else if (!strcmp(f.type[i], "string")) *it = STRING;
   else if (!strcmp(f.type[i], "buffer")) *it = BUFFER;
   else return 0;

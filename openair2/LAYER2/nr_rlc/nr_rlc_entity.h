@@ -116,6 +116,7 @@ typedef struct nr_rlc_entity_t {
   void (*delete_entity)(struct nr_rlc_entity_t *entity);
 
   int (*available_tx_space)(struct nr_rlc_entity_t *entity);
+  int (*tx_list_occupancy)(struct nr_rlc_entity_t *entity);
 
   void (*get_stats)(struct nr_rlc_entity_t *entity, nr_rlc_statistics_t *out);
 

@@ -55,7 +55,6 @@ To get help on supported parameters you can use specific options:
     --ulsch-max-errors: set the eNodeB max ULSCH erros
     --phy-test: test UE phy layer, mac disabled
     --usim-test: use XOR autentication algo in case of test usim mode
-    --emulate-rf: Emulated RF enabled(disable by defult)
     --clock: tells hardware to use a clock reference (0:internal, 1:external, 2:gpsdo)
     --wait-for-sync: Help string not specified
     -C: Set the downlink frequency for all component carriers

@@ -33,33 +33,48 @@
 
 c32_t dot_product(const c16_t *x, const c16_t *y, const uint32_t N, const int output_shift)
 {
-  const int16_t reflip[32] __attribute__((aligned(32))) = {1, -1, 1, -1, 1, -1, 1, -1, 1, -1, 1, -1, 1, -1, 1, -1};
-  const int8_t imshuffle[64] __attribute__((aligned(32))) = {2, 3, 0, 1, 6, 7, 4, 5, 10, 11, 8, 9, 14, 15, 12, 13, 18, 19, 16, 17, 22, 23, 20, 21, 26, 27, 24, 25, 30, 31, 28, 29};
-  const c16_t *end = x + N;
-  simde__m256i cumul_re = {0}, cumul_im = {0};
-  while (x < end) {
-    const simde__m256i in1 = simde_mm256_loadu_si256((simde__m256i *)x);
-    const simde__m256i in2 = simde_mm256_loadu_si256((simde__m256i *)y);
-    const simde__m256i tmpRe = simde_mm256_madd_epi16(in1, in2);
-    cumul_re = simde_mm256_add_epi32(cumul_re, simde_mm256_srai_epi32(tmpRe, output_shift));
-    const simde__m256i tmp1 = simde_mm256_shuffle_epi8(in2, *(simde__m256i *)imshuffle);
-    const simde__m256i tmp2 = simde_mm256_sign_epi16(tmp1, *(simde__m256i *)reflip);
-    const simde__m256i tmpIm = simde_mm256_madd_epi16(in1, tmp2);
-    cumul_im = simde_mm256_add_epi32(cumul_im, simde_mm256_srai_epi32(tmpIm, output_shift));
-    x += 8;
-    y += 8;
-  }
-
-  // this gives Re Re Im Im Re Re Im Im
-  const simde__m256i cumulTmp = simde_mm256_hadd_epi32(cumul_re, cumul_im);
-  const simde__m256i cumul = simde_mm256_hadd_epi32(cumulTmp, cumulTmp);
 
   c32_t ret;
-  ret.r = simde_mm256_extract_epi32(cumul, 0) + simde_mm256_extract_epi32(cumul, 4);
-  ret.i = simde_mm256_extract_epi32(cumul, 1) + simde_mm256_extract_epi32(cumul, 5);
+
+  const c16_t *end = x + N;
+
+#if defined(__x86_64__) || defined(__i386__)
+  if (__builtin_cpu_supports("avx2")) {
+    
+    simde__m256i cumul_re = simde_mm256_setzero_si256();
+    simde__m256i cumul_im = simde_mm256_setzero_si256();
+
+    simde__m256i *x256 = (simde__m256i *)x;
+    simde__m256i *y256 = (simde__m256i *)y;
+
+    for (int i = 0; i < N >> 3; i++ ) {
+      const simde__m256i in1 = simde_mm256_loadu_si256(&x256[i]);
+      const simde__m256i in2 = simde_mm256_loadu_si256(&y256[i]);
+
+      const simde__m256i tmpRe = oai_mm256_smadd(in1, in2, output_shift);
+      const simde__m256i tmpIm = oai_mm256_smadd(oai_mm256_swap(oai_mm256_conj(in1)), in2, output_shift);
+      //const simde__m256i tmpIm = oai_mm256_smadd(in1, oai_mm256_conj(oai_mm256_swap(in2)), output_shift); // alternative way
+
+      cumul_re = simde_mm256_add_epi32(cumul_re, tmpRe);
+      cumul_im = simde_mm256_add_epi32(cumul_im, tmpIm);
+    }
+
+    // this gives Re Re Im Im Re Re Im Im
+    const simde__m256i cumulTmp = simde_mm256_hadd_epi32(cumul_re, cumul_im);
+    const simde__m256i cumul    = simde_mm256_hadd_epi32(cumulTmp, cumulTmp);
+
+    ret.r = simde_mm256_extract_epi32(cumul, 0) + simde_mm256_extract_epi32(cumul, 4);
+    ret.i = simde_mm256_extract_epi32(cumul, 1) + simde_mm256_extract_epi32(cumul, 5);
+    
+    // update pointers
+    x += (N & ~7);
+    y += (N & ~7);
+    
+  }
+#endif
+  
+  // tail processing
   if (x!=end) {
-    x-=8;
-    y-=8;
     for ( ; x <end; x++,y++ ) {
       ret.r += ((x->r*y->r)>>output_shift) + ((x->i*y->i)>>output_shift);
       ret.i += ((x->r*y->i)>>output_shift) - ((x->i*y->r)>>output_shift);

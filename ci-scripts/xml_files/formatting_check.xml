@@ -32,6 +32,7 @@
 	<testCase id="000002">
 		<class>LicenceAndFormattingCheck</class>
 		<desc>License and Formatting Checks</desc>
+		<node>obelix</node>
 	</testCase>
 
 </testCaseList>

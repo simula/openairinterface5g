@@ -20,14 +20,16 @@
 # */
 #---------------------------------------------------------------------
 #
+### Resource consumption 5Gi, 9CPU
 kind: BuildConfig
 apiVersion: build.openshift.io/v1
 metadata:
   name: "ran-build-fhi72"
+  namespace: "oaicicd-ran"
 spec:
     runPolicy: "Serial"
     nodeSelector:
-        kubernetes.io/hostname: demophon
+        node-role.kubernetes.io/fhi72: ""
     source:
         type: "Binary"
     strategy:

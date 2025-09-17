@@ -69,8 +69,7 @@ void rx_prach0(PHY_VARS_eNB *eNB,
   uint32_t preamble_shift2;
   uint16_t preamble_index0=0,n_shift_ra=0,n_shift_ra_bar;
   uint16_t d_start=0;
-  uint16_t numshift=0;
-  uint16_t *prach_root_sequence_map;
+  uint16_t numshift = 0;
   uint8_t not_found;
   int k=0;
   uint16_t u;
@@ -132,7 +131,7 @@ void rx_prach0(PHY_VARS_eNB *eNB,
       prach_ifftp         = eNB->prach_vars_br.prach_ifft[ce_level];
       rxsigF              = eNB->prach_vars_br.rxsigF[ce_level];
 
-      if (LOG_DEBUGFLAG(PRACH)) {
+      if (LOG_DEBUGFLAG(DEBUG_PRACH)) {
         if (((frame_prach)&1023) < 20) LOG_D(PHY,
               "PRACH (eNB) : running rx_prach (br_flag %d, ce_level %d) for frame %d subframe %d, prach_FreqOffset %d, prach_ConfigIndex %d, rootSequenceIndex %d, repetition number %d,numRepetitionsPrePreambleAttempt %d\n",
               br_flag,ce_level,frame_prach,subframe,
@@ -145,23 +144,26 @@ void rx_prach0(PHY_VARS_eNB *eNB,
       prach_ifftp       = eNB->prach_vars.prach_ifft[0];
       rxsigF            = eNB->prach_vars.rxsigF[0];
 
-      //if (LOG_DEBUGFLAG(PRACH)) {
-        if (((frame_prach)&1023) < 20) LOG_D(PHY,"PRACH (eNB) : running rx_prach for subframe %d, prach_FreqOffset %d, prach_ConfigIndex %d , rootSequenceIndex %d\n", subframe,
-              fp->prach_config_common.prach_ConfigInfo.prach_FreqOffset,prach_ConfigIndex,rootSequenceIndex);
-      //}
+      if (((frame_prach) & 1023) < 20)
+        LOG_D(PHY,
+              "PRACH (eNB) : running rx_prach for subframe %d, prach_FreqOffset %d, prach_ConfigIndex %d , rootSequenceIndex %d\n",
+              subframe,
+              fp->prach_config_common.prach_ConfigInfo.prach_FreqOffset,
+              prach_ConfigIndex,
+              rootSequenceIndex);
     }
   } else {
     if (br_flag == 1) {
       rxsigF            = ru->prach_rxsigF_br[ce_level];
 
-      if (LOG_DEBUGFLAG(PRACH)) {
+      if (LOG_DEBUGFLAG(DEBUG_PRACH)) {
         if (((frame_prach)&1023) < 20) LOG_D(PHY,"PRACH (RU) : running rx_prach (br_flag %d, ce_level %d) for frame %d subframe %d, prach_FreqOffset %d, prach_ConfigIndex %d\n",
               br_flag,ce_level,frame_prach,subframe,fp->prach_emtc_config_common.prach_ConfigInfo.prach_FreqOffset[ce_level],prach_ConfigIndex);
       }
     } else {
       rxsigF            = ru->prach_rxsigF[0];
 
-      if (LOG_DEBUGFLAG(PRACH)) {
+      if (LOG_DEBUGFLAG(DEBUG_PRACH)) {
         if (((frame_prach)&1023) < 20) LOG_D(PHY,"PRACH (RU) : running rx_prach for subframe %d, prach_FreqOffset %d, prach_ConfigIndex %d\n",
               subframe,fp->prach_config_common.prach_ConfigInfo.prach_FreqOffset,prach_ConfigIndex);
       }
@@ -178,7 +180,7 @@ void rx_prach0(PHY_VARS_eNB *eNB,
       // DJP - indexing below in subframe zero takes us off the beginning of the array???
       prach[aa] = (int16_t *)&ru->common.rxdata[aa][(subframe*fp->samples_per_tti)-ru->N_TA_offset];
 
-      if (LOG_DUMPFLAG(PRACH)) {
+      if (LOG_DUMPFLAG(DEBUG_PRACH)) {
         int32_t en0=signal_energy((int32_t *)prach[aa],fp->samples_per_tti);
         dBEn0 = dB_fixed(en0);
         int8_t rach_dBm = dBEn0 - ru->rx_total_gain_dB;
@@ -218,7 +220,7 @@ void rx_prach0(PHY_VARS_eNB *eNB,
 
   if (eNB) start_meas(&eNB->rx_prach);
 
-  prach_root_sequence_map = (prach_fmt < 4) ? prach_root_sequence_map0_3 : prach_root_sequence_map4;
+  const uint16_t *prach_root_sequence_map = (prach_fmt < 4) ? prach_root_sequence_map0_3 : prach_root_sequence_map4;
   // PDP is oversampled, e.g. 1024 sample instead of 839
   // Adapt the NCS (zero-correlation zones) with oversampling factor e.g. 1024/839
   NCS2 = (N_ZC==839) ? ((NCS<<10)/839) : ((NCS<<8)/139);
@@ -281,7 +283,7 @@ void rx_prach0(PHY_VARS_eNB *eNB,
   if (((eNB!=NULL) && (ru->function != NGFI_RAU_IF4p5))||
       ((eNB==NULL) && (ru->function == NGFI_RRU_IF4p5))) { // compute the DFTs of the PRACH temporal resources
     // Do forward transform
-    if (LOG_DEBUGFLAG(PRACH)) {
+    if (LOG_DEBUGFLAG(DEBUG_PRACH)) {
       LOG_D(PHY,"rx_prach: Doing FFT for N_RB_UL %d nb_rx:%d Ncp:%d\n",fp->N_RB_UL, nb_rx, Ncp);
     }
 
@@ -292,103 +294,37 @@ void rx_prach0(PHY_VARS_eNB *eNB,
       // do DFT
       switch (fp->N_RB_UL) {
         case 6:
-          if (prach_fmt == 4) {
-            dft(DFT_256,prach2,rxsigF[aa],1);
-            fft_size=256;
-          } else {
-            dft(DFT_1536,prach2,rxsigF[aa],1);
-
-            if (prach_fmt>1)
-              dft(DFT_1536,prach2+3072,rxsigF[aa]+3072,1);
-            fft_size=1536;
-          }
-
+          fft_size = prach_fmt == 4 ? 256 : 1536;
           break;
 
         case 15:
-          if (prach_fmt == 4) {
-            dft(DFT_256,prach2,rxsigF[aa],1);
-            fft_size=256;
-          } else {
-            dft(DFT_3072,prach2,rxsigF[aa],1);
-
-            if (prach_fmt>1)
-              dft(DFT_3072,prach2+6144,rxsigF[aa]+6144,1);
-          }
-          fft_size=3072;
+          fft_size = prach_fmt == 4 ? 256 : 3072;
           break;
 
         case 25:
         default:
-          if (prach_fmt == 4) {
-            dft(DFT_1024,prach2,rxsigF[aa],1);
-            fft_size = 1024;
-          } else {
-            dft(DFT_6144,prach2,rxsigF[aa],1);
-
-            if (prach_fmt>1)
-              dft(DFT_6144,prach2+12288,rxsigF[aa]+12288,1);
-
-            fft_size = 6144;
-          }
-
+          fft_size = prach_fmt == 4 ? 1024 : 6144;
           break;
 
         case 50:
-          if (prach_fmt == 4) {
-            dft(DFT_2048,prach2,rxsigF[aa],1);
-            fft_size=2048;
-          } else {
-            dft(DFT_12288,prach2,rxsigF[aa],1);
-
-            if (prach_fmt>1)
-              dft(DFT_12288,prach2+24576,rxsigF[aa]+24576,1);
-            fft_size=12288;
-          }
-
+          fft_size = prach_fmt == 4 ? 2048 : 12288;
           break;
 
         case 75:
-          if (prach_fmt == 4) {
-            dft(DFT_3072,prach2,rxsigF[aa],1);
-            fft_size=3072;
-          } else {
-            dft(DFT_18432,prach2,rxsigF[aa],1);
-
-            if (prach_fmt>1)
-              dft(DFT_18432,prach2+36864,rxsigF[aa]+36864,1);
-            fft_size=18432;
-          }
-
+          fft_size = prach_fmt == 4 ? 3072 : 18432;
           break;
 
         case 100:
-          if (fp->threequarter_fs==0) {
-            if (prach_fmt == 4) {
-              dft(DFT_4096,prach2,rxsigF[aa],1);
-              fft_size=2048;
-            } else {
-              dft(DFT_24576,prach2,rxsigF[aa],1);
-
-              if (prach_fmt>1)
-                dft(DFT_24576,prach2+49152,rxsigF[aa]+49152,1);
-              fft_size=24576;
-            }
-          } else {
-            if (prach_fmt == 4) {
-              dft(DFT_3072,prach2,rxsigF[aa],1);
-              fft_size=3072;
-            } else {
-              dft(DFT_18432,prach2,rxsigF[aa],1);
-
-              if (prach_fmt>1)
-                dft(DFT_18432,prach2+36864,rxsigF[aa]+36864,1);
-              fft_size=18432;
-            }
-          }
-
+          if (fp->threequarter_fs == 0)
+            fft_size = prach_fmt == 4 ? 4096 : 24576;
+          else
+            fft_size = prach_fmt == 4 ? 3072 : 18432;
           break;
       }
+
+      dft(get_dft(fft_size), prach2, rxsigF[aa], 1);
+      if (prach_fmt > 1 && prach_fmt != 4)
+          dft(get_dft(fft_size), prach2 + 2 * fft_size, rxsigF[aa] + 2 * fft_size, 1);
 
       k = (12*n_ra_prb) - 6*fp->N_RB_UL;
 
@@ -410,20 +346,31 @@ void rx_prach0(PHY_VARS_eNB *eNB,
     }
   }
 
-  if ((eNB==NULL)  && ru->function == NGFI_RRU_IF4p5) {
-    /// **** send_IF4 of rxsigF to RAU **** ///
-    if (br_flag == 1)
-      send_IF4p5(ru, frame_prach, subframe, IF4p5_PRACH+1+ce_level);
-    else
-      send_IF4p5(ru, frame_prach, subframe, IF4p5_PRACH);
-
-    return;
-  } else if (eNB!=NULL) {
-    if ( LOG_DEBUGFLAG(PRACH)) {
-      int en = dB_fixed(signal_energy((int32_t *)&rxsigF[0][0],840));
-
-      if ((en > 10)&&(br_flag==1)) LOG_I(PHY,"PRACH (br_flag %d,ce_level %d, n_ra_prb %d, k %d): Frame %d, Subframe %d => %d dB\n",br_flag,ce_level,n_ra_prb,k,frame_prach,subframe,en);
+  if (!eNB) {
+    if (ru->function == NGFI_RRU_IF4p5) {
+      /// **** send_IF4 of rxsigF to RAU **** ///
+      if (br_flag == 1)
+        send_IF4p5(ru, frame_prach, subframe, IF4p5_PRACH + 1 + ce_level);
+      else
+        send_IF4p5(ru, frame_prach, subframe, IF4p5_PRACH);
+    } else {
+      LOG_E(PHY, "inconsistent case\n");
     }
+    return;
+  }
+
+  if (LOG_DEBUGFLAG(DEBUG_PRACH)) {
+    int en = dB_fixed(signal_energy((int32_t *)&rxsigF[0][0], 840));
+    if ((en > 10) && (br_flag == 1))
+      LOG_I(PHY,
+            "PRACH (br_flag %d,ce_level %d, n_ra_prb %d, k %d): Frame %d, Subframe %d => %d dB\n",
+            br_flag,
+            ce_level,
+            n_ra_prb,
+            k,
+            frame_prach,
+            subframe,
+            en);
   }
 
   // in case of RAU and prach received rx_thread wakes up prach
@@ -460,8 +407,8 @@ void rx_prach0(PHY_VARS_eNB *eNB,
   uint64_t avg_en=0;
 
   for (preamble_index=0 ; preamble_index<64 ; preamble_index++) {
-    if (LOG_DEBUGFLAG(PRACH)) {
-    //  int en = dB_fixed(signal_energy((int32_t *)&rxsigF[0][0],840));
+    if (LOG_DEBUGFLAG(DEBUG_PRACH)) {
+      //  int en = dB_fixed(signal_energy((int32_t *)&rxsigF[0][0],840));
 
       if (dBEn0>30) LOG_I(PHY,"frame %d, subframe %d : Trying preamble %d (br_flag %d)\n",frame_prach,subframe,preamble_index,br_flag);
     }
@@ -545,7 +492,7 @@ void rx_prach0(PHY_VARS_eNB *eNB,
     }
 
     // Compute DFT of RX signal (conjugate input, results in conjugate output) for each new rootSequenceIndex
-    if (LOG_DEBUGFLAG(PRACH)) {
+    if (LOG_DEBUGFLAG(DEBUG_PRACH)) {
       //en = dB_fixed(signal_energy((int32_t *)&rxsigF[0][0],840));
 
       if (dBEn0>30) LOG_I(PHY,"frame %d, subframe %d : preamble index %d: offset %d, preamble shift %d (br_flag %d, en %d)\n",
@@ -558,7 +505,7 @@ void rx_prach0(PHY_VARS_eNB *eNB,
       new_dft = 0;
       
       if (br_flag == 1) {
-        Xu=(c16_t *)eNB->X_u_br[ce_level][preamble_offset-first_nonzero_root_idx];
+        Xu = eNB->X_u_br[ce_level][preamble_offset - first_nonzero_root_idx];
         prach_ifft = prach_ifftp[prach_ifft_cnt++];
         
         if (eNB->prach_vars_br.repetition_number[ce_level]==1) memset(prach_ifft,0,((N_ZC==839)?2048:256)*sizeof(int32_t));
@@ -568,8 +515,8 @@ void rx_prach0(PHY_VARS_eNB *eNB,
         memset(prach_ifft,0,((N_ZC==839) ? 2048 : 256)*sizeof(int32_t));
       }
       c16_t prachF[1024] __attribute__((aligned(32)))={0};
-      
-      if (LOG_DUMPFLAG(PRACH)) 
+
+      if (LOG_DUMPFLAG(DEBUG_PRACH))
         for (int z=0; z<nb_rx; z++) 
           if( prach[z] ) {
             char tmp[128];
@@ -609,7 +556,7 @@ void rx_prach0(PHY_VARS_eNB *eNB,
             prach_ifft[i] += (prach_ifft_tmp[i<<1]*prach_ifft_tmp[(i<<1)] + prach_ifft_tmp[1+(i<<1)]*prach_ifft_tmp[1+(i<<1)])>>9;
         }
 
-        if (LOG_DUMPFLAG(PRACH)) {
+        if (LOG_DUMPFLAG(DEBUG_PRACH)) {
           if (aa==0) LOG_M("prach_rxF_comp0.m","prach_rxF_comp0",prachF,1024,1,1);
 
           if (aa==1) LOG_M("prach_rxF_comp1.m","prach_rxF_comp1",prachF,1024,1,1);
@@ -621,7 +568,7 @@ void rx_prach0(PHY_VARS_eNB *eNB,
     if ((br_flag==0) ||
         (eNB->prach_vars_br.repetition_number[ce_level]==
          eNB->frame_parms.prach_emtc_config_common.prach_ConfigInfo.prach_numRepetitionPerPreambleAttempt[ce_level])) {
-      if (LOG_DEBUGFLAG(PRACH)) {
+      if (LOG_DEBUGFLAG(DEBUG_PRACH)) {
         int en = dB_fixed(signal_energy((int32_t *)&rxsigF[0][0],840));
 
         if (en>60) LOG_I(PHY,"frame %d, subframe %d: Checking for peak in time-domain (br_flag %d, en %d)\n",frame_prach,subframe,br_flag,en);
@@ -639,8 +586,8 @@ void rx_prach0(PHY_VARS_eNB *eNB,
           *max_preamble_delay   = ((i*fft_size)>>log2_ifft_size)*update_TA/update_TA2;
           *max_preamble         = preamble_index;
 
-          if (LOG_DEBUGFLAG(PRACH)) {
-        //    int en = dB_fixed(signal_energy((int32_t *)&rxsigF[0][0],840));
+          if (LOG_DEBUGFLAG(DEBUG_PRACH)) {
+            //    int en = dB_fixed(signal_energy((int32_t *)&rxsigF[0][0],840));
 
             if (dBEn0>30)
               LOG_D(PHY,"frame %d, subframe %d : max_preamble_energy %d, max_preamble_delay %d, max_preamble %d (br_flag %d,ce_level %d, levdB %d, lev %d)\n",
@@ -679,7 +626,7 @@ void rx_prach0(PHY_VARS_eNB *eNB,
         LOG_M("prach_ifft0_br.m","prach_t0_br",prach_ifft,1024,1,1);
       }
     }
-  } /* LOG_DUMPFLAG(PRACH) */
+  }
 
   if (eNB) stop_meas(&eNB->rx_prach);
   AssertFatal(exit_flag==0,"exiting\n");

@@ -53,7 +53,7 @@
 #define PARAMFLAG_PARAMSETDEF             (1 << 17)        // parameter has been set to default value in get functions
 
 /* checkedparam_t is possibly used in paramdef_t for specific parameter value validation */
-#define CONFIG_MAX_NUMCHECKVAL            20
+#define CONFIG_MAX_NUMCHECKVAL            64
 typedef struct paramdef paramdef_t;
 typedef struct configmodule_interface configmodule_interface_t;
 typedef union checkedparam {
@@ -166,5 +166,20 @@ typedef struct paramlist_def {
   paramdef_t **paramarray;
   int numelt ;
 } paramlist_def_t;
+
+/* Macros to get parameters with the config module API */
+#define GET_PARAMS(param_def, param_desc, prefix)                         \
+  paramdef_t param_def[] = param_desc;                                    \
+  config_get(config_get_if(), param_def, sizeofArray(param_def), prefix);
+
+/* Macros to get params lists with the config module API */
+#define GET_PARAMS_LIST(param_list, param_def, param_desc, list_name, prefix, ...)                                    \
+  paramdef_t param_def[] = param_desc;                                                                                \
+  paramlist_def_t param_list = {list_name, NULL, 0};                                                                  \
+  __VA_OPT__(checkedparam_t config_check_##param_def[] = __VA_ARGS__;                                                 \
+             static_assert(sizeofArray(config_check_##param_def) == sizeofArray(param_def),                           \
+                           "param_def_t array and corresponding checkedparam_t array should have the same size");     \
+  for (int i = 0; i < sizeofArray(param_def); ++i) param_def[i].chkPptr = &(config_check_##param_def[i]);)            \
+    config_getlist(config_get_if(), &param_list, param_def, sizeofArray(param_def), prefix);
 
 #endif  /* INCLUDE_CONFIG_PARAMDESC_H */

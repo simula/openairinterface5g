@@ -49,8 +49,7 @@
 
 static int                  indent = 0;
 
-
-x2ap_eNB_internal_data_t x2ap_eNB_internal_data;
+static x2ap_eNB_internal_data_t x2ap_eNB_internal_data;
 
 RB_GENERATE(x2ap_enb_map, x2ap_eNB_data_s, entry, x2ap_eNB_compare_assoc_id);
 

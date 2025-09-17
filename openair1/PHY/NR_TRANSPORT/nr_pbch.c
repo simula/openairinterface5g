@@ -36,12 +36,12 @@
 #include "PHY/sse_intrin.h"
 #include "executables/softmodem-common.h"
 #include "openair1/PHY/NR_REFSIG/nr_refsig_common.h"
+#include "openair1/PHY/NR_REFSIG/nr_mod_table.h"
+#include "openair1/PHY/TOOLS/tools_defs.h"
 
 //#define DEBUG_PBCH
 //#define DEBUG_PBCH_ENCODING
 //#define DEBUG_PBCH_DMRS
-
-extern short nr_qpsk_mod_table[8];
 
 const uint8_t nr_pbch_payload_interleaving_pattern[32] = {16, 23, 18, 17, 8, 30, 10, 6, 24, 7, 0, 5, 3, 2, 1, 4,
                                                     9, 11, 12, 13, 14, 15, 19, 20, 21, 22, 25, 26, 27, 28, 29, 31
@@ -56,7 +56,7 @@ void nr_generate_pbch_dmrs(uint32_t *gold_pbch_dmrs,
 {
   int k,l;
   //int16_t a;
-  int16_t mod_dmrs[NR_PBCH_DMRS_LENGTH<<1];
+  c16_t mod_dmrs[NR_PBCH_DMRS_LENGTH];
   uint8_t idx=0;
   uint8_t nushift = config->cell_config.phy_cell_id.value &3;
   LOG_D(PHY, "PBCH DMRS mapping started at symbol %d shift %d\n", ssb_start_symbol+1, nushift);
@@ -64,12 +64,7 @@ void nr_generate_pbch_dmrs(uint32_t *gold_pbch_dmrs,
   /// QPSK modulation
   for (int m=0; m<NR_PBCH_DMRS_LENGTH; m++) {
     idx = (((gold_pbch_dmrs[(m<<1)>>5])>>((m<<1)&0x1f))&3);
-    mod_dmrs[m<<1] = nr_qpsk_mod_table[idx<<1];
-    mod_dmrs[(m<<1)+1] = nr_qpsk_mod_table[(idx<<1) + 1];
-#ifdef DEBUG_PBCH_DMRS
-    printf("m %d idx %d gold seq %u b0-b1 %d-%d mod_dmrs %d %d\n", m, idx, gold_pbch_dmrs[(m<<1)>>5], (((gold_pbch_dmrs[(m<<1)>>5])>>((m<<1)&0x1f))&1),
-           (((gold_pbch_dmrs[((m<<1)+1)>>5])>>(((m<<1)+1)&0x1f))&1), mod_dmrs[(m<<1)], mod_dmrs[(m<<1)+1]);
-#endif
+    mod_dmrs[m] = nr_qpsk_mod_table[idx];
   }
 
   /// Resource mapping
@@ -82,13 +77,7 @@ void nr_generate_pbch_dmrs(uint32_t *gold_pbch_dmrs,
 #ifdef DEBUG_PBCH_DMRS
     printf("m %d at k %d of l %d\n", m, k, l);
 #endif
-    ((int16_t *)txdataF)[(l*frame_parms->ofdm_symbol_size + k)<<1]       = (amp * mod_dmrs[m<<1]) >> 15;
-    ((int16_t *)txdataF)[((l*frame_parms->ofdm_symbol_size + k)<<1) + 1] = (amp * mod_dmrs[(m<<1) + 1]) >> 15;
-#ifdef DEBUG_PBCH_DMRS
-    printf("(%d,%d)\n",
-           ((int16_t *)txdataF)[(l*frame_parms->ofdm_symbol_size + k)<<1],
-           ((int16_t *)txdataF)[((l*frame_parms->ofdm_symbol_size + k)<<1)+1]);
-#endif
+    txdataF[l * frame_parms->ofdm_symbol_size + k] = c16mulRealShift(mod_dmrs[m], amp, 15);
     k+=4;
 
     if (k >= frame_parms->ofdm_symbol_size)
@@ -103,8 +92,7 @@ void nr_generate_pbch_dmrs(uint32_t *gold_pbch_dmrs,
 #ifdef DEBUG_PBCH_DMRS
     printf("m %d at k %d of l %d\n", m, k, l);
 #endif
-    ((int16_t *)txdataF)[(l*frame_parms->ofdm_symbol_size + k)<<1]       = (amp * mod_dmrs[m<<1]) >> 15;
-    ((int16_t *)txdataF)[((l*frame_parms->ofdm_symbol_size + k)<<1) + 1] = (amp * mod_dmrs[(m<<1) + 1]) >> 15;
+    txdataF[l * frame_parms->ofdm_symbol_size + k] = c16mulRealShift(mod_dmrs[m], amp, 15);
 #ifdef DEBUG_PBCH_DMRS
     printf("(%d,%d)\n",
            ((int16_t *)txdataF)[(l*frame_parms->ofdm_symbol_size + k)<<1],
@@ -124,13 +112,7 @@ void nr_generate_pbch_dmrs(uint32_t *gold_pbch_dmrs,
 #ifdef DEBUG_PBCH_DMRS
     printf("m %d at k %d of l %d\n", m, k, l);
 #endif
-    ((int16_t *)txdataF)[(l*frame_parms->ofdm_symbol_size + k)<<1]       = (amp * mod_dmrs[m<<1]) >> 15;
-    ((int16_t *)txdataF)[((l*frame_parms->ofdm_symbol_size + k)<<1) + 1] = (amp * mod_dmrs[(m<<1) + 1]) >> 15;
-#ifdef DEBUG_PBCH_DMRS
-    printf("(%d,%d)\n",
-           ((int16_t *)txdataF)[(l*frame_parms->ofdm_symbol_size + k)<<1],
-           ((int16_t *)txdataF)[((l*frame_parms->ofdm_symbol_size + k)<<1)+1]);
-#endif
+    txdataF[l * frame_parms->ofdm_symbol_size + k] = c16mulRealShift(mod_dmrs[m], amp, 15);
     k+=4;
 
     if (k >= frame_parms->ofdm_symbol_size)
@@ -173,9 +155,6 @@ static void nr_pbch_encoded_scrambling(uint32_t *pbch_e,
 #ifdef DEBUG_PBCH_ENCODING
   printf("Scrambling params: nushift %d M %d length %d offset %d\n", nushift, M, length, info.offset);
 #endif
-#ifdef DEBUG_PBCH_ENCODING
-  printf("s: %04x\t", s);
-#endif
 
   for (int i = 0; i < length; ++i) {
     if (((i + info.offset) & 0x1f) == 0)
@@ -197,9 +176,6 @@ static uint32_t nr_pbch_scrambling(uint32_t pbch_a_interleaved,
   uint32_t *s = gold_cache(Nid, info.len);
 #ifdef DEBUG_PBCH_ENCODING
   printf("Scrambling params: nushift %d M %d length %d offset %d\n", nushift, M, length, info.offset);
-#endif
-#ifdef DEBUG_PBCH_ENCODING
-  printf("s: %04x\t", s);
 #endif
   int goldIdx = info.goldIdx;
   for (int i = 0; i < length; ++i) {
@@ -271,7 +247,7 @@ void nr_generate_pbch(PHY_VARS_gNB *gNB,
     pbch_a |= ((pbch_pdu[i >> 3] >> (7 - (i & 7))) & 1) << i;
 
   // NSA to signal no coreset0
-  const int ssb_sc_offset = get_softmodem_params()->sa ? config->ssb_table.ssb_subcarrier_offset.value : 31;
+  const int ssb_sc_offset = IS_SA_MODE(get_softmodem_params()) ? config->ssb_table.ssb_subcarrier_offset.value : 31;
 
   #ifdef DEBUG_PBCH_ENCODING
   for (int i = 0; i < 3; i++)
@@ -288,9 +264,6 @@ void nr_generate_pbch(PHY_VARS_gNB *gNB,
   uint8_t *interleaver = gNB->nr_pbch_interleaver;
   for (int i = 0; i < NR_POLAR_PBCH_PAYLOAD_BITS; i++) {
     pbch_a_interleaved |= ((pbch_a >> i) & 1) << (*(interleaver + i));
-#ifdef DEBUG_PBCH_ENCODING
-    printf("i %d out 0x%08x ilv %d (in>>i)&1) %d\n", i, pbch_a_interleaved, *(interleaver+i), (pbch_a >> i) & 1);
-#endif
   }
 
 #ifdef DEBUG_PBCH_ENCODING
@@ -346,14 +319,13 @@ void nr_generate_pbch(PHY_VARS_gNB *gNB,
   printf("\n");
 #endif
 
-  int16_t mod_pbch_e[NR_POLAR_PBCH_E];
+  c16_t mod_pbch_e[NR_POLAR_PBCH_E / 2];
   /// QPSK modulation
   for (int i=0; i<NR_POLAR_PBCH_E>>1; i++) {
     int idx = ((pbch_e[(i << 1) >> 5] >> ((i << 1) & 0x1f)) & 3);
-    mod_pbch_e[i<<1] = nr_qpsk_mod_table[idx << 1];
-    mod_pbch_e[(i<<1)+1] = nr_qpsk_mod_table[(idx << 1) + 1];
+    mod_pbch_e[i] = nr_qpsk_mod_table[idx];
 #ifdef DEBUG_PBCH
-    printf("i %d idx %d  mod_pbch %d %d\n", i, idx, mod_pbch_e[2 * i], mod_pbch_e[2 * i + 1]);
+    printf("i %d idx %d  mod_pbch %d %d\n", i, idx, mod_pbch_e[i].r, mod_pbch_e[i].i);
 #endif
   }
 
@@ -374,8 +346,7 @@ void nr_generate_pbch(PHY_VARS_gNB *gNB,
 #ifdef DEBUG_PBCH
       printf("m %d ssb_sc_idx %d at k %d of l %d\n", m, ssb_sc_idx, k, l);
 #endif
-      ((int16_t *)txdataF)[(l*frame_parms->ofdm_symbol_size + k)<<1]       = (amp * mod_pbch_e[m<<1]) >> 15;
-      ((int16_t *)txdataF)[((l*frame_parms->ofdm_symbol_size + k)<<1) + 1] = (amp * mod_pbch_e[(m<<1) + 1]) >> 15;
+      txdataF[l * frame_parms->ofdm_symbol_size + k] = c16mulRealShift(mod_pbch_e[m], amp, 15);
       k++;
       m++;
     }
@@ -397,8 +368,7 @@ void nr_generate_pbch(PHY_VARS_gNB *gNB,
 #ifdef DEBUG_PBCH
       printf("m %d ssb_sc_idx %d at k %d of l %d\n", m, ssb_sc_idx, k, l);
 #endif
-      ((int16_t *)txdataF)[(l*frame_parms->ofdm_symbol_size + k)<<1]       = (amp * mod_pbch_e[m<<1]) >> 15;
-      ((int16_t *)txdataF)[((l*frame_parms->ofdm_symbol_size + k)<<1) + 1] = (amp * mod_pbch_e[(m<<1) + 1]) >> 15;
+      txdataF[l * frame_parms->ofdm_symbol_size + k] = c16mulRealShift(mod_pbch_e[m], amp, 15);
       k++;
       m++;
     }
@@ -422,8 +392,7 @@ void nr_generate_pbch(PHY_VARS_gNB *gNB,
 #ifdef DEBUG_PBCH
       printf("m %d ssb_sc_idx %d at k %d of l %d\n", m, ssb_sc_idx, k, l);
 #endif
-      ((int16_t *)txdataF)[(l*frame_parms->ofdm_symbol_size + k)<<1]       = (amp * mod_pbch_e[m<<1]) >> 15;
-      ((int16_t *)txdataF)[((l*frame_parms->ofdm_symbol_size + k)<<1) + 1] = (amp * mod_pbch_e[(m<<1) + 1]) >> 15;
+      txdataF[l * frame_parms->ofdm_symbol_size + k] = c16mulRealShift(mod_pbch_e[m], amp, 15);
       k++;
       m++;
     }
@@ -445,8 +414,7 @@ void nr_generate_pbch(PHY_VARS_gNB *gNB,
 #ifdef DEBUG_PBCH
       printf("m %d ssb_sc_idx %d at k %d of l %d\n", m, ssb_sc_idx, k, l);
 #endif
-      ((int16_t *)txdataF)[(l*frame_parms->ofdm_symbol_size + k)<<1]       = (amp * mod_pbch_e[m<<1]) >> 15;
-      ((int16_t *)txdataF)[((l*frame_parms->ofdm_symbol_size + k)<<1) + 1] = (amp * mod_pbch_e[(m<<1) + 1]) >> 15;
+      txdataF[l * frame_parms->ofdm_symbol_size + k] = c16mulRealShift(mod_pbch_e[m], amp, 15);
       k++;
       m++;
     }

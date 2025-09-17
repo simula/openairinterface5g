@@ -147,13 +147,11 @@ static int _emm_as_cell_info_req(const emm_as_cell_info_t *, cell_info_req_t *);
  * On X86 this is not fatal, as at run time the problem can be fixed (but it's better for perf to avoid). On other 
  * processor as Arm i think it can end in seg fault
  */
-static int _emm_as_security_res(const emm_data_t *emm_data, const emm_as_security_t *,
-                                void *ul_info_transfer_req_unaligned);
-static int _emm_as_establish_req(const emm_data_t *emm_data, const emm_as_establish_t *,
-                                 void *nas_establish_req_unaligned);                             
-static int _emm_as_data_req(const emm_data_t *emm_data, const emm_as_data_t *msg, void *ul_info_transfer_req_unaligned);
-static int _emm_as_status_ind(const emm_data_t *emm_data, const emm_as_status_t *, void *ul_info_transfer_req_unaligned);
-static int _emm_as_release_req(const emm_as_release_t *, void *nas_release_req_unaligned);
+static int _emm_as_security_res(const emm_data_t *emm_data, const emm_as_security_t *, ul_info_transfer_req_t *as_msg);
+static int _emm_as_establish_req(const emm_data_t *emm_data, const emm_as_establish_t *, nas_establish_req_t *);
+static int _emm_as_data_req(const emm_data_t *emm_data, const emm_as_data_t *msg, ul_info_transfer_req_t *as_msg);
+static int _emm_as_status_ind(const emm_data_t *emm_data, const emm_as_status_t *, ul_info_transfer_req_t *as_msg);
+static int _emm_as_release_req(const emm_as_release_t *, nas_release_req_t *as_msg);
 
 /****************************************************************************/
 /******************  E X P O R T E D    F U N C T I O N S  ******************/
@@ -839,22 +837,18 @@ _emm_as_encode(
   }
 
   /* Allocate memory to the NAS information container */
-  info->data = (Byte_t *)malloc(length * sizeof(Byte_t));
+  info->nas_data = malloc(length * sizeof(uint8_t));
 
-  if (info->data != NULL) {
+  if (info->nas_data != NULL) {
     /* Encode the NAS message */
-    bytes = nas_message_encode(
-              (char *)(info->data),
-              msg,
-              length,
-              emm_security_context);
+    bytes = nas_message_encode((char *)(info->nas_data), msg, length, emm_security_context);
 
     if (bytes > 0) {
       info->length = bytes;
     } else {
-      free(info->data);
+      free(info->nas_data);
       info->length = 0;
-      info->data = NULL;
+      info->nas_data = NULL;
     }
   }
 
@@ -895,23 +889,18 @@ _emm_as_encrypt(
   }
 
   /* Allocate memory to the NAS information container */
-  info->data = (Byte_t *)malloc(length * sizeof(Byte_t));
+  info->nas_data = malloc(length * sizeof(uint8_t));
 
-  if (info->data != NULL) {
+  if (info->nas_data != NULL) {
     /* Encrypt the NAS information message */
-    bytes = nas_message_encrypt(
-              msg,
-              (char *)(info->data),
-              header,
-              length,
-              emm_security_context);
+    bytes = nas_message_encrypt(msg, (char *)(info->nas_data), header, length, emm_security_context);
 
     if (bytes > 0) {
       info->length = bytes;
     } else {
-      free(info->data);
+      free(info->nas_data);
       info->length = 0;
-      info->data = NULL;
+      info->nas_data = NULL;
     }
   }
 
@@ -938,41 +927,38 @@ static int _emm_as_send(const nas_user_t *user, const emm_as_t *msg)
 {
   LOG_FUNC_IN;
 
-  as_message_t as_msg;
-  memset(&as_msg, 0 , sizeof(as_message_t));
+  as_message_t as_msg = {0};
 
   switch (msg->primitive) {
-  case _EMMAS_DATA_REQ:
-    as_msg.msgID = _emm_as_data_req(user->emm_data,
-                     &msg->u.data,
-                     (void *)(&as_msg.msg.ul_info_transfer_req));
-    break;
+    case _EMMAS_DATA_REQ: {
+      ul_info_transfer_req_t ul = {0};
+      as_msg.msgID = _emm_as_data_req(user->emm_data, &msg->u.data, &ul);
+      as_msg.msg.ul_info_transfer_req = ul;
+    } break;
 
-  case _EMMAS_STATUS_IND:
-    as_msg.msgID = _emm_as_status_ind(user->emm_data,
-                     &msg->u.status,
-                     (void *)(&as_msg.msg.ul_info_transfer_req));
-    break;
+    case _EMMAS_STATUS_IND: {
+      ul_info_transfer_req_t st = {0};
+      as_msg.msgID = _emm_as_status_ind(user->emm_data, &msg->u.status, &st);
+      as_msg.msg.ul_info_transfer_req = st;
+    } break;
 
-  case _EMMAS_RELEASE_REQ:
-    as_msg.msgID = _emm_as_release_req(
-                     &msg->u.release,
-                     (void *)(&as_msg.msg.nas_release_req));
-    break;
+    case _EMMAS_RELEASE_REQ: {
+      nas_release_req_t rel = {0};
+      as_msg.msgID = _emm_as_release_req(&msg->u.release, &rel);
+      as_msg.msg.nas_release_req = rel;
+    } break;
 
+    case _EMMAS_SECURITY_RES: {
+      ul_info_transfer_req_t ul = {0};
+      as_msg.msgID = _emm_as_security_res(user->emm_data, &msg->u.security, &ul);
+      as_msg.msg.ul_info_transfer_req = ul;
+    } break;
 
-  case _EMMAS_SECURITY_RES:
-    as_msg.msgID = _emm_as_security_res(user->emm_data,
-                     &msg->u.security,
-                     (void *)(&as_msg.msg.ul_info_transfer_req));
-    break;
-
-  case _EMMAS_ESTABLISH_REQ:
-    as_msg.msgID = _emm_as_establish_req(user->emm_data,
-                     &msg->u.establish,
-                     (void *)(&as_msg.msg.nas_establish_req));
-    break;
-
+    case _EMMAS_ESTABLISH_REQ: {
+      nas_establish_req_t nas_establish_req = {0};
+      as_msg.msgID = _emm_as_establish_req(user->emm_data, &msg->u.establish, &nas_establish_req);
+      as_msg.msg.nas_establish_req = nas_establish_req;
+    } break;
 
   case _EMMAS_CELL_INFO_REQ:
     as_msg.msgID = _emm_as_cell_info_req(&msg->u.cell_info,
@@ -1009,24 +995,22 @@ static int _emm_as_send(const nas_user_t *user, const emm_as_t *msg)
     break;
 
     case AS_NAS_ESTABLISH_REQ: {
-      nas_itti_nas_establish_req(
-        as_msg.msg.nas_establish_req.cause,
-        as_msg.msg.nas_establish_req.type,
-        as_msg.msg.nas_establish_req.s_tmsi,
-        as_msg.msg.nas_establish_req.plmnID,
-        as_msg.msg.nas_establish_req.initialNasMsg.data,
-        as_msg.msg.nas_establish_req.initialNasMsg.length,
-        user->ueid);
+      nas_itti_nas_establish_req(as_msg.msg.nas_establish_req.cause,
+                                 as_msg.msg.nas_establish_req.type,
+                                 as_msg.msg.nas_establish_req.s_tmsi,
+                                 as_msg.msg.nas_establish_req.plmnID,
+                                 as_msg.msg.nas_establish_req.initialNasMsg.nas_data,
+                                 as_msg.msg.nas_establish_req.initialNasMsg.length,
+                                 user->ueid);
       LOG_FUNC_RETURN (RETURNok);
     }
     break;
 
     case AS_UL_INFO_TRANSFER_REQ: {
-      nas_itti_ul_data_req(
-        as_msg.msg.ul_info_transfer_req.UEid,
-        as_msg.msg.ul_info_transfer_req.nasMsg.data,
-        as_msg.msg.ul_info_transfer_req.nasMsg.length,
-        user->ueid);
+      nas_itti_ul_data_req(as_msg.msg.ul_info_transfer_req.UEid,
+                           as_msg.msg.ul_info_transfer_req.nasMsg.nas_data,
+                           as_msg.msg.ul_info_transfer_req.nasMsg.length,
+                           user->ueid);
       LOG_FUNC_RETURN (RETURNok);
     }
     break;
@@ -1075,11 +1059,9 @@ static int _emm_as_send(const nas_user_t *user, const emm_as_t *msg)
  **      Others:    None                                       **
  **                                                                        **
  ***************************************************************************/
-static int _emm_as_data_req(const emm_data_t *emm_data, const emm_as_data_t *msg,
-                            void *ul_info_transfer_req_unaligned)
+static int _emm_as_data_req(const emm_data_t *emm_data, const emm_as_data_t *msg, ul_info_transfer_req_t *as_msg)
 {
   LOG_FUNC_IN;
-  ul_info_transfer_req_t *as_msg = (ul_info_transfer_req_t *)ul_info_transfer_req_unaligned;
   int size = 0;
   bool is_encoded = false;
 
@@ -1171,18 +1153,13 @@ static int _emm_as_data_req(const emm_data_t *emm_data, const emm_as_data_t *msg
  **      Others:    None                                       **
  **                                                                        **
  ***************************************************************************/
-static int _emm_as_status_ind(const emm_data_t *emm_data, const emm_as_status_t *msg,
-                              void *ul_info_transfer_req_unaligned)
+static int _emm_as_status_ind(const emm_data_t *emm_data, const emm_as_status_t *msg, ul_info_transfer_req_t *as_msg)
 {
   LOG_FUNC_IN;
 
   int size = 0;
-  ul_info_transfer_req_t *as_msg = (ul_info_transfer_req_t *)ul_info_transfer_req_unaligned;
   LOG_TRACE(INFO, "EMMAS-SAP - Send AS status indication (cause=%d)",
             msg->emm_cause);
-
-  nas_message_t nas_msg;
-  memset(&nas_msg, 0 , sizeof(nas_message_t));
 
   /* Setup the AS message */
   if (msg->guti) {
@@ -1193,6 +1170,7 @@ static int _emm_as_status_ind(const emm_data_t *emm_data, const emm_as_status_t 
   }
 
   /* Setup the NAS security header */
+  nas_message_t nas_msg = {0};
   EMM_msg *emm_msg = _emm_as_set_header(&nas_msg, &msg->sctx);
 
   /* Setup the NAS information message */
@@ -1245,13 +1223,11 @@ static int _emm_as_status_ind(const emm_data_t *emm_data, const emm_as_status_t 
  **      Others:    None                                       **
  **                                                                        **
  ***************************************************************************/
-static int _emm_as_release_req(const emm_as_release_t *msg,
-                               void *nas_release_req_unaligned)
+static int _emm_as_release_req(const emm_as_release_t *msg, nas_release_req_t *as_msg)
 {
   LOG_FUNC_IN;
 
   LOG_TRACE(INFO, "EMMAS-SAP - Send AS release request");
-  nas_release_req_t *as_msg = (nas_release_req_t *)nas_release_req_unaligned;
   /* Setup the AS message */
   if (msg->guti) {
     as_msg->s_tmsi.MMEcode = msg->guti->gummei.MMEcode;
@@ -1285,17 +1261,12 @@ static int _emm_as_release_req(const emm_as_release_t *msg,
  **      Others:    None                                       **
  **                                                                        **
  ***************************************************************************/
-static int _emm_as_security_res(const emm_data_t *emm_data, const emm_as_security_t *msg,
-                                void *ul_info_transfer_req_unaligned)
+static int _emm_as_security_res(const emm_data_t *emm_data, const emm_as_security_t *msg, ul_info_transfer_req_t *as_msg)
 {
   LOG_FUNC_IN;
-  ul_info_transfer_req_t *as_msg=(ul_info_transfer_req_t *)ul_info_transfer_req_unaligned;
   int size = 0;
 
   LOG_TRACE(INFO, "EMMAS-SAP - Send AS security response");
-
-  nas_message_t nas_msg;
-  memset(&nas_msg, 0 , sizeof(nas_message_t));
 
   /* Setup the AS message */
   if (msg->guti) {
@@ -1304,6 +1275,7 @@ static int _emm_as_security_res(const emm_data_t *emm_data, const emm_as_securit
   }
 
   /* Setup the NAS security header */
+  nas_message_t nas_msg = {0};
   EMM_msg *emm_msg = _emm_as_set_header(&nas_msg, &msg->sctx);
 
   /* Setup the NAS security message */
@@ -1379,17 +1351,12 @@ static int _emm_as_security_res(const emm_data_t *emm_data, const emm_as_securit
  **      Others:    None                                       **
  **                                                                        **
  ***************************************************************************/
-static int _emm_as_establish_req(const emm_data_t *emm_data, const emm_as_establish_t *msg,
-                                 void *nas_establish_req_unaligned)
+static int _emm_as_establish_req(const emm_data_t *emm_data, const emm_as_establish_t *msg, nas_establish_req_t *as_msg)
 {
   LOG_FUNC_IN;
 
   int size = 0;
-  nas_establish_req_t *as_msg = (nas_establish_req_t *)nas_establish_req_unaligned;
   LOG_TRACE(INFO, "EMMAS-SAP - Send AS connection establish request");
-
-  nas_message_t nas_msg;
-  memset(&nas_msg, 0 , sizeof(nas_message_t));
 
   /* Setup the AS message */
   as_msg->cause = msg->RRCcause;
@@ -1403,6 +1370,7 @@ static int _emm_as_establish_req(const emm_data_t *emm_data, const emm_as_establ
   }
 
   /* Setup the NAS security header */
+  nas_message_t nas_msg = {0};
   EMM_msg *emm_msg = _emm_as_set_header(&nas_msg, &msg->sctx);
 
   /* Setup the initial NAS information message */

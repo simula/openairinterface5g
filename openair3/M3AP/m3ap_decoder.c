@@ -188,7 +188,7 @@ int m3ap_decode_pdu(M3AP_M3AP_PDU_t *pdu, const uint8_t *const buffer, uint32_t 
                         length,
                         0,
                         0);
-  if (asn1_xer_print) {
+  if (LOG_DEBUGFLAG(DEBUG_ASN1)) {
     xer_fprint(stdout, &asn_DEF_M3AP_M3AP_PDU, pdu);
   }
 

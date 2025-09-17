@@ -33,11 +33,26 @@ void nr_codeword_scrambling(uint8_t *in,
 {
   const int roundedSz = (size + 31) / 32;
   uint32_t *seq = gold_cache((n_RNTI << 15) + (q << 14) + Nid, roundedSz);
-  for (int i = 0; i < roundedSz; i++) {
-    simde__m256i c = ((simde__m256i*)in)[i];
-    uint32_t in32 = simde_mm256_movemask_epi8(simde_mm256_slli_epi16(c, 7));
-    out[i] = in32 ^ seq[i];
-    DEBUG_SCRAMBLING(LOG_D(PHY, "in[%d] %x => %x\n", i, in32, out[i]));
+  unsigned int i_32 = 0;
+#if defined(__AVX512F__) && defined(__AVX512VL__)
+  for (; i_32 < ((roundedSz >> 3) << 3); i_32 += 8) {
+    __m256i in_256 = _mm256_load_epi32(&((uint32_t *)in)[i_32]);
+    __m256i seq_256 = _mm256_load_epi32(&seq[i_32]);
+    _mm256_storeu_epi32(&out[i_32], _mm256_xor_si256(in_256, seq_256));
+  }
+#endif
+#if defined(__aarch64__)
+  for (; i_32 < ((roundedSz >> 2) << 2); i_32 += 4) {
+    unsigned int i = i_32 >> 2;
+    uint32x4_t in_32x4 = vld1q_u32(&((uint32_t *)in)[i_32]);
+    uint32x4_t seq_32x4 = vld1q_u32(&seq[i_32]);
+    ((uint32x4_t *)out)[i] = veorq_u32(in_32x4, seq_32x4);
+  }
+#endif
+  for (; i_32 < roundedSz; i_32++) { 
+    unsigned int i = i_32;
+    out[i] = ((uint32_t *)in)[i] ^ seq[i];
+    DEBUG_SCRAMBLING(LOG_D(PHY, "in[%d] %x => %x\n", i, ((uint32_t*)in)[i], out[i]));
   }
 }
 

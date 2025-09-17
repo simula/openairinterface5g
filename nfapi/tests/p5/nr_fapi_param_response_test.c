@@ -18,17 +18,8 @@
  * For more information about the OpenAirInterface (OAI) Software Alliance:
  *      contact@openairinterface.org
  */
-/*! \file nfapi/tests/p5/nr_fapi_param_response_test.c
- * \brief
- * \author Ruben S. Silva
- * \date 2024
- * \version 0.1
- * \company OpenAirInterface Software Alliance
- * \email: contact@openairinterface.org, rsilva@allbesmart.pt
- * \note
- * \warning
- */
 #include "nfapi/tests/nr_fapi_test.h"
+#include "nr_fapi_p5.h"
 #include "nr_fapi_p5_utils.h"
 
 void fill_param_response_tlv(nfapi_nr_param_response_scf_t *nfapi_resp)
@@ -235,14 +226,14 @@ void test_pack_unpack(nfapi_nr_param_response_scf_t *req)
   req->header.message_length = pack_result - NFAPI_HEADER_LENGTH;
   // test the unpacking of the header
   // copy first NFAPI_HEADER_LENGTH bytes into a new buffer, to simulate SCTP PEEK
-  nfapi_p4_p5_message_header_t header;
+  nfapi_nr_p4_p5_message_header_t header;
   uint32_t header_buffer_size = NFAPI_HEADER_LENGTH;
   uint8_t header_buffer[header_buffer_size];
   for (int idx = 0; idx < header_buffer_size; idx++) {
     header_buffer[idx] = msg_buf[idx];
   }
   uint8_t *pReadPackedMessage = header_buffer;
-  int unpack_header_result = fapi_nr_p5_message_header_unpack(&pReadPackedMessage, NFAPI_HEADER_LENGTH, &header, sizeof(header), 0);
+  int unpack_header_result = fapi_nr_message_header_unpack(pReadPackedMessage, NFAPI_HEADER_LENGTH, &header, sizeof(header), 0);
   DevAssert(unpack_header_result >= 0);
   DevAssert(header.message_id == req->header.message_id);
   DevAssert(header.message_length == req->header.message_length);

@@ -31,9 +31,9 @@
 	</TestCaseExclusionList>
 
 	<testCase id="000100">
-		<class>Deploy_EPC</class>
-		<desc>Deploy all EPC containers</desc>
-		<parameters>yaml_files/magma_lte_20892</parameters>
+		<class>DeployCoreNetwork</class>
+		<desc>Deploy EPC</desc>
+		<cn_id>nano-cn4g</cn_id>
 	</testCase>
 
 </testCaseList>

@@ -41,7 +41,7 @@ int main(int argc, char **argv) {
    paramdef_t cmdline_params[] = CMDLINE_PARAMS_DESC_GNB ;
 
   CONFIG_SETRTFLAG(CONFIG_NOEXITONHELP);
-  get_common_options(uniqCfg, SOFTMODEM_GNB_BIT);
+  get_common_options(uniqCfg);
   config_process_cmdline(uniqCfg, cmdline_params, sizeofArray(cmdline_params), NULL);
   CONFIG_CLEARRTFLAG(CONFIG_NOEXITONHELP);
   lock_memory_to_ram();

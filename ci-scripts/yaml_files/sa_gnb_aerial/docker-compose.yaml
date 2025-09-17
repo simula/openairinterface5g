@@ -23,7 +23,7 @@ services:
       - ../../../cmake_targets/share:/opt/cuBB/share
     userns_mode: host
     ipc: "shareable"
-    image: cubb-build:24-1
+    image: cubb-build:25-2-srs
     environment:
       - cuBB_SDK=/opt/nvidia/cuBB
     command: bash -c "sudo rm -rf /tmp/phy.log && sudo chmod +x /opt/nvidia/cuBB/aerial_l1_entrypoint.sh && /opt/nvidia/cuBB/aerial_l1_entrypoint.sh"
@@ -33,7 +33,7 @@ services:
       timeout: 5s
       retries: 5
   oai-gnb-aerial:
-    cpuset: "13-20"
+    cpuset: "13-14"
     image: ${REGISTRY:-oaisoftwarealliance}/oai-gnb-aerial:${TAG:-develop}
     depends_on:
       nv-cubb:

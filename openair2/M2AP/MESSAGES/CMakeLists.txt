@@ -18,10 +18,11 @@ else()
   message(FATAL_ERROR "unknown M2AP_RELEASE ${M2AP_RELEASE}")
 endif()
 
-add_custom_command(OUTPUT ${m2ap_source} ${m2ap_headers}
-  COMMAND ASN1C_PREFIX=M2AP_ ${ASN1C_EXEC} -gen-APER -no-gen-BER -no-gen-JER -no-gen-OER -gen-UPER -fcompound-names -no-gen-example -fno-include-deps -D ${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/${M2AP_GRAMMAR}
-  DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/${M2AP_GRAMMAR}
-  COMMENT "Generating M2AP source files from ${CMAKE_CURRENT_SOURCE_DIR}/${M2AP_GRAMMAR}"
+run_asn1c(${CMAKE_CURRENT_SOURCE_DIR}/${M2AP_GRAMMAR}
+          "M2AP_"
+          OUTPUT ${m2ap_source} ${m2ap_headers}
+          OPTIONS -gen-APER -no-gen-BER -no-gen-JER -no-gen-OER -gen-UPER -fcompound-names -no-gen-example -fno-include-deps
+          COMMENT "M2AP source files"
 )
 
 add_library(asn1_m2ap ${m2ap_source})

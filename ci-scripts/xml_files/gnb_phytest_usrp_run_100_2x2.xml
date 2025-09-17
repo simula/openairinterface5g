@@ -45,7 +45,8 @@
   <testCase id="390101">
     <class>Initialize_eNB</class>
     <desc>Initialize gNB USRP</desc>
-    <Initialize_eNB_args>-O ci-scripts/conf_files/gnb.band78.273prb.usrpn300.phytest-dora.conf --phy-test -q -U 787200 -T 273 -t 23 -D 130175 -m 23 -M 273 -l 2 --usrp-tx-thread-config 1 --log_config.global_log_options level,nocolor,time</Initialize_eNB_args>
+    <node>caracal</node>
+    <Initialize_eNB_args>-O ci-scripts/conf_files/gnb.band79.273prb.usrpn300.phytest-dora.conf --phy-test -q -U 768 -T 273 -t 23 -D 127 -m 23 -M 273 -l 2 --usrp-tx-thread-config 1 --log_config.global_log_options level,nocolor,time</Initialize_eNB_args>
     <rt_stats_cfg>datalog_rt_stats.100.2x2.yaml</rt_stats_cfg>
     <air_interface>NR</air_interface>
     <USRP_IPAddress>192.168.20.2</USRP_IPAddress>
@@ -63,6 +64,7 @@
     <class>Terminate_eNB</class>
     <always_exec>true</always_exec>
     <desc>Terminate gNB</desc>
+    <node>caracal</node>
     <air_interface>NR</air_interface>
   </testCase>
 

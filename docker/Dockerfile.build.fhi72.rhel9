@@ -43,10 +43,10 @@ RUN wget http://fast.dpdk.org/rel/dpdk-20.11.9.tar.xz && \
 ## Build Fronthaul library
 RUN git clone https://gerrit.o-ran-sc.org/r/o-du/phy.git /opt/phy && \
     cd /opt/phy && \
-    git checkout oran_e_maintenance_release_v1.0 &&\
-    git apply /oai-ran/cmake_targets/tools/oran_fhi_integration_patches/E/oaioran_E.patch && \
+    git checkout oran_f_release_v1.0 &&\
+    git apply /oai-ran/cmake_targets/tools/oran_fhi_integration_patches/F/oaioran_F.patch && \
     cd /opt/phy/fhi_lib/lib && \
-    RTE_SDK=/oai-ran/dpdk-stable-20.11.9/ XRAN_DIR=/opt/phy/fhi_lib make XRAN_LIB_SO=1 
+    WIRELESS_SDK_TOOLCHAIN=gcc RTE_SDK=/oai-ran/dpdk-stable-20.11.9/ XRAN_DIR=/opt/phy/fhi_lib make XRAN_LIB_SO=1 
 
 FROM ran-base AS ran-build-fhi72
 ARG E2AP_VERSION=E2AP_V3
@@ -58,10 +58,10 @@ RUN /bin/sh oaienv && \
     mkdir -p log && \
     scl enable gcc-toolset-13 "\
     ./build_oai \
-      --gNB \
+      --ninja --gNB \
       --build-lib 'telnetsrv enbscope uescope nrscope' \
       -t oran_fhlib_5g --cmake-opt -Dxran_LOCATION=/opt/phy/fhi_lib/lib \
-      --build-e2 --cmake-opt -DXAPP_MULTILANGUAGE=OFF --cmake-opt -DKPM_VERSION=$KPM_VERSION --cmake-opt -DE2AP_VERSION=$E2AP_VERSION" &&\
+      --build-e2 --cmake-opt -DKPM_VERSION=$KPM_VERSION --cmake-opt -DE2AP_VERSION=$E2AP_VERSION" &&\
     # Mainly to see if the sanitize option was perfectly executed
     ldd ran_build/build/nr-softmodem && \
     ldd ran_build/build/liboran_fhlib_5g.so && \
@@ -72,7 +72,6 @@ RUN mkdir -p openair2/E2AP/flexric/build && \
     cd openair2/E2AP/flexric/build && \
     scl enable gcc-toolset-13 "\
     cmake -GNinja -DCMAKE_BUILD_TYPE=Release \
-          -DXAPP_MULTILANGUAGE=OFF \
           -DKPM_VERSION=$KPM_VERSION \
           -DE2AP_VERSION=$E2AP_VERSION .. &&\
     ninja && \

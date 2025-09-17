@@ -50,5 +50,6 @@ void PUTS_CLEAN(OBUF *o, char *s);
 void PUTI(OBUF *o, int i);
 void PUTX2(OBUF *o, int i);
 void PUTUL(OBUF *o, unsigned long i);
+void PUTF(OBUF *o, float f);
 
 #endif /* _UTILS_H_ */

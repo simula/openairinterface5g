@@ -303,7 +303,7 @@ void ComputeOPc(const u8 op[16], u8 op_c_pP[16])
   return;
 } /* end of function ComputeOPc */
 /*-------------------- Rijndael round subkeys ---------------------*/
-u8 roundKeys[11][4][4];
+static u8 roundKeys[11][4][4];
 /*--------------------- Rijndael S box table ----------------------*/
 const u8 S[256] = {
     99,  124, 119, 123, 242, 107, 111, 197, 48,  1,   103, 43,  254, 215, 171, 118, 202, 130, 201, 125, 250, 89,  71,  240,

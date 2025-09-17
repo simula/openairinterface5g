@@ -24,7 +24,7 @@ sudo -E echo start_server -uid 0 | sudo -E nvidia-cuda-mps-control
 # Check if an argument is provided
 if [ $# -eq 0 ]; then
     # No argument provided, use default value
-    argument="P5G_FXN"
+    argument="P5G_FXN_GH"
 else
     # Argument provided, use it
     argument="$1"

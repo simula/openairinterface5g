@@ -46,15 +46,6 @@ typedef enum s1ap_timer_type_s {
   S1AP_TIMER_TYPE_MAX,
 } s1ap_timer_type_t;
 
-typedef struct s1ap_eNB_config_s {
-  // MME related params
-  unsigned char mme_enabled;          ///< MME enabled ?
-} s1ap_eNB_config_t;
-
-extern s1ap_eNB_config_t s1ap_config;
-
-#define EPC_MODE_ENABLED       s1ap_config.mme_enabled
-
 void *s1ap_eNB_process_itti_msg(void*);
 void  s1ap_eNB_init(void);
 void *s1ap_eNB_task(void *arg);

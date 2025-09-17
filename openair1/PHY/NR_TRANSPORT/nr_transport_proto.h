@@ -159,63 +159,6 @@ void nr_ulsch_qam64_qam64(c16_t *stream0_in,
                           c16_t *rho01,
                           uint32_t length);
 
-/** \brief This function generates log-likelihood ratios (decoder input) for single-stream QPSK received waveforms.
-    @param rxdataF_comp Compensated channel output
-    @param ulsch_llr llr output
-    @param nb_re number of REs for this allocation
-    @param symbol OFDM symbol index in sub-frame
-*/
-void nr_ulsch_qpsk_llr(int32_t *rxdataF_comp,
-                       int16_t *ulsch_llr,
-                       uint32_t nb_re,
-                       uint8_t  symbol);
-
-
-/** \brief This function generates log-likelihood ratios (decoder input) for single-stream 16 QAM received waveforms.
-    @param rxdataF_comp Compensated channel output
-    @param ul_ch_mag uplink channel magnitude multiplied by the 1st amplitude threshold in QAM 16
-    @param ulsch_llr llr output
-    @param nb_re number of RBs for this allocation
-    @param symbol OFDM symbol index in sub-frame
-*/
-void nr_ulsch_16qam_llr(int32_t *rxdataF_comp,
-                        int32_t **ul_ch_mag,
-                        int16_t  *ulsch_llr,
-                        uint32_t nb_re,
-                        uint8_t  symbol);
-
-/** \brief This function generates log-likelihood ratios (decoder input) for single-stream 64 QAM received waveforms.
-    @param rxdataF_comp Compensated channel output
-    @param ul_ch_mag  uplink channel magnitude multiplied by the 1st amplitude threshold in QAM 64
-    @param ul_ch_magb uplink channel magnitude multiplied by the 2bd amplitude threshold in QAM 64
-    @param ulsch_llr llr output
-    @param nb_re number of REs for this allocation
-    @param symbol OFDM symbol index in sub-frame
-*/
-void nr_ulsch_64qam_llr(int32_t *rxdataF_comp,
-                        int32_t **ul_ch_mag,
-                        int32_t **ul_ch_magb,
-                        int16_t  *ulsch_llr,
-                        uint32_t nb_re,
-                        uint8_t  symbol);
-
-/** \brief This function generates log-likelihood ratios (decoder input) for single-stream 256 QAM received waveforms.
-    @param rxdataF_comp Compensated channel output
-    @param ul_ch_mag  uplink channel magnitude multiplied by the 1st amplitude threshold in QAM 256
-    @param ul_ch_magb uplink channel magnitude multiplied by the 2bd amplitude threshold in QAM 256
-    @param ul_ch_magc uplink channel magnitude multiplied by the 3rd amplitude threshold in QAM 256 
-    @param ulsch_llr llr output
-    @param nb_re number of REs for this allocation
-    @param symbol OFDM symbol index in sub-frame
-*/
-void nr_ulsch_256qam_llr(int32_t *rxdataF_comp,
-                        int32_t **ul_ch_mag,
-                        int32_t **ul_ch_magb,
-                        int32_t **ul_ch_magc,
-                        int16_t  *ulsch_llr,
-                        uint32_t nb_re,
-                        uint8_t  symbol);
-
 /** \brief This function computes the log-likelihood ratios for 4, 16, and 64 QAM
     @param rxdataF_comp Compensated channel output
     @param ul_ch_mag  uplink channel magnitude multiplied by the 1st amplitude threshold in QAM 64
@@ -226,27 +169,27 @@ void nr_ulsch_256qam_llr(int32_t *rxdataF_comp,
     @param mod_order modulation order
 */
 void nr_ulsch_compute_llr(int32_t *rxdataF_comp,
-                          int32_t *ul_ch_mag,
-                          int32_t *ul_ch_magb,
-                          int32_t *ul_ch_magc,
-                          int16_t  *ulsch_llr,
+                          c16_t *ul_ch_mag,
+                          c16_t *ul_ch_magb,
+                          c16_t *ul_ch_magc,
+                          int16_t *ulsch_llr,
                           uint32_t nb_re,
-                          uint8_t  symbol,
-                          uint8_t  mod_order);
+                          uint8_t symbol,
+                          uint8_t mod_order);
 
 void reset_active_stats(PHY_VARS_gNB *gNB, int frame);
 void reset_active_ulsch(PHY_VARS_gNB *gNB, int frame);
 
 void nr_ulsch_compute_ML_llr(NR_gNB_PUSCH *pusch_vars,
                              uint32_t symbol,
-                             c16_t* rxdataF_comp0,
-                             c16_t* rxdataF_comp1,
-                             c16_t* ul_ch_mag0,
-                             c16_t* ul_ch_mag1,
-                             c16_t* llr_layers0,
-                             c16_t* llr_layers1,
-                             c16_t* rho0,
-                             c16_t* rho1,
+                             c16_t *rxdataF_comp0,
+                             c16_t *rxdataF_comp1,
+                             c16_t *ul_ch_mag0,
+                             c16_t *ul_ch_mag1,
+                             int16_t *llr_layers0,
+                             int16_t *llr_layers1,
+                             c16_t *rho0,
+                             c16_t *rho1,
                              uint32_t nb_re,
                              uint8_t mod_order);
 
@@ -257,14 +200,11 @@ void nr_fill_ulsch(PHY_VARS_gNB *gNB,
                    int slot,
                    nfapi_nr_pusch_pdu_t *ulsch_pdu);
 
-void nr_fill_prach(PHY_VARS_gNB *gNB,
-                   int SFN,
-                   int Slot,
-                   nfapi_nr_prach_pdu_t *prach_pdu);
+int nr_fill_prach(PHY_VARS_gNB *gNB, int SFN, int Slot, nfapi_nr_prach_pdu_t *prach_pdu);
 
 void rx_nr_prach(PHY_VARS_gNB *gNB,
                  nfapi_nr_prach_pdu_t *prach_pdu,
-		 int prachOccasion,
+                 int prachOccasion,
                  int frame,
                  int subframe,
                  uint16_t *max_preamble,
@@ -274,15 +214,14 @@ void rx_nr_prach(PHY_VARS_gNB *gNB,
 void rx_nr_prach_ru(RU_t *ru,
                     int prach_fmt,
                     int numRA,
+                    int beam,
                     int prachStartSymbol,
-		    int prachOccasion,
+                    int prachStartSlot,
+                    int prachOccasion,
                     int frame,
                     int subframe);
 
-void nr_fill_prach_ru(RU_t *ru,
-                      int SFN,
-                      int Slot,
-                      nfapi_nr_prach_pdu_t *prach_pdu);
+void nr_fill_prach_ru(RU_t *ru,int SFN, int Slot, nfapi_nr_prach_pdu_t *prach_pdu, int *beam_nb);
 
 int16_t find_nr_prach(PHY_VARS_gNB *gNB,int frame,int slot, find_type_t type);
 int16_t find_nr_prach_ru(RU_t *ru,int frame,int slot, find_type_t type);
@@ -303,12 +242,12 @@ int nr_get_srs_signal(PHY_VARS_gNB *gNB,
                       slot_t slot,
                       nfapi_nr_srs_pdu_t *srs_pdu,
                       nr_srs_info_t *nr_srs_info,
-                      int32_t srs_received_signal[][gNB->frame_parms.ofdm_symbol_size*(1<<srs_pdu->num_symbols)]);
+                      c16_t srs_received_signal[][gNB->frame_parms.ofdm_symbol_size * (1 << srs_pdu->num_symbols)]);
 
 void init_prach_list(PHY_VARS_gNB *gNB);
 void init_prach_ru_list(RU_t *ru);
 void free_nr_ru_prach_entry(RU_t *ru, int prach_id);
-uint8_t get_nr_prach_duration(uint8_t prach_format);
+int get_nr_prach_duration(uint8_t prach_format);
 
 void free_nr_prach_entry(PHY_VARS_gNB *gNB, int prach_id);
 

@@ -43,7 +43,8 @@ int decode_security_mode_command(security_mode_command_msg *security_mode_comman
   else
     decoded += decoded_result;
 
-  if ((decoded_result = decode_u8_nas_key_set_identifier(&security_mode_command->naskeysetidentifier, 0, *(buffer + decoded) & 0x0f, len - decoded)) < 0)
+  if ((decoded_result = decode_nas_key_set_identifier(&security_mode_command->naskeysetidentifier, 0, *(buffer + decoded) & 0x0f))
+      < 0)
     return decoded_result;
 
   decoded++;
@@ -124,7 +125,7 @@ int encode_security_mode_command(security_mode_command_msg *security_mode_comman
   else
     encoded += encode_result;
 
-  *(buffer + encoded) = (encode_u8_nas_key_set_identifier(&security_mode_command->naskeysetidentifier) & 0x0f);
+  *(buffer + encoded) = (encode_nas_key_set_identifier(&security_mode_command->naskeysetidentifier, 0) & 0x0f);
   encoded++;
 
   if ((encode_result =

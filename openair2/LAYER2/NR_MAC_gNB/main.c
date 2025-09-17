@@ -30,20 +30,44 @@
 
  */
 
+#include <errno.h>
+#include <inttypes.h>
+#include <pthread.h>
+#include <sched.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <strings.h>
+#include <unistd.h>
+#include "NR_DRB-ToAddMod.h"
+#include "NR_DRB-ToAddModList.h"
+#include "NR_MAC_COMMON/nr_mac.h"
+#include "NR_MAC_COMMON/nr_mac_common.h"
 #include "NR_MAC_gNB/mac_proto.h"
-#include "NR_MAC_COMMON/nr_mac_extern.h"
+#include "NR_MAC_gNB/mac_rrc_ul.h"
+#include "NR_MAC_gNB/nr_mac_gNB.h"
+#include "NR_PHY_INTERFACE/NR_IF_Module.h"
+#include "NR_RLC-BearerConfig.h"
+#include "NR_RadioBearerConfig.h"
+#include "NR_ServingCellConfig.h"
+#include "NR_ServingCellConfigCommon.h"
+#include "NR_TAG.h"
 #include "assertions.h"
+#include "common/ngran_types.h"
+#include "common/ran_context.h"
+#include "common/utils/T/T.h"
+#include "executables/softmodem-common.h"
+#include "linear_alloc.h"
+#include "nr_pdcp/nr_pdcp_entity.h"
 #include "nr_pdcp/nr_pdcp_oai_api.h"
-
-#include "common/utils/LOG/log.h"
 #include "nr_rlc/nr_rlc_oai_api.h"
 #include "openair2/F1AP/f1ap_ids.h"
-
-#include "common/ran_context.h"
-#include "executables/softmodem-common.h"
-
-extern RAN_CONTEXT_t RC;
-
+#include "openair2/F1AP/lib/f1ap_interface_management.h"
+#include "seq_arr.h"
+#include "system.h"
+#include "time_meas.h"
+#include "utils.h"
 
 #define MACSTATSSTRLEN 36256
 
@@ -54,7 +78,10 @@ void *nrmac_stats_thread(void *arg) {
   char output[MACSTATSSTRLEN] = {0};
   const char *end = output + MACSTATSSTRLEN;
   FILE *file = fopen("nrMAC_stats.log","w");
-  AssertFatal(file!=NULL,"Cannot open nrMAC_stats.log, error %s\n",strerror(errno));
+  if (!file) {
+    LOG_W(NR_MAC, "Cannot open nrMAC_stats.log: %d, %s\n", errno, strerror(errno));
+    return NULL;
+  }
 
   while (oai_exit == 0) {
     char *p = output;
@@ -62,10 +89,12 @@ void *nrmac_stats_thread(void *arg) {
     p += dump_mac_stats(gNB, p, end - p, false);
     NR_SCHED_UNLOCK(&gNB->sched_lock);
     p += snprintf(p, end - p, "\n");
-    p += print_meas_log(&gNB->eNB_scheduler, "DL & UL scheduling timing", NULL, NULL, p, end - p);
+    p += print_meas_log(&gNB->gNB_scheduler, "gNB_scheduler", NULL, NULL, p, end - p);
+    p += print_meas_log(&gNB->rx_ulsch_sdu, "rx_ulsch_sdu", NULL, NULL, p, end - p);
     p += print_meas_log(&gNB->schedule_dlsch, "dlsch scheduler", NULL, NULL, p, end - p);
+    p += print_meas_log(&gNB->schedule_ulsch, "ulsch scheduler", NULL, NULL, p, end - p);
+    p += print_meas_log(&gNB->schedule_ra, "RA scheduler", NULL, NULL, p, end - p);
     p += print_meas_log(&gNB->rlc_data_req, "rlc_data_req", NULL, NULL, p, end - p);
-    p += print_meas_log(&gNB->rlc_status_ind, "rlc_status_ind", NULL, NULL, p, end - p);
     p += print_meas_log(&gNB->nr_srs_ri_computation_timer, "UL-RI computation time", NULL, NULL, p, end - p);
     p += print_meas_log(&gNB->nr_srs_tpmi_computation_timer, "UL-TPMI computation time", NULL, NULL, p, end - p);
     fwrite(output, p - output, 1, file);
@@ -78,7 +107,7 @@ void *nrmac_stats_thread(void *arg) {
 }
 
 void clear_mac_stats(gNB_MAC_INST *gNB) {
-  UE_iterator(gNB->UE_info.list, UE) {
+  UE_iterator(gNB->UE_info.connected_ue_list, UE) {
     memset(&UE->mac_stats,0,sizeof(UE->mac_stats));
   }
 }
@@ -93,28 +122,41 @@ size_t dump_mac_stats(gNB_MAC_INST *gNB, char *output, size_t strlen, bool reset
   NR_SCHED_ENSURE_LOCKED(&gNB->sched_lock);
 
   NR_SCHED_LOCK(&gNB->UE_info.mutex);
-  UE_iterator(gNB->UE_info.list, UE) {
+  UE_iterator(gNB->UE_info.connected_ue_list, UE) {
     NR_UE_sched_ctrl_t *sched_ctrl = &UE->UE_sched_ctrl;
     NR_mac_stats_t *stats = &UE->mac_stats;
     const int avg_rsrp = stats->num_rsrp_meas > 0 ? stats->cumul_rsrp / stats->num_rsrp_meas : 0;
+    const int avg_sinrx10 = stats->num_sinr_meas > 0 ? stats->cumul_sinrx10 / stats->num_sinr_meas : 0;
 
     output += snprintf(output, end - output, "UE RNTI %04x CU-UE-ID ", UE->rnti);
     if (du_exists_f1_ue_data(UE->rnti)) {
       f1_ue_data_t ued = du_get_f1_ue_data(UE->rnti);
       output += snprintf(output, end - output, "%d", ued.secondary_ue);
     } else {
-      output += snprintf(output, end-output, "(none)");
+      output += snprintf(output, end - output, "(none)");
     }
 
     bool in_sync = !sched_ctrl->ul_failure;
     output += snprintf(output,
                        end - output,
-                       " %s PH %d dB PCMAX %d dBm, average RSRP %d (%d meas)\n",
+                       " %s PH %d dB PCMAX %d dBm",
                        in_sync ? "in-sync" : "out-of-sync",
                        sched_ctrl->ph,
-                       sched_ctrl->pcmax,
-                       avg_rsrp,
-                       stats->num_rsrp_meas);
+                       sched_ctrl->pcmax);
+
+    if (stats->num_rsrp_meas)
+      output += snprintf(output, end - output, ", average RSRP %d (%d meas)", avg_rsrp, stats->num_rsrp_meas);
+
+    if (stats->num_sinr_meas) {
+      output += snprintf(output,
+                         end - output,
+                         ", average SINR %d.%d (%d meas)",
+                         avg_sinrx10 / 10,
+                         avg_sinrx10 % 10,
+                         stats->num_sinr_meas);
+    }
+
+    output += snprintf(output, end - output, "\n");
 
     if(sched_ctrl->CSI_report.cri_ri_li_pmi_cqi_report.print_report)
       output += snprintf(output,
@@ -139,15 +181,18 @@ size_t dump_mac_stats(gNB_MAC_INST *gNB, char *output, size_t strlen, bool reset
 
     output += snprintf(output,
                        end - output,
-                       ", dlsch_errors %"PRIu64", pucch0_DTX %d, BLER %.5f MCS (%d) %d\n",
+                       ", dlsch_errors %"PRIu64", pucch0_DTX %d, BLER %.5f MCS (%d) %d CCE fail %d\n",
                        stats->dl.errors,
                        stats->pucch0_DTX,
                        sched_ctrl->dl_bler_stats.bler,
                        UE->current_DL_BWP.mcsTableIdx,
-                       sched_ctrl->dl_bler_stats.mcs);
+                       sched_ctrl->dl_bler_stats.mcs,
+                       sched_ctrl->dl_cce_fail);
     if (reset_rsrp) {
       stats->num_rsrp_meas = 0;
       stats->cumul_rsrp = 0;
+      stats->num_sinr_meas = 0;
+      stats->cumul_sinrx10 = 0;
     }
     output += snprintf(output,
                        end - output,
@@ -158,7 +203,7 @@ size_t dump_mac_stats(gNB_MAC_INST *gNB, char *output, size_t strlen, bool reset
 
     output += snprintf(output,
                        end - output,
-                       ", ulsch_errors %"PRIu64", ulsch_DTX %d, BLER %.5f MCS (%d) %d (Qm %d deltaMCS %d dB) NPRB %d  SNR %d.%d dB\n",
+                       ", ulsch_errors %"PRIu64", ulsch_DTX %d, BLER %.5f MCS (%d) %d (Qm %d deltaMCS %d dB) NPRB %d  SNR %d.%d dB CCE fail %d\n",
                        stats->ul.errors,
                        stats->ulsch_DTX,
                        sched_ctrl->ul_bler_stats.bler,
@@ -168,7 +213,8 @@ size_t dump_mac_stats(gNB_MAC_INST *gNB, char *output, size_t strlen, bool reset
                        UE->mac_stats.deltaMCS,
                        UE->mac_stats.NPRB,
                        sched_ctrl->pusch_snrx10 / 10,
-                       sched_ctrl->pusch_snrx10 % 10);
+                       sched_ctrl->pusch_snrx10 % 10,
+                       sched_ctrl->ul_cce_fail);
     output += snprintf(output,
                        end - output,
                        "UE %04x: MAC:    TX %14"PRIu64" RX %14"PRIu64" bytes\n",
@@ -209,15 +255,10 @@ static void mac_rrc_init(gNB_MAC_INST *mac, ngran_node_t node_type)
 
 void mac_top_init_gNB(ngran_node_t node_type,
                       NR_ServingCellConfigCommon_t *scc,
-                      NR_ServingCellConfig_t *scd,
-                      const nr_mac_config_t *config)
+                      const nr_mac_config_t *config,
+                      const nr_rlc_configuration_t *default_rlc_config)
 {
-  module_id_t     i;
-  gNB_MAC_INST    *nrmac;
-
   AssertFatal(RC.nb_nr_macrlc_inst == 1, "what is the point of calling %s() if you don't need exactly one MAC?\n", __func__);
-
-  LOG_I(MAC, "[MAIN] Init function start:nb_nr_macrlc_inst=%d\n",RC.nb_nr_macrlc_inst);
 
   if (RC.nb_nr_macrlc_inst > 0) {
 
@@ -227,7 +268,7 @@ void mac_top_init_gNB(ngran_node_t node_type,
                 RC.nb_nr_macrlc_inst * sizeof(gNB_MAC_INST *),
                 RC.nb_nr_macrlc_inst, sizeof(gNB_MAC_INST));
 
-    for (i = 0; i < RC.nb_nr_macrlc_inst; i++) {
+    for (module_id_t i = 0; i < RC.nb_nr_macrlc_inst; i++) {
 
       RC.nrmac[i] = (gNB_MAC_INST *) malloc16(sizeof(gNB_MAC_INST));
       
@@ -244,14 +285,12 @@ void mac_top_init_gNB(ngran_node_t node_type,
       RC.nrmac[i]->tag = (NR_TAG_t*)malloc(sizeof(NR_TAG_t));
       memset((void*)RC.nrmac[i]->tag,0,sizeof(NR_TAG_t));
         
-      RC.nrmac[i]->ul_handle = 0;
-
       RC.nrmac[i]->common_channels[0].ServingCellConfigCommon = scc;
       RC.nrmac[i]->radio_config = *config;
-
-      RC.nrmac[i]->common_channels[0].pre_ServingCellConfig = scd;
+      RC.nrmac[i]->rlc_config = *default_rlc_config;
 
       RC.nrmac[i]->first_MIB = true;
+      RC.nrmac[i]->num_scheduled_prach_rx = 0;
       RC.nrmac[i]->common_channels[0].mib = get_new_MIB_NR(scc);
 
       RC.nrmac[i]->cset0_bwp_start = 0;
@@ -266,48 +305,29 @@ void mac_top_init_gNB(ngran_node_t node_type,
         RC.nrmac[i]->pre_processor_dl = nr_preprocessor_phytest;
         RC.nrmac[i]->pre_processor_ul = nr_ul_preprocessor_phytest;
       } else {
-        RC.nrmac[i]->pre_processor_dl = nr_init_fr1_dlsch_preprocessor(0);
-        RC.nrmac[i]->pre_processor_ul = nr_init_fr1_ulsch_preprocessor(0);
+        RC.nrmac[i]->pre_processor_dl = nr_init_dlsch_preprocessor(0);
+        RC.nrmac[i]->pre_processor_ul = nr_init_ulsch_preprocessor(0);
       }
-      if (!IS_SOFTMODEM_NOSTATS_BIT)
-         threadCreate(&RC.nrmac[i]->stats_thread, nrmac_stats_thread, (void*)RC.nrmac[i], "MAC_STATS", -1,     sched_get_priority_min(SCHED_OAI)+1 );
+      if (!IS_SOFTMODEM_NOSTATS)
+        threadCreate(&RC.nrmac[i]->stats_thread,
+                     nrmac_stats_thread,
+                     (void *)RC.nrmac[i],
+                     "MAC_STATS",
+                     -1,
+                     sched_get_priority_min(SCHED_OAI) + 1);
       mac_rrc_init(RC.nrmac[i], node_type);
     }//END for (i = 0; i < RC.nb_nr_macrlc_inst; i++)
 
-    AssertFatal(rlc_module_init(1) == 0,"Could not initialize RLC layer\n");
-
-    // These should be out of here later
-    if (get_softmodem_params()->usim_test == 0 ) nr_pdcp_layer_init();
-
-    if(IS_SOFTMODEM_NOS1 && get_softmodem_params()->phy_test) {
-      // get default noS1 configuration
-      NR_RadioBearerConfig_t *rbconfig = NULL;
-      NR_RLC_BearerConfig_t *rlc_rbconfig = NULL;
-      fill_nr_noS1_bearer_config(&rbconfig, &rlc_rbconfig);
-
-      /* Note! previously, in nr_DRB_preconfiguration(), we passed ENB_FLAG_NO
-       * if ENB_NAS_USE_TUN was *not* set. It seems to me that we could not set
-       * this flag anywhere in the code, hence we would always configure PDCP
-       * with ENB_FLAG_NO in nr_DRB_preconfiguration(). This makes sense for
-       * noS1, because the result of passing ENB_FLAG_NO to PDCP is that PDCP
-       * will output the packets at a local interface, which is in line with
-       * the noS1 mode.  Hence, below, we simply hardcode ENB_FLAG_NO */
-      // setup PDCP, RLC
-      nr_pdcp_entity_security_keys_and_algos_t null_security_parameters = {0};
-      nr_pdcp_add_drbs(ENB_FLAG_NO, 0x1234, rbconfig->drb_ToAddModList, &null_security_parameters);
-      nr_rlc_add_drb(0x1234, rbconfig->drb_ToAddModList->list.array[0]->drb_Identity, rlc_rbconfig);
-
-      // free memory
-      free_nr_noS1_bearer_config(&rbconfig, &rlc_rbconfig);
-    }
-
+    nr_rlc_op_mode_t mode = NODE_IS_MONOLITHIC(node_type) ? NR_RLC_OP_MODE_MONO_GNB : NR_RLC_OP_MODE_SPLIT_GNB;
+    int success = nr_rlc_module_init(mode);
+    AssertFatal(success == 0,"Could not initialize RLC layer\n");
   } else {
     RC.nrmac = NULL;
   }
 
   // Initialize Linked-List for Active UEs
-  for (i = 0; i < RC.nb_nr_macrlc_inst; i++) {
-    nrmac = RC.nrmac[i];
+  for (module_id_t i = 0; i < RC.nb_nr_macrlc_inst; i++) {
+    gNB_MAC_INST *nrmac = RC.nrmac[i];
     nrmac->if_inst = NR_IF_Module_init(i);
     memset(&nrmac->UE_info, 0, sizeof(nrmac->UE_info));
   }
@@ -315,6 +335,24 @@ void mac_top_init_gNB(ngran_node_t node_type,
   du_init_f1_ue_data();
 
   srand48(0);
+}
+
+void mac_top_destroy_gNB(gNB_MAC_INST *mac)
+{
+  NR_COMMON_channels_t *cc = &mac->common_channels[0];
+  ASN_STRUCT_FREE(asn_DEF_NR_BCCH_BCH_Message, cc->mib);
+  ASN_STRUCT_FREE(asn_DEF_NR_BCCH_DL_SCH_Message, cc->sib1);
+  ASN_STRUCT_FREE(asn_DEF_NR_ServingCellConfigCommon, cc->ServingCellConfigCommon);
+  NR_UEs_t *UE_info = &mac->UE_info;
+  for (int i = 0; i < sizeofArray(UE_info->connected_ue_list); ++i)
+    if (UE_info->connected_ue_list[i])
+      delete_nr_ue_data(UE_info->connected_ue_list[i], cc, &UE_info->uid_allocator);
+  for (int i = 0; i < sizeofArray(UE_info->access_ue_list); ++i)
+    if (UE_info->access_ue_list[i])
+      delete_nr_ue_data(UE_info->access_ue_list[i], cc, &UE_info->uid_allocator);
+  if (mac->f1_config.setup_resp)
+    free_f1ap_setup_response(mac->f1_config.setup_resp);
+  free(mac->f1_config.setup_resp);
 }
 
 void nr_mac_send_f1_setup_req(void)

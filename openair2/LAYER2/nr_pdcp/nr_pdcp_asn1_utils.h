@@ -23,8 +23,13 @@
 #define _OPENAIR2_LAYER2_NR_PDCP_ASN1_UTILS_H_
 
 int decode_t_reordering(int v);
-int decode_sn_size_ul(long s);
-int decode_sn_size_dl(long s);
-int decode_discard_timer(long v);
+int decode_sn_size_ul(int v);
+int decode_sn_size_dl(int v);
+int decode_discard_timer(int v);
+
+int encode_t_reordering(int v);
+int encode_sn_size_ul(int v);
+int encode_sn_size_dl(int v);
+int encode_discard_timer(int v);
 
 #endif /* _OPENAIR2_LAYER2_NR_PDCP_ASN1_UTILS_H_ */

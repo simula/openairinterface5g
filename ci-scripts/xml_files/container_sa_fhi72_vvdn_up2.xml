@@ -36,6 +36,7 @@
     100020
     100030
     100040
+    100011
     103000
     100002
     130000
@@ -49,27 +50,24 @@
     <desc>Setup sriov and network interfaces VVDN</desc>
     <node>cacofonix</node>
     <script>yaml_files/sa_fhi_7.2_vvdn_gnb/setup_sriov_vvdn.sh</script>
-    <command_fail>yes</command_fail>
   </testCase>
 
   <testCase id="110000">
-    <class>Pull_Cluster_Image</class>
-    <desc>Pull Images from Cluster</desc>
-    <oc_project>oaicicd-ran</oc_project>
-    <images_to_pull>oai-gnb-fhi72</images_to_pull>
+    <class>Pull_Local_Registry</class>
+    <desc>Pull Images from Local Registry</desc>
+    <node>cacofonix</node>
+    <images>oai-gnb-fhi72</images>
   </testCase>
   <testCase id="800813">
     <class>Create_Workspace</class>
     <desc>Create new Workspace for server 0</desc>
-    <eNB_instance>0</eNB_instance>
-    <eNB_serverId>0</eNB_serverId>
+    <node>cacofonix</node>
   </testCase>
   <testCase id="120000">
     <class>Deploy_Object</class>
     <desc>Deploy gNB (TDD/Band78/100MHz/VVDN) in a container</desc>
+    <node>cacofonix</node>
     <yaml_path>ci-scripts/yaml_files/sa_fhi_7.2_vvdn_gnb</yaml_path>
-    <eNB_instance>0</eNB_instance>
-    <eNB_serverId>0</eNB_serverId>
   </testCase>
 
   <testCase id="102001">
@@ -82,15 +80,16 @@
     <class>Ping</class>
     <desc>Ping: 100 pings in 10 sec</desc>
     <id>up2-fhi72</id>
-    <ping_args>-c 100 -i 0.1 172.21.6.104</ping_args>
+    <svr_id>oc-cn5g-20897</svr_id>
+    <ping_args>-c 100 -i 0.1</ping_args>
     <ping_packetloss_threshold>1</ping_packetloss_threshold>
     <ping_rttavg_threshold>15</ping_rttavg_threshold>
   </testCase>
 
   <testCase id="100010">
     <class>Iperf</class>
-    <desc>iperf (DL/300Mbps/UDP)(30 sec)(multi-ue profile)</desc>
-    <iperf_args>-u -b 300M -t 30 -R</iperf_args>
+    <desc>iperf (DL/600Mbps/UDP)(30 sec)</desc>
+    <iperf_args>-u -b 600M -t 30 -R</iperf_args>
     <id>up2-fhi72</id>
     <iperf_packetloss_threshold>20</iperf_packetloss_threshold>
     <iperf_bitrate_threshold>80</iperf_bitrate_threshold>
@@ -98,9 +97,20 @@
     <svr_id>oc-cn5g-20897</svr_id>
   </testCase>
 
+  <testCase id="100011">
+    <class>Iperf</class>
+    <desc>Optional iperf (DL/700Mbps/UDP)(30 sec)</desc>
+    <may_fail>true</may_fail>
+    <iperf_args>-u -b 700M -t 30 -R</iperf_args>
+    <id>up2-fhi72</id>
+    <iperf_packetloss_threshold>10</iperf_packetloss_threshold>
+    <iperf_bitrate_threshold>95</iperf_bitrate_threshold>
+    <svr_id>oc-cn5g-20897</svr_id>
+  </testCase>
+
   <testCase id="100030">
     <class>Iperf</class>
-    <desc>iperf (DL/TCP)(30 sec)(multi-ue profile)</desc>
+    <desc>iperf (DL/TCP)(30 sec)</desc>
     <iperf_args>-t 30 -R</iperf_args>
     <id>up2-fhi72</id>
     <iperf_tcp_rate_target>40</iperf_tcp_rate_target>
@@ -109,8 +119,8 @@
 
   <testCase id="100020">
     <class>Iperf</class>
-    <desc>iperf (UL/70Mbps/UDP)(30 sec)(multi-ue profile)</desc>
-    <iperf_args>-u -b 70M -t 30</iperf_args>
+    <desc>iperf (UL/80Mbps/UDP)(30 sec)</desc>
+    <iperf_args>-u -b 80M -t 30</iperf_args>
     <id>up2-fhi72</id>
     <iperf_packetloss_threshold>20</iperf_packetloss_threshold>
     <iperf_bitrate_threshold>80</iperf_bitrate_threshold>
@@ -120,10 +130,10 @@
 
   <testCase id="100040">
     <class>Iperf</class>
-    <desc>iperf (UL/TCP)(30 sec)(multi-ue profile)</desc>
+    <desc>iperf (UL/TCP)(30 sec)</desc>
     <iperf_args>-t 30</iperf_args>
     <id>up2-fhi72</id>
-    <iperf_tcp_rate_target>40</iperf_tcp_rate_target>
+    <iperf_tcp_rate_target>10</iperf_tcp_rate_target>
     <svr_id>oc-cn5g-20897</svr_id>
   </testCase>
 
@@ -144,16 +154,16 @@
     <class>Undeploy_Object</class>
     <always_exec>true</always_exec>
     <desc>Undeploy gNB</desc>
+    <node>cacofonix</node>
     <yaml_path>ci-scripts/yaml_files/sa_fhi_7.2_vvdn_gnb</yaml_path>
-    <eNB_instance>0</eNB_instance>
-    <eNB_serverId>0</eNB_serverId>
   </testCase>
 
   <testCase id="777777">
     <class>Clean_Test_Server_Images</class>
     <always_exec>true</always_exec>
     <desc>Clean Test Images on Test Server</desc>
-    <test_svr_id>0</test_svr_id>
+    <node>cacofonix</node>
+    <images>oai-gnb-fhi72</images>
   </testCase>
 
   <testCase id="888888">
@@ -162,7 +172,6 @@
     <desc>Set CPU to idle state, set kernel parameters to default values</desc>
     <node>cacofonix</node>
     <script>yaml_files/sa_fhi_7.2_vvdn_gnb/setup_cleanup.sh</script>
-    <command_fail>yes</command_fail>
   </testCase>
 
 

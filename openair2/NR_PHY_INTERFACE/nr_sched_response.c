@@ -38,10 +38,10 @@
  */
 
 #include "nr_sched_response.h"
-
 #include <pthread.h>
+#include <stdbool.h>
 #include <stdlib.h>
-
+#include "NR_PHY_INTERFACE/NR_IF_Module.h"
 #include "common/utils/LOG/log.h"
 #include "common/utils/assertions.h"
 

@@ -72,38 +72,6 @@ typedef enum rlc_confirm_e {
 } rlc_confirm_t;
 
 //-----------------------------------------------------------------------------
-//   PRIVATE INTERNALS OF RLC
-//-----------------------------------------------------------------------------
-
-#define  RLC_MAX_MBMS_LC (LTE_maxSessionPerPMCH * LTE_maxServiceCount)
-#define  RLC_MAX_LC  ((max_val_LTE_DRB_Identity+1)* MAX_MOBILES_PER_ENB)
-
-extern void (*rlc_rrc_data_ind)(
-  const protocol_ctxt_t *const ctxtP,
-  const rb_id_t     rb_idP,
-  const sdu_size_t  sdu_sizeP,
-  const uint8_t    *const sduP)  __attribute__ ((aligned(32)));
-
-extern void (*rlc_rrc_data_conf)(
-  const protocol_ctxt_t *const ctxtP,
-  const rb_id_t         rb_idP,
-  const mui_t           muiP,
-  const rlc_tx_status_t statusP) __attribute__ ((aligned(32)));
-
-typedef void (rrc_data_ind_cb_t)(
-  const protocol_ctxt_t *const ctxtP,
-  const rb_id_t     rb_idP,
-  const sdu_size_t  sdu_sizeP,
-  const uint8_t    *const sduP);
-
-typedef void (rrc_data_conf_cb_t)(
-  const protocol_ctxt_t *const ctxtP,
-  const rb_id_t         rb_idP,
-  const mui_t           muiP,
-  const rlc_tx_status_t statusP);
-
-
-//-----------------------------------------------------------------------------
 //   PUBLIC INTERFACE WITH RRC
 //-----------------------------------------------------------------------------
 
@@ -415,26 +383,5 @@ rlc_op_status_t rlc_stat_req     (
  */
 int rlc_module_init(int enb_flag);
 /** @} */
-
-#define RLC_FG_COLOR_BLACK            "\e[0;30m"
-#define RLC_FG_COLOR_RED              "\e[0;31m"
-#define RLC_FG_COLOR_GREEN            "\e[0;32m"
-#define RLC_FG_COLOR_ORANGE           "\e[0;33m"
-#define RLC_FG_COLOR_BLUE             "\e[0;34m"
-#define RLC_FG_COLOR_MAGENTA          "\e[0;35m"
-#define RLC_FG_COLOR_CYAN             "\e[0;36m"
-#define RLC_FG_COLOR_GRAY_BLACK       "\e[0;37m"
-#define RLC_FG_COLOR_DEFAULT          "\e[0;39m"
-#define RLC_FG_BRIGHT_COLOR_DARK_GRAY "\e[1;30m"
-#define RLC_FG_BRIGHT_COLOR_RED       "\e[1;31m"
-#define RLC_FG_BRIGHT_COLOR_GREEN     "\e[1;32m"
-#define RLC_FG_BRIGHT_COLOR_YELLOW    "\e[1;33m"
-#define RLC_FG_BRIGHT_COLOR_BLUE      "\e[1;34m"
-#define RLC_FG_BRIGHT_COLOR_MAGENTA   "\e[1;35m"
-#define RLC_FG_BRIGHT_COLOR_CYAN      "\e[1;36m"
-#define RLC_FG_BRIGHT_COLOR_WHITE     "\e[1;37m"
-#define RLC_FG_BRIGHT_COLOR_DEFAULT   "\e[0;39m"
-#define RLC_REVERSE_VIDEO             "\e[7m"
-#define RLC_NORMAL_VIDEO              "\e[27m"
 
 #endif

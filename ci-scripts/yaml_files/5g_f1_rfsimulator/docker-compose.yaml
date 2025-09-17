@@ -2,6 +2,7 @@ services:
     mysql:
         container_name: "rfsim5g-mysql"
         image: mysql:8.0
+        init: true
         volumes:
             - ../5g_rfsimulator/oai_db.sql:/docker-entrypoint-initdb.d/oai_db.sql
             - ../5g_rfsimulator/mysql-healthcheck.sh:/tmp/mysql-healthcheck.sh
@@ -13,6 +14,8 @@ services:
             - MYSQL_ROOT_PASSWORD=linux
         healthcheck:
             test: /bin/bash -c "/tmp/mysql-healthcheck.sh"
+            start_period: 10s
+            start_interval: 500ms
             interval: 10s
             timeout: 5s
             retries: 30
@@ -21,7 +24,7 @@ services:
                 ipv4_address: 192.168.71.131
     oai-amf:
         container_name: "rfsim5g-oai-amf"
-        image: oaisoftwarealliance/oai-amf:v2.0.0
+        image: oaisoftwarealliance/oai-amf:v2.1.10
         environment:
             - TZ=Europe/paris
         volumes:
@@ -33,7 +36,7 @@ services:
                 ipv4_address: 192.168.71.132
     oai-smf:
         container_name: "rfsim5g-oai-smf"
-        image: oaisoftwarealliance/oai-smf:v2.0.0
+        image: oaisoftwarealliance/oai-smf:v2.1.10
         environment:
             - TZ=Europe/Paris
         volumes:
@@ -45,7 +48,8 @@ services:
                 ipv4_address: 192.168.71.133
     oai-upf:
         container_name: "rfsim5g-oai-upf"
-        image: oaisoftwarealliance/oai-upf:v2.0.0
+        image: oaisoftwarealliance/oai-upf:v2.1.10
+        init: true
         environment:
             - TZ=Europe/Paris
         volumes:
@@ -61,13 +65,16 @@ services:
         networks:
             public_net:
                 ipv4_address: 192.168.71.134
+                interface_name: eth0
             traffic_net:
                 ipv4_address: 192.168.72.134
+                interface_name: eth1
 
     oai-ext-dn:
         privileged: true
         container_name: rfsim5g-oai-ext-dn
         image: oaisoftwarealliance/trf-gen-cn5g:focal
+        init: true
         entrypoint: /bin/bash -c \
               "iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE;"\
               "ip route add 12.1.1.0/24 via 192.168.72.134 dev eth0; sleep infinity"
@@ -78,6 +85,8 @@ services:
                 ipv4_address: 192.168.72.135
         healthcheck:
             test: /bin/bash -c "ping -c 2 192.168.72.134"
+            start_period: 10s
+            start_interval: 500ms
             interval: 10s
             timeout: 5s
             retries: 5
@@ -87,9 +96,15 @@ services:
         container_name: rfsim5g-oai-cu
         cap_drop:
             - ALL
+        cap_add:
+            - SYS_NICE
         environment: 
-            USE_ADDITIONAL_OPTIONS: --sa --log_config.global_log_options level,nocolor,time
-            ASAN_OPTIONS: detect_leaks=0
+            USE_ADDITIONAL_OPTIONS: --log_config.global_log_options level,nocolor,time
+                                    --rfsimulator.options chanmod
+                                    --gNBs.[0].remote_s_address 0.0.0.0
+                                    --telnetsrv --telnetsrv.listenaddr 192.168.71.150
+                                    --telnetsrv.shrmod ci
+            ASAN_OPTIONS: detect_leaks=0:detect_odr_violation=0
         depends_on:
             - oai-ext-dn
         networks:
@@ -99,31 +114,74 @@ services:
           - ../../conf_files/gnb-cu.sa.band78.106prb.conf:/opt/oai-gnb/etc/gnb.conf
         healthcheck:
             test: /bin/bash -c "pgrep nr-softmodem"
+            start_period: 10s
+            start_interval: 500ms
             interval: 10s
             timeout: 5s
             retries: 5
 
-    oai-du:
+    oai-du-pci0:
         image: ${REGISTRY:-oaisoftwarealliance}/${GNB_IMG:-oai-gnb}:${TAG:-develop}
-        container_name: rfsim5g-oai-du
+        container_name: rfsim5g-oai-du-pci0
         cap_drop:
             - ALL
+        cap_add:
+            - SYS_NICE
         environment:
-            USE_ADDITIONAL_OPTIONS: --sa --rfsim
+            USE_ADDITIONAL_OPTIONS: --rfsim
                                     --log_config.global_log_options level,nocolor,time
                                     --rfsimulator.options chanmod
                                     --telnetsrv --telnetsrv.listenaddr 192.168.71.171
+                                    --telnetsrv.shrmod ci
+                                    --rfsimulator.serveraddr 192.168.71.181
             ASAN_OPTIONS: detect_leaks=0:detect_odr_violation=0
         depends_on:
             - oai-cu
+            - oai-nr-ue
         networks:
             public_net:
                 ipv4_address: 192.168.71.171
         volumes:
             - ../../conf_files/gnb-du.sa.band78.106prb.rfsim.conf:/opt/oai-gnb/etc/gnb.conf
-            - ../../conf_files/rfsim_channel_ci.conf:/opt/oai-gnb/etc/rfsim_channel_ci.conf
         healthcheck:
             test: /bin/bash -c "pgrep nr-softmodem"
+            start_period: 10s
+            start_interval: 500ms
+            interval: 10s
+            timeout: 5s
+            retries: 5
+
+    oai-du-pci1:
+        image: ${REGISTRY:-oaisoftwarealliance}/${GNB_IMG:-oai-gnb}:${TAG:-develop}
+        container_name: rfsim5g-oai-du-pci1
+        cap_drop:
+            - ALL
+        cap_add:
+            - SYS_NICE
+        environment:
+            USE_ADDITIONAL_OPTIONS: --rfsim
+                                    --log_config.global_log_options level,nocolor,time
+                                    --gNBs.[0].gNB_DU_ID 3585
+                                    --gNBs.[0].nr_cellid 11111111
+                                    --gNBs.[0].servingCellConfigCommon.[0].physCellId 1
+                                    --gNBs.[0].servingCellConfigCommon.[0].absoluteFrequencySSB 643296
+                                    --gNBs.[0].servingCellConfigCommon.[0].dl_absoluteFrequencyPointA 642024
+                                    --gNBs.[0].servingCellConfigCommon.[0].ssb_PositionsInBurst_Bitmap 3
+                                    --MACRLCs.[0].local_n_address 192.168.71.172
+                                    --rfsimulator.serveraddr 192.168.71.181
+            ASAN_OPTIONS: detect_leaks=0:detect_odr_violation=0
+        depends_on:
+            - oai-cu
+            - oai-nr-ue
+        networks:
+            public_net:
+                ipv4_address: 192.168.71.172
+        volumes:
+            - ../../conf_files/gnb-du.sa.band78.106prb.rfsim.conf:/opt/oai-gnb/etc/gnb.conf
+        healthcheck:
+            test: /bin/bash -c "pgrep nr-softmodem"
+            start_period: 10s
+            start_interval: 500ms
             interval: 10s
             timeout: 5s
             retries: 5
@@ -136,16 +194,17 @@ services:
         cap_add:
             - NET_ADMIN  # for interface bringup
             - NET_RAW    # for ping
+            - SYS_NICE
         environment:
-            USE_ADDITIONAL_OPTIONS: --sa --rfsim --log_config.global_log_options level,nocolor,time
+            USE_ADDITIONAL_OPTIONS: --rfsim --log_config.global_log_options level,nocolor,time
                                     -r 106 --numerology 1 -C 3619200000
                                     --uicc0.imsi 208990100001100
-                                    --rfsimulator.serveraddr 192.168.71.171
                                     --rfsimulator.options chanmod
+                                    --rfsimulator.serveraddr server
                                     --telnetsrv --telnetsrv.shrmod ciUE --telnetsrv.listenaddr 192.168.71.181 --telnetsrv.listenport 8091
+                                    --channelmod.modellist_rfsimu_1.[0].model_name rfsimu_channel_ue0
+                                    --channelmod.modellist_rfsimu_1.[1].model_name rfsimu_channel_ue1
             ASAN_OPTIONS: detect_odr_violation=0
-        depends_on:
-            - oai-du
         networks:
             public_net:
                 ipv4_address: 192.168.71.181
@@ -153,9 +212,10 @@ services:
              - /dev/net/tun:/dev/net/tun
         volumes:
             - ../../conf_files/nrue.uicc.conf:/opt/oai-nr-ue/etc/nr-ue.conf
-            - ../../conf_files/rfsim_channel_ci.conf:/opt/oai-nr-ue/etc/rfsim_channel_ci.conf
         healthcheck:
             test: /bin/bash -c "pgrep nr-uesoftmodem"
+            start_period: 10s
+            start_interval: 500ms
             interval: 10s
             timeout: 5s
             retries: 5

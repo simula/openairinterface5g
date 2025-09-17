@@ -100,8 +100,8 @@ nr_rlc_entity_t *new_nr_rlc_entity_am(
     exit(1);
   }
 
-  ret->tx_maxsize = tx_maxsize;
-  ret->rx_maxsize = rx_maxsize;
+  ret->tx_maxsize = tx_maxsize * 5;
+  ret->rx_maxsize = rx_maxsize * 5;
 
   ret->t_poll_retransmit  = t_poll_retransmit;
   ret->t_reassembly       = t_reassembly;
@@ -125,6 +125,7 @@ nr_rlc_entity_t *new_nr_rlc_entity_am(
   ret->common.reestablishment    = nr_rlc_entity_am_reestablishment;
   ret->common.delete_entity      = nr_rlc_entity_am_delete;
   ret->common.available_tx_space = nr_rlc_entity_am_available_tx_space;
+  ret->common.tx_list_occupancy  = nr_rlc_entity_am_tx_list_occupancy;
   ret->common.get_stats       = nr_rlc_entity_get_stats;
 
   ret->common.deliver_sdu                  = deliver_sdu;
@@ -143,6 +144,8 @@ nr_rlc_entity_t *new_nr_rlc_entity_am(
    * initial_size of 1024 (packets) is arbitrary
    */
   ret->common.txsdu_avg_time_to_tx = time_average_new(100 * 1000, 1024);
+
+  ret->rx = nr_rlc_new_rx_manager(1 << (sn_field_length - 1));
 
   return (nr_rlc_entity_t *)ret;
 }
@@ -184,6 +187,7 @@ nr_rlc_entity_t *new_nr_rlc_entity_um(
   ret->common.reestablishment    = nr_rlc_entity_um_reestablishment;
   ret->common.delete_entity      = nr_rlc_entity_um_delete;
   ret->common.available_tx_space = nr_rlc_entity_um_available_tx_space;
+  ret->common.tx_list_occupancy  = nr_rlc_entity_um_tx_list_occupancy;
   ret->common.get_stats       = nr_rlc_entity_get_stats;
 
   ret->common.deliver_sdu                  = deliver_sdu;
@@ -224,6 +228,7 @@ nr_rlc_entity_t *new_nr_rlc_entity_tm(
   ret->common.reestablishment    = nr_rlc_entity_tm_reestablishment;
   ret->common.delete_entity      = nr_rlc_entity_tm_delete;
   ret->common.available_tx_space = nr_rlc_entity_tm_available_tx_space;
+  ret->common.tx_list_occupancy  = nr_rlc_entity_tm_tx_list_occupancy;
   ret->common.get_stats       = nr_rlc_entity_get_stats;
 
   ret->common.deliver_sdu                  = deliver_sdu;

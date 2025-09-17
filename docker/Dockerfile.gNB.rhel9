@@ -60,6 +60,7 @@ WORKDIR /opt/oai-gnb/bin
 COPY --from=gnb-build \
     /oai-ran/cmake_targets/ran_build/build/nr-softmodem ./
 COPY ./docker/scripts/gnb_entrypoint.sh ./entrypoint.sh
+COPY ./docker/scripts/check-prach-io.sh ./check-prach-io.sh
 
 COPY --from=gnb-build \
     /oai-ran/cmake_targets/ran_build/build/liboai_eth_transpro.so \
@@ -72,6 +73,7 @@ COPY --from=gnb-build \
     /oai-ran/cmake_targets/ran_build/build/libtelnetsrv.so \
     /oai-ran/cmake_targets/ran_build/build/libtelnetsrv_ci.so \
     /oai-ran/cmake_targets/ran_build/build/libparams_yaml.so \
+    /oai-ran/cmake_targets/ran_build/build/libvrtsim.so \
     /usr/local/lib/
 
 COPY --from=gnb-base \
@@ -95,7 +97,7 @@ COPY --from=gnb-base \
 
 # Now we are copying from builder-image the UHD files.
 COPY --from=gnb-base /usr/local/bin/uhd_find_devices /usr/local/bin
-COPY --from=gnb-base /usr/local/lib64/libuhd.so.4.4.0 /usr/local/lib64
+COPY --from=gnb-base /usr/local/lib64/libuhd.so.4.8.0 /usr/local/lib64
 COPY --from=gnb-base /usr/local/lib64/uhd/utils/uhd_images_downloader.py /opt/oai-gnb/bin
 
 ## Copy E2 SM models
@@ -118,7 +120,7 @@ RUN /bin/bash -c "ln -s /usr/local/lib/liboai_usrpdevif.so /usr/local/lib/liboai
         /usr/local/lib/libldpc*.so \
         /usr/local/lib/libtelnetsrv.so \
         /usr/local/lib/libtelnetsrv_ci.so \
-        /usr/local/lib64/libuhd.so.4.4.0
+        /usr/local/lib64/libuhd.so.4.8.0
 
 WORKDIR /opt/oai-gnb
 #EXPOSE 2152/udp  # S1U, GTP/UDP

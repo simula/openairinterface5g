@@ -25,10 +25,8 @@
 
 #include <sys/sysinfo.h>
 #include "radio/COMMON/common_lib.h"
-#undef MALLOC
 #include "assertions.h"
 #include "PHY/types.h"
-#include <threadPool/thread-pool.h>
 
 /* help strings definition for command line options, used in CMDLINE_XXX_DESC macros and printed when -h option is used */
 #define CONFIG_HLP_RFCFGF        "Configuration file for front-end (e.g. LMS7002M)\n"
@@ -66,8 +64,8 @@
 #define CONFIG_HLP_DLBW_PHYTEST  "Set the number of PRBs used for DLSCH in PHYTEST mode\n"
 #define CONFIG_HLP_ULBW_PHYTEST  "Set the number of PRBs used for ULSCH in PHYTEST mode\n"
 #define CONFIG_HLP_PRB_SA        "Set the number of PRBs for SA\n"
-#define CONFIG_HLP_DLBM_PHYTEST  "Bitmap for DLSCH slots (slot 0 starts at LSB)\n"
-#define CONFIG_HLP_ULBM_PHYTEST  "Bitmap for ULSCH slots (slot 0 starts at LSB)\n"
+#define CONFIG_HLP_DLBM_PHYTEST  "Bitmap for DLSCH slots in period (slot 0 starts at LSB)\n"
+#define CONFIG_HLP_ULBM_PHYTEST  "Bitmap for ULSCH slots in period (slot 0 starts at LSB)\n"
 #define CONFIG_HLP_SSC           "Set the start subcarrier \n"
 #define CONFIG_HLP_TDD           "Set hardware to TDD mode (default: FDD). Used only with -U (otherwise set in config file).\n"
 #define CONFIG_HLP_UE            "Set the lte softmodem as a UE\n"
@@ -128,14 +126,12 @@ extern int32_t uplink_frequency_offset[MAX_NUM_CCs][4];
 
 extern int oai_exit;
 
-extern openair0_config_t openair0_cfg[MAX_CARDS];
 extern pthread_cond_t sync_cond;
 extern pthread_mutex_t sync_mutex;
 extern int sync_var;
 extern int transmission_mode;
 extern double cpuf;
 
-extern int emulate_rf;
 extern int numerology;
 extern int usrp_tx_thread;
 void wait_gNBs(void);

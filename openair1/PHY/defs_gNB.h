@@ -33,15 +33,15 @@
 #ifndef __PHY_DEFS_GNB__H__
 #define __PHY_DEFS_GNB__H__
 
+#include "common/platform_constants.h"
 #include "defs_nr_common.h"
 #include "CODING/nrPolar_tools/nr_polar_pbch_defs.h"
 #include "openair2/NR_PHY_INTERFACE/NR_IF_Module.h"
 #include "PHY/NR_TRANSPORT/nr_transport_common_proto.h"
 #include "PHY/impl_defs_top.h"
-#include "PHY/defs_common.h"
+#include "PHY/CODING/nrLDPC_coding/nrLDPC_coding_interface.h"
 #include "PHY/CODING/nrLDPC_extern.h"
 #include "PHY/CODING/nrLDPC_decoder/nrLDPC_types.h"
-#include "executables/rt_profiling.h"
 #include "nfapi_nr_interface_scf.h"
 
 #define MAX_NUM_RU_PER_gNB 8
@@ -138,7 +138,9 @@ typedef struct {
   int frame;
   int slot;
   // identifier for concurrent beams
-  int beam_nb;
+  // prach duration in slots
+  int num_slots;
+  int *beam_nb;
   nfapi_nr_prach_pdu_t pdu;  
 } gNB_PRACH_list_t;
 
@@ -235,7 +237,7 @@ typedef struct {
   /// Maximum number of LDPC iterations
   uint8_t max_ldpc_iterations;
   /// number of iterations used in last LDPC decoding
-  uint8_t last_iteration_cnt;
+  int8_t last_iteration_cnt;
   /// Status Flag indicating for this ULSCH
   bool active;
   /// Flag to indicate that the UL configuration has been handled. Used to remove a stale ULSCH when frame wraps around
@@ -285,19 +287,13 @@ typedef struct {
   /// - first index: beam index (for concurrent beams)
   /// - second index: beam_id [0.. symbols_per_frame[
   int **beam_id;
-  int num_beams;
   int num_beams_period;
   bool analog_bf;
   int32_t *debugBuff;
   int32_t debugBuff_sample_offset;
 } NR_gNB_COMMON;
 
-
 typedef struct {
-  /// \brief Hold the channel estimates in time domain based on DRS.
-  /// - first index: rx antenna id [0..nb_antennas_rx[
-  /// - second index: ? [0..4*ofdm_symbol_size[
-  int32_t **ul_ch_estimates_time;
   /// \brief Hold the channel estimates in frequency domain based on DRS.
   /// - first index: rx antenna id [0..nb_antennas_rx[
   /// - second index: ? [0..12*N_RB_UL*frame_parms->symbols_per_tti[
@@ -319,10 +315,6 @@ typedef struct {
   /// \brief llr values.
   /// - first index: ? [0..1179743] (hard coded)
   int16_t *llr;
-  /// \brief llr values per layer.
-  /// - first index: ? [0..3] (hard coded)
-  /// - first index: ? [0..1179743] (hard coded)
-  int16_t **llr_layers;
   // PTRS symbol index, to be updated every PTRS symbol within a slot.
   uint8_t ptrs_symbol_index;
   /// bit mask of PT-RS ofdm symbol indicies
@@ -413,10 +405,6 @@ typedef struct {
   int prach_I0;
 } PHY_MEASUREMENTS_gNB;
 
-
-#define MAX_NUM_NR_RX_RACH_PDUS 4
-#define MAX_UL_PDUS_PER_SLOT 8
-#define MAX_NUM_NR_SRS_PDUS 8
 // the current RRC resource allocation is that each UE gets its
 // "own" PUCCH resource (for F0) in a dedicated PRB in each slot
 // therefore, we can have up to "number of UE" UCI PDUs
@@ -441,22 +429,9 @@ typedef struct PHY_VARS_gNB_s {
   NR_DL_FRAME_PARMS frame_parms;
   PHY_MEASUREMENTS_gNB measurements;
   NR_IF_Module_t *if_inst;
-  NR_UL_IND_t UL_INFO;
-
-  /// NFAPI RX ULSCH information
-  nfapi_nr_rx_data_pdu_t  rx_pdu_list[MAX_UL_PDUS_PER_SLOT];
-  /// NFAPI RX ULSCH CRC information
-  nfapi_nr_crc_t crc_pdu_list[MAX_UL_PDUS_PER_SLOT];
-  /// NFAPI SRS information
-  nfapi_nr_srs_indication_pdu_t srs_pdu_list[MAX_NUM_NR_SRS_PDUS];
-  /// NFAPI UCI information
-  nfapi_nr_uci_t uci_pdu_list[MAX_NUM_NR_UCI_PDUS];
-  /// NFAPI PRACH information
-  nfapi_nr_prach_indication_pdu_t prach_pdu_indication_list[MAX_NUM_NR_RX_RACH_PDUS];
 
   nfapi_nr_ul_tti_request_t UL_tti_req;
-  nfapi_nr_uci_indication_t uci_indication;
-  
+
   int max_nb_pucch;
   int max_nb_srs;
   int max_nb_pdsch;
@@ -493,9 +468,10 @@ typedef struct PHY_VARS_gNB_s {
   /// OFDM symbol offset divisor for UL
   uint32_t ofdm_offset_divisor;
 
-  int ldpc_offload_flag;
-
+  /// NR LDPC coding related
+  nrLDPC_coding_interface_t nrLDPC_coding_interface;
   int max_ldpc_iterations;
+
   /// indicate the channel estimation technique in time domain
   int chest_time;
   /// indicate the channel estimation technique in freq domain
@@ -514,7 +490,9 @@ typedef struct PHY_VARS_gNB_s {
   int srs_thres;
   uint64_t bad_pucch;
   int num_ulprbbl;
-  int ulprbbl[275];
+  uint16_t ulprbbl [MAX_BWP_SIZE];
+
+  bool enable_analog_das;
 
   time_stats_t phy_proc_tx;
   time_stats_t phy_proc_rx;
@@ -534,6 +512,8 @@ typedef struct PHY_VARS_gNB_s {
   time_stats_t dlsch_interleaving_stats;
   time_stats_t dlsch_segmentation_stats;
 
+  time_stats_t dci_generation_stats;
+  time_stats_t phase_comp_stats;
   time_stats_t rx_pusch_stats;
   time_stats_t rx_pusch_init_stats;
   time_stats_t rx_pusch_symbol_processing_stats;
@@ -541,8 +521,12 @@ typedef struct PHY_VARS_gNB_s {
   time_stats_t slot_indication_stats;
   time_stats_t schedule_response_stats;
   time_stats_t ulsch_decoding_stats;
+  time_stats_t ts_deinterleave;
+  time_stats_t ts_rate_unmatch;
+  time_stats_t ts_ldpc_decode;
   time_stats_t ulsch_deinterleaving_stats;
   time_stats_t ulsch_channel_estimation_stats;
+  time_stats_t pusch_channel_estimation_antenna_processing_stats;
   time_stats_t ulsch_llr_stats;
   time_stats_t rx_srs_stats;
   time_stats_t generate_srs_stats;
@@ -562,15 +546,16 @@ typedef struct PHY_VARS_gNB_s {
   notifiedFIFO_t L1_rx_out;
   notifiedFIFO_t resp_RU_tx;
   tpool_t threadPool;
+  int nbSymb;
+  int nbAarx;
   int num_pusch_symbols_per_thread;
+  int dmrs_num_antennas_per_thread;
   pthread_t L1_rx_thread;
   int L1_rx_thread_core;
   pthread_t L1_tx_thread;
   int L1_tx_thread_core;
   struct processingData_L1tx *msgDataTx;
   void *scopeData;
-  /// structure for analyzing high-level RT measurements
-  rt_L1_profiling_t rt_L1_profiling; 
 } PHY_VARS_gNB;
 
 struct puschSymbolReqId {
@@ -582,6 +567,16 @@ struct puschSymbolReqId {
 
 union puschSymbolReqUnion {
   struct puschSymbolReqId s;
+  uint64_t p;
+};
+
+struct puschAntennaReqId {
+  uint16_t ul_id;
+  uint16_t spare;
+} __attribute__((packed));
+
+union puschAntennaReqUnion {
+  struct puschAntennaReqId s;
   uint64_t p;
 };
 
@@ -605,6 +600,7 @@ typedef struct LDPCDecode_s {
   int offset;
   int decodeIterations;
   uint32_t tbslbrm;
+  task_ans_t *ans;
 } ldpcDecode_t;
 
 struct ldpcReqId {
@@ -625,6 +621,7 @@ typedef struct processingData_L1 {
   int slot_rx;
   openair0_timestamp timestamp_tx;
   PHY_VARS_gNB *gNB;
+  notifiedFIFO_elt_t *elt;
 } processingData_L1_t;
 
 typedef struct processingData_L1tx {

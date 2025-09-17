@@ -938,7 +938,7 @@ int main(int argc, char **argv) {
       ndi=0;
       phy_reset_ue(0,0,0);
       UE->UE_mode[eNB_id]=PUSCH;
-      SET_LOG_DEBUG(UE_TIMING);
+      set_log_debug("UE_TIMING", true);
 
       for (trials = 0; trials<n_frames; trials++) {
         //      printf("*");
@@ -1518,8 +1518,8 @@ int main(int argc, char **argv) {
 
   return(0);
 }
-
-/* temporary dummy implem of get_softmodem_optmask, till basic simulators implemented as device */
-uint64_t get_softmodem_optmask(void) {
-  return 0;
+static softmodem_params_t softmodem_params;
+softmodem_params_t *get_softmodem_params(void)
+{
+  return &softmodem_params;
 }

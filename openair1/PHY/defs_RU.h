@@ -39,8 +39,8 @@
 #include "time_meas.h"
 #include "defs_common.h"
 #include "nfapi_nr_interface_scf.h"
-#include <common/utils/threadPool/thread-pool.h>
-#include <executables/rt_profiling.h>
+#include "common/utils/threadPool/task_ans.h"
+#include "common/utils/threadPool/thread-pool.h"
 
 #define MAX_BANDS_PER_RRU 4
 #define MAX_RRU_CONFIG_SIZE 1024
@@ -172,18 +172,22 @@ typedef struct RU_prec_t_s{
 
 typedef struct {
  int aid;
+ int beam;
  struct RU_t_s *ru;
  int startSymbol;
  int endSymbol;
- int slot; 
+ int slot;
+ task_ans_t *ans;
 } feprx_cmd_t;
 
 typedef struct {
  int aid;
+ int beam;
  struct RU_t_s *ru;
  int slot; 
  int startSymbol;
  int numSymbols;
+ task_ans_t *ans;
 } feptx_cmd_t;
 
 typedef struct {
@@ -193,6 +197,8 @@ typedef struct {
   int numRA;
   int prachStartSymbol;
   int num_prach_ocas;
+  int num_slots;
+  int *beam;
 } RU_PRACH_list_t;
 
 #define NUMBER_OF_NR_RU_PRACH_MAX 8
@@ -249,7 +255,6 @@ typedef struct RU_proc_t_s {
   int instance_cnt_feptx;
   /// \internal This variable is protected by \ref mutex_ru_thread
   int instance_cnt_ru;
-  int instance_cnt_emulateRF;
   /// pthread structure for RU FH processing thread
   pthread_t pthread_FH;
   pthread_t pthread_FH1;
@@ -265,8 +270,6 @@ typedef struct RU_proc_t_s {
   pthread_t pthread_fep[8];
   /// pthread struct for RU TX FEP worker thread
   pthread_t pthread_feptx;
-  /// pthread struct for emulated RF
-  pthread_t pthread_emulateRF;
   /// pthread structure for asychronous RX/TX processing thread
   pthread_t pthread_asynch_rxtx;
   /// flag to indicate first RX acquisition
@@ -290,8 +293,6 @@ typedef struct RU_proc_t_s {
   pthread_attr_t attr_fep;
   /// pthread attributes for worker feptx thread
   pthread_attr_t attr_feptx;
-  /// pthread attributes for emulated RF
-  pthread_attr_t attr_emulateRF;
   /// scheduling parameters for RU FH thread
   struct sched_param sched_param_FH;
   struct sched_param sched_param_FH1;
@@ -318,8 +319,6 @@ typedef struct RU_proc_t_s {
   pthread_cond_t cond_fep[8];
   /// condition varible for RU TX FEP thread
   pthread_cond_t cond_feptx;
-  /// condition varible for emulated RF
-  pthread_cond_t cond_emulateRF;
   /// condition variable for eNB signal
   pthread_cond_t cond_eNBs;
   /// condition variable for gNB signal
@@ -347,8 +346,6 @@ typedef struct RU_proc_t_s {
   pthread_mutex_t mutex_feptx;
   /// mutex for ru_thread
   pthread_mutex_t mutex_ru;
-  /// mutex for emulated RF thread
-  pthread_mutex_t mutex_emulateRF;
   /// symbol mask for IF4p5 reception per subframe
   uint32_t symbol_mask[10];
   /// time measurements for each subframe
@@ -388,7 +385,6 @@ typedef struct RU_proc_t_s {
   /// pipeline ready state
   int ru_rx_ready;
   int ru_tx_ready;
-  int emulate_rf_busy;
 
   /// structure for precoding thread
   RU_prec_t prec[16];
@@ -401,7 +397,6 @@ typedef enum {
   REMOTE_IF4p5    =3,
   REMOTE_IF1pp    =4,
   MAX_RU_IF_TYPES =5
-                   //EMULATE_RF      =6
 } RU_if_south_t;
 
 
@@ -424,9 +419,8 @@ typedef enum {
   WAIT_RESYNCH     = 3
 } rru_cmd_t;
 
-
 typedef struct RU_t_s {
-  /// ThreadPool for RU	
+  /// ThreadPool for RU        
   tpool_t *threadPool;
   /// index of this ru
   uint32_t idx;
@@ -448,8 +442,6 @@ typedef struct RU_t_s {
   node_function_t function;
   /// Ethernet parameters for fronthaul interface
   eth_params_t eth_params;
-  /// flag to indicate RF emulation mode
-  int emulate_rf;
   /// numerology index
   int numerology;
   /// flag to indicate the RU is in sync with a master reference
@@ -486,6 +478,8 @@ typedef struct RU_t_s {
   int nb_rx;
   /// number of TX paths on device
   int nb_tx;
+  /// number of concurrent analog beams in period
+  int num_beams_period;
   /// number of logical antennas at TX beamformer input
   int nb_log_antennas;
   /// maximum PDSCH RS EPRE
@@ -660,8 +654,6 @@ typedef struct RU_t_s {
   int tpcores[16];
   /// number of cores for RU ThreadPool
   int num_tpcores;
-  /// structure for analyzing high-level RT measurements
-  rt_ru_profiling_t rt_ru_profiling;
   void* scopeData;
 } RU_t;
 

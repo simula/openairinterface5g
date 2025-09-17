@@ -26,6 +26,7 @@
 #include "PHY/defs_gNB.h"
 #include "PHY/NR_REFSIG/nr_refsig.h"
 #include "PHY/INIT/nr_phy_init.h"
+#include "PHY/CODING/nrLDPC_coding/nrLDPC_coding_interface.h"
 #include "PHY/CODING/nrPolar_tools/nr_polar_pbch_defs.h"
 #include "PHY/NR_TRANSPORT/nr_transport_proto.h"
 #include "PHY/NR_TRANSPORT/nr_transport_common_proto.h"
@@ -40,29 +41,27 @@
 #include "PHY/NR_REFSIG/nr_refsig.h"
 #include "SCHED_NR/fapi_nr_l1.h"
 #include "PHY/NR_REFSIG/ul_ref_seq_nr.h"
+#include <string.h>
+#include "nfapi/open-nFAPI/fapi/inc/nr_fapi_p5_utils.h"
 
-int l1_north_init_gNB() {
+int l1_north_init_gNB()
+{
+  AssertFatal(RC.nb_nr_L1_inst > 0, "Failed to init PHY callbacks: nb_nr_L1_inst = %d\n", RC.nb_nr_L1_inst);
+  AssertFatal(RC.gNB != NULL, "Failed to init PHY callbacks: RC.gNB is null\n");
 
-  if (RC.nb_nr_L1_inst > 0 &&  RC.gNB != NULL) {
+  for (uint8_t i = 0; i < RC.nb_nr_L1_inst; i++) {
 
-    AssertFatal(RC.nb_nr_L1_inst>0,"nb_nr_L1_inst=%d\n",RC.nb_nr_L1_inst);
-    AssertFatal(RC.gNB!=NULL,"RC.gNB is null\n");
-    LOG_I(PHY,"%s() RC.nb_nr_L1_inst:%d\n", __FUNCTION__, RC.nb_nr_L1_inst);
-
-    for (int i=0; i<RC.nb_nr_L1_inst; i++) {
-      AssertFatal(RC.gNB[i]!=NULL,"RC.gNB[%d] is null\n",i);
-
-      if ((RC.gNB[i]->if_inst =  NR_IF_Module_init(i))<0) return(-1);
-      
-      LOG_I(PHY,"%s() RC.gNB[%d] installing callbacks\n", __FUNCTION__, i);
-      RC.gNB[i]->if_inst->NR_PHY_config_req = nr_phy_config_request;
-      RC.gNB[i]->if_inst->NR_Schedule_response = nr_schedule_response;
+    if ((RC.gNB[i]->if_inst = NR_IF_Module_init(i)) < 0) {
+      LOG_E(NR_PHY, "Error: Failed to initialize NR_IF_Module for gNB[%d]\n", i);
+      return -1;
     }
-  } else {
-    LOG_I(PHY,"%s() Not installing PHY callbacks - RC.nb_nr_L1_inst:%d RC.gNB:%p\n", __FUNCTION__, RC.nb_nr_L1_inst, RC.gNB);
+
+    LOG_D(NR_PHY, "RC.gNB[%d]: installing callbacks\n", i);
+    RC.gNB[i]->if_inst->NR_PHY_config_req = nr_phy_config_request;
+    RC.gNB[i]->if_inst->NR_Schedule_response = nr_schedule_response;
   }
 
-  return(0);
+  return 0;
 }
 
 NR_gNB_PHY_STATS_t *get_phy_stats(PHY_VARS_gNB *gNB, uint16_t rnti)
@@ -100,9 +99,6 @@ void reset_active_stats(PHY_VARS_gNB *gNB, int frame)
   }
 }
 
-// A global var to reduce the changes size
-ldpc_interface_t ldpc_interface = {0}, ldpc_interface_offload = {0};
-
 void phy_init_nr_gNB(PHY_VARS_gNB *gNB)
 {
   // shortcuts
@@ -114,6 +110,7 @@ void phy_init_nr_gNB(PHY_VARS_gNB *gNB)
   common_vars->analog_bf = cfg->analog_beamforming_ve.analog_bf_vendor_ext.value;
   LOG_I(PHY, "L1 configured with%s analog beamforming\n", common_vars->analog_bf ? "" : "out");
   if (common_vars->analog_bf) {
+    // True only if nrmac->beam_info.beam_mode == FAPI_ANALOG_BEAM, thus analog_beamforming=2
     common_vars->num_beams_period = cfg->analog_beamforming_ve.num_beams_period_vendor_ext.value;
     LOG_I(PHY, "Max number of concurrent beams: %d\n", common_vars->num_beams_period);
   } else
@@ -125,7 +122,7 @@ void phy_init_nr_gNB(PHY_VARS_gNB *gNB)
 
   AssertFatal(Ptx > 0 && Ptx < 9,"Ptx %d is not supported\n", Ptx);
   AssertFatal(Prx > 0 && Prx < 9,"Prx %d is not supported\n", Prx);
-  LOG_I(PHY, "[gNB %d]About to wait for gNB to be configured\n", gNB->Mod_id);
+  LOG_D(PHY, "[gNB %d]About to wait for gNB to be configured\n", gNB->Mod_id);
 
   while(gNB->configured == 0)
     usleep(10000);
@@ -133,22 +130,17 @@ void phy_init_nr_gNB(PHY_VARS_gNB *gNB)
   load_dftslib();
 
   crcTableInit();
-  init_scrambling_luts();
+  init_byte2m128i();
   init_pucch2_luts();
 
   nr_init_fde(); // Init array for frequency equalization of transform precoding of PUSCH
 
-  load_LDPClib(NULL, &ldpc_interface);
-
-  pthread_mutex_init(&gNB->UL_INFO.crc_rx_mutex, NULL);
-
-  if (gNB->ldpc_offload_flag)
-    load_LDPClib("_t2", &ldpc_interface_offload);
-  else
-    load_LDPClib(NULL, &ldpc_interface);
+  int ret_loader = load_nrLDPC_coding_interface(NULL, &gNB->nrLDPC_coding_interface);
+  AssertFatal(ret_loader == 0, "error loading LDPC library\n");
 
   gNB->max_nb_pdsch = MAX_MOBILES_PER_GNB;
   init_delay_table(fp->ofdm_symbol_size, MAX_DELAY_COMP, NR_MAX_OFDM_SYMBOL_SIZE, fp->delay_table);
+  init_delay_table(128, MAX_DELAY_COMP, 128, fp->delay_table128);
 
   gNB->bad_pucch = 0;
   if (gNB->TX_AMP == 0)
@@ -181,8 +173,7 @@ void phy_init_nr_gNB(PHY_VARS_gNB *gNB)
   for (int i = 0; i < common_vars->num_beams_period; i++)
     common_vars->rxdataF[i] = (c16_t **)malloc16(Prx * sizeof(c16_t*));
 
-  common_vars->num_beams = cfg->dbt_config.num_dig_beams;
-  if (common_vars->num_beams > 0) {
+  if (cfg->analog_beamforming_ve.analog_bf_vendor_ext.value) {
     common_vars->beam_id = (int **)malloc16(common_vars->num_beams_period * sizeof(int*));
     for (int i = 0; i < common_vars->num_beams_period; i++)
       common_vars->beam_id[i] = (int*)malloc16_clear(fp->symbols_per_slot * fp->slots_per_frame * sizeof(int));
@@ -206,26 +197,21 @@ void phy_init_nr_gNB(PHY_VARS_gNB *gNB)
   int n_buf = Prx*max_ul_mimo_layers;
 
   int nb_re_pusch = N_RB_UL * NR_NB_SC_PER_RB;
-  int nb_re_pusch2 = ALIGN_UP_16(nb_re_pusch);
+  int nb_re_pusch2 = ceil_mod(nb_re_pusch, 16);
 
   gNB->pusch_vars = (NR_gNB_PUSCH *)malloc16_clear(gNB->max_nb_pusch * sizeof(NR_gNB_PUSCH));
   for (int ULSCH_id = 0; ULSCH_id < gNB->max_nb_pusch; ULSCH_id++) {
     NR_gNB_PUSCH *pusch = &gNB->pusch_vars[ULSCH_id];
     pusch->ul_ch_estimates = (int32_t **)malloc16(n_buf * sizeof(int32_t *));
     pusch->ptrs_phase_per_slot = (int32_t **)malloc16(n_buf * sizeof(int32_t *));
-    pusch->ul_ch_estimates_time = (int32_t **)malloc16(n_buf * sizeof(int32_t *));
     pusch->rxdataF_comp = (int32_t **)malloc16(n_buf * sizeof(int32_t *));
-    pusch->llr_layers = (int16_t **)malloc16(max_ul_mimo_layers * sizeof(int32_t *));
     for (int i = 0; i < n_buf; i++) {
       pusch->ul_ch_estimates[i] = (int32_t *)malloc16_clear(sizeof(int32_t) * fp->ofdm_symbol_size * fp->symbols_per_slot);
-      pusch->ul_ch_estimates_time[i] = (int32_t *)malloc16_clear(sizeof(int32_t) * fp->ofdm_symbol_size);
       pusch->ptrs_phase_per_slot[i] = (int32_t *)malloc16_clear(sizeof(int32_t) * fp->symbols_per_slot); // symbols per slot
       pusch->rxdataF_comp[i] = (int32_t *)malloc16_clear(sizeof(int32_t) * nb_re_pusch2 * fp->symbols_per_slot);
     }
 
     for (int i = 0; i < max_ul_mimo_layers; i++) {
-      pusch->llr_layers[i] = (int16_t *)malloc16_clear((8 * ((3 * 8 * 6144) + 12))
-                                                       * sizeof(int16_t)); // [hna] 6144 is LTE and (8*((3*8*6144)+12)) is not clear
     }
     pusch->llr = (int16_t *)malloc16_clear((8 * ((3 * 8 * 6144) + 12))
                                            * sizeof(int16_t)); // [hna] 6144 is LTE and (8*((3*8*6144)+12)) is not clear
@@ -239,8 +225,6 @@ void phy_free_nr_gNB(PHY_VARS_gNB *gNB)
   const int Prx = gNB->gNB_config.carrier_config.num_rx_ant.value;
   const int max_ul_mimo_layers = 4; // taken from phy_init_nr_gNB()
   const int n_buf = Prx * max_ul_mimo_layers;
-
-  pthread_mutex_destroy(&gNB->UL_INFO.crc_rx_mutex);
 
   PHY_MEASUREMENTS_gNB *meas = &gNB->measurements;
   free_and_zero(meas->n0_subband_power);
@@ -286,24 +270,22 @@ void phy_free_nr_gNB(PHY_VARS_gNB *gNB)
 
   for (int ULSCH_id = 0; ULSCH_id < gNB->max_nb_pusch; ULSCH_id++) {
     NR_gNB_PUSCH *pusch_vars = &gNB->pusch_vars[ULSCH_id];
-    for (int i=0; i< max_ul_mimo_layers; i++)
-      free_and_zero(pusch_vars->llr_layers[i]);
     for (int i = 0; i < n_buf; i++) {
       free_and_zero(pusch_vars->ul_ch_estimates[i]);
-      free_and_zero(pusch_vars->ul_ch_estimates_time[i]);
       free_and_zero(pusch_vars->ptrs_phase_per_slot[i]);
       free_and_zero(pusch_vars->rxdataF_comp[i]);
     }
-    free_and_zero(pusch_vars->llr_layers);
     free_and_zero(pusch_vars->ul_ch_estimates);
     free_and_zero(pusch_vars->ptrs_phase_per_slot);
-    free_and_zero(pusch_vars->ul_ch_estimates_time);
     free_and_zero(pusch_vars->ul_valid_re_per_slot);
     free_and_zero(pusch_vars->rxdataF_comp);
 
     free_and_zero(pusch_vars->llr);
   } // ULSCH_id
   free(gNB->pusch_vars);
+
+  free_nrLDPC_coding_interface(&gNB->nrLDPC_coding_interface);
+
 }
 
 //Adding nr_schedule_handler
@@ -312,15 +294,6 @@ void install_nr_schedule_handlers(NR_IF_Module_t *if_inst)
   if_inst->NR_PHY_config_req = nr_phy_config_request;
   if_inst->NR_Schedule_response = nr_schedule_response;
 }
-/*
-void install_schedule_handlers(IF_Module_t *if_inst)
-{
-  if_inst->PHY_config_req = phy_config_request;
-  if_inst->schedule_response = schedule_response;
-}*/
-
-/// this function is a temporary addition for NR configuration
-
 
 void nr_phy_config_request_sim(PHY_VARS_gNB *gNB,
                                int N_RB_DL,
@@ -371,7 +344,7 @@ void nr_phy_config_request_sim(PHY_VARS_gNB *gNB,
   }
 
   fp->threequarter_fs = 0;
-  frequency_range_t frequency_range = fp->nr_band > 256 ? FR2 : FR1;
+  frequency_range_t frequency_range = get_freq_range_from_band(fp->nr_band);
   int bw_index = get_supported_band_index(mu, frequency_range, N_RB_DL);
   gNB_config->carrier_config.dl_bandwidth.value = get_supported_bw_mhz(frequency_range, bw_index);
 
@@ -381,8 +354,7 @@ void nr_phy_config_request_sim(PHY_VARS_gNB *gNB,
   init_symbol_rotation(fp);
   init_timeshift_rotation(fp);
 
-  gNB->configured    = 1;
-  LOG_I(PHY,"gNB configured\n");
+  gNB->configured = 1;
 }
 
 void nr_phy_config_request(NR_PHY_Config_t *phy_config)
@@ -392,7 +364,7 @@ void nr_phy_config_request(NR_PHY_Config_t *phy_config)
   NR_DL_FRAME_PARMS *fp = &RC.gNB[Mod_id]->frame_parms;
   nfapi_nr_config_request_scf_t *gNB_config = &RC.gNB[Mod_id]->gNB_config;
 
-  memcpy((void*)gNB_config,phy_config->cfg,sizeof(*phy_config->cfg));
+  copy_config_request(phy_config->cfg, gNB_config);
 
   uint64_t dl_bw_khz = (12*gNB_config->carrier_config.dl_grid_size[gNB_config->ssb_config.scs_common.value].value)*(15<<gNB_config->ssb_config.scs_common.value);
   fp->dl_CarrierFreq = ((dl_bw_khz>>1) + gNB_config->carrier_config.dl_frequency.value)*1000 ;
@@ -406,7 +378,7 @@ void nr_phy_config_request(NR_PHY_Config_t *phy_config)
   LOG_I(PHY, "DL frequency %lu Hz, UL frequency %lu Hz: band %d, uldl offset %d Hz\n", fp->dl_CarrierFreq, fp->ul_CarrierFreq, fp->nr_band, dlul_offset);
 
   fp->threequarter_fs = get_softmodem_params()->threequarter_fs;
-  LOG_A(PHY,"Configuring MIB for instance %d, : (Nid_cell %d,DL freq %llu, UL freq %llu)\n",
+  LOG_D(PHY,"Configuring MIB for instance %d, : (Nid_cell %d,DL freq %llu, UL freq %llu)\n",
         Mod_id,
         gNB_config->cell_config.phy_cell_id.value,
         (unsigned long long)fp->dl_CarrierFreq,
@@ -434,8 +406,6 @@ void nr_phy_config_request(NR_PHY_Config_t *phy_config)
   fp->ofdm_offset_divisor = RC.gNB[Mod_id]->ofdm_offset_divisor;
   init_symbol_rotation(fp);
   init_timeshift_rotation(fp);
-
-  LOG_I(PHY,"gNB %d configured\n",Mod_id);
 }
 
 void init_DLSCH_struct(PHY_VARS_gNB *gNB, processingData_L1tx_t *msg)
@@ -476,7 +446,6 @@ void init_nr_transport(PHY_VARS_gNB *gNB)
 
   NR_DL_FRAME_PARMS *fp = &gNB->frame_parms;
   const nfapi_nr_config_request_scf_t *cfg = &gNB->gNB_config;
-  LOG_I(PHY, "Initialise nr transport\n");
 
   int nb_slots_per_period = cfg->cell_config.frame_duplex_type.value ?
                             fp->slots_per_frame / get_nb_periods_per_frame(cfg->tdd_table.tdd_period.value) :

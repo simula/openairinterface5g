@@ -34,45 +34,18 @@
 #ifndef PHY_FRAME_CONFIG_NR_H
 #define PHY_FRAME_CONFIG_NR_H
 
-/************** DEFINE ********************************************/
-
-#define TDD_CONFIG_NB_FRAMES           (2)
-
 /*************** FUNCTIONS *****************************************/
 
-/** \brief This function processes tdd dedicated configuration for nr
- *  @param frame_parms NR DL Frame parameters
- *  @param dl_UL_TransmissionPeriodicity periodicity
- *  @param nrofDownlinkSlots number of downlink slots
- *  @param nrofDownlinkSymbols number of downlink symbols
- *  @param nrofUplinkSlots number of uplink slots
- *  @param nrofUplinkSymbols number of uplink symbols
-    @returns 0 if tdd dedicated configuration has been properly set or -1 on error with message */
-
-int set_tdd_config_nr(nfapi_nr_config_request_scf_t *cfg, int mu,
-                       int nrofDownlinkSlots, int nrofDownlinkSymbols,
-                       int nrofUplinkSlots,   int nrofUplinkSymbols);
-
-/** \brief This function adds a slot configuration to current dedicated configuration for nr
- *  @param frame_parms NR DL Frame parameters
- *  @param slotIndex
- *  @param nrofDownlinkSymbols
- *  @param nrofUplinkSymbols
-    @returns none */
-
-void add_tdd_dedicated_configuration_nr(NR_DL_FRAME_PARMS *frame_parms, int slotIndex,
-                                        int nrofDownlinkSymbols, int nrofUplinkSymbols);
-
-/** \brief This function processes tdd dedicated configuration for nr
- *  @param frame_parms nr frame parameters
- *  @param dl_UL_TransmissionPeriodicity periodicity
- *  @param nrofDownlinkSlots number of downlink slots
- *  @param nrofDownlinkSymbols number of downlink symbols
- *  @param nrofUplinkSlots number of uplink slots
- *  @param nrofUplinkSymbols number of uplink symbols
-    @returns 0 if tdd dedicated configuration has been properly set or -1 on error with message */
-
-int set_tdd_configuration_dedicated_nr(NR_DL_FRAME_PARMS *frame_parms);
+/** @brief This function processes TDD dedicated configuration for NR
+ *         by processing the tdd_slot_bitmap and period_cfg, and
+ *         allocates memory and fills max_num_of_symbol_per_slot_list
+ *         in the nfapi config request (cfg)
+ *  @param cfg NR config request structure pointer
+ *  @param fs  frame structure pointer
+ *  @returns nb_periods_per_frame if TDD has been properly configurated
+ *           -1 tdd configuration can not be done
+ */
+void set_tdd_config_nr(nfapi_nr_config_request_scf_t *cfg, frame_structure_t *fs);
 
 /** \brief This function checks nr slot direction : downlink or uplink
  *  @param frame_parms NR DL Frame parameters
@@ -82,19 +55,7 @@ int set_tdd_configuration_dedicated_nr(NR_DL_FRAME_PARMS *frame_parms);
 
 int nr_slot_select(nfapi_nr_config_request_scf_t *cfg, int nr_frame, int nr_slot);
 
-/** \brief This function frees tdd configuration for nr
- *  @param frame_parms NR DL Frame parameters
-    @returns none */
-
-void free_tdd_configuration_nr(NR_DL_FRAME_PARMS *frame_parms);
-
-/** \brief This function frees tdd dedicated configuration for nr
- *  @param frame_parms NR DL Frame parameters
-    @returns none */
-
-void free_tdd_configuration_dedicated_nr(NR_DL_FRAME_PARMS *frame_parms);
-
-int get_next_downlink_slot(PHY_VARS_gNB *gNB, nfapi_nr_config_request_scf_t *cfg, int nr_frame, int nr_slot);
+void do_tdd_config_sim(PHY_VARS_gNB *gNB, int mu);
 
 #endif  /* PHY_FRAME_CONFIG_NR_H */
 

@@ -35,15 +35,12 @@
 #include "LAYER2/RLC/rlc.h"
 #include "COMMON/mac_rrc_primitives.h"
 #include "LAYER2/MAC/mac.h"
-#include "openair2/RRC/NR/nr_rrc_extern.h"
 
 UE_PF_PO_t UE_PF_PO[NFAPI_CC_MAX][MAX_MOBILES_PER_ENB];
 pthread_mutex_t ue_pf_po_mutex;
 UE_RRC_INST *UE_rrc_inst = NULL;
 #include "LAYER2/MAC/mac_extern.h"
 extern uint16_t ue_id_g;
-
-uint8_t DRB2LCHAN[8];
 
 long logicalChannelGroup0 = 0;
 long logicalChannelSR_Mask_r9=0;
@@ -75,11 +72,7 @@ const LTE_LogicalChannelConfig_t SRB2_logicalChannelConfig_defaultValue = {.ul_S
                                                                            .ext1 = &logicalChannelSR_Mask_r9_ext1};
 
 //CONSTANTS
-uint16_t RACH_FREQ_ALLOC;
-//uint8_t NB_RACH;
-LCHAN_DESC BCCH_LCHAN_DESC,CCCH_LCHAN_DESC,DCCH_LCHAN_DESC,DTCH_DL_LCHAN_DESC,DTCH_UL_LCHAN_DESC;
-MAC_MEAS_T BCCH_MEAS_TRIGGER,CCCH_MEAS_TRIGGER,DCCH_MEAS_TRIGGER,DTCH_MEAS_TRIGGER;
-MAC_AVG_T BCCH_MEAS_AVG, CCCH_MEAS_AVG,DCCH_MEAS_AVG, DTCH_MEAS_AVG;
+LCHAN_DESC CCCH_LCHAN_DESC, DCCH_LCHAN_DESC;
 
 // only used for RRC connection re-establishment procedure TS36.331 5.3.7
 // [0]: current C-RNTI, [1]: prior C-RNTI

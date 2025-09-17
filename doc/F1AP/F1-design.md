@@ -59,8 +59,8 @@ This is the current status:
   * SA
   * Single cell per DU
   * Multiple DUs connected to one CU (both CP and UP)
+  * [Mobility between DUs connected to a single CU](../handover-tutorial.md)
 - Not supported:
-  * Mobility
   * NSA
 
 ## F1-C
@@ -185,8 +185,8 @@ To start CU/DU, you use `./nr-softmodem` with the appropriate configuration
 files, for instance:
 
 ```
-sudo cmake_targets/ran_build/build/nr-softmodem --sa -O ci-scripts/conf_files/gnb-cu.sa.band78.106prb.conf
-sudo cmake_targets/ran_build/build/nr-softmodem --sa -O ci-scripts/conf_files/gnb-du.sa.band78.106prb.rfsim.conf
+sudo cmake_targets/ran_build/build/nr-softmodem -O ci-scripts/conf_files/gnb-cu.sa.band78.106prb.conf
+sudo cmake_targets/ran_build/build/nr-softmodem -O ci-scripts/conf_files/gnb-du.sa.band78.106prb.rfsim.conf
 ```
 
 These files are tested in the CI, and are configured for use in docker,
@@ -221,9 +221,7 @@ In the CU file:
   ignored, but we recommend to put `0.0.0.0` ("any")
 - Ports should match the ones in the DU config, but for simplicity and
   standards-conformity, simply set all to 2152:
-  - `local_s_portc` in CU should match `remote_n_portc` in DU
   - `local_s_portd` in CU should match `remote_n_portd` in DU
-  - `remote_s_portc` in CU should match `local_n_portc` in DU
   - `remote_s_portd` in CU should match `local_n_portd` in DU
 
 In the DU file:
@@ -378,19 +376,19 @@ You might also want to consult TS 38.401 regarding the message exchange.
 ### General
 
 In the DU in UL, RLC checks in `deliver_sdu()` if we are operating in split
-mode, and either (direct) calls `pdcp_data_ind` (DRB) or (f1ap) sends an
-`GTPV1U_TUNNEL_DATA_REQ` ITTI message to the GTP task.
+mode, and either (direct) calls `pdcp_data_ind` (DRB) or (f1ap) sends a GTP
+message through the GTP API.
 
 In the CU in UL, assuming the tunnel is in place, GTP decapsulates the packet
 and calls the callback `cu_f1u_data_req()`, which calls `pdcp_data_ind()` in CU.
 
 In the CU in DL, the PDCP function `deliver_pdu_drb_gnb()` either (direct) calls
-into the RLC via `enqueue_rlc_data_req()`, or (f1ap) sends a
-`GTPV1U_TUNNEL_DATA_REQ` ITTI message to the GTP task.
+into the RLC via `enqueue_rlc_data_req()`, or (f1ap) sends a GTP message
+through the GTP API.
 
 In the DU in DL, assuming the GTP-U tunnel exists, GTP decapsulates the packet
-and calls the reception call back `du_rlc_data_req()`, which calls
-`enqueue_rlc_data_req()` in turn.
+and calls the reception call back `nr_rlc_data_req()`, which enqueues the
+packet into the UE's RLC buffer.
 
 ## Tunnel Setup
 

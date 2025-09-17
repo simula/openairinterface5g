@@ -41,11 +41,11 @@
 #include "openair1/PHY/CODING/nrLDPC_extern.h"
 #include "ldpc_generate_coefficient.c"
 
-int LDPCencoder(unsigned char **inputArray, unsigned char **outputArray, encoder_implemparams_t *impp)
+int LDPCencoder(unsigned char **inputArray, unsigned char *outputArray, encoder_implemparams_t *impp)
 {
   const unsigned char *input = inputArray[0];
   // channel input is the output of this function!
-  unsigned char *output = outputArray[0];
+  unsigned char *output = outputArray;
   const int Zc = impp->Zc;
   const int Kb = impp->Kb;
   const short block_length = impp->K;
@@ -114,7 +114,13 @@ int LDPCencoder(unsigned char **inputArray, unsigned char **outputArray, encoder
     fprintf(fd,"#include \"PHY/sse_intrin.h\"\n");
     fprintf(fd2,"#include \"PHY/sse_intrin.h\"\n");
 
-    if (gen_code == 1 && (Zc&31)==0) {
+    if (gen_code == 1 && (Zc&63)==0) {
+      shift=6;
+      mask=63;
+      strcpy(data_type,"__m512i");
+      strcpy(xor_command,"_mm512_xor_si512");
+    }
+    else if (gen_code == 1 && (Zc&31)==0) {
       shift=5; // AVX2 - 256-bit SIMD
       mask=31;
       strcpy(data_type,"simde__m256i");

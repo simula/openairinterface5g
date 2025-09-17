@@ -47,14 +47,8 @@
 //#define CALLGRIND 1
 
 struct treillis {
-  union {
-    simde__m64 systematic_andp1_64[3];
-    uint8_t systematic_andp1_8[24];
-  };
-  union {
-    simde__m64 parity2_64[3];
-    uint8_t parity2_8[24];
-  };
+  uint8_t systematic_andp1[24] __attribute__((aligned(32)));
+  uint8_t parity2[24] __attribute__((aligned(32)));
   int exit_state;
 }  __attribute__ ((aligned(64)));
 
@@ -91,12 +85,11 @@ static void treillis_table_init(void) {
       current_state=i;
 
       for (b=0; b<8 ; b++ ) { // pre-compute the image of the byte j in _m128i vector right place
-        all_treillis[i][j].systematic_andp1_8[b*3]= (j&(1<<(7-b)))>>(7-b);
-        v=threegpplte_rsc( all_treillis[i][j].systematic_andp1_8[b*3] ,
-                           &current_state);
-        all_treillis[i][j].systematic_andp1_8[b*3+1]=v; // for the yparity1
+        all_treillis[i][j].systematic_andp1[b * 3] = (j & (1 << (7 - b))) >> (7 - b);
+        v = threegpplte_rsc(all_treillis[i][j].systematic_andp1[b * 3], &current_state);
+        all_treillis[i][j].systematic_andp1[b * 3 + 1] = v; // for the yparity1
         //        all_treillis[i][j].parity1_8[b*3+1]=v; // for the yparity1
-        all_treillis[i][j].parity2_8[b*3+2]=v; // for the yparity2
+        all_treillis[i][j].parity2[b * 3 + 2] = v; // for the yparity2
       }
 
       all_treillis[i][j].exit_state=current_state;
@@ -275,13 +268,9 @@ char interleave_compact_byte(short *base_interleaver,unsigned char *input, unsig
   }
 */
 
-void threegpplte_turbo_encoder_sse(unsigned char *input,
-                                   unsigned short input_length_bytes,
-                                   unsigned char *output,
-                                   unsigned char F) {
-  int i;
+void threegpplte_turbo_encoder_sse(unsigned char *input, unsigned short input_length_bytes, unsigned char *output, unsigned char F)
+{
   unsigned char *x;
-  unsigned char state0=0,state1=0;
   unsigned short input_length_bits = input_length_bytes<<3;
   short *base_interleaver;
 
@@ -290,6 +279,7 @@ void threegpplte_turbo_encoder_sse(unsigned char *input,
   }
 
   // look for f1 and f2 precomputed interleaver values
+  int i;
   for (i=0; i < 188 && f1f2mat[i].nb_bits != input_length_bits; i++);
 
   if ( i == 188 ) {
@@ -301,24 +291,19 @@ void threegpplte_turbo_encoder_sse(unsigned char *input,
 
   unsigned char systematic2[768] __attribute__((aligned(32)));
   interleave_compact_byte(base_interleaver, input, systematic2, input_length_bytes);
-  simde__m64 *ptr_output = (simde__m64 *)output;
-  unsigned char cur_s1, cur_s2;
-  int code_rate;
-
-  for ( state0=state1=i=0 ; i<input_length_bytes; i++ ) {
-    cur_s1=input[i];
-    cur_s2=systematic2[i];
-
-    for (code_rate = 0; code_rate < 3; code_rate++) {
-      /*
-       *ptr_output++ = simde_mm_add_pi8(all_treillis[state0][cur_s1].systematic_64[code_rate],
-       simde_mm_add_pi8(all_treillis[state0][cur_s1].parity1_64[code_rate],
-      all_treillis[state1][cur_s2].parity2_64[code_rate]));
-      */
-      *ptr_output++ = simde_mm_add_pi8(all_treillis[state0][cur_s1].systematic_andp1_64[code_rate],
-                                       all_treillis[state1][cur_s2].parity2_64[code_rate]);
+  unsigned char *ptr_output = output;
+  unsigned char state0 = 0, state1 = 0;
+  for (int i = 0; i < input_length_bytes; i++) {
+    int cur_s1 = input[i];
+    uint8_t *systematic_andp1 = all_treillis[state0][cur_s1].systematic_andp1;
+    int cur_s2 = systematic2[i];
+    uint8_t *parity2 = all_treillis[state1][cur_s2].parity2;
+    simde_mm_storeu_si128((simde__m128i *)ptr_output,
+                          simde_mm_add_epi8(*(simde__m128i *)systematic_andp1, *(simde__m128i *)parity2));
+    ptr_output += 16;
+    for (int code_rate = 16; code_rate < 24; code_rate++) {
+      *ptr_output++ = systematic_andp1[code_rate] + parity2[code_rate];
     }
-
     state0=all_treillis[state0][cur_s1].exit_state;
     state1=all_treillis[state1][cur_s2].exit_state;
   }
@@ -349,8 +334,6 @@ void threegpplte_turbo_encoder_sse(unsigned char *input,
 #ifdef DEBUG_TURBO_ENCODER
   printf("term: x0 %u, x1 %u, state1 %d\n",x[10],x[11],state1);
 #endif // DEBUG_TURBO_ENCODER
-  simde_mm_empty();
-  simde_m_empty();
 }
 
 void init_encoder_sse (void) {

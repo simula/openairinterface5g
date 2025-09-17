@@ -29,8 +29,7 @@
 #define k1 1024
 #define k2 (1024-k1)
 
-int32_t rx_power_avg_eNB[3];
-
+static int32_t rx_power_avg_eNB[3];
 
 void dump_I0_stats(FILE *fd,PHY_VARS_eNB *eNB) {
 

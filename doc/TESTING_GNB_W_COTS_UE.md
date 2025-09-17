@@ -220,7 +220,7 @@ The **-E** option is **NOT supported** when using a a N300 USRP
 
 Execute: 
 ```
-~/openairinterface5g/cmake_targets/ran_build/build$ sudo ./nr-softmodem -O **YOUR_GNB_CONF_FILE** -E | tee **YOUR_LOG_FILE**
+~/openairinterface5g/cmake_targets/ran_build/build$ sudo ./nr-softmodem -O **YOUR_GNB_CONF_FILE** -E --nsa | tee **YOUR_LOG_FILE**
 
 ```
 

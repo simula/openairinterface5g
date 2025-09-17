@@ -1,0 +1,46 @@
+test:
+  Host: localhost
+  NetworkScript: echo "inet 127.0.0.1 mtu 1500"
+  Deploy: echo deploy
+  Undeploy: echo undeploy
+  LogCollect: echo logs > %%log_dir%%/logs
+
+test_list:
+  Host: localhost
+  NetworkScript: echo "inet 127.0.0.1 mtu 1500"
+  Deploy:
+    - echo deploy
+    - echo multistep deploy!!
+  Undeploy:
+    - "echo undeploy"
+    - "echo terminated"
+  LogCollect:
+    - echo logs > %%log_dir%%/logs
+  RunIperf3Server: false
+
+test_fail:
+  Host: localhost
+  NetworkScript: echo "inet 127.0.0.1 mtu 1500"
+  Deploy:
+    - echo deploy
+    - "false"
+    - echo multistep deploy!!
+  Undeploy:
+    - "echo undeploy"
+    - "echo terminated"
+  LogCollect:
+    - echo logs > %%log_dir%%/logs
+
+test_script:
+  Host: localhost
+  NetworkScript: echo "inet 127.0.0.1 mtu 1500"
+  Deploy: ! tests/scripts/deploy-core.sh
+  Undeploy: "echo undeploy"
+  LogCollect:  echo logs > %%log_dir%%/logs
+
+test_script_fail:
+  Host: localhost
+  NetworkScript: echo "inet 127.0.0.1 mtu 1500"
+  Deploy: ! tests/scripts/deploy-core.sh WILLFAIL
+  Undeploy: "echo undeploy"
+  LogCollect:  echo logs > %%log_dir%%/logs

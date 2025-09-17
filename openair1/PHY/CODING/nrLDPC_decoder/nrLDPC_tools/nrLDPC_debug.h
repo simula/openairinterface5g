@@ -165,18 +165,4 @@ static inline void nrLDPC_debug_initBuffer2File(e_nrLDPC_buffers buffer)
     }
 }
 
-/**
-   \brief Prints 256 data type
-   \param in Input to print
-*/
-static inline void nrLDPC_debug_print256i_epi8(simde__m256i* in)
-{
-    uint32_t i;
-
-    for (i=0; i<32; i++)
-    {
-        mexPrintf("%d ", ((int8_t*)&in)[i]);
-    }
-}
-
 #endif

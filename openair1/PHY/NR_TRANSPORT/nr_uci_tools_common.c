@@ -52,12 +52,10 @@ void nr_group_sequence_hopping(pucch_GroupHopping_t PUCCH_GroupHopping,
    *                n_hop=1 for the second hop
    */
   // depending on the value of the PUCCH_GroupHopping, we will obtain different values for u,v
-  //pucch_GroupHopping_t PUCCH_GroupHopping = ue->pucch_config_common_nr->pucch_GroupHopping; // from higher layers FIXME!!!
   // n_id defined as per TS 38.211 subclause 6.3.2.2.1 (is given by the higher-layer parameter hoppingId)
   // it is hoppingId from PUCCH-ConfigCommon:
   // Cell-Specific scrambling ID for group hoppping and sequence hopping if enabled
   // Corresponds to L1 parameter 'HoppingID' (see 38.211, section 6.3.2.2) BIT STRING (SIZE (10))
-  //uint16_t n_id = ue->pucch_config_common_nr->hoppingId; // from higher layers FIXME!!!
 #ifdef DEBUG_NR_PUCCH_TX
   printf("\t\t [nr_group_sequence_hopping] PUCCH_GroupHopping=%u, n_id=%u \n",PUCCH_GroupHopping,n_id);
 #endif

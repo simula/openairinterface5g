@@ -495,11 +495,7 @@ int pdcp_fifo_read_input_sdus_fromnetlinksock (const protocol_ctxt_t *const  ctx
             }
           } else { // ctxt.enb_flag => UE
             if (NFAPI_MODE == NFAPI_UE_STUB_PNF || NFAPI_MODE == NFAPI_MODE_STANDALONE_PNF) {
-#ifdef UESIM_EXPANSION
-              ctxt.module_id = inst_pdcp_list[pdcp_read_header_g.inst];
-#else
               ctxt.module_id = pdcp_read_header_g.inst;
-#endif
             } else {
               ctxt.module_id = 0;
             }

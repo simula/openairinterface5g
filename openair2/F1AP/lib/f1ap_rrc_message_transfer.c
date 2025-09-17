@@ -114,26 +114,27 @@ bool decode_initial_ul_rrc_message_transfer(const F1AP_F1AP_PDU_t *pdu, f1ap_ini
   memset(out, 0, sizeof(*out));
 
   F1AP_InitialULRRCMessageTransfer_t *container = &pdu->choice.initiatingMessage->value.choice.InitialULRRCMessageTransfer;
+  F1AP_ProtocolIE_Container_10659P31_t *pIEs = &container->protocolIEs;
   F1AP_InitialULRRCMessageTransferIEs_t *ie;
 
-  F1AP_LIB_FIND_IE(F1AP_InitialULRRCMessageTransferIEs_t, ie, container, F1AP_ProtocolIE_ID_id_gNB_DU_UE_F1AP_ID, true);
+  F1AP_LIB_FIND_IE(F1AP_InitialULRRCMessageTransferIEs_t, ie, &pIEs->list, F1AP_ProtocolIE_ID_id_gNB_DU_UE_F1AP_ID, true);
   out->gNB_DU_ue_id = ie->value.choice.GNB_DU_UE_F1AP_ID;
 
-  F1AP_LIB_FIND_IE(F1AP_InitialULRRCMessageTransferIEs_t, ie, container, F1AP_ProtocolIE_ID_id_NRCGI, true);
+  F1AP_LIB_FIND_IE(F1AP_InitialULRRCMessageTransferIEs_t, ie, &pIEs->list, F1AP_ProtocolIE_ID_id_NRCGI, true);
   PLMNID_TO_MCC_MNC(&ie->value.choice.NRCGI.pLMN_Identity, out->plmn.mcc, out->plmn.mnc, out->plmn.mnc_digit_length);
   BIT_STRING_TO_NR_CELL_IDENTITY(&ie->value.choice.NRCGI.nRCellIdentity, out->nr_cellid);
 
-  F1AP_LIB_FIND_IE(F1AP_InitialULRRCMessageTransferIEs_t, ie, container, F1AP_ProtocolIE_ID_id_C_RNTI, true);
+  F1AP_LIB_FIND_IE(F1AP_InitialULRRCMessageTransferIEs_t, ie, &pIEs->list, F1AP_ProtocolIE_ID_id_C_RNTI, true);
   out->crnti = ie->value.choice.C_RNTI;
 
-  F1AP_LIB_FIND_IE(F1AP_InitialULRRCMessageTransferIEs_t, ie, container, F1AP_ProtocolIE_ID_id_RRCContainer, true);
+  F1AP_LIB_FIND_IE(F1AP_InitialULRRCMessageTransferIEs_t, ie, &pIEs->list, F1AP_ProtocolIE_ID_id_RRCContainer, true);
   out->rrc_container = cp_octet_string(&ie->value.choice.RRCContainer, &out->rrc_container_length);
 
-  F1AP_LIB_FIND_IE(F1AP_InitialULRRCMessageTransferIEs_t, ie, container, F1AP_ProtocolIE_ID_id_DUtoCURRCContainer, false);
+  F1AP_LIB_FIND_IE(F1AP_InitialULRRCMessageTransferIEs_t, ie, &pIEs->list, F1AP_ProtocolIE_ID_id_DUtoCURRCContainer, false);
   if (ie != NULL)
     out->du2cu_rrc_container = cp_octet_string(&ie->value.choice.DUtoCURRCContainer, &out->du2cu_rrc_container_length);
 
-  F1AP_LIB_FIND_IE(F1AP_InitialULRRCMessageTransferIEs_t, ie, container, F1AP_ProtocolIE_ID_id_TransactionID, true);
+  F1AP_LIB_FIND_IE(F1AP_InitialULRRCMessageTransferIEs_t, ie, &pIEs->list, F1AP_ProtocolIE_ID_id_TransactionID, true);
   out->transaction_id = ie->value.choice.TransactionID;
 
   return true;
@@ -258,19 +259,20 @@ bool decode_ul_rrc_message_transfer(const F1AP_F1AP_PDU_t *pdu, f1ap_ul_rrc_mess
   DevAssert(pdu != NULL);
 
   F1AP_ULRRCMessageTransfer_t *container = &pdu->choice.initiatingMessage->value.choice.ULRRCMessageTransfer;
+  F1AP_ProtocolIE_Container_10659P33_t *pIEs = &container->protocolIEs;
   F1AP_ULRRCMessageTransferIEs_t *ie;
 
   // gNB-CU UE F1AP ID (M)
-  F1AP_LIB_FIND_IE(F1AP_ULRRCMessageTransferIEs_t, ie, container, F1AP_ProtocolIE_ID_id_gNB_CU_UE_F1AP_ID, true);
+  F1AP_LIB_FIND_IE(F1AP_ULRRCMessageTransferIEs_t, ie, &pIEs->list, F1AP_ProtocolIE_ID_id_gNB_CU_UE_F1AP_ID, true);
   out->gNB_CU_ue_id = ie->value.choice.GNB_CU_UE_F1AP_ID;
   // gNB-DU UE F1AP ID (M)
-  F1AP_LIB_FIND_IE(F1AP_ULRRCMessageTransferIEs_t, ie, container, F1AP_ProtocolIE_ID_id_gNB_DU_UE_F1AP_ID, true);
+  F1AP_LIB_FIND_IE(F1AP_ULRRCMessageTransferIEs_t, ie, &pIEs->list, F1AP_ProtocolIE_ID_id_gNB_DU_UE_F1AP_ID, true);
   out->gNB_DU_ue_id = ie->value.choice.GNB_DU_UE_F1AP_ID;
   // SRB ID (M)
-  F1AP_LIB_FIND_IE(F1AP_ULRRCMessageTransferIEs_t, ie, container, F1AP_ProtocolIE_ID_id_SRBID, true);
+  F1AP_LIB_FIND_IE(F1AP_ULRRCMessageTransferIEs_t, ie, &pIEs->list, F1AP_ProtocolIE_ID_id_SRBID, true);
   out->srb_id = ie->value.choice.SRBID;
   // RRC-Container (M)
-  F1AP_LIB_FIND_IE(F1AP_ULRRCMessageTransferIEs_t, ie, container, F1AP_ProtocolIE_ID_id_RRCContainer, true);
+  F1AP_LIB_FIND_IE(F1AP_ULRRCMessageTransferIEs_t, ie, &pIEs->list, F1AP_ProtocolIE_ID_id_RRCContainer, true);
   out->rrc_container = cp_octet_string(&ie->value.choice.RRCContainer, &out->rrc_container_length);
 
   return true;
@@ -392,30 +394,31 @@ bool decode_dl_rrc_message_transfer(const F1AP_F1AP_PDU_t *pdu, f1ap_dl_rrc_mess
 
   DevAssert(pdu != NULL);
   F1AP_DLRRCMessageTransfer_t *container = &pdu->choice.initiatingMessage->value.choice.DLRRCMessageTransfer;
+  F1AP_ProtocolIE_Container_10659P32_t *pIEs = &container->protocolIEs;
   F1AP_DLRRCMessageTransferIEs_t *ie;
   // gNB-CU UE F1AP ID (M)
-  F1AP_LIB_FIND_IE(F1AP_DLRRCMessageTransferIEs_t, ie, container, F1AP_ProtocolIE_ID_id_gNB_CU_UE_F1AP_ID, true);
+  F1AP_LIB_FIND_IE(F1AP_DLRRCMessageTransferIEs_t, ie, &pIEs->list, F1AP_ProtocolIE_ID_id_gNB_CU_UE_F1AP_ID, true);
   out->gNB_CU_ue_id = ie->value.choice.GNB_CU_UE_F1AP_ID;
   // gNB-DU UE F1AP ID (M)
-  F1AP_LIB_FIND_IE(F1AP_DLRRCMessageTransferIEs_t, ie, container, F1AP_ProtocolIE_ID_id_gNB_DU_UE_F1AP_ID, true);
+  F1AP_LIB_FIND_IE(F1AP_DLRRCMessageTransferIEs_t, ie, &pIEs->list, F1AP_ProtocolIE_ID_id_gNB_DU_UE_F1AP_ID, true);
   out->gNB_DU_ue_id = ie->value.choice.GNB_DU_UE_F1AP_ID;
   // old gNB-DU UE F1AP ID (O)
   out->old_gNB_DU_ue_id = NULL;
-  F1AP_LIB_FIND_IE(F1AP_DLRRCMessageTransferIEs_t, ie, container, F1AP_ProtocolIE_ID_id_oldgNB_DU_UE_F1AP_ID, false);
+  F1AP_LIB_FIND_IE(F1AP_DLRRCMessageTransferIEs_t, ie, &pIEs->list, F1AP_ProtocolIE_ID_id_oldgNB_DU_UE_F1AP_ID, false);
   if (ie) {
     out->old_gNB_DU_ue_id = malloc_or_fail(sizeof(*out->old_gNB_DU_ue_id));
     *out->old_gNB_DU_ue_id = ie->value.choice.GNB_DU_UE_F1AP_ID_1;
   }
   // SRB ID (M)
-  F1AP_LIB_FIND_IE(F1AP_DLRRCMessageTransferIEs_t, ie, container, F1AP_ProtocolIE_ID_id_SRBID, true);
+  F1AP_LIB_FIND_IE(F1AP_DLRRCMessageTransferIEs_t, ie, &pIEs->list, F1AP_ProtocolIE_ID_id_SRBID, true);
   out->srb_id = ie->value.choice.SRBID;
   // Execute Duplication (O)
-  F1AP_LIB_FIND_IE(F1AP_DLRRCMessageTransferIEs_t, ie, container, F1AP_ProtocolIE_ID_id_ExecuteDuplication, false);
+  F1AP_LIB_FIND_IE(F1AP_DLRRCMessageTransferIEs_t, ie, &pIEs->list, F1AP_ProtocolIE_ID_id_ExecuteDuplication, false);
   if (ie) {
     out->execute_duplication = ie->value.choice.ExecuteDuplication;
   }
   // RRC-Container (M)
-  F1AP_LIB_FIND_IE(F1AP_DLRRCMessageTransferIEs_t, ie, container, F1AP_ProtocolIE_ID_id_RRCContainer, true);
+  F1AP_LIB_FIND_IE(F1AP_DLRRCMessageTransferIEs_t, ie, &pIEs->list, F1AP_ProtocolIE_ID_id_RRCContainer, true);
   out->rrc_container = cp_octet_string(&ie->value.choice.RRCContainer, &out->rrc_container_length);
 
   return true;

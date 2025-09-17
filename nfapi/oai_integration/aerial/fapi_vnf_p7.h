@@ -47,185 +47,21 @@
 #include "nfapi_interface.h"
 #include "nfapi_nr_interface_scf.h"
 #include "nfapi_vnf_interface.h"
-#include "nfapi_vnf.h"
-#include "nfapi.h"
-#include "nfapi/oai_integration/vendor_ext.h"
 #include "fapi_nvIPC.h"
-
-#include "PHY/defs_eNB.h"
-#include "PHY/LTE_TRANSPORT/transport_proto.h"
-#include "openair2/LAYER2/NR_MAC_gNB/nr_mac_gNB.h"
-#include "lte-softmodem.h"
-
-#include "common/ran_context.h"
 #include "openair2/PHY_INTERFACE/queue_t.h"
-#include "gnb_ind_vars.h"
-#include "nfapi/open-nFAPI/vnf/inc/vnf.h"
 #include "nfapi/open-nFAPI/vnf/inc/vnf_p7.h"
-typedef struct {
-  uint8_t enabled;
-  uint32_t rx_port;
-  uint32_t tx_port;
-  char tx_addr[80];
-} udp_data;
-
-typedef struct {
-  uint16_t index;
-  uint16_t id;
-  uint8_t rfs[2];
-  uint8_t excluded_rfs[2];
-
-  udp_data udp;
-
-  char local_addr[80];
-  int local_port;
-
-  char *remote_addr;
-  int remote_port;
-
-  uint8_t duplex_mode;
-  uint16_t dl_channel_bw_support;
-  uint16_t ul_channel_bw_support;
-  uint8_t num_dl_layers_supported;
-  uint8_t num_ul_layers_supported;
-  uint16_t release_supported;
-  uint8_t nmm_modes_supported;
-
-  uint8_t dl_ues_per_subframe;
-  uint8_t ul_ues_per_subframe;
-
-  uint8_t first_subframe_ind;
-
-  // timing information recevied from the vnf
-  uint8_t timing_window;
-  uint8_t timing_info_mode;
-  uint8_t timing_info_period;
-
-} phy_info;
-
-typedef struct {
-  uint16_t index;
-  uint16_t band;
-  int16_t max_transmit_power;
-  int16_t min_transmit_power;
-  uint8_t num_antennas_supported;
-  uint32_t min_downlink_frequency;
-  uint32_t max_downlink_frequency;
-  uint32_t max_uplink_frequency;
-  uint32_t min_uplink_frequency;
-} rf_info;
-
-typedef struct {
-  int release;
-  phy_info phys[2];
-  rf_info rfs[2];
-
-  uint8_t sync_mode;
-  uint8_t location_mode;
-  uint8_t location_coordinates[6];
-  uint32_t dl_config_timing;
-  uint32_t ul_config_timing;
-  uint32_t tx_timing;
-  uint32_t hi_dci0_timing;
-
-  uint16_t max_phys;
-  uint16_t max_total_bw;
-  uint16_t max_total_dl_layers;
-  uint16_t max_total_ul_layers;
-  uint8_t shared_bands;
-  uint8_t shared_pa;
-  int16_t max_total_power;
-  uint8_t oui;
-
-  uint8_t wireshark_test_mode;
-
-} pnf_info;
-
-typedef struct mac mac_t;
-typedef struct mac {
-  void *user_data;
-
-  void (*dl_config_req)(mac_t *mac, nfapi_dl_config_request_t *req);
-  void (*ul_config_req)(mac_t *mac, nfapi_ul_config_request_t *req);
-  void (*hi_dci0_req)(mac_t *mac, nfapi_hi_dci0_request_t *req);
-  void (*tx_req)(mac_t *mac, nfapi_tx_request_t *req);
-} mac_t;
-
-typedef struct {
-  int local_port;
-  char local_addr[80];
-
-  unsigned timing_window;
-  unsigned periodic_timing_enabled;
-  unsigned aperiodic_timing_enabled;
-  unsigned periodic_timing_period;
-
-  // This is not really the right place if we have multiple PHY,
-  // should be part of the phy struct
-  udp_data udp;
-
-  uint8_t thread_started;
-
-  nfapi_vnf_p7_config_t *config;
-
-  mac_t *mac;
-
-} vnf_p7_info;
-
-typedef struct {
-  uint8_t wireshark_test_mode;
-  pnf_info pnfs[2];
-  vnf_p7_info p7_vnfs[2];
-
-} vnf_info;
-
-int aerial_phy_nr_crc_indication(nfapi_nr_crc_indication_t *ind);
-int aerial_phy_nr_rx_data_indication(nfapi_nr_rx_data_indication_t *ind);
-int aerial_phy_nr_rach_indication(nfapi_nr_rach_indication_t *ind);
-int aerial_phy_nr_uci_indication(nfapi_nr_uci_indication_t *ind);
-int aerial_phy_nr_slot_indication(nfapi_nr_slot_indication_scf_t *ind);
-int aerial_phy_nr_srs_indication(nfapi_nr_srs_indication_t *ind);
-void *aerial_vnf_allocate(size_t size);
-void aerial_vnf_deallocate(void *ptr);
-int aerial_phy_vendor_ext(struct nfapi_vnf_p7_config *config, nfapi_p7_message_header_t *msg);
-int aerial_phy_unpack_p7_vendor_extension(nfapi_p7_message_header_t *header,
-                                          uint8_t **ppReadPackedMessage,
-                                          uint8_t *end,
-                                          nfapi_p7_codec_config_t *config);
-int aerial_phy_pack_p7_vendor_extension(nfapi_p7_message_header_t *header,
-                                        uint8_t **ppWritePackedMsg,
-                                        uint8_t *end,
-                                        nfapi_p7_codec_config_t *config);
-int aerial_phy_unpack_vendor_extension_tlv(nfapi_tl_t *tl,
-                                           uint8_t **ppReadPackedMessage,
-                                           uint8_t *end,
-                                           void **ve,
-                                           nfapi_p7_codec_config_t *codec);
-int aerial_phy_pack_vendor_extension_tlv(void *ve, uint8_t **ppWritePackedMsg, uint8_t *end, nfapi_p7_codec_config_t *codec);
-nfapi_p7_message_header_t *aerial_phy_allocate_p7_vendor_ext(uint16_t message_id, uint16_t *msg_size);
-void aerial_phy_deallocate_p7_vendor_ext(nfapi_p7_message_header_t *header);
-
-uint8_t aerial_unpack_nr_slot_indication(uint8_t **ppReadPackedMsg,
-                                         uint8_t *end,
-                                         nfapi_nr_slot_indication_scf_t *msg,
-                                         nfapi_p7_codec_config_t *config);
 uint8_t aerial_unpack_nr_rx_data_indication(uint8_t **ppReadPackedMsg,
                                             uint8_t *end,
                                             uint8_t **pDataMsg,
                                             uint8_t *data_end,
                                             nfapi_nr_rx_data_indication_t *msg,
                                             nfapi_p7_codec_config_t *config);
-uint8_t aerial_unpack_nr_crc_indication(uint8_t **ppReadPackedMsg,
-                                        uint8_t *end,
-                                        nfapi_nr_crc_indication_t *msg,
-                                        nfapi_p7_codec_config_t *config);
-uint8_t aerial_unpack_nr_uci_indication(uint8_t **ppReadPackedMsg, uint8_t *end, void *msg, nfapi_p7_codec_config_t *config);
-uint8_t aerial_unpack_nr_srs_indication(uint8_t **ppReadPackedMsg, uint8_t *end, void *msg, nfapi_p7_codec_config_t *config);
-uint8_t aerial_unpack_nr_rach_indication(uint8_t **ppReadPackedMsg,
-                                         uint8_t *end,
-                                         nfapi_nr_rach_indication_t *msg,
-                                         nfapi_p7_codec_config_t *config);
 
-// int fapi_nr_p7_message_pack(void *pMessageBuf, void *pPackedBuf, uint32_t packedBufLen, nfapi_p7_codec_config_t* config);
-int fapi_nr_pack_and_send_p7_message(vnf_p7_t *vnf_p7, nfapi_p7_message_header_t *header);
+uint8_t aerial_unpack_nr_srs_indication(uint8_t **ppReadPackedMsg,
+                                        uint8_t *end,
+                                        uint8_t **pDataMsg,
+                                        uint8_t *data_end,
+                                        void *msg,
+                                        nfapi_p7_codec_config_t *config);
+bool aerial_nr_send_p7_message(vnf_p7_t *vnf_p7, nfapi_nr_p7_message_header_t *header);
 #endif // OPENAIRINTERFACE_FAPI_VNF_P7_H

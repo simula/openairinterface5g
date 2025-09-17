@@ -37,33 +37,29 @@
 static c16_t *primary_synch_time[3] __attribute__((aligned(32)));
 
 static void doIdft(int size, short *in, short *out) {
+  int len;
   switch (size) {
-  case 6:
-      idft(IDFT_128,in,out,1);
-    break;
-
-  case 25:
-      idft(IDFT_512,in,out,1);
-    break;
-
-  case 50:
-      idft(IDFT_1024,in,out,1);
-    break;
-    
-  case 75:
-      idft(IDFT_1536,in,out,1);
-    break;
-
-  case 100:
-      idft(IDFT_2048,in,out,1);
-    break;
-
-  default:
-      LOG_E(PHY,"Unsupported N_RB_DL %d\n",size);
-      abort();
-    break;
-    }
+    case 6:
+      len = 128;
+      break;
+    case 25:
+      len = 512;
+      break;
+    case 50:
+      len = 1024;
+      break;
+    case 75:
+      len=1536;
+      break;
+    case 100:
+      len = 2048;
+      break;
+    default:
+      LOG_E(PHY, "Unknown N_RB_DL %d\n", size);
+      return;
   }
+  idft(get_idft(len), in, out, 1);
+}
 
 static void copyPrimary( c16_t *out, struct complex16 *in, int ofdmSize) {
   int k=ofdmSize-36;
@@ -118,7 +114,7 @@ void lte_sync_time_free(void) {
 
 #define SHIFT 17
 
-int lte_sync_time(int **rxdata, LTE_DL_FRAME_PARMS *frame_parms, int *eNB_id)
+int lte_sync_time(c16_t **rxdata, LTE_DL_FRAME_PARMS *frame_parms, int *eNB_id)
 {
   // perform a time domain correlation using the oversampled sync sequence
   unsigned int n, ar, s, peak_pos, peak_val, sync_source;
@@ -139,8 +135,8 @@ int lte_sync_time(int **rxdata, LTE_DL_FRAME_PARMS *frame_parms, int *eNB_id)
       //calculate dot product of primary_synch0_time and rxdata[ar][n] (ar=0..nb_ant_rx) and store the sum in temp[n];
       for (int i = 0; i < sizeofArray(primary_synch_time); i++)
         for (ar = 0; ar < frame_parms->nb_antennas_rx; ar++) {
-          c32_t result = dot_product(primary_synch_time[i], (c16_t *)&(rxdata[ar][n]), frame_parms->ofdm_symbol_size, SHIFT);
-          c32_t result2 = dot_product(primary_synch_time[i], (c16_t *)&(rxdata[ar][n + length]), frame_parms->ofdm_symbol_size, SHIFT);
+          c32_t result = dot_product(primary_synch_time[i], rxdata[ar] + n, frame_parms->ofdm_symbol_size, SHIFT);
+          c32_t result2 = dot_product(primary_synch_time[i], rxdata[ar] + n + length, frame_parms->ofdm_symbol_size, SHIFT);
           sync_out[i].r += result.r;
           sync_out[i].i += result.i;
           sync_out2[i].r += result2.r;
@@ -187,43 +183,29 @@ int ru_sync_time_init(RU_t *ru) { // LTE_UE_COMMON *common_vars
                      0,
                      ru->frame_parms->N_RB_DL,
                      0);
-
+  int len;
   switch (ru->frame_parms->N_RB_DL) {
     case 6:
-      idft(IDFT_128,(int16_t *)(&dmrsp[0][3*ru->frame_parms->ofdm_symbol_size]),
-           ru->dmrssync, /// complex output
-           1);
+      len = 128;
       break;
-
     case 25:
-      idft(IDFT_512,(int16_t *)(&dmrsp[0][3*ru->frame_parms->ofdm_symbol_size]),
-           ru->dmrssync, /// complex output
-           1);
+      len = 512;
       break;
-
     case 50:
-      idft(IDFT_1024,(int16_t *)(&dmrsp[0][3*ru->frame_parms->ofdm_symbol_size]),
-           ru->dmrssync, /// complex output
-           1);
+      len = 1024;
       break;
-
     case 75:
-      idft(IDFT_1536,(int16_t *)(&dmrsp[0][3*ru->frame_parms->ofdm_symbol_size]),
-           ru->dmrssync,
-           1); /// complex output
+      len = 1536;
       break;
-
     case 100:
-      idft(IDFT_2048,(int16_t *)(&dmrsp[0][3*ru->frame_parms->ofdm_symbol_size]),
-           ru->dmrssync, /// complex output
-           1);
+      len = 2048;
       break;
-
     default:
-      AssertFatal(1==0,"Unsupported N_RB_DL %d\n",ru->frame_parms->N_RB_DL);
-      break;
+      LOG_E(PHY, "Unknown N_RB_DL %d\n", ru->frame_parms->N_RB_DL);
+      return -1;
   }
-
+  idft(get_idft(len), (int16_t *)&dmrsp[0][3 * ru->frame_parms->ofdm_symbol_size], ru->dmrssync,
+       1); /// complex output
   return(0);
 }
 
@@ -246,9 +228,7 @@ int ru_sync_time(RU_t *ru,
 
   // circular copy of beginning to end of rxdata buffer. Note: buffer should be big enough upon calling this function
   for (int ar=0; ar<ru->nb_rx; ar++)
-    memcpy((void *)&ru->common.rxdata[ar][2*length],
-           (void *)&ru->common.rxdata[ar][0],
-           frame_parms->ofdm_symbol_size);
+    memcpy(ru->common.rxdata[ar] + 2 * length, ru->common.rxdata[ar], frame_parms->ofdm_symbol_size);
 
   int32_t maxlev0=0;
   int     maxpos0=0;

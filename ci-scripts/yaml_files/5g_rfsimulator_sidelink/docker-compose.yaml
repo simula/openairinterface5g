@@ -18,6 +18,8 @@ services:
             - ../../conf_files/nrue.uicc.conf:/opt/oai-nr-ue/etc/nr-ue.conf
         healthcheck:
             test: /bin/bash -c "pgrep nr-uesoftmodem"
+            start_period: 10s
+            start_interval: 500ms
             interval: 10s
             timeout: 5s
             retries: 5
@@ -43,6 +45,8 @@ services:
             - ../../conf_files/nrue.uicc.conf:/opt/oai-nr-ue/etc/nr-ue.conf
         healthcheck:
             test: /bin/bash -c "pgrep nr-uesoftmodem"
+            start_period: 10s
+            start_interval: 500ms
             interval: 10s
             timeout: 5s
             retries: 5
@@ -56,11 +60,3 @@ networks:
                 - subnet: 192.168.71.128/26
         driver_opts:
             com.docker.network.bridge.name: "rfsim5g-public"
-    traffic_net:
-        driver: bridge
-        name: rfsim5g-oai-traffic-net
-        ipam:
-            config:
-                - subnet: 192.168.72.128/26
-        driver_opts:
-            com.docker.network.bridge.name: "rfsim5g-traffic"

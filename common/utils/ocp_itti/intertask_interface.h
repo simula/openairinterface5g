@@ -321,8 +321,6 @@ typedef struct {
   TASK_DEF(TASK_DU_F1, 200)           \
   TASK_DEF(TASK_CUCP_E1, 200)         \
   TASK_DEF(TASK_CUUP_E1, 200)         \
-  TASK_DEF(TASK_RRC_UE_SIM, 200)      \
-  TASK_DEF(TASK_RRC_GNB_SIM, 200)     \
   TASK_DEF(TASK_RRC_NSA_UE, 200)      \
   TASK_DEF(TASK_RRC_NSA_NRUE, 200)    \
   TASK_DEF(TASK_NAS_NRUE, 200)        \
@@ -568,7 +566,6 @@ int timer_remove(long timer_id);
 int signal_handle(int *end);
 int signal_mask(void);
 
-void log_scheduler(const char *label);
 #ifdef __cplusplus
 }
 #endif

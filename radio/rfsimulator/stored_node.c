@@ -44,42 +44,6 @@ int fullread(int fd, void *_buf, int count) {
 
   return ret;
 }
-#define shift 4
-int32_t signal_energy(int32_t *input,uint32_t length) {
-  int32_t i;
-  int32_t temp,temp2;
-  register simde__m64 mm0, mm1, mm2, mm3;
-  simde__m64 *in = (simde__m64 *)input;
-  mm0 = simde_mm_setzero_si64(); // pxor(mm0,mm0);
-  mm3 = simde_mm_setzero_si64(); // pxor(mm3,mm3);
-
-  for (i=0; i<length>>1; i++) {
-    mm1 = in[i];
-    mm2 = mm1;
-    mm1 = _m_pmaddwd(mm1,mm1);
-    mm1 = _m_psradi(mm1,shift);// shift any 32 bits blocs of the word by the value shift
-    mm0 = _m_paddd(mm0,mm1);// add the two 64 bits words 4 bytes by 4 bytes
-    //    mm2 = _m_psrawi(mm2,shift_DC);
-    mm3 = _m_paddw(mm3,mm2);// add the two 64 bits words 2 bytes by 2 bytes
-  }
-
-  mm1 = mm0;
-  mm0 = _m_psrlqi(mm0,32);
-  mm0 = _m_paddd(mm0,mm1);
-  temp = _m_to_int(mm0);
-  temp/=length;
-  temp<<=shift;   // this is the average of x^2
-  // now remove the DC component
-  mm2 = _m_psrlqi(mm3,32);
-  mm2 = _m_paddw(mm2,mm3);
-  mm2 = _m_pmaddwd(mm2,mm2);
-  temp2 = _m_to_int(mm2);
-  temp2/=(length*length);
-  //  temp2<<=(2*shift_DC);
-  temp -= temp2;
-  return((temp>0)?temp:1);
-}
-
 
 void fullwrite(int fd, void *_buf, int count) {
   char *buf = _buf;
@@ -238,8 +202,8 @@ int main(int argc, char *argv[]) {
         ((int16_t *)buff)[i]/=16;
 
     usleep(1000);
-    printf("sending at ts: %lu, number of samples: %d, energy: %d\n",
-           header.timestamp, header.size, signal_energy(buff, header.size));
+    printf("sending at ts: %lu, number of samples: %d\n",
+           header.timestamp, header.size);
     fullwrite(serviceSock, buff, dataSize);
     // Purge incoming samples
     setblocking(serviceSock, notBlocking);

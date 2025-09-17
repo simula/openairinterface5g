@@ -499,7 +499,7 @@ bool rx_sss_nr(const NR_DL_FRAME_PARMS *frame_parms,
 
   int re = 0;
   int im = 0;
-  if (Nid1 == N_ID_1_NUMBER) {
+  if (Nid1 == Nid1_end) {
     LOG_D(PHY,
           "Failed to detect SSS after PSS, metric of SSS %d, threshold to consider SSS valid %d, detected PCI: %d\n",
           *tot_metric,

@@ -311,11 +311,11 @@ int nas_proc_get_msisdn(nas_user_t *user, char *msisdn_str, int *ton_npi)
   if (msisdn != NULL) {
     union {
       struct {
-        Byte_t ext:1;
-        Byte_t ton:3;
-        Byte_t npi:4;
+        uint8_t ext: 1;
+        uint8_t ton: 3;
+        uint8_t npi: 4;
       } ext_ton_npi;
-      Byte_t type;
+      uint8_t type;
     } converter;
     converter.ext_ton_npi.ext = msisdn->ext;
     converter.ext_ton_npi.ton = msisdn->ton;
@@ -1058,7 +1058,7 @@ int nas_proc_cell_info(nas_user_t *user, int found, tac_t tac, ci_t ci, AcT_t Ac
  **      Others:    None                                       **
  **                                                                        **
  ***************************************************************************/
-int nas_proc_establish_cnf(nas_user_t *user, const Byte_t *data, uint32_t len)
+int nas_proc_establish_cnf(nas_user_t *user, const uint8_t *data, uint32_t len)
 {
   LOG_FUNC_IN;
 
@@ -1236,7 +1236,7 @@ int nas_proc_ul_transfer_rej(nas_user_t *user)
  **      Others:    None                                       **
  **                                                                        **
  ***************************************************************************/
-int nas_proc_dl_transfer_ind(nas_user_t *user, const Byte_t *data, uint32_t len)
+int nas_proc_dl_transfer_ind(nas_user_t *user, const uint8_t *data, uint32_t len)
 {
   LOG_FUNC_IN;
 

@@ -384,7 +384,7 @@ void generate_pucch2x(int32_t **txdataF,
 
   int i,j;
   uint32_t B=0;
-  uint8_t btilde[20];
+  uint8_t btilde[20] = {0};
   int16_t d[22];
   uint8_t deltaPUCCH_Shift          = fp->pucch_config_common.deltaPUCCH_Shift;
   uint8_t NRB2                      = fp->pucch_config_common.nRB_CQI;

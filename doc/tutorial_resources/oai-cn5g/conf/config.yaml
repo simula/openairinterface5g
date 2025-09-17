@@ -177,6 +177,7 @@ smf:
           - dnn: "oai"
           - dnn: "openairinterface"
           - dnn: "ims"
+          - dnn: "default"
   local_subscription_infos:
     - single_nssai: *embb_slice
       dnn: "oai"
@@ -196,6 +197,12 @@ smf:
         5qi: 9
         session_ambr_ul: "10Gbps"
         session_ambr_dl: "10Gbps"
+    - single_nssai: *embb_slice
+      dnn: "default"
+      qos_profile:
+        5qi: 9
+        session_ambr_ul: "10Gbps"
+        session_ambr_dl: "10Gbps"
 
 upf:
   support_features:
@@ -211,6 +218,7 @@ upf:
           - dnn: "oai"
           - dnn: "openairinterface"
           - dnn: "ims"
+          - dnn: "default"
 
 ## DNN configuration
 dnns:
@@ -224,4 +232,8 @@ dnns:
   - dnn: "ims"
     pdu_session_type: "IPV4V6"
     ipv4_subnet: "10.0.9.0/24"
+    ipv6_prefix: "2001:1:2::/64"
+  - dnn: "default"
+    pdu_session_type: "IPV4V6"
+    ipv4_subnet: "10.0.255.0/24"
     ipv6_prefix: "2001:1:2::/64"

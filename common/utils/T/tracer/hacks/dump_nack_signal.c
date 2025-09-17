@@ -4,7 +4,7 @@
 #include "utils.h"
 #include "event.h"
 #include "database.h"
-#include "config.h"
+#include "configuration.h"
 #include "../T_defs.h"
 
 void usage(void) {

@@ -80,6 +80,8 @@
 #define NB_RAB_MAX 11 /* from LTE_maxDRB in LTE_asn_constant.h */
 #define RAB_OFFSET 0x000F
 
+#define MAX_NUM_SLICES 1024
+
 // RLC Entity
 #define RLC_TX_MAXSIZE       10000000
 #define RLC_RX_MAXSIZE       10000000
@@ -93,5 +95,6 @@
 #define RETURNerror (-1)
 #define DEFAULT_NAS_PATH "PWD"
 #define UNUSED_VARIABLE(vARIABLE) (void)(vARIABLE)
+#define NUM_PRACH_RX_FOR_NOISE_ESTIMATE 100
 
 #endif /* __PLATFORM_CONSTANTS_H__ */

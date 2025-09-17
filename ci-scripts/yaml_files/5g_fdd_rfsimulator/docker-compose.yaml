@@ -2,6 +2,7 @@ services:
     mysql:
         container_name: "rfsim5g-mysql"
         image: mysql:8.0
+        init: true
         volumes:
             - ../5g_rfsimulator/oai_db.sql:/docker-entrypoint-initdb.d/oai_db.sql
             - ../5g_rfsimulator/mysql-healthcheck.sh:/tmp/mysql-healthcheck.sh
@@ -15,13 +16,15 @@ services:
             test: /bin/bash -c "/tmp/mysql-healthcheck.sh"
             interval: 10s
             timeout: 5s
+            start_period: 10s
+            start_interval: 500ms
             retries: 30
         networks:
             public_net:
                 ipv4_address: 192.168.71.131
     oai-amf:
         container_name: "rfsim5g-oai-amf"
-        image: oaisoftwarealliance/oai-amf:v2.0.0
+        image: oaisoftwarealliance/oai-amf:v2.1.10
         environment:
             - TZ=Europe/paris
         volumes:
@@ -33,7 +36,7 @@ services:
                 ipv4_address: 192.168.71.132
     oai-smf:
         container_name: "rfsim5g-oai-smf"
-        image: oaisoftwarealliance/oai-smf:v2.0.0
+        image: oaisoftwarealliance/oai-smf:v2.1.10
         environment:
             - TZ=Europe/Paris
         volumes:
@@ -45,7 +48,8 @@ services:
                 ipv4_address: 192.168.71.133
     oai-upf:
         container_name: "rfsim5g-oai-upf"
-        image: oaisoftwarealliance/oai-upf:v2.0.0
+        image: oaisoftwarealliance/oai-upf:v2.1.10
+        init: true
         environment:
             - TZ=Europe/Paris
         volumes:
@@ -61,12 +65,15 @@ services:
         networks:
             public_net:
                 ipv4_address: 192.168.71.134
+                interface_name: eth0
             traffic_net:
                 ipv4_address: 192.168.72.134
+                interface_name: eth1
     oai-ext-dn:
         privileged: true
         container_name: rfsim5g-oai-ext-dn
         image: oaisoftwarealliance/trf-gen-cn5g:focal
+        init: true
         entrypoint: /bin/bash -c \
               "iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE;"\
               "ip route add 12.1.1.0/24 via 192.168.72.134 dev eth0; sleep infinity"
@@ -80,14 +87,15 @@ services:
             interval: 10s
             timeout: 5s
             retries: 5
+            start_period: 10s
+            start_interval: 500ms
     oai-gnb:
         image: ${REGISTRY:-oaisoftwarealliance}/${GNB_IMG:-oai-gnb}:${TAG:-develop}
         container_name: rfsim5g-oai-gnb
         cap_drop:
             - ALL
         environment:
-            USE_ADDITIONAL_OPTIONS: --sa -E --rfsim --log_config.global_log_options level,nocolor,time
-            ASAN_OPTIONS: detect_leaks=0
+            USE_ADDITIONAL_OPTIONS: -E --log_config.global_log_options level,nocolor,time --device.name vrtsim --vrtsim.role server --vrtsim.timescale 0.5
         depends_on:
             - oai-ext-dn
         networks:
@@ -95,11 +103,15 @@ services:
                 ipv4_address: 192.168.71.140
         volumes:
             - ../../conf_files/gnb.sa.band66.106prb.rfsim.conf:/opt/oai-gnb/etc/gnb.conf
+            - tmp_data:/tmp/
         healthcheck:
             test: /bin/bash -c "pgrep nr-softmodem"
             interval: 10s
             timeout: 5s
+            start_period: 10s
+            start_interval: 500ms
             retries: 5
+        ipc: host
     oai-nr-ue:
         image: ${REGISTRY:-oaisoftwarealliance}/${NRUE_IMG:-oai-nr-ue}:${TAG:-develop}
         container_name: rfsim5g-oai-nr-ue
@@ -108,8 +120,8 @@ services:
         cap_add:
             - NET_ADMIN  # for interface bringup
             - NET_RAW    # for ping
-        environment: 
-            USE_ADDITIONAL_OPTIONS: -E --sa --rfsim -r 106 --numerology 1 --uicc0.imsi 208990100001100 --band 66 -C 2169090000 --CO -400000000 --ssb 378 --rfsimulator.serveraddr 192.168.71.140 --log_config.global_log_options level,nocolor,time
+        environment:
+            USE_ADDITIONAL_OPTIONS: -E -r 106 --numerology 1 --uicc0.imsi 208990100001100 --band 66 -C 2169090000 --CO -400000000 --ssb 378 --log_config.global_log_options level,nocolor,time --device.name vrtsim
         depends_on:
             - oai-gnb
         networks:
@@ -119,11 +131,15 @@ services:
              - /dev/net/tun:/dev/net/tun
         volumes:
             - ../../conf_files/nrue.uicc.conf:/opt/oai-nr-ue/etc/nr-ue.conf
+            - tmp_data:/tmp/
         healthcheck:
             test: /bin/bash -c "pgrep nr-uesoftmodem"
             interval: 10s
             timeout: 5s
             retries: 5
+            start_period: 10s
+            start_interval: 500ms
+        ipc: host
 
 networks:
     public_net:
@@ -142,3 +158,6 @@ networks:
                 - subnet: 192.168.72.128/26
         driver_opts:
             com.docker.network.bridge.name: "rfsim5g-traffic"
+
+volumes:
+    tmp_data:

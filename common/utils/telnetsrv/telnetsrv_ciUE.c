@@ -36,6 +36,7 @@
 #include <stdarg.h>
 #include "openair2/LAYER2/NR_MAC_UE/mac_defs.h"
 #include "openair2/LAYER2/NR_MAC_UE/mac_proto.h"
+#include "openair2/RRC/NR_UE/rrc_proto.h"
 
 #define TELNETSERVERCODE
 #include "telnetsrv.h"
@@ -73,9 +74,49 @@ int get_sync_state(char *buf, int debug, telnet_printfunc_t prnt)
   return 0;
 }
 
+/**
+ * Force RLF on UE
+ */
+int force_rlf(char *buf, int debug, telnet_printfunc_t prnt)
+{
+  NR_UE_RRC_INST_t *rrc = get_NR_UE_rrc_inst(0);
+  handle_rlf_detection(rrc);
+  return 0;
+}
+
+/**
+ * Send UE to RRC_IDLE
+ */
+int force_RRC_IDLE(char *buf, int debug, telnet_printfunc_t prnt)
+{
+  NR_UE_RRC_INST_t *rrc = get_NR_UE_rrc_inst(0);
+  nr_rrc_going_to_IDLE(rrc, OTHER, NULL);
+  return 0;
+}
+
+/** @brief Trigger RA with Msg3 C-RNTI */
+int force_crnti_ra(char *buf, int debug, telnet_printfunc_t prnt)
+{
+  NR_UE_MAC_INST_t *mac = get_mac_inst(0);
+  trigger_MAC_UE_RA(mac, NULL);
+  return 0;
+}
+
+static int force_deregistration(char *buf, int debug, telnet_printfunc_t prnt)
+{
+  MessageDef *msg = itti_alloc_new_message(TASK_NAS_NRUE, 0, NAS_DEREGISTRATION_REQ);
+  NAS_DEREGISTRATION_REQ(msg).cause = AS_DETACH;
+  itti_send_msg_to_task(TASK_NAS_NRUE, 0, msg);
+  return 0;
+}
+
 /* Telnet shell command definitions */
 static telnetshell_cmddef_t cicmds[] = {
   {"sync_state", "[UE_ID(int,opt)]", get_sync_state},
+  {"force_rlf", "", force_rlf},
+  {"force_RRC_IDLE", "", force_RRC_IDLE},
+  {"force_crnti_ra", "", force_crnti_ra},
+  {"deregistration", "", force_deregistration},
   {"", "", NULL},
 };
 

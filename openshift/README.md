@@ -49,11 +49,11 @@ will need `etc-pki-entitlement` inside the container image.
 To import `etc-pki-entitlement` in your project follow this
 [guide](https://docs.openshift.com/container-platform/4.14/cicd/builds/running-entitled-builds.html#builds-source-secrets-entitlements_running-entitled-builds)
 
-In case you have difficulties in following it then you can copy the
-certificates from an RHEL9 host
+You can do it as a kubeadmin/system admin user or you should have the rights 
+to read secrets from `openshift-config-managed` project
 
 ```bash
-oc create secret generic etc-pki-entitlement --from-file /etc/pki/entitlement/{NUMBER_ON_YOUR_COMPUTER}.pem --from-file /etc/pki/entitlement/{NUMBER_ON_YOUR_COMPUTER}-key.pem
+oc get secret etc-pki-entitlement -n openshift-config-managed -o json |   jq 'del(.metadata.resourceVersion)' | jq 'del(.metadata.creationTimestamp)' |   jq 'del(.metadata.uid)' | jq 'del(.metadata.namespace)' |   oc create -f -
 ```
 
 # 2. Build of `base` shared image

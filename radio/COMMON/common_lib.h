@@ -37,7 +37,7 @@
 #include <sys/types.h>
 #include <openair1/PHY/TOOLS/tools_defs.h>
 #include "record_player.h"
-#include <common/utils/threadPool/thread-pool.h>
+#include "common/utils/threadPool/notified_fifo.h"
 
 /* default name of shared library implementing the radio front end */
 #define OAI_RF_LIBNAME        "oai_device"
@@ -198,14 +198,19 @@ typedef struct split7_config {
   } slot_dirs[160];
   /*! this is the exponent in 2^X for the FFT size */
   uint16_t fftSize;
+
+  // M-plane related parameters
+  uint16_t dl_k0[5];
+  uint16_t ul_k0[5];
+  uint16_t cp_prefix0;
+  uint16_t cp_prefix_other;
+
 } split7_config_t;
 
 /*! \brief RF frontend parameters set by application */
 typedef struct openair0_config {
   //! Module ID for this configuration
   int Mod_id;
-  //! device log level
-  int log_level;
   //! duplexing mode
   duplex_mode_t duplex_mode;
   //! number of downlink resource blocks
@@ -225,6 +230,8 @@ typedef struct openair0_config {
   int rx_num_channels;
   //! number of TX channels (=TX antennas)
   int tx_num_channels;
+  //! number of distributed radio-units
+  int num_distributed_ru;
   //! rx daughter card
   char* rx_subdev;
   //! tx daughter card
@@ -290,8 +297,6 @@ typedef struct openair0_config {
   double rx_sample_rate;
   //! the sample rate for transmit.
   double tx_sample_rate;
-  //! check for threequarter sampling rate
-  int8_t threequarter_fs;
   //! Flag to indicate this configuration is for NR
   int nr_flag;
   //! NR band number

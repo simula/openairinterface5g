@@ -54,6 +54,8 @@ void container_set_child_growable(gui *_gui, widget *_this,
 int xy_plot_new_plot(gui *gui, widget *this, int color);
 void xy_plot_set_range(gui *gui, widget *this,
     float xmin, float xmax, float ymin, float ymax);
+void xy_plot_get_range(gui *gui, widget *this,
+    float *xmin, float *xmax, float *ymin, float *ymax);
 void xy_plot_set_points(gui *gui, widget *this,
     int plot, int npoints, float *x, float *y);
 void xy_plot_get_dimensions(gui *gui, widget *this, int *width, int *height);

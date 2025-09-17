@@ -57,7 +57,11 @@ typedef struct oran_port_instance_t {
 extern struct xran_fh_config gxran_fh_config[XRAN_PORTS_NUM];
 extern void *gxran_handle;
 
-struct openair0_config;
-int *oai_oran_initialize(const struct openair0_config *openair0_cfg);
+int *oai_oran_initialize(struct xran_fh_init *fh_init, struct xran_fh_config *fh_config);
+
+oran_buf_list_t *get_xran_buffers(uint32_t port_id);
+struct xran_fh_init *get_xran_fh_init(void);
+struct xran_fh_config *get_xran_fh_config(uint32_t port_id);
+uint32_t get_prach_conf_duration(uint32_t port_id);
 
 #endif /* ORAN_INIT_H */

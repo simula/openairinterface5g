@@ -1,0 +1,21 @@
+services:
+  openair-dev-env:
+    container_name: "openair-dev-${USER}"
+    image: openair-dev:${USER}
+    command: "sleep infinity"
+    privileged: false
+    cap_add:
+      - NET_ADMIN
+      - SYS_ADMIN
+      - NET_RAW
+      - SYS_NICE
+       # CAPS for sudo to work
+      - CAP_SETUID
+      - CAP_SETGID
+      - CAP_SETFCAP
+      - CAP_AUDIT_WRITE
+      - CAP_MKNOD
+    volumes:
+      - /home/${USER}:/home/${USER}
+    working_dir: /home/${USER}
+    hostname: oai-dev-env

@@ -678,7 +678,7 @@ static uint64_t MUL64(uint64_t v, uint64_t p, uint64_t c)
   return result;
 }
 
-static inline uint64_t mul_p(const uint64_t pm[7][256], uint64_t x)
+static inline uint64_t mul_p(const uint64_t pm[8][256], uint64_t x)
 {
   uint64_t x0 = (x >> (32 + 24)) & 255;
   uint64_t x1 = (x >> (32 + 16)) & 255;

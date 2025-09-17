@@ -235,8 +235,7 @@ void init_mpdcch2ss1tab_normal_regular_subframe_evenNRBDL(PHY_VARS_eNB *eNB) {
 
 extern uint8_t *generate_dci0(uint8_t *dci, uint8_t *e, uint8_t DCI_LENGTH, uint16_t coded_bits, uint16_t rnti);
 
-
-uint16_t        mpdcch_dmrs_tab[12 * 6];
+static uint16_t mpdcch_dmrs_tab[12 * 6];
 
 void init_mpdcch_dmrs_tab(uint16_t oss) {
   int             re = 5 * oss;
@@ -263,7 +262,6 @@ void generate_mdci_top(PHY_VARS_eNB *eNB, int frame, int subframe, int16_t amp, 
   mDCI_ALLOC_t   *mdci;
   int             coded_bits;
   LTE_DL_FRAME_PARMS *fp = &eNB->frame_parms;
-  int             i;
   int             gain_lin_QPSK;
   uint16_t       *mpdcchtab;
   uint32_t x1 = 0, x2 = 0, s = 0;
@@ -278,7 +276,7 @@ void generate_mdci_top(PHY_VARS_eNB *eNB, int frame, int subframe, int16_t amp, 
   int *w;
   LOG_D(PHY, "generate_mdci_top: num_dci %d\n", mpdcch->num_dci);
 
-  for (i = 0; i < mpdcch->num_dci; i++) {
+  for (int i = 0; i < mpdcch->num_dci; i++) {
     mdci = &mpdcch->mdci_alloc[i];
     AssertFatal(fp->frame_type == FDD, "TDD is not yet supported for MPDCCH\n");
     AssertFatal(fp->Ncp == NORMAL, "Extended Prefix not yet supported for MPDCCH\n");
@@ -359,14 +357,14 @@ void generate_mdci_top(PHY_VARS_eNB *eNB, int frame, int subframe, int16_t amp, 
     if (re_offset > fp->ofdm_symbol_size)
       re_offset -= (fp->ofdm_symbol_size - 1);
 
-    int32_t        *txF = &txdataF[0][symbol_offset+re_offset];
-    int32_t         yIQ;
+    c16_t *txF = (c16_t *)&txdataF[0][symbol_offset + re_offset];
+    c16_t yIQ;
 
-    for (i = 0; i < (coded_bits >> 1); i++) {
+    for (int i = 0; i < (coded_bits >> 1); i++) {
       // QPSK modulation to yIQ
-      ((int16_t *) & yIQ)[0] = (*e_ptr == 1) ? -gain_lin_QPSK : gain_lin_QPSK;
+      yIQ.r = *e_ptr == 1 ? -gain_lin_QPSK : gain_lin_QPSK;
       e_ptr++;
-      ((int16_t *) & yIQ)[1] = (*e_ptr == 1) ? -gain_lin_QPSK : gain_lin_QPSK;
+      yIQ.i = *e_ptr == 1 ? -gain_lin_QPSK : gain_lin_QPSK;
       e_ptr++;
       txF[mpdcchtab[i]] = yIQ;
       /*
@@ -407,7 +405,7 @@ void generate_mdci_top(PHY_VARS_eNB *eNB, int frame, int subframe, int16_t amp, 
     int last_prb  = (mdci->narrowband*6) + nb_i0 + 5;
     int soffset[4] = {5,6,12,13};
 
-    for (int lprime=0,i=0; lprime<4; lprime++) {
+    for (int lprime=0,ii=0; lprime<4; lprime++) {
       for (int nprb=0; nprb<110; nprb++) {
         if (nprb<fp->N_RB_DL) {
           re_offset = fp->first_carrier_offset + (12 * nprb);
@@ -415,11 +413,11 @@ void generate_mdci_top(PHY_VARS_eNB *eNB, int frame, int subframe, int16_t amp, 
           if (re_offset > fp->ofdm_symbol_size)
             re_offset -= (fp->ofdm_symbol_size - 1);
 
-          txF = &txdataF[0][symbol_offset + re_offset + fp->ofdm_symbol_size*soffset[lprime]];
+          txF = (c16_t *)&txdataF[0][symbol_offset + re_offset + fp->ofdm_symbol_size * soffset[lprime]];
         }
 
-        for (int mprime=0; mprime<3; mprime++,i+=2) {
-          if ((i & 0x1f) == 0) {
+        for (int mprime=0; mprime<3; mprime++,ii+=2) {
+          if ((ii & 0x1f) == 0) {
             s = lte_gold_generic(&x1, &x2, reset);
             reset = 0;
           }
@@ -427,8 +425,8 @@ void generate_mdci_top(PHY_VARS_eNB *eNB, int frame, int subframe, int16_t amp, 
           // select PRBs corresponding to narrowband
           if ((nprb>= first_prb) &&
               (nprb<= last_prb)) {
-            ((int16_t *) & yIQ)[0] = (((s >> (i & 0x1f)) & 1) == 1) ? -gain_lin_QPSK : gain_lin_QPSK;
-            ((int16_t *) & yIQ)[1] = (((s >> ((i + 1) & 0x1f)) & 1) == 1) ? -gain_lin_QPSK : gain_lin_QPSK;
+            yIQ.r = (s >> (ii & 0x1f)) & 1 ? -gain_lin_QPSK : gain_lin_QPSK;
+            yIQ.i = (s >> ((ii + 1) & 0x1f)) & 1 ? -gain_lin_QPSK : gain_lin_QPSK;
             AssertFatal(mdci->transmission_type==1,"transmission_type %d!=1, handle this ...\n",mdci->transmission_type);
 
             if (mdci->transmission_type==1) { // same thing on both 107 and 109
@@ -436,9 +434,9 @@ void generate_mdci_top(PHY_VARS_eNB *eNB, int frame, int subframe, int16_t amp, 
               txF[1+(5*mprime)] = yIQ;
             } else { // put on selected antenna port with w sequence
               if (((mprime+nprb)&1) == 0)
-                txF[off+(5*mprime)] = yIQ*w[lprime];
+                txF[off + (5 * mprime)] = (c16_t){yIQ.r * w[lprime], yIQ.i * w[lprime]};
               else
-                txF[off+(5*mprime)] = yIQ*w[3-lprime];
+                txF[off + (5 * mprime)] = (c16_t){yIQ.r * w[3 - lprime], yIQ.i * w[3 - lprime]};
             }
 
             /*

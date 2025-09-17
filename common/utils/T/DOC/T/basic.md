@@ -31,7 +31,7 @@ CMake Error at /usr/share/cmake-3.16/Modules/FindPkgConfig.cmake:463 (message):
 Run:
 
 ```shell
-sudo apt-get install libxft-dev
+sudo apt-get install libx11-dev libpng-dev libxft-dev
 ```
 
 ## Run the softmodem

@@ -1,0 +1,21 @@
+# Default values for oai-physim.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+global:
+  serviceAccountName: oai-physim-sa
+  namespace: "OAICICD_PROJECT"
+  image:
+    registry: local
+    repository: image-registry.openshift-image-registry.svc:5000/oaicicd-core-for-ci-ran/oai-physim
+    version: TAG
+    # pullPolicy: IfNotPresent or Never or Always
+    pullPolicy: Always
+  # removing the node selector
+  # will place on two nodes intel 3rd gen and 5th gen with RT kernel
+  nodeSelector:
+    type: ran
+  nodeName: ''
+  resources:
+    define: false
+    requests:
+      cpu: 1.5

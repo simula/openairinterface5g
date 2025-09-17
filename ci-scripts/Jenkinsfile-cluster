@@ -98,16 +98,8 @@ pipeline {
             echo "no LockResources given"
             allParametersPresent = false
           }
-          if (params.eNB_IPAddress == null) {
-            echo "no eNB_IPAddress given"
-            allParametersPresent = false
-          }
           if (params.eNB_SourceCodePath == null) {
             echo "no eNB_SourceCodePath given"
-            allParametersPresent = false
-          }
-          if (params.eNB_Credentials == null) {
-            echo "no eNB_Credentials given"
             allParametersPresent = false
           }
           // the following 4 parameters should be pushed by the master trigger
@@ -142,23 +134,6 @@ pipeline {
             }
           } else {
             echo "no eNB_mergeRequest given - not merging develop"
-          }
-
-          if (params.EPC_IPAddress == null) {
-            echo "no EPC_IPAddress given"
-            allParametersPresent = false
-          }
-          if (params.EPC_Type == null) {
-            echo "no EPC_Type given"
-            allParametersPresent = false
-          }
-          if (params.EPC_SourceCodePath == null) {
-            echo "no EPC_SourceCodePath given"
-            allParametersPresent = false
-          }
-          if (params.EPC_Credentials == null) {
-            echo "no EPC_Credentials given"
-            allParametersPresent = false
           }
 
           if (params.OC_Credentials == null) {
@@ -205,8 +180,6 @@ pipeline {
               }
             }
             withCredentials([
-              [$class: 'UsernamePasswordMultiBinding', credentialsId: "${params.eNB_Credentials}", usernameVariable: 'eNB_Username', passwordVariable: 'eNB_Password'],
-              [$class: 'UsernamePasswordMultiBinding', credentialsId: "${params.EPC_Credentials}", usernameVariable: 'EPC_Username', passwordVariable: 'EPC_Password'],
               [$class: 'UsernamePasswordMultiBinding', credentialsId: "${params.OC_Credentials}", usernameVariable: 'OC_Username', passwordVariable: 'OC_Password']
             ]) {
               sh "python3 main.py --mode=InitiateHtml --ranRepository=${eNB_Repository} --ranBranch=${eNB_Branch} --ranCommitID=${eNB_CommitID} --ranAllowMerge=${eNB_AllowMergeRequestProcess} --ranTargetBranch=${eNB_TargetBranch} ${mainPythonAllXmlFiles}"
@@ -214,7 +187,7 @@ pipeline {
                 if (fileExists(xmlFile)) {
                   try {
                    timeout (time: 60, unit: 'MINUTES') {
-                    sh "python3 main.py --mode=TesteNB --eNBIPAddress=${params.eNB_IPAddress} --ranRepository=${eNB_Repository} --ranBranch=${eNB_Branch} --ranCommitID=${eNB_CommitID} --ranAllowMerge=${eNB_AllowMergeRequestProcess} --ranTargetBranch=${eNB_TargetBranch} --eNBUserName=${eNB_Username} --eNBPassword=${eNB_Password} --eNBSourceCodePath=${params.eNB_SourceCodePath} --EPCIPAddress=${params.EPC_IPAddress} --EPCType=${params.EPC_Type} --EPCUserName=${EPC_Username} --EPCPassword=${EPC_Password} --EPCSourceCodePath=${params.EPC_SourceCodePath} --XMLTestFile=${xmlFile} --OCUserName=${OC_Username} --OCPassword=${OC_Password} --OCProjectName=${OC_ProjectName}"
+                    sh "python3 main.py --mode=TesteNB --ranRepository=${eNB_Repository} --ranBranch=${eNB_Branch} --ranCommitID=${eNB_CommitID} --ranAllowMerge=${eNB_AllowMergeRequestProcess} --ranTargetBranch=${eNB_TargetBranch} --eNBSourceCodePath=${params.eNB_SourceCodePath} --XMLTestFile=${xmlFile} --OCUserName=${OC_Username} --OCPassword=${OC_Password} --OCProjectName=${OC_ProjectName}"
                    }
                   } catch (Exception e) {
                     currentBuild.result = 'FAILURE'
@@ -222,7 +195,7 @@ pipeline {
                   }
                 }
               }
-              sh "python3 main.py --mode=FinalizeHtml --finalStatus=${buildStageStatus} --eNBIPAddress=${params.eNB_IPAddress} --eNBUserName=${eNB_Username} --eNBPassword=${eNB_Password}"
+              sh "python3 main.py --mode=FinalizeHtml --finalStatus=${buildStageStatus}"
             }
           }
         }

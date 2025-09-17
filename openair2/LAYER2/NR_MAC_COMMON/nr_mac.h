@@ -38,8 +38,10 @@
 #include <string.h>
 #include <stdbool.h>
 #include "common/utils/nr/nr_common.h"
+#include "common/utils/LOG/log.h"
 #include "NR_CellGroupConfig.h"
 
+#define MAX_FRAME_NUMBER 0x400
 #define NR_SHORT_BSR_TABLE_SIZE 32
 #define NR_LONG_BSR_TABLE_SIZE 256
 
@@ -122,6 +124,11 @@ static inline int get_mac_len(uint8_t *pdu, uint32_t pdu_len, uint16_t *mac_ce_l
     *mac_subheader_len = sizeof(*s);
     *mac_ce_len = s->L;
   }
+  if (*mac_ce_len > pdu_len) {
+    LOG_E(NR_MAC, "MAC sdu len impossible (%d)\n", *mac_ce_len);
+    return false;
+  }
+
   return true;
 }
 
@@ -133,8 +140,6 @@ typedef struct {
   uint8_t LcgID: 3;        // octet 1 MSB
 } __attribute__ ((__packed__)) NR_BSR_SHORT;
 
-typedef NR_BSR_SHORT NR_BSR_SHORT_TRUNCATED;
-
 // Long BSR for all logical channel group ID
 typedef struct {
   uint8_t LcgID0: 1;        // octet 1 [0]
@@ -144,18 +149,8 @@ typedef struct {
   uint8_t LcgID4: 1;        // octet 1 [4]
   uint8_t LcgID5: 1;        // octet 1 [5]
   uint8_t LcgID6: 1;        // octet 1 [6]
-  uint8_t LcgID7: 1;        // octet 1 [7]
-  uint8_t Buffer_size0: 8;  // octet 2 [7:0]
-  uint8_t Buffer_size1: 8;  // octet 3 [7:0]
-  uint8_t Buffer_size2: 8;  // octet 4 [7:0]
-  uint8_t Buffer_size3: 8;  // octet 5 [7:0]
-  uint8_t Buffer_size4: 8;  // octet 6 [7:0]
-  uint8_t Buffer_size5: 8;  // octet 7 [7:0]
-  uint8_t Buffer_size6: 8;  // octet 8 [7:0]
-  uint8_t Buffer_size7: 8;  // octet 9 [7:0]
+  uint8_t LcgID7: 1; // octet 1 [7]
 } __attribute__ ((__packed__)) NR_BSR_LONG;
-
-typedef NR_BSR_LONG NR_BSR_LONG_TRUNCATED;
 
 // 38.321 ch. 6.1.3.4
 typedef struct {
@@ -332,7 +327,8 @@ typedef struct {
      NRUE MAC layer already does in get_downlink_ack(). */
   int active_dl_harq_sfn;
   int active_dl_harq_slot;
-  int active_ul_harq_sfn_slot;
+  int active_ul_harq_sfn;
+  int active_ul_harq_slot;
   bool active;
 } emul_l1_harq_t;
 
@@ -434,12 +430,24 @@ typedef struct {
 #define DL_SCH_LCID_CON_RES_ID                     0x3E
 #define DL_SCH_LCID_PADDING                        0x3F
 
-#define UL_SCH_LCID_CCCH1                          0x00
+#define UL_SCH_LCID_CCCH_64_BITS                   0x00
 #define UL_SCH_LCID_SRB1                           0x01
 #define UL_SCH_LCID_SRB2                           0x02
 #define UL_SCH_LCID_SRB3                           0x03
 #define UL_SCH_LCID_DTCH                           0x04
-#define UL_SCH_LCID_CCCH                           0x34
+#define UL_SCH_LCID_EXTENDED_LCID_2_OCT            0x21
+#define UL_SCH_LCID_EXTENDED_LCID_1_OCT            0x22
+#define UL_SCH_LCID_CCCH_48_BITS_REDCAP            0x23
+#define UL_SCH_LCID_CCCH_64_BITS_REDCAP            0x24
+#define UL_SCH_LCID_TRUNCATED_ENHANCED_BFR         0x2B
+#define UL_SCH_LCID_TIMING_ADVANCE_REPORT          0x2C
+#define UL_SCH_LCID_TRUNCATED_SIDELINK_BSR         0x2D
+#define UL_SCH_LCID_SIDELINK_BSR                   0x2E
+#define UL_SCH_LCID_LBT_FAILURE_4_OCT              0x30
+#define UL_SCH_LCID_LBT_FAILURE_1_OCT              0x31
+#define UL_SCH_LCID_BFR                            0x32
+#define UL_SCH_LCID_TRUNCATED_BFR                  0x33
+#define UL_SCH_LCID_CCCH_48_BITS                   0x34
 #define UL_SCH_LCID_RECOMMENDED_BITRATE_QUERY      0x35
 #define UL_SCH_LCID_MULTI_ENTRY_PHR_4_OCT          0x36
 #define UL_SCH_LCID_CONFIGURED_GRANT_CONFIRMATION  0x37
@@ -454,36 +462,6 @@ typedef struct {
 
 #define NR_MAX_NUM_LCGID              8
 #define MAX_RLC_SDU_SUBHEADER_SIZE          3
-
-//===========
-// PRACH defs
-//===========
-
-// ===============================================
-// SSB to RO mapping public defines and structures
-// ===============================================
-#define MAX_SSB_PER_RO (16) // Maximum number of SSBs that can be mapped to a single RO
-#define MAX_TDM (7) // Maximum nb of PRACH occasions TDMed in a slot
-#define MAX_FDM (8) // Maximum nb of PRACH occasions FDMed in a slot
-
-// PRACH occasion details
-typedef struct prach_occasion_info {
-  uint8_t start_symbol; // 0 - 13 (14 symbols in a slot)
-  uint8_t fdm; // 0-7 (possible values of msg1-FDM: 1, 2, 4 or 8)
-  uint8_t slot; // 0 - 159 (maximum number of slots in a 10ms frame - @ 240kHz)
-  uint8_t frame; // 0 - 15 (maximum number of frames in a 160ms association pattern)
-  uint8_t mapped_ssb_idx[MAX_SSB_PER_RO]; // List of mapped SSBs
-  uint8_t nb_mapped_ssb;
-  uint16_t format; // RO preamble format
-} prach_occasion_info_t;
-
-// PRACH occasion slot details
-// A PRACH occasion slot is a series of PRACH occasions in time (symbols) and frequency
-typedef struct prach_occasion_slot {
-  prach_occasion_info_t *prach_occasion; // Starting symbol of each PRACH occasions in a slot
-  uint8_t nb_of_prach_occasion_in_time;
-  uint8_t nb_of_prach_occasion_in_freq;
-} prach_occasion_slot_t;
 
 //=========
 // DCI defs
@@ -539,7 +517,9 @@ typedef struct {
   uint8_t cri_ssbri_bitlen;
   uint8_t rsrp_bitlen;
   uint8_t diff_rsrp_bitlen;
-} L1_RSRP_bitlen_t;
+  uint8_t sinr_bitlen;
+  uint8_t diff_sinr_bitlen;
+} L1_Meas_bitlen_t;
 
 typedef struct{
   uint8_t ri_restriction;
@@ -557,13 +537,14 @@ typedef struct{
 typedef struct nr_csi_report {
   NR_CSI_ReportConfigId_t reportConfigId;
   NR_CSI_ReportConfig__reportQuantity_PR reportQuantity_type;
+  NR_CSI_ReportConfig__ext2__reportQuantity_r16_PR reportQuantity_type_r16;
   long periodicity;
   uint16_t offset;
-  long ** SSB_Index_list;
-  long ** CSI_Index_list;
+  long **SSB_Index_list;
+  long **CSI_Index_list;
 //  uint8_t nb_of_nzp_csi_report;
   uint8_t nb_of_csi_ssb_report;
-  L1_RSRP_bitlen_t CSI_report_bitlen;
+  L1_Meas_bitlen_t CSI_report_bitlen;
   CSI_Meas_bitlen_t csi_meas_bitlen;
   int codebook_mode;
   int N1;

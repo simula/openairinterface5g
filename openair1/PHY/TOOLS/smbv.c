@@ -61,6 +61,8 @@ int smbv_init_config(const char* fname, uint16_t sequence_length)
   int k;
 
   f_ptr = fopen(fname,"w");
+  if (!f_ptr)
+    return -1;
 
   if (sequence_length>4) {
     msg("ERROR invalid sequence length: %d, maximum is 4\n", sequence_length);
@@ -101,6 +103,8 @@ int smbv_write_config_from_frame_parms(const char* fname, LTE_DL_FRAME_PARMS *fr
   FILE *f_ptr;
 
   f_ptr = fopen(fname,"a");
+  if (!f_ptr)
+    return -1;
 
   fprintf(f_ptr, "BB:EUTR:SLEN %d\n",slen);
 
@@ -188,6 +192,8 @@ int smbv_configure_datalist_for_alloc(const char* fname, uint8_t alloc, uint8_t 
 {
   FILE *f_ptr;
   f_ptr = fopen(fname,"a");
+  if (!f_ptr)
+    return -1;
   char strbuf[(8<<1)+1];
   int i,k;
   strbuf[0] = '\0';
@@ -245,6 +251,8 @@ int smbv_configure_datalist_for_user(const char* fname, uint8_t user, uint8_t *b
 {
   FILE *f_ptr;
   f_ptr = fopen(fname,"a");
+  if (!f_ptr)
+    return -1;
   char strbuf[(8<<1)+1];
   int i,k;
 
@@ -284,6 +292,8 @@ int smbv_configure_user(const char* fname, uint8_t user, uint8_t transmission_mo
 {
   FILE *f_ptr;
   f_ptr = fopen(fname,"a");
+  if (!f_ptr)
+    return -1;
 
   fprintf(f_ptr, "BB:EUTR:DL:USER%d:TXM M1\n",user);
   fprintf(f_ptr, "BB:EUTR:DL:USER%d:UEC USER\n",user);
@@ -302,6 +312,8 @@ int smbv_configure_pdcch(const char* fname,uint8_t subframe,uint8_t num_pdcch_sy
   FILE *f_ptr;
 
   f_ptr = fopen(fname,"a");
+  if (!f_ptr)
+    return -1;
 
   fprintf(f_ptr, "BB:EUTR:DL:SUBF%d:ENCC:PCF:CREG %d\n",subframe,num_pdcch_symbols);
   fprintf(f_ptr, "BB:EUTR:DL:SUBF%d:ENCC:PDCC:FORM VAR\n",subframe);
@@ -325,6 +337,8 @@ int smbv_configure_common_dci(const char* fname, uint8_t subframe, const char* t
   void *dci_pdu = &dci_alloc->dci_pdu[0];
 
   f_ptr = fopen(fname,"a");
+  if (!f_ptr)
+    return -1;
 
   fprintf(f_ptr, "BB:EUTR:DL:SUBF%d:ENCC:STAT ON\n",subframe);
 
@@ -383,6 +397,8 @@ int smbv_configure_ue_spec_dci(const char* fname, uint8_t subframe, uint8_t user
   void *dci_pdu = &dci_alloc->dci_pdu[0];
 
   f_ptr = fopen(fname,"a");
+  if (!f_ptr)
+    return -1;
 
   fprintf(f_ptr, "BB:EUTR:DL:SUBF%d:ENCC:STAT ON\n",subframe);
   fprintf(f_ptr, "BB:EUTR:DL:SUBF%d:ENCC:PDCC:EXTC:ITEM%d:USER USER%d\n",subframe,item,user);
@@ -567,7 +583,7 @@ void help (void)
 int main(int argc,char **argv)
 {
 
-  char c,smbv_ip[16],smbv_fname[256];
+  char smbv_ip[16], smbv_fname[256];
   extern char *optarg;
   int i;
 
@@ -575,6 +591,7 @@ int main(int argc,char **argv)
   strcpy(smbv_ip,DEFAULT_SMBV_IP);
   strcpy(smbv_fname,DEFAULT_SMBV_FNAME);
 
+  int c;
   while ((c = getopt (argc, argv, "hW:")) != -1) {
     switch (c) {
     case 'W':

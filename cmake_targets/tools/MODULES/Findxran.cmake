@@ -75,7 +75,6 @@ endif()
 
 find_path(xran_INCLUDE_DIR
   NAMES
-    xran_common.h
     xran_compression.h
     xran_cp_api.h
     xran_ecpri_owd_measurements.h
@@ -83,12 +82,15 @@ find_path(xran_INCLUDE_DIR
     xran_pkt.h
     xran_pkt_up.h
     xran_sync_api.h
-  PATHS ${xran_LOCATION}
+  HINTS ${xran_LOCATION}
   PATH_SUFFIXES api
+  NO_DEFAULT_PATH
 )
 find_library(xran_LIBRARY
   NAMES xran
-  PATHS ${xran_LOCATION}/build
+  HINTS ${xran_LOCATION}
+  PATH_SUFFIXES build api
+  NO_DEFAULT_PATH
 )
 if (NOT xran_LIBRARY)
   message(FATAL_ERROR "could not detect xran build artifacts at ${xran_LOCATION}/build")
@@ -133,7 +135,7 @@ if(xran_FOUND AND NOT TARGET xran::xran)
   add_library(xran::xran UNKNOWN IMPORTED)
   set_target_properties(xran::xran PROPERTIES
     IMPORTED_LOCATION "${xran_LIBRARY}"
-    INTERFACE_INCLUDE_DIRECTORIES "${xran_INCLUDE_DIR}"
+    INTERFACE_INCLUDE_DIRECTORIES "${xran_INCLUDE_DIRS}"
   )
 endif()
 

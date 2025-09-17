@@ -8,11 +8,12 @@
 #endif
 
 /* maximum number of arguments for the T macro */
-#define T_MAX_ARGS 32
+#define T_MAX_ARGS 72
 
 enum event_arg_type {
   EVENT_INT,
   EVENT_ULONG,
+  EVENT_FLOAT,
   EVENT_STRING,
   EVENT_BUFFER
 };
@@ -23,6 +24,7 @@ typedef struct {
   union {
     int i;
     unsigned long ul;
+    float f;
     char *s;
     struct {
       int bsize;

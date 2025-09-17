@@ -59,10 +59,6 @@ static uint32_t rand_range(uint32_t min, uint32_t max)
 	return ((rand() % (max + 1 - min)) + min);
 }
 
-
-
-extern "C" nfapi_pnf_param_response_t g_pnf_param_resp;
-
 extern "C" {
 
 

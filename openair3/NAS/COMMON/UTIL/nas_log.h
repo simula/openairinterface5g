@@ -38,7 +38,7 @@ Description Usefull logging functions
 #ifndef __NAS_LOG_H__
 #define __NAS_LOG_H__
 
-#if defined(NAS_BUILT_IN_UE) && defined(NAS_UE)
+#if defined(NAS_BUILT_IN_UE)
 # include "common/utils/LOG/log.h"
 # undef LOG_TRACE
 #endif
@@ -97,6 +97,7 @@ typedef enum {
 
 #define __FILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #ifdef LOG_E
+
 # define LOG_TRACE(s, x, args...)                               \
 do {                                                            \
     switch (s) {                                                \
@@ -111,9 +112,6 @@ do {                                                            \
 # define LOG_FUNC_IN  LOG_ENTER(NAS)
 # define LOG_FUNC_OUT  LOG_END(NAS)
 # define LOG_FUNC_RETURN(rETURNcODE) LOG_RETURN(NAS,rETURNcODE)
-
-extern int nas_log_func_indent;
-
 #else
 # define LOG_TRACE(s, x, args...)  
 # define LOG_DUMP(dATA, lEN)   LOG_DUMPMSG(NAS, LOG_DUMP_CHAR,dATA, lEN,  " Dump %d:\n", lEN)

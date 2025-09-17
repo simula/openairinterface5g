@@ -52,8 +52,8 @@
 // - idft for short sequence assumes we are transmitting starting in symbol 0 of a PRACH slot
 // - Assumes that PRACH SCS is same as PUSCH SCS @ 30 kHz, take values for formats 0-2 and adjust for others below
 // - Preamble index different from 0 is not detected by gNB
-int32_t generate_nr_prach(PHY_VARS_NR_UE *ue, uint8_t gNB_id, int frame, uint8_t slot){
-
+int32_t generate_nr_prach(PHY_VARS_NR_UE *ue, uint8_t gNB_id, int frame, uint8_t slot, c16_t **txData)
+{
   NR_DL_FRAME_PARMS *fp=&ue->frame_parms;
   fapi_nr_config_request_t *nrUE_config = &ue->nrUE_config;
   fapi_nr_ul_config_prach_pdu *prach_pdu = &ue->prach_vars[gNB_id]->prach_pdu;
@@ -63,17 +63,17 @@ int32_t generate_nr_prach(PHY_VARS_NR_UE *ue, uint8_t gNB_id, int frame, uint8_t
   const uint16_t *prach_root_sequence_map;
   uint16_t preamble_shift = 0, preamble_index0, n_shift_ra, n_shift_ra_bar, d_start=INT16_MAX, numshift, N_ZC, u, offset, offset2, first_nonzero_root_idx;
   c16_t prach[(4688 + 4 * 24576) * 2] __attribute__((aligned(32))) = {0};
-  int16_t prachF_tmp[(4688+4*24576)*4*2] __attribute__((aligned(32))) = {0};
+  c16_t prachF_tmp[(4688 + 4 * 24576) * 4] __attribute__((aligned(32))) = {0};
 
   int Ncp = 0;
-  int prach_start, prach_sequence_length, i, prach_len, dftlen, mu, kbar, K, n_ra_prb, k, prachStartSymbol, sample_offset_slot;
+  int prach_start, prach_sequence_length, prach_len, dftlen, mu, n_ra_prb, k, prachStartSymbol;
 
-  fd_occasion             = 0;
+  fd_occasion             = prach_pdu->num_ra;
   prach_len               = 0;
   dftlen                  = 0;
   first_nonzero_root_idx = 0;
-  int16_t amp = ue->prach_vars[gNB_id]->amp;
-  int16_t *prachF = prachF_tmp;
+  int16_t amp = prach_pdu->prach_tx_power;
+  c16_t *prachF = prachF_tmp;
   Mod_id                  = ue->Mod_id;
   prach_sequence_length   = nrUE_config->prach_config.prach_sequence_length;
   N_ZC                    = (prach_sequence_length == 0) ? 839:139;
@@ -83,36 +83,36 @@ int32_t generate_nr_prach(PHY_VARS_NR_UE *ue, uint8_t gNB_id, int frame, uint8_t
   n_ra_prb                = nrUE_config->prach_config.num_prach_fd_occasions_list[fd_occasion].k1,//prach_pdu->freq_msg1;
   NCS                     = prach_pdu->num_cs;
   prach_fmt_id            = prach_pdu->prach_format;
-  preamble_index          = prach_pdu->ra_PreambleIndex;
-  kbar                    = 1;
-  K                       = 24;
+  preamble_index = prach_pdu->ra_PreambleIndex;
   k                       = 12*n_ra_prb - 6*fp->N_RB_UL;
   prachStartSymbol        = prach_pdu->prach_start_symbol;
 
   LOG_D(PHY,"Generate NR PRACH %d.%d\n", frame, slot);
 
-  compute_nr_prach_seq(nrUE_config->prach_config.prach_sequence_length,
-                       nrUE_config->prach_config.num_prach_fd_occasions_list[fd_occasion].num_root_sequences,
-                       nrUE_config->prach_config.num_prach_fd_occasions_list[fd_occasion].prach_root_sequence_index,
-                       ue->X_u);
-
-  if (prachStartSymbol == 0) {
-    sample_offset_slot = 0;
-  } else if (fp->slots_per_subframe == 1) {
-    if (prachStartSymbol <= 7)
-      sample_offset_slot = (fp->ofdm_symbol_size + fp->nb_prefix_samples) * (prachStartSymbol - 1) + (fp->ofdm_symbol_size + fp->nb_prefix_samples0);
-    else
-      sample_offset_slot = (fp->ofdm_symbol_size + fp->nb_prefix_samples) * (prachStartSymbol - 2) + (fp->ofdm_symbol_size + fp->nb_prefix_samples0) * 2;
-  } else {
-    if (slot % (fp->slots_per_subframe / 2) == 0)
-      sample_offset_slot = (fp->ofdm_symbol_size + fp->nb_prefix_samples) * (prachStartSymbol - 1) + (fp->ofdm_symbol_size + fp->nb_prefix_samples0);
-    else
-      sample_offset_slot = (fp->ofdm_symbol_size + fp->nb_prefix_samples) * prachStartSymbol;
+  if (nrUE_config->prach_config.root_seq_computed == 0) {
+    compute_nr_prach_seq(nrUE_config->prach_config.prach_sequence_length,
+                         nrUE_config->prach_config.num_prach_fd_occasions_list[fd_occasion].num_root_sequences,
+                         nrUE_config->prach_config.num_prach_fd_occasions_list[fd_occasion].prach_root_sequence_index,
+                         ue->X_u);
+    nrUE_config->prach_config.root_seq_computed = 1;
   }
 
-  prach_start = fp->get_samples_slot_timestamp(slot, fp, 0) + sample_offset_slot;
-
-  //printf("prachstartsymbold %d, sample_offset_slot %d, prach_start %d\n",prachStartSymbol, sample_offset_slot, prach_start);
+  if (prachStartSymbol == 0) {
+    prach_start = 0;
+  } else if (fp->slots_per_subframe == 1) {
+    if (prachStartSymbol <= 7)
+      prach_start =
+          (fp->ofdm_symbol_size + fp->nb_prefix_samples) * (prachStartSymbol - 1) + (fp->ofdm_symbol_size + fp->nb_prefix_samples0);
+    else
+      prach_start = (fp->ofdm_symbol_size + fp->nb_prefix_samples) * (prachStartSymbol - 2)
+                    + (fp->ofdm_symbol_size + fp->nb_prefix_samples0) * 2;
+  } else {
+    if (slot % (fp->slots_per_subframe / 2) == 0)
+      prach_start =
+          (fp->ofdm_symbol_size + fp->nb_prefix_samples) * (prachStartSymbol - 1) + (fp->ofdm_symbol_size + fp->nb_prefix_samples0);
+    else
+      prach_start = (fp->ofdm_symbol_size + fp->nb_prefix_samples) * prachStartSymbol;
+  }
 
   // First compute physical root sequence
   /************************************************************************
@@ -137,7 +137,8 @@ int32_t generate_nr_prach(PHY_VARS_NR_UE *ue, uint8_t gNB_id, int frame, uint8_t
     #endif
 
     not_found = 1;
-    nr_fill_du(N_ZC,prach_root_sequence_map);
+    uint16_t nr_du[NR_PRACH_SEQ_LEN_L - 1];
+    nr_fill_du(N_ZC, prach_root_sequence_map, nr_du);
     preamble_index0 = preamble_index;
     // set preamble_offset to initial rootSequenceIndex and look if we need more root sequences for this
     // preamble index and find the corresponding cyclic shift
@@ -210,32 +211,27 @@ int32_t generate_nr_prach(PHY_VARS_NR_UE *ue, uint8_t gNB_id, int frame, uint8_t
   //  nsymb = (frame_parms->Ncp==0) ? 14:12;
   //  subframe_offset = (unsigned int)frame_parms->ofdm_symbol_size*slot*nsymb;
 
-  if (prach_sequence_length == 0 && prach_fmt_id == 3) {
-    K = 4;
-    kbar = 10;
-  } else if (prach_sequence_length == 1) {
-    K = 1;
-    kbar = 2;
-  }
+  const unsigned int K = get_prach_K(prach_sequence_length, prach_fmt_id, fp->numerology_index, mu);
+  const uint8_t kbar = get_PRACH_k_bar(mu, fp->numerology_index);
 
-  if (k<0)
+  if (k < 0)
     k += fp->ofdm_symbol_size;
 
   k *= K;
   k += kbar;
-  k *= 2;
 
   LOG_I(PHY,
         "PRACH [UE %d] in frame.slot %d.%d, placing PRACH in position %d, Msg1/MsgA-Preamble frequency start %d (k1 %d), "
-        "preamble_offset %d, first_nonzero_root_idx %d\n",
+        "preamble_offset %d, first_nonzero_root_idx %d, preambleIndex = %d\n",
         Mod_id,
         frame,
         slot,
-        k,
+        k * 2,
         n_ra_prb,
         nrUE_config->prach_config.num_prach_fd_occasions_list[fd_occasion].k1,
         preamble_offset,
-        first_nonzero_root_idx);
+        first_nonzero_root_idx,
+        prach_pdu->ra_PreambleIndex);
 
   // Ncp and dftlen here is given in terms of T_s wich is 30.72MHz sampling
   if (prach_sequence_length == 0) {
@@ -261,7 +257,7 @@ int32_t generate_nr_prach(PHY_VARS_NR_UE *ue, uint8_t gNB_id, int frame, uint8_t
       break;
 
     default:
-      AssertFatal(1==0, "Illegal PRACH format %d for sequence length 839\n", prach_fmt_id);
+      AssertFatal(1 == 0, "Illegal PRACH format %d for sequence length 839\n", prach_fmt_id);
       break;
     }
   } else {
@@ -412,12 +408,14 @@ int32_t generate_nr_prach(PHY_VARS_NR_UE *ue, uint8_t gNB_id, int frame, uint8_t
 
     if (offset2 >= N_ZC)
       offset2 -= N_ZC;
-    const int32_t Xu_re = (Xu[offset].r * amp) >> 15;
-    const int32_t Xu_im = (Xu[offset].i * amp) >> 15;
-    prachF[k++] = (Xu_re * nr_ru[offset2].r - Xu_im * nr_ru[offset2].i) >> 15;
-    prachF[k++] = (Xu_im * nr_ru[offset2].r + Xu_re * nr_ru[offset2].i) >> 15;
+    const c16_t Xu_t = c16xmulConstShift(Xu[offset], amp, 15);
+    const double w = 2 * M_PI * (double)offset2 / N_ZC;
+    const c16_t ru = {.r = (int16_t)(floor(32767.0 * cos(w))), .i = (int16_t)(floor(32767.0 * sin(w)))};
+    const c16_t p = c16mulShift(Xu_t, ru, 15);
+    prachF[k++] = p;
 
-    if (k==dftlen) k=0;
+    if (k * 2 == dftlen)
+      k = 0;
   }
 
   #if defined (PRACH_WRITE_OUTPUT_DEBUG)
@@ -428,7 +426,7 @@ int32_t generate_nr_prach(PHY_VARS_NR_UE *ue, uint8_t gNB_id, int frame, uint8_t
   // This is after cyclic prefix
     c16_t *prach2 = prach + Ncp;
     const idft_size_idx_t idft_size = get_idft(dftlen);
-    idft(idft_size, prachF, (int16_t *)prach, 1);
+    idft(idft_size, (int16_t *)prachF, (int16_t *)prach, 1);
     memmove(prach2, prach, (dftlen << 2));
 
     if (prach_sequence_length == 0) {
@@ -503,21 +501,16 @@ int32_t generate_nr_prach(PHY_VARS_NR_UE *ue, uint8_t gNB_id, int frame, uint8_t
     }
   }
 
-  #ifdef NR_PRACH_DEBUG
-    LOG_I(PHY, "PRACH [UE %d] N_RB_UL %d prach_start %d, prach_len %d\n", Mod_id,
-      fp->N_RB_UL,
-      prach_start,
-      prach_len);
-  #endif
+#ifdef NR_PRACH_DEBUG
+  LOG_I(PHY, "PRACH [UE %d] N_RB_UL %d prach_start %d, prach_len %d\n", Mod_id, fp->N_RB_UL, prach_start, prach_len);
+#endif
 
-    for (i = 0; i < prach_len; i++)
-      ue->common_vars.txData[0][prach_start + i] = prach[i];
+  memcpy(txData[0] + prach_start, prach, sizeof(c16_t) * prach_len);
 
 #ifdef PRACH_WRITE_OUTPUT_DEBUG
-    LOG_M("prach_tx0.m", "prachtx0", prach+(Ncp<<1), prach_len-Ncp, 1, 1);
-    LOG_M("Prach_txsig.m","txs",(int16_t*)(&ue->common_vars.txdata[0][prach_start]), 2*(prach_start+prach_len), 1, 1)
-  #endif
+  LOG_M("prach_tx0.m", "prachtx0", prach + (Ncp << 1), prach_len - Ncp, 1, 1);
+  LOG_M("Prach_txsig.m", "txs", (int16_t *)(&txdata[0][prach_start]), 2 * (prach_start + prach_len), 1, 1)
+#endif
 
-  return signal_energy((int*)prach, 256);
+  return signal_energy((int *)prach, 256);
 }
-

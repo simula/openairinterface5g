@@ -20,8 +20,26 @@
  */
 
 #include "rrc_gNB_radio_bearers.h"
+#include <stddef.h>
+#include "E1AP_RLC-Mode.h"
+#include "RRC/NR/nr_rrc_defs.h"
+#include "T.h"
+#include "asn_internal.h"
+#include "assertions.h"
+#include "common/platform_constants.h"
+#include "common/utils/T/T.h"
+#include "ngap_messages_types.h"
 #include "oai_asn1.h"
-#include "openair2/E1AP/e1ap.h"
+#include "openair2/LAYER2/nr_pdcp/nr_pdcp_asn1_utils.h"
+
+/** @brief Deep copy pdusession_t */
+void cp_pdusession(pdusession_t *dst, const pdusession_t *src)
+{
+  // Shallow copy
+  *dst = *src;
+  // nas_pdu
+  dst->nas_pdu = copy_byte_array(src->nas_pdu);
+}
 
 rrc_pdu_session_param_t *find_pduSession(gNB_RRC_UE_t *ue, int id, bool create)
 {
@@ -40,6 +58,7 @@ rrc_pdu_session_param_t *find_pduSession(gNB_RRC_UE_t *ue, int id, bool create)
 
 rrc_pdu_session_param_t *find_pduSession_from_drbId(gNB_RRC_UE_t *ue, int drb_id)
 {
+  DevAssert(drb_id > 0 && drb_id <= 32);
   const drb_t *drb = &ue->established_drbs[drb_id - 1];
   if (drb->status == DRB_INACTIVE) {
     LOG_E(NR_RRC, "UE %d: DRB %d inactive\n", ue->rrc_ue_id, drb_id);
@@ -47,6 +66,12 @@ rrc_pdu_session_param_t *find_pduSession_from_drbId(gNB_RRC_UE_t *ue, int drb_id
   }
   int id = drb->cnAssociation.sdap_config.pdusession_id;
   return find_pduSession(ue, id, false);
+}
+
+void get_pduSession_array(gNB_RRC_UE_t *ue, uint32_t pdu_sessions[NGAP_MAX_PDU_SESSION])
+{
+  for (int i = 0; i < ue->nb_of_pdusessions && i < NGAP_MAX_PDU_SESSION; ++i)
+    pdu_sessions[i] = ue->pduSession[i].param.pdusession_id;
 }
 
 drb_t *get_drb(gNB_RRC_UE_t *ue, uint8_t drb_id)
@@ -57,13 +82,23 @@ drb_t *get_drb(gNB_RRC_UE_t *ue, uint8_t drb_id)
   return &ue->established_drbs[drb_id - 1];
 }
 
-void set_default_drb_pdcp_config(struct pdcp_config_s *pdcp_config, int do_drb_integrity, int do_drb_ciphering)
+void set_default_drb_pdcp_config(struct pdcp_config_s *pdcp_config,
+                                 int do_drb_integrity,
+                                 int do_drb_ciphering,
+                                 const nr_pdcp_configuration_t *default_pdcp_config,
+                                 const nr_redcap_ue_cap_t *redcap_cap)
 {
   AssertError(pdcp_config != NULL, return, "Failed to set default PDCP configuration for DRB!\n");
-  pdcp_config->discardTimer = NR_PDCP_Config__drb__discardTimer_infinity;
-  pdcp_config->pdcp_SN_SizeDL = NR_PDCP_Config__drb__pdcp_SN_SizeDL_len18bits;
-  pdcp_config->pdcp_SN_SizeUL = NR_PDCP_Config__drb__pdcp_SN_SizeUL_len18bits;
-  pdcp_config->t_Reordering = NR_PDCP_Config__t_Reordering_ms100;
+  pdcp_config->discardTimer = encode_discard_timer(default_pdcp_config->drb.discard_timer);
+  if (redcap_cap && redcap_cap->support_of_redcap_r17 && !redcap_cap->pdcp_drb_long_sn_redcap_r17) {
+    LOG_I(NR_RRC, "UE is RedCap without long PDCP SN support: overriding PDCP SN size to 12\n");
+    pdcp_config->pdcp_SN_SizeDL = NR_PDCP_Config__drb__pdcp_SN_SizeDL_len12bits;
+    pdcp_config->pdcp_SN_SizeUL = NR_PDCP_Config__drb__pdcp_SN_SizeUL_len12bits;
+  } else {
+    pdcp_config->pdcp_SN_SizeDL = encode_sn_size_dl(default_pdcp_config->drb.sn_size);
+    pdcp_config->pdcp_SN_SizeUL = encode_sn_size_ul(default_pdcp_config->drb.sn_size);
+  }
+  pdcp_config->t_Reordering = encode_t_reordering(default_pdcp_config->drb.t_reordering);
   pdcp_config->headerCompression.present = NR_PDCP_Config__drb__headerCompression_PR_notUsed;
   pdcp_config->headerCompression.NotUsed = 0;
   pdcp_config->integrityProtection = do_drb_integrity ? NR_PDCP_Config__drb__integrityProtection_enabled : 1;
@@ -85,7 +120,8 @@ drb_t *generateDRB(gNB_RRC_UE_t *ue,
                    const rrc_pdu_session_param_t *pduSession,
                    bool enable_sdap,
                    int do_drb_integrity,
-                   int do_drb_ciphering)
+                   int do_drb_ciphering,
+                   const nr_pdcp_configuration_t *pdcp_config)
 {
   DevAssert(ue != NULL);
 
@@ -116,7 +152,7 @@ drb_t *generateDRB(gNB_RRC_UE_t *ue,
       est_drb->status = DRB_ACTIVE;
   }
   /* PDCP Configuration */
-  set_default_drb_pdcp_config(&est_drb->pdcp_config, do_drb_integrity, do_drb_ciphering);
+  set_default_drb_pdcp_config(&est_drb->pdcp_config, do_drb_integrity, do_drb_ciphering, pdcp_config, ue->redcap_cap);
 
   drb_t *rrc_drb = get_drb(ue, drb_id);
   DevAssert(rrc_drb == est_drb); /* to double check that we create the same which we would retrieve */
@@ -181,10 +217,11 @@ uint8_t get_next_available_drb_id(gNB_RRC_UE_t *ue)
   return DRB_INACTIVE;
 }
 
-bool drb_is_active(gNB_RRC_UE_t *ue, uint8_t drb_id)
+int get_number_active_drbs(gNB_RRC_UE_t *ue)
 {
-  drb_t *drb = get_drb(ue, drb_id);
-  if (drb == NULL)
-    return DRB_INACTIVE;
-  return drb->status != DRB_INACTIVE;
+  int n = 0;
+  for (int i = 0; i < MAX_DRBS_PER_UE; ++i)
+    if (ue->established_drbs[i].status != DRB_INACTIVE)
+      n++;
+  return n;
 }

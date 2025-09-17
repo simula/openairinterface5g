@@ -33,7 +33,7 @@ than the value of `--subframes-max` parameter.
 
 >Recording session example:
 ```bash
-./nr-uesoftmodem -O /home/oaitests/mediatek_sim.conf --sa --numerology 1 -r 106 -C 3649440000 --band 78 -E --ue-fo-compensation --device.recplay.subframes-record 1 --device.recplay.subframes-file /home/iqs/oai-nrUE-17042023.dat --device.recplay.use-mmap 1 --device.recplay.subframes-max 30000
+./nr-uesoftmodem -O /home/oaitests/mediatek_sim.conf --numerology 1 -r 106 -C 3649440000 --band 78 -E --ue-fo-compensation --device.recplay.subframes-record 1 --device.recplay.subframes-file /home/iqs/oai-nrUE-17042023.dat --device.recplay.use-mmap 1 --device.recplay.subframes-max 30000
 ............................................
 ............................................
 ............................................
@@ -54,7 +54,7 @@ options for replay mode are:
 
 >Replay mode session example:
 ```bash
-./nr-uesoftmodem -O /home/oaitests/mediatek_sim.conf --sa --numerology 1 -r 106 -C 3649440000 --band 78 -E --ue-fo-compensation --device.recplay.subframes-replay 1 --device.recplay.subframes-file /home/iqs/oai-nrUE-17042023.dat --device.recplay.use-mmap 1 --device.recplay.subframes-loops 1
+./nr-uesoftmodem -O /home/oaitests/mediatek_sim.conf --numerology 1 -r 106 -C 3649440000 --band 78 -E --ue-fo-compensation --device.recplay.subframes-replay 1 --device.recplay.subframes-file /home/iqs/oai-nrUE-17042023.dat --device.recplay.use-mmap 1 --device.recplay.subframes-loops 1
 ..................................
 ..................................
 [HW]   Replay iqs from USRP B200 device, bandwidth 4.000000e+07

@@ -132,8 +132,11 @@ binary_search_float_nr(
 * TS 38.213 9  UE procedure for reporting control information
 *
 *********************************************************************/
-
-void pucch_procedures_ue_nr(PHY_VARS_NR_UE *ue, const UE_nr_rxtx_proc_t *proc, nr_phy_data_tx_t *phy_data, c16_t **txdataF)
+void pucch_procedures_ue_nr(PHY_VARS_NR_UE *ue,
+                            const UE_nr_rxtx_proc_t *proc,
+                            nr_phy_data_tx_t *phy_data,
+                            c16_t **txdataF,
+                            bool was_symbol_used[NR_NUMBER_OF_SYMBOLS_PER_SLOT])
 {
   const int nr_slot_tx = proc->nr_slot_tx;
   NR_UE_PUCCH *pucch_vars = &phy_data->pucch_vars;
@@ -141,6 +144,10 @@ void pucch_procedures_ue_nr(PHY_VARS_NR_UE *ue, const UE_nr_rxtx_proc_t *proc, n
   for (int i=0; i<2; i++) {
     if(pucch_vars->active[i]) {
       const fapi_nr_ul_config_pucch_pdu *pucch_pdu = &pucch_vars->pucch_pdu[i];
+      for (int symb_idx = 0; symb_idx < pucch_pdu->nr_of_symbols; symb_idx++) {
+        int symb = pucch_pdu->start_symbol_index + symb_idx;
+        was_symbol_used[symb] = true;
+      }
       uint16_t nb_of_prbs = pucch_pdu->prb_size;
       /* Generate PUCCH signal according to its format and parameters */
 

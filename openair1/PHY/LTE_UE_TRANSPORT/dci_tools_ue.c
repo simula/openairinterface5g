@@ -124,7 +124,7 @@ static int errorRB(int rb, char * table, int line) {
   return 0;
 }
 
-#define rbAllocCheck(RBalL, TabLe) (RBalL) > sizeof(TabLe)/sizeof(*TabLe) ? errorRB(RBalL, #TabLe, __LINE__) : TabLe[RBalL]
+#define rbAllocCheck(RBalL, TabLe) (RBalL) >= sizeof(TabLe) / sizeof(*TabLe) ? errorRB(RBalL, #TabLe, __LINE__) : TabLe[RBalL]
 void extract_dci1A_info(uint8_t N_RB_DL, frame_type_t frame_type, void *dci_pdu, DCI_INFO_EXTRACTED_t *pdci_info_extarcted)
 {
     uint8_t harq_pid=0;
@@ -4965,7 +4965,8 @@ double sinr_eff_cqi_calc(PHY_VARS_UE *ue, uint8_t eNB_id, uint8_t subframe)
         }
       }
 
-      s_dB[count] = 10*log10(abs_channel/2) - meas->n0_power_avg_dB;
+      if (abs_channel > 0)
+        s_dB[count] = 10 * log10(abs_channel / 2.0) - meas->n0_power_avg_dB;
     }
 
     break;

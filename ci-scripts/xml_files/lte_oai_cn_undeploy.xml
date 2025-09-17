@@ -31,8 +31,9 @@
 	</TestCaseExclusionList>
 
 	<testCase id="000200">
-		<class>Undeploy_EPC</class>
-		<desc>Undeploy all EPC containers</desc>
+		<class>UndeployCoreNetwork</class>
+		<desc>Undeploy EPC</desc>
+		<cn_id>nano-cn4g</cn_id>
 	</testCase>
 
 </testCaseList>

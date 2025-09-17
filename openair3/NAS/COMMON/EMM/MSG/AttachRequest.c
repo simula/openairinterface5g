@@ -47,7 +47,7 @@ int decode_attach_request(attach_request_msg *attach_request, uint8_t *buffer, u
     LOG_FUNC_RETURN(decoded_result);
   }
 
-  if ((decoded_result = decode_u8_nas_key_set_identifier(&attach_request->naskeysetidentifier, 0, *(buffer + decoded) >> 4, len - decoded)) < 0) {
+  if ((decoded_result = decode_nas_key_set_identifier(&attach_request->naskeysetidentifier, 0, *(buffer + decoded) >> 4)) < 0) {
     //         return decoded_result;
     LOG_FUNC_RETURN(decoded_result);
   }
@@ -299,7 +299,8 @@ int encode_attach_request(attach_request_msg *attach_request, uint8_t *buffer, u
   /* Checking IEI and pointer */
   CHECK_PDU_POINTER_AND_LENGTH_ENCODER(buffer, ATTACH_REQUEST_MINIMUM_LENGTH, len);
 
-  *(buffer + encoded) = ((encode_u8_nas_key_set_identifier(&attach_request->naskeysetidentifier) & 0x0f) << 4) | (encode_u8_eps_attach_type(&attach_request->epsattachtype) & 0x0f);
+  *(buffer + encoded) = ((encode_nas_key_set_identifier(&attach_request->naskeysetidentifier, 0) & 0x0f) << 4)
+                        | (encode_u8_eps_attach_type(&attach_request->epsattachtype) & 0x0f);
   encoded++;
 
   if ((encode_result =

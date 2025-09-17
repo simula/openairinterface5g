@@ -30,7 +30,7 @@
 #include "common/ran_context.h"
 
 #include "openair1/PHY/defs_gNB.h"
-#define FAPI2_IP_DSCP	0
+
 
 extern RAN_CONTEXT_t RC;
 
@@ -42,7 +42,7 @@ nfapi_vnf_p7_config_t* nfapi_vnf_p7_config_create()
 		return 0;
 
 	// todo : initialize
-	_this->_public.segment_size = 1400;
+	_this->_public.segment_size = 65000; // UDP max packet size is 65535
 	_this->_public.max_num_segments = 8;
 	_this->_public.checksum_enabled = 1;
 
@@ -96,150 +96,6 @@ struct timespec timespec_sub(struct timespec lhs, struct timespec rhs)
 
 // monitor the p7 endpoints and the timing loop and
 // send indications to mac
-int nfapi_nr_vnf_p7_start(nfapi_vnf_p7_config_t* config)
-{	
-	struct PHY_VARS_gNB_s *gNB = RC.gNB[0];
-	uint8_t prev_slot = 0;
-	if(config == 0)
-		return -1;
-
-	NFAPI_TRACE(NFAPI_TRACE_INFO, "%s()\n", __FUNCTION__);
-
-	vnf_p7_t* vnf_p7 = (vnf_p7_t*)config;
-
-	// Create p7 receive udp port
-	// todo : this needs updating for Ipv6
-
-	NFAPI_TRACE(NFAPI_TRACE_INFO, "Initialising VNF P7 port:%u\n", config->port);
-
-	// open the UDP socket
-	if ((vnf_p7->socket = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
-	{
-		NFAPI_TRACE(NFAPI_TRACE_ERROR, "After P7 socket errno: %d\n", errno);
-		return -1;
-	}
-
-	NFAPI_TRACE(NFAPI_TRACE_INFO, "VNF P7 socket created...\n");
-
-	// configure the UDP socket options
-	int iptos_value = FAPI2_IP_DSCP << 2;
-	if (setsockopt(vnf_p7->socket, IPPROTO_IP, IP_TOS, &iptos_value, sizeof(iptos_value)) < 0)
-	{
-		NFAPI_TRACE(NFAPI_TRACE_ERROR, "After setsockopt (IP_TOS) errno: %d\n", errno);
-		return -1;
-	}
-
-	NFAPI_TRACE(NFAPI_TRACE_INFO, "VNF P7 setsockopt succeeded...\n");
-
-	// Create the address structure
-	struct sockaddr_in addr;
-	memset(&addr, 0, sizeof(addr));
-	addr.sin_family = AF_INET;
-	addr.sin_port = htons(config->port);
-	addr.sin_addr.s_addr = INADDR_ANY;
-
-	// bind to the configured port
-	NFAPI_TRACE(NFAPI_TRACE_INFO, "VNF P7 binding too %s:%d\n", inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
-	if (bind(vnf_p7->socket, (struct sockaddr *)&addr, sizeof(struct sockaddr_in)) < 0)
-	//if (sctp_bindx(config->socket, (struct sockaddr *)&addr, sizeof(struct sockaddr_in), 0) < 0)
-	{
-		NFAPI_TRACE(NFAPI_TRACE_ERROR, "After bind errno: %d\n", errno);
-		return -1;
-	}
-
-	NFAPI_TRACE(NFAPI_TRACE_INFO, "VNF P7 bind succeeded...\n");
-
-
-	//struct timespec original_pselect_timeout;
-	struct timespec pselect_timeout;
-	pselect_timeout.tv_sec = 100; 
-	pselect_timeout.tv_nsec = 0;
-
-    struct timespec ref_time;
-	clock_gettime(CLOCK_MONOTONIC, &ref_time);
-	uint8_t setup_done;
-	while(vnf_p7->terminate == 0)
-	{	
-		fd_set rfds;
-		int maxSock = 0;
-		FD_ZERO(&rfds);
-		int selectRetval = 0;
-
-		// Add the p7 socket
-		FD_SET(vnf_p7->socket, &rfds);
-		maxSock = vnf_p7->socket;
-
-    if (setup_done == 0) {
-      struct timespec curr_time;
-      clock_gettime(CLOCK_MONOTONIC, &curr_time);
-      uint8_t setup_time = curr_time.tv_sec - ref_time.tv_sec;
-      if (setup_time > 3) {
-        setup_done = 1;
-      }
-    }
-
-		nfapi_nr_slot_indication_scf_t *slot_ind = get_queue(&gnb_slot_ind_queue);
-		NFAPI_TRACE(NFAPI_TRACE_DEBUG, "This is the slot_ind queue size %ld in %s():%d\n",
-			    gnb_slot_ind_queue.num_items, __FUNCTION__, __LINE__);
-		if (slot_ind) {
-			gNB->UL_INFO.frame     = slot_ind->sfn;
-			gNB->UL_INFO.slot      = slot_ind->slot;
-
-			NFAPI_TRACE(NFAPI_TRACE_DEBUG, "gNB->UL_INFO.frame = %d and slot %d, prev_slot = %d\n",
-				    gNB->UL_INFO.frame, gNB->UL_INFO.slot, prev_slot);
-			if (setup_done && prev_slot != gNB->UL_INFO.slot) { //Give the VNF sufficient time to setup before starting scheduling  && prev_slot != gNB->UL_INFO.slot
-
-				//Call the scheduler
-				gNB->UL_INFO.module_id = gNB->Mod_id;
-				gNB->UL_INFO.CC_id     = gNB->CC_id;
-				NFAPI_TRACE(NFAPI_TRACE_DEBUG, "Calling NR_UL_indication for gNB->UL_INFO.frame = %d and slot %d\n",
-					    gNB->UL_INFO.frame, gNB->UL_INFO.slot);
-				gNB->if_inst->NR_UL_indication(&gNB->UL_INFO);
-				prev_slot = gNB->UL_INFO.slot;
-			}
-			free(slot_ind);
-			slot_ind = NULL;
-		}
-
-		selectRetval = pselect(maxSock+1, &rfds, NULL, NULL, &pselect_timeout, NULL);
-
-		if(selectRetval == 0)
-		{
-			// pselect timed out, continue
-		}
-		else if(selectRetval > 0)
-		{
-			// have a p7 message
-			if(FD_ISSET(vnf_p7->socket, &rfds))
-			{	
-				vnf_nr_p7_read_dispatch_message(vnf_p7); 				
-			}
-		}
-		else
-		{
-			// pselect error
-			if(selectRetval == -1 && errno == EINTR)
-			{
-				// a sigal was received.
-			}
-			else
-			{
-				//NFAPI_TRACE(NFAPI_TRACE_INFO, "P7 select failed result %d errno %d timeout:%d.%d orginal:%d.%d last_ms:%ld ms:%ld\n", selectRetval, errno, pselect_timeout.tv_sec, pselect_timeout.tv_nsec, pselect_timeout.tv_sec, pselect_timeout.tv_nsec, last_millisecond, millisecond);
-				// should we exit now?
-                                if (selectRetval == -1 && errno == 22) // invalid argument??? not sure about timeout duration
-                                {
-                                  usleep(100000);
-                                }
-			}
-		}
-	}
-	NFAPI_TRACE(NFAPI_TRACE_INFO, "Closing p7 socket\n");
-	close(vnf_p7->socket);
-
-	NFAPI_TRACE(NFAPI_TRACE_INFO, "%s() returning\n", __FUNCTION__);
-
-	return 0;
-}
 
 
 int nfapi_vnf_p7_start(nfapi_vnf_p7_config_t* config)
@@ -266,7 +122,7 @@ int nfapi_vnf_p7_start(nfapi_vnf_p7_config_t* config)
 	NFAPI_TRACE(NFAPI_TRACE_INFO, "VNF P7 socket created...\n");
 
 	// configure the UDP socket options
-	int iptos_value = FAPI2_IP_DSCP << 2;
+	int iptos_value = 0;
 	if (setsockopt(vnf_p7->socket, IPPROTO_IP, IP_TOS, &iptos_value, sizeof(iptos_value)) < 0)
 	{
 		NFAPI_TRACE(NFAPI_TRACE_ERROR, "After setsockopt (IP_TOS) errno: %d\n", errno);
@@ -569,7 +425,7 @@ int nfapi_vnf_p7_stop(nfapi_vnf_p7_config_t* config)
 	return 0;
 }
 
-int nfapi_vnf_p7_add_pnf(nfapi_vnf_p7_config_t* config, const char* pnf_p7_addr, int pnf_p7_port, int phy_id)
+int nfapi_vnf_p7_add_pnf(nfapi_vnf_p7_config_t* config, const char* pnf_p7_addr, int pnf_p7_port, int phy_id, int mu)
 {
 	NFAPI_TRACE(NFAPI_TRACE_INFO, "%s(config:%p phy_id:%d pnf_addr:%s pnf_p7_port:%d)\n", __FUNCTION__, config, phy_id,  pnf_p7_addr, pnf_p7_port);
 
@@ -593,12 +449,13 @@ int nfapi_vnf_p7_add_pnf(nfapi_vnf_p7_config_t* config, const char* pnf_p7_addr,
 	node->sfn = 0;
     node->slot = 0;
 	node->min_sync_cycle_count = 8;
-
+  node->mu = mu;
+#ifndef ENABLE_AERIAL
 	// save the remote endpoint information
 	node->remote_addr.sin_family = AF_INET;
 	node->remote_addr.sin_port =  pnf_p7_port;//htons(pnf_p7_port);
 	node->remote_addr.sin_addr.s_addr = inet_addr(pnf_p7_addr);
-
+#endif
 	vnf_p7_connection_info_list_add(vnf_p7, node);
 
 	return 0;
@@ -634,7 +491,7 @@ int nfapi_vnf_p7_dl_config_req(nfapi_vnf_p7_config_t* config, nfapi_dl_config_re
 	return vnf_p7_pack_and_send_p7_msg(vnf_p7, &req->header);
 }
 
-int nfapi_vnf_p7_nr_dl_config_req(nfapi_vnf_p7_config_t* config, nfapi_nr_dl_tti_request_t* req)
+bool nfapi_vnf_p7_nr_dl_config_req(nfapi_vnf_p7_config_t* config, nfapi_nr_dl_tti_request_t* req)
 {
 	//NFAPI_TRACE(NFAPI_TRACE_INFO, "%s(config:%p req:%p)\n", __FUNCTION__, config, req);
 
@@ -642,15 +499,17 @@ int nfapi_vnf_p7_nr_dl_config_req(nfapi_vnf_p7_config_t* config, nfapi_nr_dl_tti
 		return -1;
 
 	vnf_p7_t* vnf_p7 = (vnf_p7_t*)config;
-	return vnf_nr_p7_pack_and_send_p7_msg(vnf_p7, &req->header);
+  AssertFatal(config->send_p7_msg, "Function pointer must be configured|");
+	return config->send_p7_msg(vnf_p7, &req->header);
 }
 
-int nfapi_vnf_p7_ul_tti_req(nfapi_vnf_p7_config_t* config, nfapi_nr_ul_tti_request_t* req)
+bool nfapi_vnf_p7_ul_tti_req(nfapi_vnf_p7_config_t* config, nfapi_nr_ul_tti_request_t* req)
 {
 	if(config == 0 || req == 0)
 		return -1;
 	vnf_p7_t* vnf_p7 = (vnf_p7_t*)config;
-	return vnf_nr_p7_pack_and_send_p7_msg(vnf_p7, &req->header);
+  AssertFatal(config->send_p7_msg, "Function pointer must be configured|");
+	return config->send_p7_msg(vnf_p7, &req->header);
 }
 
 int nfapi_vnf_p7_ul_config_req(nfapi_vnf_p7_config_t* config, nfapi_ul_config_request_t* req)
@@ -661,13 +520,14 @@ int nfapi_vnf_p7_ul_config_req(nfapi_vnf_p7_config_t* config, nfapi_ul_config_re
 	vnf_p7_t* vnf_p7 = (vnf_p7_t*)config;
 	return vnf_p7_pack_and_send_p7_msg(vnf_p7, &req->header);
 }
-int nfapi_vnf_p7_ul_dci_req(nfapi_vnf_p7_config_t* config, nfapi_nr_ul_dci_request_t* req)
+bool nfapi_vnf_p7_ul_dci_req(nfapi_vnf_p7_config_t* config, nfapi_nr_ul_dci_request_t* req)
 {
 	if(config == 0 || req == 0)
 		return -1;
 
 	vnf_p7_t* vnf_p7 = (vnf_p7_t*)config;
-	return vnf_nr_p7_pack_and_send_p7_msg(vnf_p7, &req->header);
+  AssertFatal(config->send_p7_msg, "Function pointer must be configured|");
+	return config->send_p7_msg(vnf_p7, &req->header);
 }
 int nfapi_vnf_p7_hi_dci0_req(nfapi_vnf_p7_config_t* config, nfapi_hi_dci0_request_t* req)
 {
@@ -677,13 +537,14 @@ int nfapi_vnf_p7_hi_dci0_req(nfapi_vnf_p7_config_t* config, nfapi_hi_dci0_reques
 	vnf_p7_t* vnf_p7 = (vnf_p7_t*)config;
 	return vnf_p7_pack_and_send_p7_msg(vnf_p7, &req->header);
 }
-int nfapi_vnf_p7_tx_data_req(nfapi_vnf_p7_config_t* config, nfapi_nr_tx_data_request_t* req)
+bool nfapi_vnf_p7_tx_data_req(nfapi_vnf_p7_config_t* config, nfapi_nr_tx_data_request_t* req)
 {
 	if(config == 0 || req == 0)
 		return -1;
 
 	vnf_p7_t* vnf_p7 = (vnf_p7_t*)config;
-	return vnf_nr_p7_pack_and_send_p7_msg(vnf_p7, &req->header);
+  AssertFatal(config->send_p7_msg, "Function pointer must be configured|");
+	return config->send_p7_msg(vnf_p7, &req->header);
 }
 int nfapi_vnf_p7_tx_req(nfapi_vnf_p7_config_t* config, nfapi_tx_request_t* req)
 {

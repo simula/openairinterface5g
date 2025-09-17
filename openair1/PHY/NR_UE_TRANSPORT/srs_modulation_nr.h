@@ -78,7 +78,10 @@ int is_srs_period_nr(SRS_Resource_t *p_SRS_Resource,
     @param rxtx context
     @param current gNB_id identifier
     @returns 0 if srs is transmitted -1 otherwise */
-
-int ue_srs_procedures_nr(PHY_VARS_NR_UE *ue, const UE_nr_rxtx_proc_t *proc, c16_t **txdataF);
+int ue_srs_procedures_nr(PHY_VARS_NR_UE *ue,
+                         const UE_nr_rxtx_proc_t *proc,
+                         c16_t **txdataF,
+                         nr_phy_data_tx_t *phy_data,
+                         bool was_symbol_used[NR_NUMBER_OF_SYMBOLS_PER_SLOT]);
 
 #endif /* SRS_MODULATION_NR_H */

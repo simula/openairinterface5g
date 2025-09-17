@@ -33,7 +33,7 @@
 #include "openair1/PHY/defs_nr_UE.h"
 extern "C" {
 #include "openair1/PHY/TOOLS/phy_scope_interface.h"
-uint64_t get_softmodem_optmask(void);
+#include "executables/softmodem-common.h"
 }
 #include <iostream>
 #include <vector>
@@ -42,9 +42,11 @@ uint64_t get_softmodem_optmask(void);
 #include <sstream>
 #include <mutex>
 #include <thread>
-#include "executables/softmodem-bits.h"
+#include <fstream>
+#include "imscope_internal.h"
+#include <cstdlib>
+#include <vector>
 
-#define MAX_OFFSETS 14
 #define NR_MAX_RB 273
 #define N_SC_PER_RB NR_NB_SC_PER_RB
 
@@ -67,77 +69,9 @@ static void glfw_error_callback(int error, const char *description)
   fprintf(stderr, "GLFW Error %d: %s\n", error, description);
 }
 
-typedef struct ImScopeData {
-  std::mutex write_mutex;
-  scopeGraphData_t *scope_graph_data;
-  bool is_data_ready;
-  metadata meta;
-  uint64_t time_taken_in_ns;
-  uint64_t time_taken_in_ns_per_offset[MAX_OFFSETS];
-  size_t data_copied_per_offset[MAX_OFFSETS];
-} ImScopeData;
-
-typedef struct MovingAverageTimer {
-  uint64_t sum = 0;
-  float average = 0;
-  float last_update_time = 0;
-  void UpdateAverage(float time)
-  {
-    if (time > last_update_time + 1) {
-      float new_average = sum / (float)((time - last_update_time) / 1000);
-      average = 0.95 * average + 0.05 * new_average;
-      sum = 0;
-    }
-  }
-  void Add(uint64_t ns)
-  {
-    sum += ns;
-  }
-} MovingAverageTimer;
-
 MovingAverageTimer iq_procedure_timer;
 
-static ImScopeData scope_array[EXTRA_SCOPE_TYPES];
-
-typedef struct IQData {
-  std::vector<int16_t> real;
-  std::vector<int16_t> imag;
-  int16_t max_iq;
-  std::vector<float> power;
-  float max_power;
-  float timestamp;
-  int nonzero_count;
-  int len;
-  metadata meta;
-
-  bool TryCollect(ImScopeData *imscope_data, float time, float epsilon)
-  {
-    if (imscope_data->is_data_ready) {
-      iq_procedure_timer.Add(imscope_data->time_taken_in_ns);
-      timestamp = time;
-      scopeGraphData_t *iq_header = imscope_data->scope_graph_data;
-      len = iq_header->lineSz;
-      real.reserve(len);
-      imag.reserve(len);
-      power.reserve(len);
-      c16_t *source = (c16_t *)(iq_header + 1);
-      max_iq = 0;
-      nonzero_count = 0;
-      for (auto i = 0; i < len; i++) {
-        real[i] = source[i].r;
-        imag[i] = source[i].i;
-        max_iq = std::max(max_iq, (int16_t)std::abs(source[i].r));
-        max_iq = std::max(max_iq, (int16_t)std::abs(source[i].i));
-        nonzero_count = std::abs(source[i].r) > epsilon || std::abs(source[i].i) > epsilon ? nonzero_count + 1 : nonzero_count;
-        power[i] = std::sqrt(std::pow(source[i].r, 2) + std::pow(source[i].i, 2));
-      }
-      meta = imscope_data->meta;
-      imscope_data->is_data_ready = false;
-      return true;
-    }
-    return false;
-  }
-} IQData;
+ImScopeDataWrapper scope_array[EXTRA_SCOPE_TYPES];
 
 class LLRPlot {
   int len = 0;
@@ -164,19 +98,19 @@ class LLRPlot {
       ImGui::EndDisabled();
     }
 
-    ImScopeData &scope_data = scope_array[type];
+    ImScopeDataWrapper &scope_data = scope_array[type];
     if (ImPlot::BeginPlot(label)) {
       if (!frozen || next) {
         if (scope_data.is_data_ready) {
-          iq_procedure_timer.Add(scope_data.time_taken_in_ns);
+          iq_procedure_timer.Add(scope_data.data.time_taken_in_ns);
           timestamp = time;
-          const int16_t *tmp = (int16_t *)(scope_data.scope_graph_data + 1);
-          len = scope_data.scope_graph_data->lineSz;
+          const int16_t *tmp = (int16_t *)(scope_data.data.scope_graph_data + 1);
+          len = scope_data.data.scope_graph_data->lineSz;
           llr.reserve(len);
           for (auto i = 0; i < len; i++) {
             llr[i] = tmp[i];
           }
-          meta = scope_data.meta;
+          meta = scope_data.data.meta;
           scope_data.is_data_ready = false;
           if (frozen) {
             next = false;
@@ -213,11 +147,13 @@ class IQHist {
   float epsilon = 0.0;
   bool auto_adjust_range = true;
   int plot_type = 0;
+  bool disable_scatterplot;
 
  public:
-  IQHist(const char *label_)
+  IQHist(const char *label_, bool _disable_scatterplot = false)
   {
     label = label_;
+    disable_scatterplot = _disable_scatterplot;
   };
   bool ShouldReadData(void)
   {
@@ -264,10 +200,11 @@ class IQHist {
       ImGui::DragFloat("%% nonzero elements", &min_nonzero_percentage, 1, 0.0, 100);
       ImGui::DragFloat("epsilon", &epsilon, 1, 0.0, 3000);
     }
-    const char *items[] = {"Histogram", "Scatter", "RMS"};
-    ImGui::Combo("Select plot type", &plot_type, items, sizeof(items) / sizeof(items[0]));
+    const char *items[] = {"Histogram", "RMS", "Scatter"};
+    ImGui::Combo("Select plot type", &plot_type, items, disable_scatterplot ? 2 : 3);
     if (plot_type == 0) {
-      if (ImPlot::BeginPlot(label.c_str(), {(float)ImGui::GetWindowWidth() * 0.3f, (float)ImGui::GetWindowWidth() * 0.3f})) {
+      float x = ImGui::CalcItemWidth();
+      if (ImPlot::BeginPlot(label.c_str(), {x, x})) {
         ImPlot::PlotHistogram2D(label.c_str(),
                                 iq_data->real.data(),
                                 iq_data->imag.data(),
@@ -277,8 +214,9 @@ class IQHist {
                                 ImPlotRect(-range, range, -range, range));
         ImPlot::EndPlot();
       }
-    } else if (plot_type == 1) {
-      if (ImPlot::BeginPlot(label.c_str(), {(float)ImGui::GetWindowWidth() * 0.3f, (float)ImGui::GetWindowWidth() * 0.3f})) {
+    } else if (plot_type == 2) {
+      float x = ImGui::CalcItemWidth();
+      if (ImPlot::BeginPlot(label.c_str(), {x, x})) {
         int points_drawn = 0;
         while (points_drawn < iq_data->len) {
           // Limit the amount of data plotted with PlotScatter call (issue with vertices/draw call)
@@ -292,7 +230,7 @@ class IQHist {
         }
         ImPlot::EndPlot();
       }
-    } else if (plot_type == 2) {
+    } else if (plot_type == 1) {
       if (ImPlot::BeginPlot(label.c_str())) {
         ImPlot::PlotLine(label.c_str(), iq_data->power.data(), iq_data->len);
         ImPlot::EndPlot();
@@ -310,6 +248,29 @@ class IQHist {
     if (!ss.str().empty()) {
       ImGui::Text("Data for %s", ss.str().c_str());
     }
+    if (ImGui::Button("Save IQ")) {
+      std::stringstream ss;
+      ss << "iq_";
+      if (iq_data->meta.frame != -1) {
+        ss << iq_data->meta.frame << "_";
+      }
+      if (iq_data->meta.slot != -1) {
+        ss << iq_data->meta.slot << "_";
+      }
+      ss << scope_id_to_string(static_cast<enum scopeDataType>(iq_data->scope_id));
+      ss << ".csv";
+      std::ofstream file(ss.str());
+      if (file.is_open()) {
+        file << "real;imag\n";
+        for (int i = 0; i < iq_data->len; i++) {
+          file << iq_data->real[i] << ";" << iq_data->imag[i] << "\n";
+        }
+        file.close();
+        std::cout << "Saved IQ to file: " << ss.str() << std::endl;
+      } else {
+        std::cerr << "Unable to open file";
+      }
+    }
     ImGui::EndGroup();
   }
 };
@@ -320,14 +281,14 @@ class IQSlotHeatmap {
   bool next = false;
   float timestamp = 0;
   std::vector<float> power;
-  ImScopeData *scope_data;
+  ImScopeDataWrapper *scope_data;
   std::string label;
   int len = 0;
   float max = 0;
   float stop_at_min = 1000;
 
  public:
-  IQSlotHeatmap(ImScopeData *scope_data_, const char *label_)
+  IQSlotHeatmap(ImScopeDataWrapper *scope_data_, const char *label_)
   {
     scope_data = scope_data_;
     label = label_;
@@ -338,7 +299,7 @@ class IQSlotHeatmap {
     auto num_sc = num_rb * NR_NB_SC_PER_RB;
     if (!frozen || next) {
       if (scope_data->is_data_ready) {
-        iq_procedure_timer.Add(scope_data->time_taken_in_ns);
+        iq_procedure_timer.Add(scope_data->data.time_taken_in_ns);
         uint16_t first_sc = first_carrier_offset;
         uint16_t last_sc = first_sc + num_rb * NR_NB_SC_PER_RB;
         bool wrapped = false;
@@ -351,7 +312,7 @@ class IQSlotHeatmap {
           wrapped_last_sc = wrapped_first_sc + num_sc_left - 1;
         }
         timestamp = time;
-        scopeGraphData_t *iq_header = scope_data->scope_graph_data;
+        scopeGraphData_t *iq_header = scope_data->data.scope_graph_data;
         len = iq_header->lineSz;
         c16_t *source = (c16_t *)(iq_header + 1);
 
@@ -455,8 +416,10 @@ struct ScrollingBuffer {
   }
 };
 
-void ShowUeScope(PHY_VARS_NR_UE *ue, float t)
+void ShowUeScope(void *data_void_ptr, float t)
 {
+  PHY_VARS_NR_UE *ue = (PHY_VARS_NR_UE *)data_void_ptr;
+  ImGui::Begin("UE KPI");
   if (ImPlot::BeginPlot("##Scrolling", ImVec2(-1, 150))) {
     static float history = 10.0f;
     ImGui::SliderFloat("History", &history, 1, 30, "%.1f s");
@@ -479,37 +442,69 @@ void ShowUeScope(PHY_VARS_NR_UE *ue, float t)
     ImPlot::PlotLine("mcs", &mcs.Data[0].x, &mcs.Data[0].y, mcs.Data.size(), 0, 0, 2 * sizeof(float));
     ImPlot::EndPlot();
   }
-  if (ImGui::TreeNode("PDSCH IQ")) {
+  ImGui::End();
+
+  if (ImGui::Begin("UE PDSCH IQ")) {
     static auto iq_data = new IQData();
     static auto pdsch_iq_hist = new IQHist("PDSCH IQ");
     bool new_data = false;
     if (pdsch_iq_hist->ShouldReadData()) {
-      new_data = iq_data->TryCollect(&scope_array[pdschRxdataF_comp], t, pdsch_iq_hist->GetEpsilon());
+      new_data = iq_data->TryCollect(&scope_array[pdschRxdataF_comp], t, pdsch_iq_hist->GetEpsilon(), iq_procedure_timer);
     }
     pdsch_iq_hist->Draw(iq_data, t, new_data);
-    ImGui::TreePop();
   }
-  if (ImGui::TreeNode("Time domain samples")) {
+  ImGui::End();
+
+  if (ImGui::Begin("UE PDSCH Chan est")) {
     static auto iq_data = new IQData();
-    static auto time_domain_iq = new IQHist("Time domain samples");
+    static auto iq_hist = new IQHist("PDSCH Chan est IQ");
+    bool new_data = false;
+    if (iq_hist->ShouldReadData()) {
+      new_data = iq_data->TryCollect(&scope_array[pdschChanEstimates], t, iq_hist->GetEpsilon(), iq_procedure_timer);
+    }
+    iq_hist->Draw(iq_data, t, new_data);
+  }
+  ImGui::End();
+
+  if (ImGui::Begin("UE PDSCH IQ before compensation")) {
+    static auto iq_data = new IQData();
+    static auto iq_hist = new IQHist("PDSCH IQ before compensation");
+    bool new_data = false;
+    if (iq_hist->ShouldReadData()) {
+      new_data = iq_data->TryCollect(&scope_array[pdschRxdataF], t, iq_hist->GetEpsilon(), iq_procedure_timer);
+    }
+    iq_hist->Draw(iq_data, t, new_data);
+  }
+  ImGui::End();
+
+
+  if (ImGui::Begin("Time domain samples")) {
+    static auto iq_data = new IQData();
+    // Issue with imgui deferring draw calls until the end of the frame - cases segfault if scatterplot has too many points
+    bool disable_scatterplot = true;
+    static auto time_domain_iq = new IQHist("Time domain samples", disable_scatterplot);
     bool new_data = false;
     if (time_domain_iq->ShouldReadData()) {
-      new_data = iq_data->TryCollect(&scope_array[ueTimeDomainSamples], t, time_domain_iq->GetEpsilon());
+      new_data = iq_data->TryCollect(&scope_array[ueTimeDomainSamples], t, time_domain_iq->GetEpsilon(), iq_procedure_timer);
     }
     time_domain_iq->Draw(iq_data, t, new_data);
-    ImGui::TreePop();
   }
-  if (ImGui::TreeNode("Time domain samples - before sync")) {
+  ImGui::End();
+
+  if (ImGui::Begin("Time domain samples - before sync")) {
     static auto iq_data = new IQData();
-    static auto time_domain_iq = new IQHist("Time domain samples - before sync");
+    // Issue with imgui deferring draw calls until the end of the frame - cases segfault if scatterplot has too many points
+    bool disable_scatterplot = true;
+    static auto time_domain_iq = new IQHist("Time domain samples - before sync", disable_scatterplot);
     bool new_data = false;
     if (time_domain_iq->ShouldReadData()) {
-      new_data = iq_data->TryCollect(&scope_array[ueTimeDomainSamplesBeforeSync], t, time_domain_iq->GetEpsilon());
+      new_data = iq_data->TryCollect(&scope_array[ueTimeDomainSamplesBeforeSync], t, time_domain_iq->GetEpsilon(), iq_procedure_timer);
     }
     time_domain_iq->Draw(iq_data, t, new_data);
-    ImGui::TreePop();
   }
-  if (ImGui::TreeNode("Broadcast channel")) {
+  ImGui::End();
+
+  if (ImGui::Begin("Broadcast channel")) {
     ImGui::Text("RSRP %d", ue->measurements.ssb_rsrp_dBm[ue->frame_parms.ssb_index]);
     if (ImGui::TreeNode("IQ")) {
       static auto iq_data = new IQData();
@@ -518,7 +513,7 @@ void ShowUeScope(PHY_VARS_NR_UE *ue, float t)
       if (broadcast_iq_hist->ShouldReadData()) {
         new_data = iq_data->TryCollect(&scope_array[ue->sl_mode ? psbchRxdataF_comp : pbchRxdataF_comp],
                                        t,
-                                       broadcast_iq_hist->GetEpsilon());
+                                       broadcast_iq_hist->GetEpsilon(), iq_procedure_timer);
       }
       broadcast_iq_hist->Draw(iq_data, t, new_data);
       ImGui::TreePop();
@@ -530,7 +525,7 @@ void ShowUeScope(PHY_VARS_NR_UE *ue, float t)
       if (broadcast_iq_chest->ShouldReadData()) {
         new_data = chest_iq_data->TryCollect(&scope_array[ue->sl_mode ? psbchDlChEstimateTime : pbchDlChEstimateTime],
                                              t,
-                                             broadcast_iq_chest->GetEpsilon());
+                                             broadcast_iq_chest->GetEpsilon(), iq_procedure_timer);
       }
       broadcast_iq_chest->Draw(chest_iq_data, t, new_data);
       ImGui::TreePop();
@@ -541,56 +536,82 @@ void ShowUeScope(PHY_VARS_NR_UE *ue, float t)
       llr_plot->Draw(t, ue->sl_mode ? psbchLlr : pbchLlr, "Broadcast LLR");
       ImGui::TreePop();
     }
-    ImGui::TreePop();
   }
-  if (ImGui::TreeNode("RX IQ")) {
-    static auto common_rx_iq_heatmap = new IQSlotHeatmap(&scope_array[commonRxdataF], "common RX IQ");
-    common_rx_iq_heatmap->Draw(t,
-                               ue->frame_parms.ofdm_symbol_size,
-                               ue->frame_parms.symbols_per_slot,
-                               ue->frame_parms.first_carrier_offset,
-                               ue->frame_parms.N_RB_DL);
-    ImGui::TreePop();
-  }
+  ImGui::End();
+
+  // if (ImGui::Begin("RX IQ")) {
+  //   static auto common_rx_iq_heatmap = new IQSlotHeatmap(&scope_array[commonRxdataF], "common RX IQ");
+  //   common_rx_iq_heatmap->Draw(t,
+  //                              ue->frame_parms.ofdm_symbol_size,
+  //                              ue->frame_parms.symbols_per_slot,
+  //                              ue->frame_parms.first_carrier_offset,
+  //                              ue->frame_parms.N_RB_DL);
+  // }
+  // ImGui::End();
 }
 
-void ShowGnbScope(PHY_VARS_gNB *gNB, float t)
+void ShowGnbScope(void *data_void_ptr, float t)
 {
-  if (ImGui::TreeNode("RX IQ")) {
-    static auto gnb_heatmap = new IQSlotHeatmap(&scope_array[gNBRxdataF], "common RX IQ");
+  (void)data_void_ptr;
+  // if (ImGui::TreeNode("RX IQ")) {
+  //   static auto gnb_heatmap = new IQSlotHeatmap(&scope_array[gNBRxdataF], "common RX IQ");
 
-    gnb_heatmap->Draw(t,
-                      gNB->frame_parms.ofdm_symbol_size,
-                      gNB->frame_parms.symbols_per_slot,
-                      gNB->frame_parms.first_carrier_offset,
-                      gNB->frame_parms.N_RB_UL);
-    ImGui::TreePop();
-  }
-  if (ImGui::TreeNode("PUSCH SLOT IQ")) {
+  //   gnb_heatmap->Draw(t,
+  //                     gNB->frame_parms.ofdm_symbol_size,
+  //                     gNB->frame_parms.symbols_per_slot,
+  //                     gNB->frame_parms.first_carrier_offset,
+  //                     gNB->frame_parms.N_RB_UL);
+  //   ImGui::TreePop();
+  // }
+  if (ImGui::Begin("PUSCH SLOT IQ")) {
     static auto pusch_iq = new IQData();
     static auto pusch_iq_display = new IQHist("PUSCH compensated IQ");
     bool new_data = false;
     if (pusch_iq_display->ShouldReadData()) {
-      new_data = pusch_iq->TryCollect(&scope_array[gNBPuschRxIq], t, pusch_iq_display->GetEpsilon());
+      new_data = pusch_iq->TryCollect(&scope_array[gNBPuschRxIq], t, pusch_iq_display->GetEpsilon(), iq_procedure_timer);
     }
     pusch_iq_display->Draw(pusch_iq, t, new_data);
-    ImGui::TreePop();
   }
-  if (ImGui::TreeNode("PUSCH LLRs")) {
+  ImGui::End();
+
+  if (ImGui::Begin("PUSCH LLRs")) {
     static auto pusch_llr_plot = new LLRPlot();
     pusch_llr_plot->Draw(t, gNBPuschLlr, "PUSCH LLR");
-    ImGui::TreePop();
   }
-  if (ImGui::TreeNode("Time domain samples")) {
+  ImGui::End();
+
+  if (ImGui::Begin("Time domain samples")) {
     static auto iq_data = new IQData();
-    static auto time_domain_iq = new IQHist("Time domain samples");
+    // Issue with imgui deferring draw calls until the end of the frame - cases segfault if scatterplot has too many points
+    bool disable_scatterplot = true;
+    static auto time_domain_iq = new IQHist("Time domain samples", disable_scatterplot);
     bool new_data = false;
     if (time_domain_iq->ShouldReadData()) {
-      new_data = iq_data->TryCollect(&scope_array[gNbTimeDomainSamples], t, time_domain_iq->GetEpsilon());
+      new_data = iq_data->TryCollect(&scope_array[gNbTimeDomainSamples], t, time_domain_iq->GetEpsilon(), iq_procedure_timer);
     }
     time_domain_iq->Draw(iq_data, t, new_data);
-    ImGui::TreePop();
   }
+  ImGui::End();
+}
+
+void ShowIQFileViewer(void *data_void_ptr)
+{
+  auto iq_data = static_cast<std::vector<IQData> *>(data_void_ptr);
+  if (ImGui::Begin("Scope selection")) {
+    static int selected_scope = 0;
+    ImGui::Combo(
+        "Select scope",
+        &selected_scope,
+        [](void *userdata, int idx) {
+          std::vector<IQData> *iq_data = static_cast<std::vector<IQData>*>(userdata);
+          return scope_id_to_string(static_cast<scopeDataType>((*iq_data)[idx].scope_id));
+        },
+        iq_data,
+        iq_data->size());
+    static auto iq_display = new IQHist("IQ File Viewer");
+    iq_display->Draw(&(*iq_data)[selected_scope], 0, false);
+  }
+  ImGui::End();
 }
 
 void *imscope_thread(void *data_void_ptr)
@@ -636,6 +657,7 @@ void *imscope_thread(void *data_void_ptr)
   ImGuiIO &io = ImGui::GetIO();
   (void)io;
   io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard; // Enable Keyboard Controls
+  io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 
   // Setup Dear ImGui style
   ImGui::StyleColorsDark();
@@ -658,8 +680,10 @@ void *imscope_thread(void *data_void_ptr)
   static double last_frame_time = glfwGetTime();
   static int target_fps = 24;
 
-  bool is_ue = (get_softmodem_optmask() & SOFTMODEM_5GUE_BIT) > 0;
-  while (!glfwWindowShouldClose(window)) {
+  bool is_ue = IS_SOFTMODEM_5GUE;
+  bool is_gnb = IS_SOFTMODEM_GNB;
+  bool close_window = false;
+  while (!glfwWindowShouldClose(window) && close_window == false) {
     // Poll and handle events (inputs, window resize, etc.)
     // You can read the io.WantCaptureMouse, io.WantCaptureKeyboard flags to tell if dear imgui wants to use your inputs.
     // - When io.WantCaptureMouse is true, do not dispatch mouse input data to your main application, or clear/overwrite your copy
@@ -672,47 +696,75 @@ void *imscope_thread(void *data_void_ptr)
     // Start the Dear ImGui frame
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
+
+    static bool reset_ini_settings = false;
+    if (reset_ini_settings) {
+      ImGui::LoadIniSettingsFromDisk("imscope-init.ini");
+      reset_ini_settings = false;
+    }
     ImGui::NewFrame();
 
     int display_w, display_h;
     glfwGetFramebufferSize(window, &display_w, &display_h);
 
     static float t = 0;
-
-    t += ImGui::GetIO().DeltaTime;
-    ImGui::SetNextWindowPos({0, 0});
-    ImGui::SetNextWindowSize({(float)display_w, (float)display_h});
-    ImGui::Begin("NR KPI", nullptr, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove);
-    if (ImGui::TreeNode("Global settings")) {
-      ImGui::ShowFontSelector("Font");
-      ImGui::ShowStyleSelector("ImGui Style");
-      ImPlot::ShowStyleSelector("ImPlot Style");
-      ImPlot::ShowColormapSelector("ImPlot Colormap");
-      ImGui::SliderInt("FPS target", &target_fps, 12, 60);
-      if (ImGui::IsItemHovered()) {
-        ImGui::SetTooltip("Reduces scope flickering in unfrozen mode. Can reduce impact on perfromance of the modem");
+    static bool show_imgui_demo_window = false;
+    static bool show_implot_demo_window = false;
+    ImGui::DockSpaceOverViewport();
+    if (ImGui::BeginMainMenuBar()) {
+      if (ImGui::BeginMenu("File")) {
+        if (ImGui::MenuItem("Close scope")) {
+          close_window = true;
+        }
+        ImGui::EndMenu();
       }
-      ImGui::TreePop();
+      if (ImGui::BeginMenu("Options")) {
+        ImGui::Checkbox("Show imgui demo window", &show_imgui_demo_window);
+        ImGui::Checkbox("Show implot demo window", &show_implot_demo_window);
+        ImGui::EndMenu();
+      }
+      if (ImGui::BeginMenu("Layout")) {
+        if (ImGui::MenuItem("Reset")) {
+          reset_ini_settings = true;
+        }
+        ImGui::EndMenu();
+      }
+      ImGui::EndMainMenuBar();
     }
-    iq_procedure_timer.UpdateAverage(t);
+
+    ImGui::Begin("Status bar");
     ImGui::Text("Total time used by IQ capture procedures per milisecond: %.2f [us]/[ms]", iq_procedure_timer.average / 1000);
     if (ImGui::IsItemHovered()) {
       ImGui::SetTooltip("Total time used in PHY threads for copying out IQ data for the scope, in uS, averaged over 1 ms");
     }
+    ImGui::End();
 
-    if (is_ue) {
-      PHY_VARS_NR_UE *ue = (PHY_VARS_NR_UE *)data_void_ptr;
-      ShowUeScope(ue, t);
-    } else {
-      scopeParms_t *scope_params = (scopeParms_t *)data_void_ptr;
-      PHY_VARS_gNB *gNB = scope_params->gNB;
-      ShowGnbScope(gNB, t);
+    ImGui::Begin("Global scope settings");
+    ImGui::ShowStyleSelector("ImGui Style");
+    ImPlot::ShowStyleSelector("ImPlot Style");
+    ImPlot::ShowColormapSelector("ImPlot Colormap");
+    ImGui::SliderInt("FPS target", &target_fps, 12, 60);
+    if (ImGui::IsItemHovered()) {
+      ImGui::SetTooltip("Reduces scope flickering in unfrozen mode. Can reduce impact on perfromance of the modem");
     }
     ImGui::End();
 
+    t += ImGui::GetIO().DeltaTime;
+    iq_procedure_timer.UpdateAverage(t);
+
+    if (is_ue) {
+      ShowUeScope(data_void_ptr, t);
+    } else if (is_gnb) {
+      ShowGnbScope(data_void_ptr, t);
+    } else {
+      ShowIQFileViewer(data_void_ptr);
+    }
+
     // For reference
-    ImPlot::ShowDemoWindow();
-    ImGui::ShowDemoWindow();
+    if (show_implot_demo_window)
+      ImPlot::ShowDemoWindow();
+    if (show_imgui_demo_window)
+      ImGui::ShowDemoWindow();
 
     // Rendering
     ImGui::Render();
@@ -740,148 +792,4 @@ void *imscope_thread(void *data_void_ptr)
   glfwTerminate();
 
   return nullptr;
-}
-
-extern "C" void imscope_autoinit(void *dataptr)
-{
-  AssertFatal((get_softmodem_optmask() & SOFTMODEM_5GUE_BIT) || (get_softmodem_optmask() & SOFTMODEM_GNB_BIT),
-              "Scope cannot find NRUE or GNB context");
-
-  for (auto i = 0U; i < EXTRA_SCOPE_TYPES; i++) {
-    scope_array[i].is_data_ready = false;
-    scope_array[i].scope_graph_data = nullptr;
-    scope_array[i].meta = {-1, -1};
-  }
-
-  if (SOFTMODEM_GNB_BIT & get_softmodem_optmask()) {
-    scopeParms_t *scope_params = (scopeParms_t *)dataptr;
-    scopeData_t *scope = (scopeData_t *)calloc(1, sizeof(scopeData_t));
-    scope->copyData = copyDataThreadSafe;
-    scope->tryLockScopeData = tryLockScopeData;
-    scope->copyDataUnsafeWithOffset = copyDataUnsafeWithOffset;
-    scope->unlockScopeData = unlockScopeData;
-    scope_params->gNB->scopeData = scope;
-    scope_params->ru->scopeData = scope;
-  } else {
-    PHY_VARS_NR_UE *ue = (PHY_VARS_NR_UE *)dataptr;
-    scopeData_t *scope = (scopeData_t *)calloc(1, sizeof(scopeData_t));
-    scope->copyData = copyDataThreadSafe;
-    ue->scopeData = scope;
-  }
-  pthread_t thread;
-  threadCreate(&thread, imscope_thread, dataptr, (char *)"imscope", -1, sched_get_priority_min(SCHED_RR));
-}
-
-void copyDataThreadSafe(void *scopeData,
-                        enum scopeDataType type,
-                        void *dataIn,
-                        int elementSz,
-                        int colSz,
-                        int lineSz,
-                        int offset,
-                        metadata *meta)
-{
-  ImScopeData &scope_data = scope_array[type];
-
-  if (scope_data.is_data_ready) {
-    // data is ready, wasn't consumed yet by scope
-    return;
-  }
-
-  if (scope_data.write_mutex.try_lock()) {
-    auto start = std::chrono::high_resolution_clock::now();
-    scopeGraphData_t *data = scope_data.scope_graph_data;
-    int oldDataSz = data ? data->dataSize : 0;
-    int newSz = elementSz * colSz * lineSz;
-    if (data == NULL || oldDataSz < newSz) {
-      free(data);
-      scopeGraphData_t *ptr = (scopeGraphData_t *)malloc(sizeof(scopeGraphData_t) + newSz);
-      if (!ptr) {
-        LOG_E(PHY, "can't realloc\n");
-        return;
-      } else {
-        data = ptr;
-      }
-    }
-
-    data->elementSz = elementSz;
-    data->colSz = colSz;
-    data->lineSz = lineSz;
-    data->dataSize = newSz;
-    memcpy(((void *)(data + 1)), dataIn, newSz);
-    scope_data.scope_graph_data = data;
-    scope_data.meta = *meta;
-    scope_data.time_taken_in_ns =
-        std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now() - start).count();
-    scope_data.is_data_ready = true;
-    scope_data.write_mutex.unlock();
-  }
-}
-
-bool tryLockScopeData(enum scopeDataType type, int elementSz, int colSz, int lineSz, metadata *meta)
-{
-  ImScopeData &scope_data = scope_array[type];
-
-  if (scope_data.is_data_ready) {
-    // data is ready, wasn't consumed yet by scope
-    return false;
-  }
-
-  if (scope_data.write_mutex.try_lock()) {
-    auto start = std::chrono::high_resolution_clock::now();
-    scopeGraphData_t *data = scope_data.scope_graph_data;
-    int oldDataSz = data ? data->dataSize : 0;
-    int newSz = elementSz * colSz * lineSz;
-    if (data == NULL || oldDataSz < newSz) {
-      free(data);
-      scopeGraphData_t *ptr = (scopeGraphData_t *)malloc(sizeof(scopeGraphData_t) + newSz);
-      if (!ptr) {
-        LOG_E(PHY, "can't realloc\n");
-        return false;
-      } else {
-        data = ptr;
-      }
-    }
-
-    data->elementSz = elementSz;
-    data->colSz = colSz;
-    data->lineSz = lineSz;
-    data->dataSize = newSz;
-    scope_data.scope_graph_data = data;
-    scope_data.meta = *meta;
-    scope_data.time_taken_in_ns =
-        std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now() - start).count();
-    memset(scope_data.time_taken_in_ns_per_offset, 0, sizeof(scope_data.time_taken_in_ns_per_offset));
-    memset(scope_data.data_copied_per_offset, 0, sizeof(scope_data.data_copied_per_offset));
-    return true;
-  }
-  return false;
-}
-
-void copyDataUnsafeWithOffset(enum scopeDataType type, void *dataIn, size_t size, size_t offset, int copy_index)
-{
-  AssertFatal(copy_index < MAX_OFFSETS, "Unexpected number of copies per sink. copy_index = %d\n", copy_index);
-  ImScopeData &scope_data = scope_array[type];
-  auto start = std::chrono::high_resolution_clock::now();
-  scopeGraphData_t *data = scope_data.scope_graph_data;
-  uint8_t *outptr = (uint8_t *)(data + 1);
-  memcpy(&outptr[offset], dataIn, size);
-  scope_data.time_taken_in_ns_per_offset[copy_index] =
-      std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now() - start).count();
-  scope_data.data_copied_per_offset[copy_index] = size;
-}
-
-void unlockScopeData(enum scopeDataType type)
-{
-  ImScopeData &scope_data = scope_array[type];
-  size_t total_size = 0;
-  for (auto i = 0; i < MAX_OFFSETS; i++) {
-    scope_data.time_taken_in_ns += scope_data.time_taken_in_ns_per_offset[i];
-    total_size += scope_data.data_copied_per_offset[i];
-  }
-  if (total_size != (uint64_t)scope_data.scope_graph_data->dataSize) {
-    LOG_E(PHY, "Scope is missing data - not all data that was expected was copied - possibly missed copyDataUnsafeWithOffset call\n");
-  }
-  scope_data.is_data_ready = true;
-  scope_data.write_mutex.unlock();
 }

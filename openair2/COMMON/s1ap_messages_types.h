@@ -224,16 +224,6 @@ typedef struct nas_pdu_s {
   uint32_t  length;
 } nas_pdu_t, ue_radio_cap_t;
 
-typedef struct transport_layer_addr_s {
-  /* Length of the transport layer address buffer in bits. S1AP layer received a
-   * bit string<1..160> containing one of the following addresses: ipv4,
-   * ipv6, or ipv4 and ipv6. The layer doesn't interpret the buffer but
-   * silently forward it to S1-U.
-   */
-  uint8_t length;
-  uint8_t buffer[20]; // in network byte order
-} transport_layer_addr_t;
-
 #define TRANSPORT_LAYER_ADDR_COPY(dEST,sOURCE)        \
   do {                                                \
       AssertFatal(sOURCE.len <= 20);                  \

@@ -78,6 +78,10 @@
 // Prints an error if ID not found in list.
 #define RELEASE_IE_FROMLIST(SOURCE, TARGET, FIELD)                                 \
   do {                                                                             \
+    if (!TARGET) {                                                                 \
+      LOG_E(NR_MAC, "Target list not present, impossible to release element\n");   \
+      break;                                                                       \
+    }                                                                              \
     for (int iI = 0; iI < SOURCE->list.count; iI++) {                              \
       long eL = *SOURCE->list.array[iI];                                           \
       int iJ;                                                                      \
@@ -224,5 +228,9 @@ static inline uint64_t BIT_STRING_to_uint64(const BIT_STRING_t *asn) {
     free(STRUCT);                       \
     STRUCT = NULL;                      \
   } while (0)
+#define asn1cFreeSeq(ASN_DEF, LIST)                     \
+  do {                                                  \
+    ASN_STRUCT_FREE(ASN_DEF, LIST.array[--LIST.count]); \
+  } while (LIST.count > 0)                              \
 
 #endif

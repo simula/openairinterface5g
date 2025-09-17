@@ -225,26 +225,9 @@ int pss_sss_extract(PHY_VARS_UE *phy_vars_ue,
   return _do_pss_sss_extract(phy_vars_ue, pss_ext, sss_ext, 1 /* doPss */, 1 /* doSss */, subframe);
 }
 
-int pss_only_extract(PHY_VARS_UE *phy_vars_ue,
-                    int32_t pss_ext[4][72],
-                    uint8_t subframe)
-{
-  static int32_t dummy[4][72];
-  return _do_pss_sss_extract(phy_vars_ue, pss_ext, dummy, 1 /* doPss */, 0 /* doSss */, subframe);
-}
 
-
-int sss_only_extract(PHY_VARS_UE *phy_vars_ue,
-                    int32_t sss_ext[4][72],
-                    uint8_t subframe)
-{
-  static int32_t dummy[4][72];
-  return _do_pss_sss_extract(phy_vars_ue, dummy, sss_ext, 0 /* doPss */, 1 /* doSss */, subframe);
-}
-
-
-int16_t phase_re[7] = {16383, 25101, 30791, 32767, 30791, 25101, 16383};
-int16_t phase_im[7] = {-28378, -21063, -11208, 0, 11207, 21062, 28377};
+static const int16_t phase_re[7] = {16383, 25101, 30791, 32767, 30791, 25101, 16383};
+static const int16_t phase_im[7] = {-28378, -21063, -11208, 0, 11207, 21062, 28377};
 
 
 int rx_sss(PHY_VARS_UE *ue,int32_t *tot_metric,uint8_t *flip_max,uint8_t *phase_max)

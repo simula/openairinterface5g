@@ -59,6 +59,10 @@
 #define HLP_L1TX_BO "Backoff from full-scale output at the L1 entity(frequency domain), ex. 12 would corresponding to 14-bit input level (6 dB/bit). Default 36 dBFS for OAI RU entity"
 #define CONFIG_STRING_L1_PHASE_COMP                        "phase_compensation"
 #define HLP_L1_PHASE_COMP "Apply NR symbolwise phase rotation"
+#define CONFIG_STRING_NUM_ANTENNAS_PER_THREAD              "dmrs_num_antennas_per_thread"
+#define HLP_NUM_ARX "Number of antennas per thread for PUSCH channel estimation"
+#define CONFIG_STRING_ANALOG_DAS                           "enable_das"
+
 /*----------------------------------------------------------------------------------------------------------------------------------------------------*/
 /*                                            L1 configuration parameters                                                                             */
 /*   optname                                         helpstr   paramflags    XXXptr              defXXXval                  type           numelt     */
@@ -79,11 +83,13 @@
   {CONFIG_STRING_L1_PRACH_DTX_THRESHOLD,               NULL,       0,         .uptr=NULL,           .defintval=150,             TYPE_UINT,     0},         \
   {CONFIG_STRING_L1_PUSCH_DTX_THRESHOLD,               NULL,       0,         .uptr=NULL,           .defintval=50,              TYPE_UINT,     0},         \
   {CONFIG_STRING_L1_SRS_DTX_THRESHOLD,                 NULL,       0,         .uptr=NULL,           .defintval=30,              TYPE_UINT,     0},         \
-  {CONFIG_STRING_L1_MAX_LDPC_ITERATIONS,               NULL,       0,         .uptr=NULL,           .defintval=8,              TYPE_UINT,     0},         \
-  {CONFIG_STRING_L1_RX_THREAD_CORE,                    NULL,       0,         .uptr=NULL,           .defintval=-1,              TYPE_UINT,     0},          \
-  {CONFIG_STRING_L1_TX_THREAD_CORE,                    NULL,       0,         .uptr=NULL,           .defintval=-1,              TYPE_UINT,     0},          \
+  {CONFIG_STRING_L1_MAX_LDPC_ITERATIONS,               NULL,       0,         .uptr=NULL,           .defintval=8,               TYPE_UINT,     0},         \
+  {CONFIG_STRING_L1_RX_THREAD_CORE,                    NULL,       0,         .uptr=NULL,           .defintval=-1,              TYPE_UINT,     0},         \
+  {CONFIG_STRING_L1_TX_THREAD_CORE,                    NULL,       0,         .uptr=NULL,           .defintval=-1,              TYPE_UINT,     0},         \
   {CONFIG_STRING_L1_TX_AMP_BACKOFF_dB,                 HLP_L1TX_BO,0,         .uptr=NULL,           .defintval=36,              TYPE_UINT,     0},         \
   {CONFIG_STRING_L1_PHASE_COMP,                        HLP_L1_PHASE_COMP,PARAMFLAG_BOOL, .uptr=NULL,.defintval=1,               TYPE_UINT,     0},         \
+  {CONFIG_STRING_NUM_ANTENNAS_PER_THREAD,              HLP_NUM_ARX,0,         .uptr=NULL,           .defintval=1,               TYPE_UINT,     0},         \
+  {CONFIG_STRING_ANALOG_DAS,                           NULL,       0,         .uptr=NULL,           .defintval=0,               TYPE_UINT,     0},         \
 }
 // clang-format on
 #define L1_CC_IDX                                          0
@@ -105,6 +111,8 @@
 #define L1_TX_THREAD_CORE                                  16
 #define L1_TX_AMP_BACKOFF_dB                               17
 #define L1_PHASE_COMP                                      18
+#define NUM_ANTENNAS_PER_THREAD                            19
+#define L1_ANALOG_DAS                                      20
 
 /*----------------------------------------------------------------------------------------------------------------------------------------------------*/
 #endif

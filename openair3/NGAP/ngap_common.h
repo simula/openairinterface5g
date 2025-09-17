@@ -36,55 +36,10 @@
 #ifndef NGAP_COMMON_H_
 #define NGAP_COMMON_H_
 
-
 #include "common/utils/LOG/log.h"
 #include "oai_asn1.h"
-
-#include "NGAP_ProtocolIE-Field.h"
-#include "NGAP_NGAP-PDU.h"
-#include "NGAP_InitiatingMessage.h"
-#include "NGAP_SuccessfulOutcome.h"
-#include "NGAP_UnsuccessfulOutcome.h"
-#include "NGAP_ProtocolIE-Field.h"
-#include "NGAP_ProtocolIE-FieldPair.h"
-#include "NGAP_ProtocolIE-ContainerPair.h"
-#include "NGAP_ProtocolExtensionField.h"
-#include "NGAP_ProtocolExtensionContainer.h"
-#include "NGAP_asn_constant.h"
-#include "NGAP_SupportedTAItem.h"
-#include "NGAP_ServedGUAMIItem.h"
-#include "NGAP_BroadcastPLMNItem.h"
-#include "NGAP_SliceSupportItem.h"
-#include "NGAP_PLMNSupportItem.h"
-#include "NGAP_PDUSessionResourceSetupResponseTransfer.h"
-#include "NGAP_PDUSessionResourceSetupUnsuccessfulTransfer.h"
-#include "NGAP_PDUSessionResourceSetupItemCxtRes.h"
-#include "NGAP_PDUSessionResourceFailedToSetupItemCxtRes.h"
-#include "NGAP_PDUSessionResourceSetupItemSUReq.h"
-#include "NGAP_PDUSessionResourceSetupItemSURes.h"
-#include "NGAP_PDUSessionResourceFailedToSetupItemSURes.h"
-#include "NGAP_AssociatedQosFlowItem.h"
-#include "NGAP_PDUSessionResourceSetupRequestTransfer.h"
-#include "NGAP_PDUSessionResourceSetupItemCxtReq.h"
-#include "NGAP_QosFlowSetupRequestItem.h"
-#include "NGAP_AllowedNSSAI-Item.h"
-#include "NGAP_PDUSessionResourceModifyItemModRes.h"
-#include "NGAP_PDUSessionResourceFailedToModifyItemModRes.h"
-#include "NGAP_PDUSessionResourceModifyUnsuccessfulTransfer.h"
-#include "NGAP_PDUSessionResourceReleasedItemRelRes.h"
-#include "NGAP_PDUSessionResourceToReleaseItemRelCmd.h"
-#include "NGAP_PDUSessionResourceModifyItemModReq.h"
-#include "NGAP_PDUSessionResourceModifyRequestTransfer.h"
-#include "NGAP_QosFlowAddOrModifyRequestItem.h"
-#include "NGAP_PDUSessionResourceModifyResponseTransfer.h"
-#include "NGAP_QosFlowAddOrModifyResponseList.h"
-#include "NGAP_QosFlowAddOrModifyResponseItem.h"
-#include "NGAP_TAIListForPagingItem.h"
-#include "NGAP_GNB-ID.h"
-#include "NGAP_GlobalGNB-ID.h"
-#include "NGAP_GTPTunnel.h"
-#include "NGAP_UE-NGAP-ID-pair.h"
-#include "NGAP_UserLocationInformationNR.h"
+#include "ngap_msg_includes.h"
+#include "openair2/COMMON/ngap_messages_types.h"
 
 /* Checking version of ASN1C compiler */
 #if (ASN1C_ENVIRONMENT_VERSION < ASN1C_MINIMUM_VERSION)
@@ -92,9 +47,6 @@
 #endif
 
 #define NGAP_UE_ID_FMT  "0x%06"PRIX32
-
-extern int asn_debug;
-extern int asn1_xer_print;
 
 # include "common/utils/LOG/log.h"
 # include "ngap_gNB_default_values.h"
@@ -129,11 +81,13 @@ extern int asn1_xer_print;
  **/
 typedef int (*ngap_message_decoded_callback)(sctp_assoc_t assoc_id, uint32_t stream, NGAP_NGAP_PDU_t *pdu);
 
-/** \brief Handle criticality
- \param criticality Criticality of the IE
- @returns void
- **/
-void ngap_handle_criticality(NGAP_Criticality_t criticality);
+void encode_ngap_cause(NGAP_Cause_t *out, const ngap_cause_t *in);
+nr_guami_t decode_ngap_guami(const NGAP_GUAMI_t *in);
+ngap_ambr_t decode_ngap_UEAggregateMaximumBitRate(const NGAP_UEAggregateMaximumBitRate_t *in);
+nssai_t decode_ngap_nssai(const NGAP_S_NSSAI_t *in);
+ngap_security_capabilities_t decode_ngap_security_capabilities(const NGAP_UESecurityCapabilities_t *in);
+ngap_mobility_restriction_t decode_ngap_mobility_restriction(const NGAP_MobilityRestrictionList_t *in);
+
 /** @}*/
 
 #endif /* NGAP_COMMON_H_ */

@@ -32,7 +32,9 @@
     120000
     102000
     102001
+    302001
     102002
+    302002
     102003
     102004
     102005
@@ -65,7 +67,8 @@
     <class>Pull_Cluster_Image</class>
     <desc>Pull Images from Cluster</desc>
     <oc_project>oaicicd-ran</oc_project>
-    <images_to_pull>oai-gnb-aw2s</images_to_pull>
+    <images>oai-gnb-aw2s</images>
+    <node>avra</node>
   </testCase>
 
   <testCase id="101000">
@@ -77,111 +80,123 @@
   <testCase id="100813">
     <class>Create_Workspace</class>
     <desc>Creating new Workspace</desc>
-    <eNB_instance>0</eNB_instance>
-    <eNB_serverId>0</eNB_serverId>
+    <node>avra</node>
   </testCase>
 
   <testCase id="120000">
     <class>Deploy_Object</class>
     <desc>Deploy gNB (TDD/Band78/20MHz/aw2s) in a container</desc>
+    <node>avra</node>
     <yaml_path>ci-scripts/yaml_files/sa_aw2s_gnb</yaml_path>
-    <eNB_instance>0</eNB_instance>
-    <eNB_serverId>0</eNB_serverId>
   </testCase>
 
   <testCase id="102001">
     <class>Attach_UE</class>
-    <desc>Attach UE</desc>
+    <desc>Attach UE 1</desc>
     <id>amarisoft_ue_1</id>
+  </testCase>
+
+  <testCase id="302001">
+    <class>Custom_Command</class>
+    <desc>Verify UE 1 is normal (no RedCap)</desc>
+    <node>avra</node>
+    <command>[ $(docker logs oai-gnb-aw2s | grep -E "UE with RNTI [0-9a-f]{4} is RedCap" | wc -l) -eq 0 ]</command>
   </testCase>
 
   <testCase id="102002">
     <class>Attach_UE</class>
-    <desc>Attach UE</desc>
+    <desc>Attach (RedCap) UE 2</desc>
     <id>amarisoft_ue_2</id>
+  </testCase>
+
+  <testCase id="302002">
+    <class>Custom_Command</class>
+    <desc>Verify UE 2 is RedCap</desc>
+    <node>avra</node>
+    <command>[ $(docker logs oai-gnb-aw2s | grep -m1 -E "UE with RNTI [0-9a-f]{4} is RedCap" | wc -l) -eq 1 ]</command>
   </testCase>
 
   <testCase id="102003">
     <class>Attach_UE</class>
-    <desc>Attach UE</desc>
+    <desc>Attach UE 3</desc>
     <id>amarisoft_ue_3</id>
   </testCase>
 
   <testCase id="102004">
     <class>Attach_UE</class>
-    <desc>Attach UE</desc>
+    <desc>Attach UE 4</desc>
     <id>amarisoft_ue_4</id>
   </testCase>
 
   <testCase id="102005">
     <class>Attach_UE</class>
-    <desc>Attach UE</desc>
+    <desc>Attach (RedCap) UE 5</desc>
     <id>amarisoft_ue_5</id>
   </testCase>
 
   <testCase id="102006">
     <class>Attach_UE</class>
-    <desc>Attach UE</desc>
+    <desc>Attach (RedCap) UE 6</desc>
     <id>amarisoft_ue_6</id>
   </testCase>
 
   <testCase id="102007">
     <class>Attach_UE</class>
-    <desc>Attach UE</desc>
+    <desc>Attach UE 7</desc>
     <id>amarisoft_ue_7</id>
   </testCase>
 
   <testCase id="102008">
     <class>Attach_UE</class>
-    <desc>Attach UE</desc>
+    <desc>Attach UE 8</desc>
     <id>amarisoft_ue_8</id>
   </testCase>
 
   <testCase id="102009">
     <class>Attach_UE</class>
-    <desc>Attach UE</desc>
+    <desc>Attach UE 9</desc>
     <id>amarisoft_ue_9</id>
   </testCase>
 
   <testCase id="102010">
     <class>Attach_UE</class>
-    <desc>Attach UE</desc>
+    <desc>Attach (RedCap) UE 10</desc>
     <id>amarisoft_ue_10</id>
   </testCase>
 
   <testCase id="102011">
     <class>Attach_UE</class>
-    <desc>Attach UE</desc>
+    <desc>Attach (RedCap) UE 11</desc>
     <id>amarisoft_ue_11</id>
   </testCase>
 
   <testCase id="102012">
     <class>Attach_UE</class>
-    <desc>Attach UE</desc>
+    <desc>Attach (RedCap) UE 12</desc>
     <id>amarisoft_ue_12</id>
   </testCase>
 
   <testCase id="102013">
     <class>Attach_UE</class>
-    <desc>Attach UE</desc>
+    <desc>Attach UE 13</desc>
     <id>amarisoft_ue_13</id>
   </testCase>
 
   <testCase id="102014">
     <class>Attach_UE</class>
-    <desc>Attach UE</desc>
+    <desc>Attach UE 14</desc>
     <id>amarisoft_ue_14</id>
   </testCase>
 
   <testCase id="102015">
     <class>Attach_UE</class>
-    <desc>Attach UE</desc>
+    <desc>Attach (RedCap) UE 15</desc>
     <id>amarisoft_ue_15</id>
   </testCase>
 
   <testCase id="100010">
     <class>Iperf</class>
-    <desc>iperf (DL/3Mbps/UDP)(30 sec)(multi-ue profile)</desc>
+    <desc>iperf (DL/3Mbps/UDP)(30 sec)</desc>
     <iperf_args>-u -b 45M -t 30 -R</iperf_args>
     <id>amarisoft_ue_1 amarisoft_ue_2 amarisoft_ue_3 amarisoft_ue_4 amarisoft_ue_5 amarisoft_ue_6 amarisoft_ue_7 amarisoft_ue_8 amarisoft_ue_9 amarisoft_ue_10 amarisoft_ue_11 amarisoft_ue_12 amarisoft_ue_13 amarisoft_ue_14 amarisoft_ue_15</id>
     <iperf_packetloss_threshold>25</iperf_packetloss_threshold>
@@ -192,7 +207,7 @@
 
   <testCase id="100030">
     <class>Iperf</class>
-    <desc>iperf (DL/TCP)(30 sec)(multi-ue profile)</desc>
+    <desc>iperf (DL/TCP)(30 sec)</desc>
     <iperf_args>-t 30 -R</iperf_args>
     <id>amarisoft_ue_1 amarisoft_ue_2 amarisoft_ue_3 amarisoft_ue_4 amarisoft_ue_5 amarisoft_ue_6 amarisoft_ue_7 amarisoft_ue_8 amarisoft_ue_9 amarisoft_ue_10 amarisoft_ue_11 amarisoft_ue_12 amarisoft_ue_13 amarisoft_ue_14 amarisoft_ue_15</id>
     <iperf_tcp_rate_target>2</iperf_tcp_rate_target>
@@ -201,7 +216,7 @@
 
   <testCase id="100020">
     <class>Iperf</class>
-    <desc>iperf (UL/1Mbps/UDP)(30 sec)(multi-ue profile)</desc>
+    <desc>iperf (UL/1Mbps/UDP)(30 sec)</desc>
     <iperf_args>-u -b 15M -t 30</iperf_args>
     <id>amarisoft_ue_1 amarisoft_ue_2 amarisoft_ue_3 amarisoft_ue_4 amarisoft_ue_5 amarisoft_ue_6 amarisoft_ue_7 amarisoft_ue_8 amarisoft_ue_9 amarisoft_ue_10 amarisoft_ue_11 amarisoft_ue_12 amarisoft_ue_13 amarisoft_ue_14 amarisoft_ue_15</id>
     <iperf_packetloss_threshold>25</iperf_packetloss_threshold>
@@ -212,7 +227,7 @@
 
   <testCase id="100040">
     <class>Iperf</class>
-    <desc>iperf (UL/TCP)(30 sec)(multi-ue profile)</desc>
+    <desc>iperf (UL/TCP)(30 sec)</desc>
     <iperf_args>-t 30</iperf_args>
     <svr_id>oc-cn5g</svr_id>
     <id>amarisoft_ue_1 amarisoft_ue_2 amarisoft_ue_3 amarisoft_ue_4 amarisoft_ue_5 amarisoft_ue_6 amarisoft_ue_7 amarisoft_ue_8 amarisoft_ue_9 amarisoft_ue_10 amarisoft_ue_11 amarisoft_ue_12 amarisoft_ue_13 amarisoft_ue_14 amarisoft_ue_15</id>
@@ -224,14 +239,15 @@
     <class>Ping</class>
     <desc>Ping: 50 pings in 10sec, multi-ue</desc>
     <id>amarisoft_ue_1 amarisoft_ue_2 amarisoft_ue_3 amarisoft_ue_4 amarisoft_ue_5 amarisoft_ue_6 amarisoft_ue_7 amarisoft_ue_8 amarisoft_ue_9 amarisoft_ue_10 amarisoft_ue_11 amarisoft_ue_12 amarisoft_ue_13 amarisoft_ue_14 amarisoft_ue_15</id>
-    <ping_args>-c 50 -i 0.2 %cn_ip%</ping_args>
+    <svr_id>oc-cn5g</svr_id>
+    <ping_args>-c 50 -i 0.2</ping_args>
     <ping_packetloss_threshold>5</ping_packetloss_threshold>
     <ping_rttavg_threshold>25</ping_rttavg_threshold>
   </testCase>
 
   <testCase id="102016">
     <class>Attach_UE</class>
-    <desc>Attach UE</desc>
+    <desc>Attach (RedCap) UE 16</desc>
     <id>amarisoft_ue_16</id>
   </testCase>
 
@@ -239,7 +255,8 @@
     <class>Ping</class>
     <desc>Ping: 50pings in 10sec, multi-ue</desc>
     <id>amarisoft_ue_16</id>
-    <ping_args>-c 50 -i 0.2 %cn_ip%</ping_args>
+    <svr_id>oc-cn5g</svr_id>
+    <ping_args>-c 50 -i 0.2</ping_args>
     <ping_packetloss_threshold>5</ping_packetloss_threshold>
     <ping_rttavg_threshold>30</ping_rttavg_threshold>
   </testCase>
@@ -268,16 +285,16 @@
     <class>Undeploy_Object</class>
     <always_exec>true</always_exec>
     <desc>Undeploy gNB</desc>
+    <node>avra</node>
     <yaml_path>ci-scripts/yaml_files/sa_aw2s_gnb</yaml_path>
-    <eNB_instance>0</eNB_instance>
-    <eNB_serverId>0</eNB_serverId>
   </testCase>
 
   <testCase id="444444">
     <class>Clean_Test_Server_Images</class>
     <always_exec>true</always_exec>
     <desc>Clean Test Images on Test Server</desc>
-    <test_svr_id>0</test_svr_id>
+    <node>avra</node>
+    <images>oai-gnb-aw2s</images>
   </testCase>
 
 </testCaseList>

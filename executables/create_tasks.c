@@ -52,12 +52,12 @@ int create_tasks(uint32_t enb_nb) {
   rrc_enb_init();
   itti_mark_task_ready(TASK_RRC_ENB);
 
-  if (get_softmodem_params()->emulate_l1 || EPC_MODE_ENABLED) {
+  if (get_softmodem_params()->emulate_l1 || !IS_SOFTMODEM_NOS1) {
     rc = itti_create_task(TASK_SCTP, sctp_eNB_task, NULL);
     AssertFatal(rc >= 0, "Create task for SCTP failed\n");
   }
 
-  if (EPC_MODE_ENABLED) {
+  if (!IS_SOFTMODEM_NOS1) {
     rc = itti_create_task(TASK_S1AP, s1ap_eNB_task, NULL);
     AssertFatal(rc >= 0, "Create task for S1AP failed\n");
     rc = itti_create_task(TASK_GTPV1_U, gtpv1uTask, NULL);

@@ -44,7 +44,7 @@ int x2ap_eNB_encode_pdu(X2AP_X2AP_PDU_t *pdu, uint8_t **buffer, uint32_t *len)
   DevAssert(buffer != NULL);
   DevAssert(len != NULL);
 
-  if (asn1_xer_print) {
+  if (LOG_DEBUGFLAG(DEBUG_ASN1)) {
     xer_fprint(stdout, &asn_DEF_X2AP_X2AP_PDU, (void *)pdu);
   }
 

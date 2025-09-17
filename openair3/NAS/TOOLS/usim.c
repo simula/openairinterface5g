@@ -42,6 +42,7 @@ Description Implements the utility used to generate data stored in the
 #include <stdbool.h>
 #include <getopt.h>
 
+#include "log.h"
 #include "conf_parser.h"
 #include "display.h"
 
@@ -69,7 +70,7 @@ int main (int argc, char * const argv[])
     {NULL,     0,           NULL, 0}
   };
   int option_index;
-  char option_short;
+  int option_short;
 
   /*
    * Read command line parameters
@@ -94,6 +95,8 @@ int main (int argc, char * const argv[])
         output_dir = optarg;
         break;
       default:
+        fprintf(stderr, "unknown option %d, exit\n", option_short);
+        exit(1);
         break;
     }
   }
@@ -103,6 +106,7 @@ int main (int argc, char * const argv[])
     exit(EXIT_SUCCESS);
   }
 
+  logInit();
   /* compute default data directory if no output_dir is given */
   if ( output_dir == NULL ) {
     output_dir = getenv(OUTPUT_DIR_ENV);

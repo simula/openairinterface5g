@@ -23,13 +23,15 @@
 
 #ifndef __RFSIMULATOR_H
 #define  __RFSIMULATOR_H
+#include <stdbool.h>
 void rxAddInput( const c16_t *input_sig,
-                 c16_t *after_channel_sig,
+                 cf_t *after_channel_sig,
                  int rxAnt,
                  channel_desc_t *channelDesc,
                  int nbSamples,
                  uint64_t TS,
-                 uint32_t CirSize
+                 uint32_t CirSize,
+                 bool apply_noise
                );
 
 #endif

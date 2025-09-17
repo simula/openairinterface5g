@@ -1,0 +1,1785 @@
+diff --git a/fhi_lib/app/src/common.h b/fhi_lib/app/src/common.h
+index ac5f471..5efcce3 100644
+--- a/fhi_lib/app/src/common.h
++++ b/fhi_lib/app/src/common.h
+@@ -28,7 +28,7 @@
+ #include <rte_common.h>
+ #include <rte_mbuf.h>
+ 
+-#define VERSIONX                "oran_f_release_v1.0"
++#define VERSIONX                "oran_f_release_v1.4"
+ 
+ #define APP_O_DU  0
+ #define APP_O_RU  1
+diff --git a/fhi_lib/lib/Makefile b/fhi_lib/lib/Makefile
+index eccc4ae..a97fdc6 100644
+--- a/fhi_lib/lib/Makefile
++++ b/fhi_lib/lib/Makefile
+@@ -23,24 +23,46 @@ MYCUSTOMSPACE1='------------------------------------------------------------'
+ ##############################################################
+ #  Tools configuration
+ ##############################################################
+-ifeq ($(WIRELESS_SDK_TOOLCHAIN),icc)
+-CC  := icc
+-CPP := icpc
+-AS := as
+-AR := ar
+-LD := icc
+-else ifeq ($(WIRELESS_SDK_TOOLCHAIN),icx)
+-    CC  := icx
+-    CPP := icpx
+-    AS  := as
+-    AR  := llvm-ar
+-    LD  := icx
++
++# Default target architecture and compiler
++TARGET ?= x86
++
++# Architecture and compiler-specific tools and flags
++ifeq ($(TARGET), x86)
++    ifeq ($(WIRELESS_SDK_TOOLCHAIN),gcc)
++        CC  := gcc
++        CPP := g++
++        AS := as
++        AR := ar
++        LD := gcc
++    else ifeq ($(WIRELESS_SDK_TOOLCHAIN),icc)
++        CC  := icc
++        CPP := icpc
++        AS := as
++        AR := ar
++        LD := icc
++    else ifeq ($(WIRELESS_SDK_TOOLCHAIN),icx)
++        CC  := icx
++        CPP := icpx
++        AS  := as
++        AR  := llvm-ar
++        LD  := icx
++    else
++        $(error "Please define WIRELESS_SDK_TOOLCHAIN environment variable")
++    endif
++
++    OBJDUMP := objdump
++
++else ifeq ($(TARGET), armv8) # aarch64
++    CC := gcc
++    CPP := g++
++    LD := gcc
++    CFLAGS += -march=armv8-a
++    LDFLAGS +=
+ else
+-    $(error "Please define WIRELESS_SDK_TOOLCHAIN environment variable")
++  $(error Unsupported target architecture: $(TARGET))
+ endif
+ 
+-OBJDUMP := objdump
+-
+ ifeq ($(SHELL),cmd.exe)
+ MD := mkdir.exe -p
+ CP := cp.exe -f
+@@ -72,7 +94,11 @@ ifeq ($(RTE_SDK),)
+ endif
+ 
+ RTE_TARGET ?= x86_64-native-linux-icc
+-RTE_INC := $(shell PKG_CONFIG_PATH=/usr/lib64/pkgconfig:$(RTE_SDK)/build/meson-uninstalled pkgconf --cflags-only-I libdpdk)
++ifeq ($(TARGET), x86)
++RTE_INC := $(shell PKG_CONFIG_PATH=$(PKG_CONFIG_PATH):/usr/lib64/pkgconfig:$(RTE_SDK)/build/meson-uninstalled pkg-config --cflags-only-I libdpdk)
++else ifeq ($(TARGET), armv8)
++RTE_INC := $(shell pkg-config --cflags-only-I libdpdk)
++endif
+ 
+ API_DIR := $(PROJECT_DIR)/api
+ SRC_DIR := $(PROJECT_DIR)/src
+@@ -103,6 +129,7 @@ CC_SRC = $(ETH_DIR)/ethdi.c \
+ 	$(SRC_DIR)/xran_main.c \
+ 	$(SRC_DIR)/xran_delay_measurement.c
+ 
++ifeq ($(TARGET), x86)
+ CPP_SRC = $(SRC_DIR)/xran_compression.cpp \
+ 	$(SRC_DIR)/xran_bfp_ref.cpp \
+ 	$(SRC_DIR)/xran_bfp_cplane8.cpp \
+@@ -110,8 +137,7 @@ CPP_SRC = $(SRC_DIR)/xran_compression.cpp \
+ 	$(SRC_DIR)/xran_bfp_cplane32.cpp \
+ 	$(SRC_DIR)/xran_bfp_cplane64.cpp \
+ 	$(SRC_DIR)/xran_bfp_uplane_9b16rb.cpp \
+-	$(SRC_DIR)/xran_bfp_uplane.cpp \
+-	$(SRC_DIR)/xran_mod_compression.cpp
++	$(SRC_DIR)/xran_bfp_uplane.cpp
+ 
+ CPP_SRC_SNC = $(SRC_DIR)/xran_compression_snc.cpp \
+ 	$(SRC_DIR)/xran_bfp_cplane8_snc.cpp \
+@@ -119,6 +145,7 @@ CPP_SRC_SNC = $(SRC_DIR)/xran_compression_snc.cpp \
+ 	$(SRC_DIR)/xran_bfp_cplane32_snc.cpp \
+ 	$(SRC_DIR)/xran_bfp_cplane64_snc.cpp \
+ 	$(SRC_DIR)/xran_bfp_uplane_snc.cpp
++endif
+ 
+ CC_FLAGS += -std=gnu11 -Wall -Wno-deprecated-declarations  \
+ 	-fdata-sections \
+@@ -127,7 +154,11 @@ CC_FLAGS += -std=gnu11 -Wall -Wno-deprecated-declarations  \
+         -fPIC \
+ 	-Wall \
+ 	-Wimplicit-function-declaration \
+-	-g -O3 -mcmodel=large
++	-g -O
++
++ifeq ($(TARGET), x86)
++CC_FLAGS += -mavx512bw -march=skylake-avx512 -mtune=skylake-avx512#--wd1786 -mcmodel=large
++endif
+ 
+ ifeq ($(WIRELESS_SDK_TOOLCHAIN),icc)
+ CC_FLAGS += -wd1786 -restrict
+@@ -137,9 +168,15 @@ ifeq ($(WIRELESS_SDK_TOOLCHAIN),icx)
+ CC_FLAGS += -march=icelake-server -mintrinsic-promote -Wno-unused-function -Wno-intrinsic-promote -Wno-error
+ endif
+ 
++ifeq ($(TARGET), x86)
++CPP_FLAGS := -D__STDC_LIMIT_MACROS -D__STDC_CONSTANT_MACROS -D_GNU_SOURCE -D_REENTRANT -pipe \
++                -fPIC \
++                -falign-functions=16  \
++        -Werror -Wno-unused-variable -std=c++14 -mcmodel=large -mavx512bw -march=skylake-avx512 -mtune=skylake-avx512
++else ifeq ($(TARGET), armv8)
+ CPP_FLAGS := -D__STDC_LIMIT_MACROS -D__STDC_CONSTANT_MACROS -D_GNU_SOURCE -D_REENTRANT -pipe \
+-                  -falign-functions=16 \
+-        -Werror -Wno-unused-variable -std=c++14 -mcmodel=large -fPIC
++        -Werror -Wno-unused-variable -std=c++14
++endif
+ 
+ ifeq ($(WIRELESS_SDK_TOOLCHAIN),icc)
+ CPP_FLAGS +=  -fp-model fast=2 -no-prec-div -no-prec-sqrt -fast-transcendentals -restrict
+@@ -150,7 +187,7 @@ CPP_FLAGS +=  -fp-model fast -march=icelake-server -mintrinsic-promote -Wno-unus
+ endif
+ 
+ 
+-INC :=  -I$(API_DIR) -I$(ETH_DIR) -I$(SRC_DIR) -I$(RTE_INC)
++INC :=  -I$(API_DIR) -I$(ETH_DIR) -I$(SRC_DIR) $(RTE_INC)
+ DEF :=
+ ifeq ($(MLOG),1)
+ 	INC  += -I$(MLOG_DIR)/source
+@@ -186,8 +223,13 @@ CPP_SNC_OBJTARGETS := $(addprefix $(PROJECT_OBJ_DIR)/,$(CPP_OBJS_SNC))
+ 
+ AS_OBJTARGETS := $(addprefix $(PROJECT_OBJ_DIR)/,$(AS_OBJS))
+ #-qopt-report=5 -qopt-matmul -qopt-report-phase=all
+-CPP_COMP       := -O3 -DNDEBUG  -xcore-avx512 -fPIE -fasm-blocks
+-CPP_COMP_SNC   := -O3 -DNDEBUG -march=icelake-server -fPIE -fasm-blocks
++ifeq ($(TARGET), x86)
++CPP_COMP       := -O3 -DNDEBUG  -fPIE
++CPP_COMP_SNC   := -O3 -DNDEBUG -march=icelake-server -fPIE
++else ifeq ($(TARGET), armv8)
++CPP_COMP       := -O3 -DNDEBUG -fPIE -Wrestrict
++CPP_COMP_SNC   := -O3 -DNDEBUG -march=icelake-server -fPIE -Wrestrict
++endif
+ CC_FLAGS_FULL  := $(CC_FLAGS)  $(INC) $(DEF)
+ CPP_FLAGS_FULL := $(CPP_FLAGS) $(CPP_COMP) $(INC) $(DEF)
+ CPP_FLAGS_FULL_SNC := $(CPP_FLAGS) $(CPP_COMP_SNC) $(INC) $(DEF)
+diff --git a/fhi_lib/lib/api/xran_fh_o_du.h b/fhi_lib/lib/api/xran_fh_o_du.h
+index bacf597..1dd6d66 100644
+--- a/fhi_lib/lib/api/xran_fh_o_du.h
++++ b/fhi_lib/lib/api/xran_fh_o_du.h
+@@ -141,7 +141,7 @@ extern "C" {
+ #define XRAN_MAX_SECTIONS_PER_SYM    (XRAN_MAX_SECTIONS_PER_SLOT)  /**< Max number of different sections in single slot (section may be equal to RB allocation for UE) */
+ #define XRAN_MIN_SECTIONS_PER_SYM    (XRAN_MIN_SECTIONS_PER_SLOT)  /**< Min number of different sections in single slot (section may be equal to RB allocation for UE) */
+ 
+-#define XRAN_MAX_FRAGMENT            (4)   /**< Max number of fragmentations in single symbol */
++#define XRAN_MAX_FRAGMENT            (6)   /**< Max number of fragmentations in single symbol */
+ #define XRAN_MAX_SET_BFWS            (64)  /**< Assumed 64Ant, BFP 9bit with 9K jumbo frame */
+ 
+ #define XRAN_MAX_PKT_BURST (448+4) /**< 4x14x8 symbols per ms */
+@@ -419,6 +419,7 @@ struct xran_io_cfg {
+     uint16_t num_rxq;             /**< number of RX queues per VF */
+     char *dpdk_dev[XRAN_VF_MAX]; /**< VFs devices  */
+     char *bbdev_dev[1];      /**< BBDev dev name */
++    char *bbdev_vfio_vf_token[1];      /**< BBDev dev token */
+     int32_t bbdev_mode;      /**< DPDK for BBDev */
+     uint32_t dpdkIoVaMode;   /**< IOVA Mode */
+     uint32_t dpdkMemorySize; /**< DPDK max memory allocation */
+@@ -1193,6 +1194,31 @@ int32_t xran_reg_physide_cb_by_dev_id(void *pHandle, xran_fh_tti_callback_fn Cb,
+  */
+ int32_t xran_get_slot_idx (uint32_t PortId, uint32_t *nFrameIdx, uint32_t *nSubframeIdx,  uint32_t *nSlotIdx, uint64_t *nSecond);
+ 
++/**
++ * @ingroup xran
++ *
++ *   Function returns Frame, Subframe, Slot Number based on rx_tti
++ *
++ * @param tti
++ *    tti for which to compute Frame, Subframe, Slot
++ *
++ * @param nFrameIdx
++ *    Pointer to Frame number [0-99]
++ *
++ * @param nSubframeIdx
++ *    Pointer to Subframe number [0-10]
++ *
++ * @param nSlotIdx
++ *    Pointer to Slot number [0-7]
++ *
++ * @param nSecond
++ *    Pointer to current UTC second
++ *
++ * @return
++ *   current TTI number [0-7999]
++ */
++int32_t xran_get_slot_idx_from_tti(uint32_t tti, uint32_t *nFrameIdx, uint32_t *nSubframeIdx, uint32_t *nSlotIdx, uint64_t *nSecond);
++
+ /**
+  * @ingroup xran
+  *
+diff --git a/fhi_lib/lib/api/xran_pkt_cp.h b/fhi_lib/lib/api/xran_pkt_cp.h
+index 33e96b3..a2f8ad0 100644
+--- a/fhi_lib/lib/api/xran_pkt_cp.h
++++ b/fhi_lib/lib/api/xran_pkt_cp.h
+@@ -33,6 +33,14 @@
+ extern "C" {
+ #endif
+ 
++#include <stdint.h>
++#if defined(__arm__) || defined(__aarch64__)
++#include <arm_neon.h>
++typedef int32x4_t simd_data_t;
++#else
++#include <xmmintrin.h>
++typedef __m128i simd_data_t;
++#endif
+ 
+ /**********************************************************************
+  * Common structures for C/U-plane
+@@ -256,7 +264,7 @@ union xran_cp_radioapp_section_ext3_first {
+     }all_bits;
+ 
+     struct{
+-        __m128i     data_field1;
++        simd_data_t data_field1;
+     }data_field;
+     } __attribute__((__packed__));
+ 
+diff --git a/fhi_lib/lib/api/xran_up_api.h b/fhi_lib/lib/api/xran_up_api.h
+index 46e0e1d..409ef4b 100644
+--- a/fhi_lib/lib/api/xran_up_api.h
++++ b/fhi_lib/lib/api/xran_up_api.h
+@@ -80,6 +80,7 @@ int32_t xran_extract_iq_samples(struct rte_mbuf *mbuf,
+     uint8_t *subframe_id,
+     uint8_t *slot_id,
+     uint8_t *symb_id,
++    uint8_t *filter_id,
+     union ecpri_seq_id *seq_id,
+     uint16_t *num_prbu,
+     uint16_t *start_prbu,
+@@ -89,7 +90,8 @@ int32_t xran_extract_iq_samples(struct rte_mbuf *mbuf,
+     int8_t   expect_comp,
+     enum xran_comp_hdr_type staticComp,
+     uint8_t *compMeth,
+-    uint8_t *iqWidth);
++    uint8_t *iqWidth,
++    uint8_t *is_prach);
+ 
+ int xran_prepare_iq_symbol_portion(
+                         struct rte_mbuf *mbuf,
+diff --git a/fhi_lib/lib/ethernet/ethdi.c b/fhi_lib/lib/ethernet/ethdi.c
+index f5b2fd6..8fb0ec2 100644
+--- a/fhi_lib/lib/ethernet/ethdi.c
++++ b/fhi_lib/lib/ethernet/ethdi.c
+@@ -37,7 +37,10 @@
+ #include <sys/time.h>
+ #include <time.h>
+ #include <unistd.h>
++#if defined(__arm__) || defined(__aarch64__)
++#else
+ #include <immintrin.h>
++#endif
+ #include <numa.h>
+ #include <rte_config.h>
+ #include <rte_common.h>
+@@ -185,14 +188,24 @@ static void check_port_link_status(uint8_t portid)
+                 printf("Port %d Link Up - speed %u "
+                         "Mbps - %s\n", (uint8_t)portid,
+                         (unsigned)link.link_speed,
++#if (RTE_VER_YEAR >= 21)
++                        (link.link_duplex == RTE_ETH_LINK_FULL_DUPLEX) ?
++                        ("full-duplex") : ("half-duplex\n")
++#else
+                         (link.link_duplex == ETH_LINK_FULL_DUPLEX) ?
+-                        ("full-duplex") : ("half-duplex\n"));
++                        ("full-duplex") : ("half-duplex\n")
++#endif
++                      );
+             else
+                 printf("Port %d Link Down\n",
+                         (uint8_t)portid);
+         }
+         /* clear all_ports_up flag if any link down */
++#if (RTE_VER_YEAR >= 21)
++        if (link.link_status == RTE_ETH_LINK_DOWN) {
++#else
+         if (link.link_status == ETH_LINK_DOWN) {
++#endif
+             all_ports_up = 0;
+             break;
+         }
+@@ -323,10 +336,11 @@ xran_ethdi_init_dpdk_io(char *name, const struct xran_io_cfg *io_cfg,
+     uint64_t nWorkerCore = 1;
+     uint32_t coreNum = sysconf(_SC_NPROCESSORS_CONF);
+     char bbdev_wdev[32]   = "";
++    char bbdev_vfio_vf_token[64] = "";
+     char bbdev_vdev[32]   = "";
+     char iova_mode[32]    = "--iova-mode=pa";
+-    char socket_mem[32]   = "--socket-mem=8192";
+-    char socket_limit[32] = "--socket-limit=8192";
++    char socket_mem[32]   = "--socket-mem=0";
++    char socket_limit[32] = "--socket-limit=0";
+     char ring_name[32]    = "";
+     int32_t xran_port = -1;
+     queueid_t qi = 0;
+@@ -336,8 +350,8 @@ xran_ethdi_init_dpdk_io(char *name, const struct xran_io_cfg *io_cfg,
+     cpu = sched_getcpu();
+     node = numa_node_of_cpu(cpu);
+ 
+-    char *argv[] = { name, core_mask, "-n2", iova_mode, socket_mem, socket_limit, "--proc-type=auto",
+-        "--file-prefix", name, "-a0000:00:00.0", bbdev_wdev, bbdev_vdev};
++    char *argv[] = { name, core_mask, "-n2", iova_mode, socket_mem, socket_limit, "--proc-type=auto", "--no-telemetry",
++        "--file-prefix", name, "-a0000:00:00.0", bbdev_wdev, bbdev_vdev, bbdev_vfio_vf_token};
+ 
+     if (io_cfg == NULL)
+         return 0;
+@@ -347,11 +361,17 @@ xran_ethdi_init_dpdk_io(char *name, const struct xran_io_cfg *io_cfg,
+             // hw-accelerated bbdev
+             printf("hw-accelerated bbdev %s\n", io_cfg->bbdev_dev[0]);
+             snprintf(bbdev_wdev, RTE_DIM(bbdev_wdev), "-a%s", io_cfg->bbdev_dev[0]);
++	    if (io_cfg->bbdev_vfio_vf_token[0] != NULL) {
++                snprintf(bbdev_vfio_vf_token, RTE_DIM(bbdev_vfio_vf_token), "--vfio-vf-token=%s", io_cfg->bbdev_vfio_vf_token[0]);
++	    }
+         } else if (io_cfg->bbdev_mode == XRAN_BBDEV_MODE_HW_OFF){
+             snprintf(bbdev_wdev, RTE_DIM(bbdev_wdev), "%s", "--vdev=baseband_turbo_sw");
+         } else if (io_cfg->bbdev_mode == XRAN_BBDEV_MODE_HW_SW){
+             printf("software and hw-accelerated bbdev %s\n", io_cfg->bbdev_dev[0]);
+             snprintf(bbdev_wdev, RTE_DIM(bbdev_wdev), "-a%s", io_cfg->bbdev_dev[0]);
++	    if (io_cfg->bbdev_vfio_vf_token[0] != NULL) {
++                snprintf(bbdev_vfio_vf_token, RTE_DIM(bbdev_vfio_vf_token), "--vfio-vf-token=%s", io_cfg->bbdev_vfio_vf_token[0]);
++	    }
+             snprintf(bbdev_vdev, RTE_DIM(bbdev_vdev), "%s", "--vdev=baseband_turbo_sw");
+         } else {
+             rte_panic("Cannot init DPDK incorrect [bbdev_mode %d]\n", io_cfg->bbdev_mode);
+@@ -481,11 +501,13 @@ xran_ethdi_init_dpdk_io(char *name, const struct xran_io_cfg *io_cfg,
+                     ctx->tx_ring[i] = rte_ring_create(ring_name, NUM_MBUFS_RING_TRX,
+                     rte_lcore_to_socket_id(*lcore_id), RING_F_SC_DEQ);
+                     PANIC_ON(ctx->tx_ring[i] == NULL, "failed to allocate rx ring");
++                    printf("Created ring %s on core %d\n",ring_name,*lcore_id);
+                     for(qi = 0; qi < io_cfg->num_rxq; qi++) {
+                         snprintf(ring_name, RTE_DIM(ring_name), "%s_%d_%d", "rx_ring_cp", i, qi);
+                         ctx->rx_ring[i][qi] = rte_ring_create(ring_name, NUM_MBUFS_RING_TRX,
+                             rte_lcore_to_socket_id(*lcore_id), RING_F_SP_ENQ);
+                         PANIC_ON(ctx->rx_ring[i][qi] == NULL, "failed to allocate rx ring");
++                        printf("Created ring %s on core %d\n",ring_name,*lcore_id);
+                     }
+                 }
+             } else {
+@@ -555,7 +577,7 @@ xran_ethdi_init_dpdk_io(char *name, const struct xran_io_cfg *io_cfg,
+         ctx->up_dl_pkt_gen_ring[i] = rte_ring_create(ring_name, NUM_MBUFS_RING,
+         rte_lcore_to_socket_id(*lcore_id), /*RING_F_SC_DEQ*/0);
+         PANIC_ON(ctx->up_dl_pkt_gen_ring[i] == NULL, "failed to allocate dl gen ring");
+-        printf("created %s\n", ring_name);
++        printf("created %s on core %d\n", ring_name, *lcore_id);
+     }
+ 
+     return 1;
+diff --git a/fhi_lib/lib/ethernet/ethernet.c b/fhi_lib/lib/ethernet/ethernet.c
+index edda598..77e5ca7 100644
+--- a/fhi_lib/lib/ethernet/ethernet.c
++++ b/fhi_lib/lib/ethernet/ethernet.c
+@@ -37,7 +37,10 @@
+ #include <sys/types.h>
+ #include <stdlib.h>
+ #include <math.h>
++#if defined(__arm__) || defined(__aarch64__)
++#else
+ #include <immintrin.h>
++#endif
+ #include <rte_config.h>
+ #include <rte_common.h>
+ #include <rte_log.h>
+@@ -149,13 +152,22 @@ void xran_init_port(int p_id, uint16_t num_rxq, uint32_t mtu)
+     static uint16_t nb_txd = BURST_SIZE;
+     struct rte_ether_addr addr;
+     struct rte_eth_rxmode rxmode = {
++#if (RTE_VER_YEAR >= 21)
++            .mtu = MAX_RX_LEN,
++#else
+             .split_hdr_size = 0,
+               .max_rx_pkt_len = MAX_RX_LEN,
+             .offloads       = DEV_RX_OFFLOAD_JUMBO_FRAME
++#endif
+             };
+     struct rte_eth_txmode txmode = {
++#if (RTE_VER_YEAR >= 21)
++            .mq_mode        = RTE_ETH_MQ_TX_NONE,
++            .offloads       = RTE_ETH_TX_OFFLOAD_MULTI_SEGS
++#else
+             .mq_mode        = ETH_MQ_TX_NONE,
+             .offloads       = DEV_TX_OFFLOAD_MULTI_SEGS
++#endif
+             };
+     struct rte_eth_conf port_conf = {
+             .rxmode = rxmode,
+@@ -174,8 +186,13 @@ void xran_init_port(int p_id, uint16_t num_rxq, uint32_t mtu)
+     uint32_t num_mbufs = 0;
+ 
+     if (mtu <= 1500) {
++#if (RTE_VER_YEAR >= 21)
++        rxmode.offloads &= ~RTE_ETH_TX_OFFLOAD_IPIP_TNL_TSO;
++        rxmode.mtu = RTE_ETHER_MAX_LEN;
++#else
+         rxmode.offloads &= ~DEV_RX_OFFLOAD_JUMBO_FRAME;
+         rxmode.max_rx_pkt_len = RTE_ETHER_MAX_LEN;
++#endif
+         data_room_size = MBUF_POOL_ELM_SMALL;
+     }
+ 
+@@ -184,10 +201,19 @@ void xran_init_port(int p_id, uint16_t num_rxq, uint32_t mtu)
+         drv_name = dev_info.driver_name;
+     printf("initializing port %d for TX, drv=%s\n", p_id, drv_name);
+ 
+-    if (dev_info.tx_offload_capa & DEV_TX_OFFLOAD_MBUF_FAST_FREE){
++#if (RTE_VER_YEAR >= 21)
++    if (dev_info.tx_offload_capa & RTE_ETH_TX_OFFLOAD_MBUF_FAST_FREE)
++#else
++    if (dev_info.tx_offload_capa & DEV_TX_OFFLOAD_MBUF_FAST_FREE)
++#endif
++    {
+         printf("set DEV_TX_OFFLOAD_MBUF_FAST_FREE\n");
+         port_conf.txmode.offloads |=
++#if (RTE_VER_YEAR >= 21)
++            RTE_ETH_TX_OFFLOAD_MBUF_FAST_FREE;
++#else
+             DEV_TX_OFFLOAD_MBUF_FAST_FREE;
++#endif
+     }
+ 
+     rte_eth_macaddr_get(p_id, &addr);
+@@ -293,8 +319,13 @@ void xran_add_eth_hdr_vlan(struct rte_ether_addr *dst, uint16_t ethertype, struc
+     PANIC_ON(h == NULL, "mbuf prepend of ether_hdr failed");
+ 
+     /* Fill in the ethernet header. */
++#if (RTE_VER_YEAR >= 21)
++    rte_eth_macaddr_get(mb->port, &h->src_addr);          /* set source addr */
++    h->dst_addr = *dst;                                   /* set dst addr */
++#else
+     rte_eth_macaddr_get(mb->port, &h->s_addr);          /* set source addr */
+     h->d_addr = *dst;                                   /* set dst addr */
++#endif
+     h->ether_type = rte_cpu_to_be_16(ethertype);        /* ethertype too */
+ #if 0
+     struct rte_ether_addr *s = &h->s_addr;
+diff --git a/fhi_lib/lib/src/xran_bfp_ref.cpp b/fhi_lib/lib/src/xran_bfp_ref.cpp
+index e6d3067..8e0abee 100644
+--- a/fhi_lib/lib/src/xran_bfp_ref.cpp
++++ b/fhi_lib/lib/src/xran_bfp_ref.cpp
+@@ -29,6 +29,7 @@
+ #include <complex>
+ #include <algorithm>
+ #include <limits.h>
++#include <limits>
+ 
+ static int16_t saturateAbs(int16_t inVal)
+ {
+diff --git a/fhi_lib/lib/src/xran_bfp_uplane.cpp b/fhi_lib/lib/src/xran_bfp_uplane.cpp
+index 59b6850..322d238 100644
+--- a/fhi_lib/lib/src/xran_bfp_uplane.cpp
++++ b/fhi_lib/lib/src/xran_bfp_uplane.cpp
+@@ -90,7 +90,7 @@ namespace BFP_UPlane
+   {
+     const __m512i* rawData = reinterpret_cast<const __m512i*>(dataIn.dataExpanded);
+     /// Abs
+-    const auto rawDataAbs = _mm512_abs_epi16(rawData[0]);
++    const auto rawDataAbs = _mm512_abs_epi16(_mm512_loadu_epi16(rawData));
+     /// No need to do a full horizontal max operation here, just do a max IQ step,
+     /// compute the exponents and then use a reduce max over all exponent values. This
+     /// is the fastest way to handle a single RB.
+@@ -116,7 +116,7 @@ namespace BFP_UPlane
+     /// Get AVX512 pointer aligned to desired RB
+     const __m512i* rawDataIn = reinterpret_cast<const __m512i*>(dataIn.dataExpanded + numREOffset);
+     /// Apply the exponent shift
+-    const auto compData = _mm512_srai_epi16(*rawDataIn, thisExp);
++    const auto compData = _mm512_srai_epi16(_mm512_loadu_epi16(rawDataIn), thisExp);
+     /// Pack compressed data network byte order
+     const auto compDataBytePacked = networkBytePack(compData);
+     /// Store exponent first
+@@ -201,7 +201,7 @@ namespace BFP_UPlane
+     /// Get AVX512 pointer aligned to desired RB
+     const __m512i* rawDataIn = reinterpret_cast<const __m512i*>(dataIn.dataExpanded + numREOffset);
+     /// Apply the exponent shift
+-    const auto compData = _mm512_srai_epi16(*rawDataIn, thisExp);
++    const auto compData = _mm512_srai_epi16(_mm512_loadu_epi16(rawDataIn), thisExp);
+     /// Store exponent first
+     dataOut->dataCompressed[thisRBExpAddr] = thisExp;
+     /// Now have 1 RB worth of bytes separated into 3 chunks (1 per lane)
+@@ -432,4 +432,4 @@ BlockFloatCompander::BFPExpandUserPlaneAvx512(const CompressedData& dataIn, Expa
+     BFP_UPlane::expandByAllocN<BlockFloatCompander::networkByteUnpack12b>(dataIn, dataOut, k_totNumBytesPerRB12, k_maxExpShift12);
+     break;
+   }
+-}
+\ No newline at end of file
++}
+diff --git a/fhi_lib/lib/src/xran_cb_proc.c b/fhi_lib/lib/src/xran_cb_proc.c
+index 08660f3..2bb5187 100644
+--- a/fhi_lib/lib/src/xran_cb_proc.c
++++ b/fhi_lib/lib/src/xran_cb_proc.c
+@@ -25,7 +25,10 @@
+ 
+ #include <unistd.h>
+ #include <stdio.h>
++#if defined(__arm__) || defined(__aarch64__)
++#else
+ #include <immintrin.h>
++#endif
+ #include <rte_common.h>
+ #include <rte_eal.h>
+ #include <rte_errno.h>
+diff --git a/fhi_lib/lib/src/xran_common.c b/fhi_lib/lib/src/xran_common.c
+index dc40ad9..5968d01 100644
+--- a/fhi_lib/lib/src/xran_common.c
++++ b/fhi_lib/lib/src/xran_common.c
+@@ -31,7 +31,10 @@
+ #include <sys/time.h>
+ #include <time.h>
+ #include <pthread.h>
++#if defined(__arm__) || defined(__aarch64__)
++#else
+ #include <immintrin.h>
++#endif
+ #include <rte_mbuf.h>
+ #include <stdio.h>
+ #include <stdbool.h>
+@@ -714,11 +717,14 @@ process_mbuf(struct rte_mbuf *pkt, void* handle, struct xran_eaxc_info *p_cid)
+     uint8_t compMeth = 0;
+     uint8_t iqWidth = 0;
+ 
++    uint8_t is_prach = 0;
++
+     int ret = MBUF_FREE;
+     uint32_t mb_free = 0;
+     int32_t valid_res = 0;
+     int expect_comp  = (p_dev_ctx->fh_cfg.ru_conf.compMeth != XRAN_COMPMETHOD_NONE);
+     enum xran_comp_hdr_type staticComp = p_dev_ctx->fh_cfg.ru_conf.xranCompHdrType;
++    uint8_t filter_id;
+ 
+     if(first_call == 0)
+         return ret;
+@@ -733,9 +739,9 @@ process_mbuf(struct rte_mbuf *pkt, void* handle, struct xran_eaxc_info *p_cid)
+         return MBUF_FREE;
+ 
+     num_bytes = xran_extract_iq_samples(pkt, &iq_samp_buf,
+-                                &CC_ID, &Ant_ID, &frame_id, &subframe_id, &slot_id, &symb_id, &seq,
++                                &CC_ID, &Ant_ID, &frame_id, &subframe_id, &slot_id, &symb_id, &filter_id, &seq,
+                                 &num_prbu, &start_prbu, &sym_inc, &rb, &sect_id,
+-                                expect_comp, staticComp, &compMeth, &iqWidth);
++                                expect_comp, staticComp, &compMeth, &iqWidth, &is_prach);
+     if (num_bytes <= 0)
+     {
+         print_err("num_bytes is wrong [%d]\n", num_bytes);
+@@ -781,10 +787,9 @@ process_mbuf(struct rte_mbuf *pkt, void* handle, struct xran_eaxc_info *p_cid)
+ 
+     else
+     {
+-        valid_res = xran_pkt_validate(p_dev_ctx,
+-                                pkt, iq_samp_buf, num_bytes,
+-                                CC_ID, Ant_ID, frame_id, subframe_id, slot_id, symb_id,
+-                                &seq, num_prbu, start_prbu, sym_inc, rb, sect_id);
++        pCnt->rx_counter++;
++        pCnt->Rx_on_time++;
++        pCnt->Total_msgs_rcvd++;
+ #ifndef FCN_ADAPT
+         if(valid_res != 0)
+         {
+@@ -807,8 +812,7 @@ process_mbuf(struct rte_mbuf *pkt, void* handle, struct xran_eaxc_info *p_cid)
+             PrachCfg = &(p_dev_ctx->PrachCPConfig);
+         }
+ 
+-        if (Ant_ID >= PrachCfg->eAxC_offset && p_dev_ctx->fh_cfg.prachEnable)
+-        {
++        if (/*Ant_ID >= PrachCfg->eAxC_offset &&*/p_dev_ctx->fh_cfg.prachEnable && is_prach) {
+         /* PRACH packet has ruportid = num_eAxc + ant_id */
+             Ant_ID -= PrachCfg->eAxC_offset;
+         symbol_total_bytes[p_dev_ctx->xran_port_id][CC_ID][Ant_ID] += num_bytes;
+@@ -1412,7 +1416,7 @@ int generate_cpmsg_prach(void *pHandle, struct xran_cp_gen_params *params, struc
+     if(XRAN_FILTERINDEX_PRACH_ABC == pPrachCPConfig->filterIdx)
+     {
+     timeOffset = timeOffset >> nNumerology; //original number is Tc, convert to Ts based on mu
+-    if ((slot_id == 0) || (slot_id == (SLOTNUM_PER_SUBFRAME(pxran_lib_ctx->interval_us_local) >> 1)))
++    if (startSymId > 0 && ((slot_id == 0) || (slot_id == (SLOTNUM_PER_SUBFRAME(pxran_lib_ctx->interval_us_local) >> 1))))
+         timeOffset += 16;
+     }
+     else
+@@ -1547,8 +1551,7 @@ int32_t ring_processing_func(void* args)
+ 
+     for (i = 0; i < ctx->io_cfg.num_vfs && i < XRAN_VF_MAX; i++){
+         for(qi = 0; qi < ctx->rxq_per_port[i]; qi++) {
+-            if (process_ring(ctx->rx_ring[i][qi], i, qi))
+-            return 0;
++            process_ring(ctx->rx_ring[i][qi],i,qi);
+         }
+     }
+ 
+diff --git a/fhi_lib/lib/src/xran_compression.cpp b/fhi_lib/lib/src/xran_compression.cpp
+index 112caae..7c74342 100644
+--- a/fhi_lib/lib/src/xran_compression.cpp
++++ b/fhi_lib/lib/src/xran_compression.cpp
+@@ -62,7 +62,7 @@ xranlib_compress(const struct xranlib_compress_request *request,
+         return xranlib_5gnr_mod_compression(&mod_request, &mod_response);
+   }
+     else{
+-        if(_may_i_use_cpu_feature(_FEATURE_AVX512IFMA52)) {
++        if(false) {
+             return xranlib_compress_avxsnc(request,response);
+         } else {
+             return xranlib_compress_avx512(request,response);
+@@ -89,7 +89,7 @@ xranlib_decompress(const struct xranlib_decompress_request *request,
+         return xranlib_5gnr_mod_decompression(&mod_request, &mod_response);
+       }
+     else{
+-        if(_may_i_use_cpu_feature(_FEATURE_AVX512IFMA52)) {
++        if(false) {
+             return xranlib_decompress_avxsnc(request,response);
+         } else {
+             return xranlib_decompress_avx512(request,response);
+@@ -101,7 +101,7 @@ int32_t
+ xranlib_compress_bfw(const struct xranlib_compress_request *request,
+                         struct xranlib_compress_response *response)
+     {
+-    if(_may_i_use_cpu_feature(_FEATURE_AVX512IFMA52)) {
++    if(false) {
+         return xranlib_compress_avxsnc_bfw(request,response);
+     } else {
+         return xranlib_compress_avx512_bfw(request,response);
+@@ -112,7 +112,7 @@ int32_t
+ xranlib_decompress_bfw(const struct xranlib_decompress_request *request,
+     struct xranlib_decompress_response *response)
+   {
+-    if(_may_i_use_cpu_feature(_FEATURE_AVX512IFMA52)) {
++    if(false) {
+         return xranlib_decompress_avxsnc_bfw(request,response);
+     } else {
+         return xranlib_decompress_avx512_bfw(request,response);
+diff --git a/fhi_lib/lib/src/xran_cp_api.c b/fhi_lib/lib/src/xran_cp_api.c
+index 4498b33..8a2984f 100644
+--- a/fhi_lib/lib/src/xran_cp_api.c
++++ b/fhi_lib/lib/src/xran_cp_api.c
+@@ -25,7 +25,11 @@
+  * @author Intel Corporation
+  *
+  **/
++#if defined(__arm__) || defined(__aarch64__)
++#include <arm_neon.h>
++#else
+ #include <immintrin.h>
++#endif
+ #include <rte_branch_prediction.h>
+ #include <rte_malloc.h>
+ 
+@@ -853,7 +857,11 @@ xran_prepare_sectionext_3(struct rte_mbuf *mbuf, struct xran_sectionext3_info *p
+                          | (params->layerId << xran_cp_radioapp_sec_ext3_LayerId)
+                          | (params->numLayers << xran_cp_radioapp_sec_ext3_NumLayers);
+         data_fourth_byte  = params->beamIdAP1;
++#if defined(__arm__) || defined(__aarch64__)
++        ext3_f->data_field.data_field1 = (int32x4_t){data_first_byte, data_second_byte, data_third_byte, data_fourth_byte};
++#else
+         ext3_f->data_field.data_field1 = _mm_set_epi32(data_fourth_byte, data_third_byte, data_second_byte, data_first_byte);
++#endif
+ 
+         /* convert byte order */
+         tmp = (uint64_t *)ext3_f;
+diff --git a/fhi_lib/lib/src/xran_cp_proc.c b/fhi_lib/lib/src/xran_cp_proc.c
+index 789c6fd..a768efb 100644
+--- a/fhi_lib/lib/src/xran_cp_proc.c
++++ b/fhi_lib/lib/src/xran_cp_proc.c
+@@ -35,7 +35,10 @@
+ #include <stdio.h>
+ #include <pthread.h>
+ #include <malloc.h>
++#if defined(__arm__) || defined(__aarch64__)
++#else
+ #include <immintrin.h>
++#endif
+ 
+ #include <rte_common.h>
+ #include <rte_eal.h>
+diff --git a/fhi_lib/lib/src/xran_delay_measurement.c b/fhi_lib/lib/src/xran_delay_measurement.c
+index 4c943c8..7db51a8 100644
+--- a/fhi_lib/lib/src/xran_delay_measurement.c
++++ b/fhi_lib/lib/src/xran_delay_measurement.c
+@@ -23,7 +23,10 @@
+  * @author Intel Corporation
+  **/
+ #define _GNU_SOURCE
++#if defined(__arm__) || defined(__aarch64__)
++#else
+ #include <immintrin.h>
++#endif
+ #include <assert.h>
+ #include <err.h>
+ #include <arpa/inet.h>
+@@ -572,16 +575,28 @@ int xran_generate_delay_meas(uint16_t port_id, void* handle, uint8_t actionType,
+     PANIC_ON(h == NULL, "mbuf prepend of ether_hdr failed");
+ 
+     /* Fill in the ethernet header. */
++#if (RTE_VER_YEAR >= 21)
++    rte_eth_macaddr_get(port_id, &h->src_addr);          /* set source addr */
++#else
+     rte_eth_macaddr_get(port_id, &h->s_addr);          /* set source addr */
++#endif
+ 
+     if (p_xran_dev_ctx->fh_init.io_cfg.id)
+     {
+ //        rte_ether_addr_copy( (struct rte_ether_addr *)p_xran_dev_ctx->fh_init.p_o_du_addr[port_id],&h->d_addr);
++#if (RTE_VER_YEAR >= 21)
++        h->dst_addr = ctx->entities[port_id][ID_O_DU];   /* set dst addr */
++#else
+         h->d_addr = ctx->entities[port_id][ID_O_DU];   /* set dst addr */
++#endif
+     }
+     else
+     {
++#if (RTE_VER_YEAR >= 21)
++        h->dst_addr = ctx->entities[port_id][ID_O_RU];   /* set dst addr */
++#else
+         h->d_addr = ctx->entities[port_id][ID_O_RU];   /* set dst addr */
++#endif
+ //        rte_ether_addr_copy( (struct rte_ether_addr *)p_xran_dev_ctx->fh_init.p_o_ru_addr[port_id],&h->d_addr);
+     }
+ 
+@@ -752,7 +767,11 @@ int xran_generate_delay_meas(uint16_t port_id, void* handle, uint8_t actionType,
+         int8_t *pa = &p_xran_dev_ctx->fh_init.p_o_du_addr[0];
+         printf("DST_MAC: %02"PRIx8" %02"PRIx8" %02"PRIx8" %02"PRIx8" %02"PRIx8" %02"PRIx8"\n", pa[0],pa[1],pa[2],pa[3],pa[4],pa[5]);
+ #endif
++#if (RTE_VER_YEAR >= 21)
++        rte_ether_addr_copy((struct rte_ether_addr *)&p_xran_dev_ctx->fh_init.p_o_du_addr[0], (struct rte_ether_addr *)&h->dst_addr.addr_bytes[0]);
++#else
+         rte_ether_addr_copy((struct rte_ether_addr *)&p_xran_dev_ctx->fh_init.p_o_du_addr[0], (struct rte_ether_addr *)&h->d_addr.addr_bytes[0]);
++#endif
+ 
+     }
+     else
+@@ -761,13 +780,25 @@ int xran_generate_delay_meas(uint16_t port_id, void* handle, uint8_t actionType,
+         int8_t *pb = &p_xran_dev_ctx->fh_init.p_o_ru_addr[0];
+         printf("DST_MAC: %02"PRIx8" %02"PRIx8" %02"PRIx8" %02"PRIx8" %02"PRIx8" %02"PRIx8"\n", pb[0],pb[1],pb[2],pb[3],pb[4],pb[5]);
+ #endif
++#if (RTE_VER_YEAR >= 21)
++        rte_ether_addr_copy((struct rte_ether_addr *)&p_xran_dev_ctx->fh_init.p_o_ru_addr[0], (struct rte_ether_addr *)&h->dst_addr.addr_bytes[0]);
++#else
+         rte_ether_addr_copy((struct rte_ether_addr *)&p_xran_dev_ctx->fh_init.p_o_ru_addr[0], (struct rte_ether_addr *)&h->d_addr.addr_bytes[0]);
++#endif
+ 
+     }
+ #ifdef XRAN_OWD_DEBUG_PKTS
++#if (RTE_VER_YEAR >= 21)
++    uint8_t *pc = &h->src_addr.addr_bytes[0];
++#else
+     uint8_t *pc = &h->s_addr.addr_bytes[0];
++#endif
+     printf(" Src MAC from packet: %02"PRIx8" %02"PRIx8" %02"PRIx8" %02"PRIx8" %02"PRIx8" %02"PRIx8"\n", pc[0],pc[1],pc[2],pc[3],pc[4],pc[5]);
++#if (RTE_VER_YEAR >= 21)
++    uint8_t *pd = &h->dst_addr.addr_bytes[0];
++#else
+     uint8_t *pd = &h->d_addr.addr_bytes[0];
++#endif
+     printf(" Dst MAC from packet: %02"PRIx8" %02"PRIx8" %02"PRIx8" %02"PRIx8" %02"PRIx8" %02"PRIx8"\n", pd[0],pd[1],pd[2],pd[3],pd[4],pd[5]);
+ #endif
+     // Copy dest address from above
+@@ -862,9 +893,15 @@ int xran_process_delmeas_request(struct rte_mbuf *pkt, void* handle, struct xran
+     // 11) Fill the ethernet header properly by swapping src and dest addressed from the copied frame
+     eth_hdr = rte_pktmbuf_mtod(pkt1, struct rte_ether_hdr *);
+     /* Swap dest and src mac addresses. */
++#if (RTE_VER_YEAR >= 21)
++    rte_ether_addr_copy(&eth_hdr->dst_addr, &addr);
++    rte_ether_addr_copy(&eth_hdr->src_addr, &eth_hdr->dst_addr);
++    rte_ether_addr_copy(&addr, &eth_hdr->src_addr);
++#else
+     rte_ether_addr_copy(&eth_hdr->d_addr, &addr);
+     rte_ether_addr_copy(&eth_hdr->s_addr, &eth_hdr->d_addr);
+     rte_ether_addr_copy(&addr, &eth_hdr->s_addr);
++#endif
+     // Still need to check ol_flags state and update if necessary
+     // Compute the delay td12 and save
+     // Still need to define the DB to save the info and run averages
+@@ -872,9 +909,17 @@ int xran_process_delmeas_request(struct rte_mbuf *pkt, void* handle, struct xran
+     // 12) Send the response right away
+ #ifdef XRAN_OWD_DEBUG_PKTS
+     struct rte_ether_hdr *h = (struct rte_ether_hdr *)rte_pktmbuf_mtod(pkt1, struct rte_ether_hdr*);
++#if (RTE_VER_YEAR >= 21)
++    uint8_t *pc = &h->src_addr.addr_bytes[0];
++#else
+     uint8_t *pc = &h->s_addr.addr_bytes[0];
++#endif
+     printf(" Src MAC from packet: %02"PRIx8" %02"PRIx8" %02"PRIx8" %02"PRIx8" %02"PRIx8" %02"PRIx8"\n", pc[0],pc[1],pc[2],pc[3],pc[4],pc[5]);
++#if (RTE_VER_YEAR >= 21)
++    uint8_t *pd = &h->dst_addr.addr_bytes[0];
++#else
+     uint8_t *pd = &h->d_addr.addr_bytes[0];
++#endif
+     printf(" Dst MAC from packet: %02"PRIx8" %02"PRIx8" %02"PRIx8" %02"PRIx8" %02"PRIx8" %02"PRIx8"\n", pd[0],pd[1],pd[2],pd[3],pd[4],pd[5]);
+ //    printf("EtherType: %04"PRIx16" \n",&h->ether_type);
+ #endif
+@@ -1100,9 +1145,15 @@ int xran_process_delmeas_rem_request(struct rte_mbuf *pkt, void* handle, struct
+     // 9) Fill the ethernet header properly by swapping src and dest addressed from the copied frame
+     eth_hdr = rte_pktmbuf_mtod(pkt1, struct rte_ether_hdr *);
+     /* Swap dest and src mac addresses. */
++#if (RTE_VER_YEAR >= 21)
++    rte_ether_addr_copy(&eth_hdr->dst_addr, &addr);
++    rte_ether_addr_copy(&eth_hdr->src_addr, &eth_hdr->dst_addr);
++    rte_ether_addr_copy(&addr, &eth_hdr->src_addr);
++#else
+     rte_ether_addr_copy(&eth_hdr->d_addr, &addr);
+     rte_ether_addr_copy(&eth_hdr->s_addr, &eth_hdr->d_addr);
+     rte_ether_addr_copy(&addr, &eth_hdr->s_addr);
++#endif
+     // 10) Send the response right away
+     pdm  = (struct xran_ecpri_del_meas_pkt*)rte_pktmbuf_mtod_offset(pkt1, struct xran_ecpri_del_meas_pkt *, sizeof(struct rte_ether_hdr) );
+     pdm->cmnhdr.bits.ecpri_payl_size	 = 10 + powdc->owdm_PlLength; // 10 correponds to the xran_ecpri_delay_meas_pl minus the dummy_bytes field which now allows the user to select the length for this field to be sent
+@@ -1177,9 +1228,15 @@ int xran_process_delmeas_rem_request_w_fup(struct rte_mbuf* pkt, void* handle, s
+     // 7) Fill the ethernet header properly by swapping src and dest addressed from the copied frame
+     eth_hdr = rte_pktmbuf_mtod(pkt1, struct rte_ether_hdr *);
+     /* Swap dest and src mac addresses. */
++#if (RTE_VER_YEAR >= 21)
++    rte_ether_addr_copy(&eth_hdr->dst_addr, &addr);
++    rte_ether_addr_copy(&eth_hdr->src_addr, &eth_hdr->dst_addr);
++    rte_ether_addr_copy(&addr, &eth_hdr->src_addr);
++#else
+     rte_ether_addr_copy(&eth_hdr->d_addr, &addr);
+     rte_ether_addr_copy(&eth_hdr->s_addr, &eth_hdr->d_addr);
+     rte_ether_addr_copy(&addr, &eth_hdr->s_addr);
++#endif
+     // 8) Duplicate packet to be used for the follow up packet
+     pkt2 = rte_pktmbuf_copy(pkt1, _eth_mbuf_pool, 0, UINT32_MAX);
+     // 9) Record the current timestamp when the request with follow up is being sent
+@@ -1283,9 +1340,15 @@ int xran_process_delmeas_follow_up(struct rte_mbuf *pkt, void* handle, struct xr
+     // 9) Fill the ethernet header properly by swapping src and dest addressed from the copied frame
+     eth_hdr = rte_pktmbuf_mtod(pkt1, struct rte_ether_hdr *);
+     /* Swap dest and src mac addresses. */
++#if (RTE_VER_YEAR >= 21)
++    rte_ether_addr_copy(&eth_hdr->dst_addr, &addr);
++    rte_ether_addr_copy(&eth_hdr->src_addr, &eth_hdr->dst_addr);
++    rte_ether_addr_copy(&addr, &eth_hdr->src_addr);
++#else
+     rte_ether_addr_copy(&eth_hdr->d_addr, &addr);
+     rte_ether_addr_copy(&eth_hdr->s_addr, &eth_hdr->d_addr);
+     rte_ether_addr_copy(&addr, &eth_hdr->s_addr);
++#endif
+     pdm  = (struct xran_ecpri_del_meas_pkt*)rte_pktmbuf_mtod_offset(pkt1, struct xran_ecpri_del_meas_pkt *, sizeof(struct rte_ether_hdr) );
+     pdm->cmnhdr.bits.ecpri_payl_size	 = 10 + powdc->owdm_PlLength; // 10 correponds to the xran_ecpri_delay_meas_pl minus the dummy_bytes field which now allows the user to select the length for this field to be sent
+     pdm->cmnhdr.bits.ecpri_payl_size    = rte_cpu_to_be_16(pdm->cmnhdr.bits.ecpri_payl_size);
+diff --git a/fhi_lib/lib/src/xran_dev.c b/fhi_lib/lib/src/xran_dev.c
+index 4acade1..c939edc 100644
+--- a/fhi_lib/lib/src/xran_dev.c
++++ b/fhi_lib/lib/src/xran_dev.c
+@@ -35,7 +35,10 @@
+ #include <stdio.h>
+ #include <pthread.h>
+ #include <malloc.h>
++#if defined(__arm__) || defined(__aarch64__)
++#else
+ #include <immintrin.h>
++#endif
+ #include <rte_common.h>
+ #include <rte_eal.h>
+ #include <rte_errno.h>
+@@ -55,6 +58,27 @@
+ 
+ static struct xran_device_ctx *g_xran_dev_ctx[XRAN_PORTS_NUM] = {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
+ 
++struct xran_device_ctx *allocate_device_ctx(size_t xran_ports_num, size_t alignment) {
++  void *ptr = NULL;
++
++#if defined(__arm__) || defined(__aarch64__)
++  // ARM-specific memory allocation
++  if (posix_memalign(&ptr, alignment, sizeof(struct xran_device_ctx) * xran_ports_num) != 0) {
++    print_err("posix_memalign: pCtx allocation error\n");
++    return NULL;
++  }
++#else
++  // Intel-specific memory allocation
++  ptr = _mm_malloc(sizeof(struct xran_device_ctx) * xran_ports_num, alignment);
++  if (ptr == NULL) {
++    print_err("_mm_malloc: pCtx allocation error\n");
++    return NULL;
++  }
++#endif
++
++  return (struct xran_device_ctx *)ptr;
++}
++
+ int32_t
+ xran_dev_create_ctx(uint32_t xran_ports_num)
+ {
+@@ -64,7 +88,7 @@ xran_dev_create_ctx(uint32_t xran_ports_num)
+     if (xran_ports_num > XRAN_PORTS_NUM)
+         return -1;
+ 
+-    pCtx = (struct xran_device_ctx *) _mm_malloc(sizeof(struct xran_device_ctx)*xran_ports_num, 64);
++    pCtx = allocate_device_ctx(xran_ports_num, 64);
+     if(pCtx){
+         for(i = 0; i < xran_ports_num; i++){
+             g_xran_dev_ctx[i] = pCtx;
+diff --git a/fhi_lib/lib/src/xran_main.c b/fhi_lib/lib/src/xran_main.c
+index 7c472d7..216c7f5 100644
+--- a/fhi_lib/lib/src/xran_main.c
++++ b/fhi_lib/lib/src/xran_main.c
+@@ -35,7 +35,11 @@
+ #include <stdio.h>
+ #include <pthread.h>
+ #include <malloc.h>
++#if defined(__arm__) || defined(__aarch64__)
++#include <arm_neon.h>
++#else
+ #include <immintrin.h>
++#endif
+ #include <numa.h>
+ #include <rte_common.h>
+ #include <rte_eal.h>
+@@ -103,6 +107,25 @@ void tti_to_phy_cb(struct rte_timer *tim, void *arg);
+ 
+ int32_t xran_pkt_gen_process_ring(struct rte_ring *r);
+ 
++void *mm_allocate_handle(size_t size, size_t alignment) {
++  void *ptr = NULL;
++#if defined(__arm__) || defined(__aarch64__)
++  // ARM-specific memory allocation
++  if (posix_memalign(&ptr, alignment, size) != 0) {
++    fprintf(stderr, "posix_memalign: allocation error\n");
++    return NULL;
++  }
++#else
++  // Intel-specific memory allocation
++  ptr = _mm_malloc(size, alignment);
++  if (ptr == NULL) {
++    fprintf(stderr, "_mm_malloc: allocation error\n");
++    return NULL;
++  }
++#endif
++  return ptr;
++}
++
+ void
+ xran_updateSfnSecStart(void)
+ {
+@@ -306,7 +329,7 @@ xran_init_prach(struct xran_fh_config* pConf, struct xran_device_ctx * p_xran_de
+         printf("PRACH start symbol %u lastsymbol %u\n", p_xran_dev_ctx->prach_start_symbol[0], p_xran_dev_ctx->prach_last_symbol[0]);
+     }
+ 
+-    pPrachCPConfig->eAxC_offset = xran_get_num_eAxc(p_xran_dev_ctx);
++    pPrachCPConfig->eAxC_offset = pPRACHConfig->eAxC_offset;
+     print_dbg("PRACH eAxC_offset %d\n",  pPrachCPConfig->eAxC_offset);
+ 
+     /* Save some configs for app */
+@@ -1570,6 +1593,7 @@ int32_t handle_ecpri_ethertype(struct rte_mbuf* pkt_q[], uint16_t xport_id, stru
+         {
+         case ECPRI_IQ_DATA:
+                 pkt_data[num_data++] = pkt;
++            uint8_t *pkt_bytes=rte_pktmbuf_mtod(pkt,uint8_t*);
+             break;
+         // For RU emulation
+         case ECPRI_RT_CONTROL_DATA:
+@@ -1587,7 +1611,7 @@ int32_t handle_ecpri_ethertype(struct rte_mbuf* pkt_q[], uint16_t xport_id, stru
+                 break;
+             default:
+                 if (p_dev_ctx->fh_init.io_cfg.id == O_DU) {
+-                    print_err("Invalid eCPRI message type - %d", ecpri_hdr->cmnhdr.bits.ecpri_mesg_type);
++                    rte_pktmbuf_free(pkt);
+         }
+                 break;
+     }
+@@ -1876,7 +1900,7 @@ xran_sector_get_instances (uint32_t xran_port, void * pDevHandle, uint16_t nNumI
+     for (i = 0; i < nNumInstances; i++) {
+ 
+         /* Allocate Memory for CC handles */
+-        pCcHandle = (XranSectorHandleInfo *) _mm_malloc( /*"xran_cc_handles",*/ sizeof (XranSectorHandleInfo), 64);
++        pCcHandle = (XranSectorHandleInfo *)mm_allocate_handle( /*"xran_cc_handles",*/ sizeof (XranSectorHandleInfo), 64);
+ 
+         if(pCcHandle == NULL)
+             return XRAN_STATUS_RESOURCE;
+@@ -2347,8 +2371,7 @@ ring_processing_func_per_port(void* args)
+     for (i = 0; i < ctx->io_cfg.num_vfs && i < XRAN_VF_MAX; i = i+1) {
+         if (ctx->vf2xran_port[i] == port_id) {
+             for(qi = 0; qi < ctx->rxq_per_port[port_id]; qi++){
+-                if (process_ring(ctx->rx_ring[i][qi], i, qi))
+-                    return 0;
++                process_ring(ctx->rx_ring[i][qi],i,qi);
+             }
+         }
+     }
+@@ -2414,9 +2437,6 @@ xran_spawn_workers(void)
+         nWorkerCore = nWorkerCore << 1;
+     }
+ 
+-    extern int _may_i_use_cpu_feature(unsigned __int64);
+-    icx_cpu = _may_i_use_cpu_feature(_FEATURE_AVX512IFMA52);
+-
+     printf("O-XU      %d\n", eth_ctx->io_cfg.id);
+     printf("HW        %d\n", icx_cpu);
+     printf("Num cores %d\n", total_num_cores);
+@@ -2453,7 +2473,7 @@ xran_spawn_workers(void)
+                 eth_ctx->time_wrk_cfg.arg   = NULL;
+                 eth_ctx->time_wrk_cfg.state = 1;
+ 
+-                pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                pThCtx = (struct xran_worker_th_ctx*)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                 if(pThCtx == NULL){
+                     print_err("pThCtx allocation error\n");
+                     return XRAN_STATUS_FAIL;
+@@ -2475,7 +2495,7 @@ xran_spawn_workers(void)
+ 
+                 /* workers */
+                 /** 0 **/
+-                pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                pThCtx = (struct xran_worker_th_ctx*)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                 if(pThCtx == NULL){
+                     print_err("pThCtx allocation error\n");
+                     return XRAN_STATUS_FAIL;
+@@ -2502,7 +2522,7 @@ xran_spawn_workers(void)
+                 }
+ 
+                 /** 1 - CP GEN **/
+-                pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                pThCtx = (struct xran_worker_th_ctx*)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                 if(pThCtx == NULL){
+                     print_err("pThCtx allocation error\n");
+                     return XRAN_STATUS_FAIL;
+@@ -2536,7 +2556,7 @@ xran_spawn_workers(void)
+                 else
+                 p_dev->tx_sym_gen_func = xran_process_tx_sym_cp_on_opt;
+ 
+-                pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                pThCtx = (struct xran_worker_th_ctx*)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                 if(pThCtx == NULL){
+                     print_err("pThCtx allocation error\n");
+                     return XRAN_STATUS_FAIL;
+@@ -2559,7 +2579,7 @@ xran_spawn_workers(void)
+ 
+                     /* workers */
+                     /** 0 **/
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx*)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -2586,7 +2606,7 @@ xran_spawn_workers(void)
+                     }
+ 
+                     /** 1 - CP GEN **/
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx*)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -2613,7 +2633,7 @@ xran_spawn_workers(void)
+ 
+                     /* workers */
+                     /** 0 **/
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx*)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -2628,7 +2648,7 @@ xran_spawn_workers(void)
+                     eth_ctx->pkt_wrk_cfg[pThCtx->worker_id].arg   = pThCtx;
+ 
+                     /** 1 - CP GEN **/
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx*)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -2643,7 +2663,7 @@ xran_spawn_workers(void)
+                     eth_ctx->pkt_wrk_cfg[pThCtx->worker_id].arg   = pThCtx;
+ 
+                     /** 2 UP GEN **/
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx*)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -2682,7 +2702,7 @@ xran_spawn_workers(void)
+ 
+                     /* workers */
+                     /** 0 **/
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx*)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -2697,7 +2717,7 @@ xran_spawn_workers(void)
+                     eth_ctx->pkt_wrk_cfg[pThCtx->worker_id].arg   = pThCtx;
+ 
+                     /** 1 - CP GEN **/
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx*)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -2712,7 +2732,7 @@ xran_spawn_workers(void)
+                     eth_ctx->pkt_wrk_cfg[pThCtx->worker_id].arg   = pThCtx;
+ 
+                     /** 2 UP GEN **/
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx*)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -2727,7 +2747,7 @@ xran_spawn_workers(void)
+                     eth_ctx->pkt_wrk_cfg[pThCtx->worker_id].arg   = pThCtx;
+ 
+                     /** 3 UP GEN **/
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx*)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -2766,7 +2786,7 @@ xran_spawn_workers(void)
+ 
+                     /* workers */
+                     /** 0 **/
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx*)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -2781,7 +2801,7 @@ xran_spawn_workers(void)
+                     eth_ctx->pkt_wrk_cfg[pThCtx->worker_id].arg   = pThCtx;
+ 
+                     /** 1 Eth Tx **/
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx*)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+ 
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+@@ -2797,7 +2817,7 @@ xran_spawn_workers(void)
+                     eth_ctx->pkt_wrk_cfg[pThCtx->worker_id].arg   = pThCtx;
+ 
+                     /** 2 - CP GEN **/
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx*)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -2812,7 +2832,7 @@ xran_spawn_workers(void)
+                     eth_ctx->pkt_wrk_cfg[pThCtx->worker_id].arg   = pThCtx;
+ 
+                     /** 3 UP GEN **/
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx*)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -2827,7 +2847,7 @@ xran_spawn_workers(void)
+                     eth_ctx->pkt_wrk_cfg[pThCtx->worker_id].arg   = pThCtx;
+ 
+                     /** 4 UP GEN **/
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx*)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -2861,7 +2881,7 @@ xran_spawn_workers(void)
+ 
+                     /* workers */
+                     /** 0  Eth RX */
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx*)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -2876,7 +2896,7 @@ xran_spawn_workers(void)
+                     eth_ctx->pkt_wrk_cfg[pThCtx->worker_id].arg   = pThCtx;
+ 
+                     /** 1  FH RX and BBDEV */
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx*)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -2891,7 +2911,7 @@ xran_spawn_workers(void)
+                     eth_ctx->pkt_wrk_cfg[pThCtx->worker_id].arg   = pThCtx;
+ 
+                     /** 2  FH RX and BBDEV */
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx*)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -2906,7 +2926,7 @@ xran_spawn_workers(void)
+                     eth_ctx->pkt_wrk_cfg[pThCtx->worker_id].arg   = pThCtx;
+ 
+                     /** 3  FH RX and BBDEV */
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx*)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -2921,7 +2941,7 @@ xran_spawn_workers(void)
+                     eth_ctx->pkt_wrk_cfg[pThCtx->worker_id].arg   = pThCtx;
+ 
+                     /**  FH TX and BBDEV */
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx*)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -2969,7 +2989,7 @@ xran_spawn_workers(void)
+ 
+             /* p_dev->tx_sym_gen_func = xran_process_tx_sym_cp_on_opt; */
+ 
+-            pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++            pThCtx = (struct xran_worker_th_ctx*)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+             if(pThCtx == NULL){
+                 print_err("pThCtx allocation error\n");
+                 return XRAN_STATUS_FAIL;
+@@ -3004,7 +3024,7 @@ xran_spawn_workers(void)
+ 
+                     /* workers */
+                     /** 0 **/
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx*)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -3031,7 +3051,7 @@ xran_spawn_workers(void)
+                     }
+ 
+                     /** 1 - CP GEN **/
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx*)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -3062,7 +3082,7 @@ xran_spawn_workers(void)
+ 
+                 /* workers */
+                 /** 0 **/
+-                pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                pThCtx = (struct xran_worker_th_ctx*)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                 if(pThCtx == NULL){
+                     print_err("pThCtx allocation error\n");
+                     return XRAN_STATUS_FAIL;
+@@ -3089,7 +3109,7 @@ xran_spawn_workers(void)
+                 }
+ 
+                 /** 1 - CP GEN **/
+-                pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                pThCtx = (struct xran_worker_th_ctx*)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                 if(pThCtx == NULL){
+                     print_err("pThCtx allocation error\n");
+                     return XRAN_STATUS_FAIL;
+@@ -3115,7 +3135,7 @@ xran_spawn_workers(void)
+ 
+                     /* workers */
+                     /** 0 **/
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx*)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -3130,7 +3150,7 @@ xran_spawn_workers(void)
+                     eth_ctx->pkt_wrk_cfg[pThCtx->worker_id].arg   = pThCtx;
+ 
+                     /** 1 - CP GEN **/
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx*)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -3145,7 +3165,7 @@ xran_spawn_workers(void)
+                     eth_ctx->pkt_wrk_cfg[pThCtx->worker_id].arg   = pThCtx;
+ 
+                     /** 2 UP GEN **/
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx*)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -3184,7 +3204,7 @@ xran_spawn_workers(void)
+ 
+                     /* workers */
+                     /** 0  FH RX and BBDEV */
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx*)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -3199,7 +3219,7 @@ xran_spawn_workers(void)
+                     eth_ctx->pkt_wrk_cfg[pThCtx->worker_id].arg   = pThCtx;
+ 
+                     /** 1 - CP GEN **/
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx*)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -3214,7 +3234,7 @@ xran_spawn_workers(void)
+                     eth_ctx->pkt_wrk_cfg[pThCtx->worker_id].arg   = pThCtx;
+ 
+                     /** 2 UP GEN **/
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx*)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -3229,7 +3249,7 @@ xran_spawn_workers(void)
+                     eth_ctx->pkt_wrk_cfg[pThCtx->worker_id].arg   = pThCtx;
+ 
+                     /** 3 UP GEN **/
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx*)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -3266,7 +3286,7 @@ xran_spawn_workers(void)
+ 
+                     /* workers */
+                     /** 0 **/
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx*)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -3281,7 +3301,7 @@ xran_spawn_workers(void)
+                     eth_ctx->pkt_wrk_cfg[pThCtx->worker_id].arg   = pThCtx;
+ 
+                     /** 1 - CP GEN **/
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx*)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -3296,7 +3316,7 @@ xran_spawn_workers(void)
+                     eth_ctx->pkt_wrk_cfg[pThCtx->worker_id].arg   = pThCtx;
+ 
+                     /** 2 UP GEN **/
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx*)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -3311,7 +3331,7 @@ xran_spawn_workers(void)
+                     eth_ctx->pkt_wrk_cfg[pThCtx->worker_id].arg   = pThCtx;
+ 
+                     /** 3 UP GEN **/
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx*)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -3326,7 +3346,7 @@ xran_spawn_workers(void)
+                     eth_ctx->pkt_wrk_cfg[pThCtx->worker_id].arg   = pThCtx;
+ 
+                     /** 4 UP GEN **/
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx*)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -3348,7 +3368,7 @@ xran_spawn_workers(void)
+ 
+                     /* workers */
+                     /** 0  Eth RX */
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx*)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -3363,7 +3383,7 @@ xran_spawn_workers(void)
+                     eth_ctx->pkt_wrk_cfg[pThCtx->worker_id].arg   = pThCtx;
+ 
+                     /** 1  FH RX and BBDEV */
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx*)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -3378,7 +3398,7 @@ xran_spawn_workers(void)
+                     eth_ctx->pkt_wrk_cfg[pThCtx->worker_id].arg   = pThCtx;
+ 
+                     /** 2  FH RX and BBDEV */
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx*)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -3393,7 +3413,7 @@ xran_spawn_workers(void)
+                     eth_ctx->pkt_wrk_cfg[pThCtx->worker_id].arg   = pThCtx;
+ 
+                     /** 3  FH RX and BBDEV */
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx*)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -3408,7 +3428,7 @@ xran_spawn_workers(void)
+                     eth_ctx->pkt_wrk_cfg[pThCtx->worker_id].arg   = pThCtx;
+ 
+                     /**  FH TX and BBDEV */
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx*)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -3435,7 +3455,7 @@ xran_spawn_workers(void)
+ 
+                 /* workers */
+                 /** 0  Eth RX */
+-                pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                pThCtx = (struct xran_worker_th_ctx*)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                 if(pThCtx == NULL){
+                     print_err("pThCtx allocation error\n");
+                     return XRAN_STATUS_FAIL;
+@@ -3450,7 +3470,7 @@ xran_spawn_workers(void)
+                 eth_ctx->pkt_wrk_cfg[pThCtx->worker_id].arg   = pThCtx;
+ 
+                 /** 1  FH RX and BBDEV */
+-                pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                pThCtx = (struct xran_worker_th_ctx*)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                 if(pThCtx == NULL){
+                     print_err("pThCtx allocation error\n");
+                     return XRAN_STATUS_FAIL;
+@@ -3465,7 +3485,7 @@ xran_spawn_workers(void)
+                 eth_ctx->pkt_wrk_cfg[pThCtx->worker_id].arg   = pThCtx;
+ 
+                 /** 2  FH RX and BBDEV */
+-                pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                pThCtx = (struct xran_worker_th_ctx*)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                 if(pThCtx == NULL){
+                     print_err("pThCtx allocation error\n");
+                     return XRAN_STATUS_FAIL;
+@@ -3480,7 +3500,7 @@ xran_spawn_workers(void)
+                 eth_ctx->pkt_wrk_cfg[pThCtx->worker_id].arg   = pThCtx;
+ 
+                 /** 3  FH RX and BBDEV */
+-                pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                pThCtx = (struct xran_worker_th_ctx*)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                 if(pThCtx == NULL){
+                     print_err("pThCtx allocation error\n");
+                     return XRAN_STATUS_FAIL;
+@@ -3495,7 +3515,7 @@ xran_spawn_workers(void)
+                     eth_ctx->pkt_wrk_cfg[pThCtx->worker_id].arg   = pThCtx;
+ 
+                 /** 4  FH RX and BBDEV */
+-                pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                pThCtx = (struct xran_worker_th_ctx*)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                 if(pThCtx == NULL){
+                     print_err("pThCtx allocation error\n");
+                     return XRAN_STATUS_FAIL;
+@@ -3510,7 +3530,7 @@ xran_spawn_workers(void)
+                 eth_ctx->pkt_wrk_cfg[pThCtx->worker_id].arg   = pThCtx;
+ 
+                 /**  FH TX and BBDEV */
+-                pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                pThCtx = (struct xran_worker_th_ctx*)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                 if(pThCtx == NULL){
+                     print_err("pThCtx allocation error\n");
+                     return XRAN_STATUS_FAIL;
+@@ -3537,7 +3557,7 @@ xran_spawn_workers(void)
+ 
+                 /* workers */
+                 /** 0 **/
+-                pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                pThCtx = (struct xran_worker_th_ctx*)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                 if(pThCtx == NULL){
+                     print_err("pThCtx allocation error\n");
+                     return XRAN_STATUS_FAIL;
+@@ -3562,7 +3582,7 @@ xran_spawn_workers(void)
+                 }
+ 
+                 /** 1 - CP GEN **/
+-                pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                pThCtx = (struct xran_worker_th_ctx*)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                 if(pThCtx == NULL){
+                     print_err("pThCtx allocation error\n");
+                     return XRAN_STATUS_FAIL;
+@@ -3577,7 +3597,7 @@ xran_spawn_workers(void)
+                 eth_ctx->pkt_wrk_cfg[pThCtx->worker_id].arg   = pThCtx;
+ 
+                 /** 2 UP GEN **/
+-                pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                pThCtx = (struct xran_worker_th_ctx*)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                 if(pThCtx == NULL){
+                     print_err("pThCtx allocation error\n");
+                     return XRAN_STATUS_FAIL;
+@@ -3602,7 +3622,7 @@ xran_spawn_workers(void)
+                 }
+ 
+                 /** 3 UP GEN **/
+-                pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                pThCtx = (struct xran_worker_th_ctx*)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                 if(pThCtx == NULL){
+                     print_err("pThCtx allocation error\n");
+                     return XRAN_STATUS_FAIL;
+@@ -3627,7 +3647,7 @@ xran_spawn_workers(void)
+                 }
+ 
+                 /** 4 UP GEN **/
+-                pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                pThCtx = (struct xran_worker_th_ctx*)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                 if(pThCtx == NULL){
+                     print_err("pThCtx allocation error\n");
+                     return XRAN_STATUS_FAIL;
+@@ -3642,7 +3662,7 @@ xran_spawn_workers(void)
+                 eth_ctx->pkt_wrk_cfg[pThCtx->worker_id].arg   = pThCtx;
+ 
+                 /** 5 UP GEN **/
+-                pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                pThCtx = (struct xran_worker_th_ctx*)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                 if(pThCtx == NULL){
+                     print_err("pThCtx allocation error\n");
+                     return XRAN_STATUS_FAIL;
+@@ -4034,6 +4054,24 @@ xran_get_slot_idx (uint32_t PortId, uint32_t *nFrameIdx, uint32_t *nSubframeIdx,
+     return tti;
+ }
+ 
++int32_t
++xran_get_slot_idx_from_tti(uint32_t tti, uint32_t *nFrameIdx, uint32_t *nSubframeIdx, uint32_t *nSlotIdx, uint64_t *nSecond)
++{
++    struct xran_device_ctx * p_xran_dev_ctx = xran_dev_get_ctx_by_id(0);
++    if (!p_xran_dev_ctx)
++    {
++      print_err("Null xRAN context on port id %u!!\n", 0);
++      return 0;
++    }
++
++    *nSlotIdx     = (uint32_t)XranGetSlotNum(tti, SLOTNUM_PER_SUBFRAME(p_xran_dev_ctx->interval_us_local));
++    *nSubframeIdx = (uint32_t)XranGetSubFrameNum(tti,SLOTNUM_PER_SUBFRAME(p_xran_dev_ctx->interval_us_local),  SUBFRAMES_PER_SYSTEMFRAME);
++    *nFrameIdx    = (uint32_t)XranGetFrameNum(tti,0/*xran_getSfnSecStart()*/,SUBFRAMES_PER_SYSTEMFRAME, SLOTNUM_PER_SUBFRAME(p_xran_dev_ctx->interval_us_local));
++    *nSecond      = timing_get_current_second();
++
++    return tti;
++}
++
+ int32_t
+ xran_set_debug_stop(int32_t value, int32_t count)
+ {
+diff --git a/fhi_lib/lib/src/xran_mem_mgr.c b/fhi_lib/lib/src/xran_mem_mgr.c
+index e1dcb6c..b3c3fae 100644
+--- a/fhi_lib/lib/src/xran_mem_mgr.c
++++ b/fhi_lib/lib/src/xran_mem_mgr.c
+@@ -35,7 +35,11 @@
+ #include <stdio.h>
+ #include <pthread.h>
+ #include <malloc.h>
++#if defined(__arm__) || defined(__aarch64__)
++#include <arm_neon.h>
++#else
+ #include <immintrin.h>
++#endif
+ 
+ #include <rte_common.h>
+ #include <rte_eal.h>
+diff --git a/fhi_lib/lib/src/xran_mod_compression.cpp b/fhi_lib/lib/src/xran_mod_compression.cpp
+index 7d4a5d0..b9b44ac 100644
+--- a/fhi_lib/lib/src/xran_mod_compression.cpp
++++ b/fhi_lib/lib/src/xran_mod_compression.cpp
+@@ -747,9 +747,9 @@ int xranlib_5gnr_mod_compression(const struct xranlib_5gnr_mod_compression_reque
+ #ifdef C_Module_Used
+     return (xranlib_5gnr_mod_compression_c(request, response));
+ #else
+-    if(_may_i_use_cpu_feature(_FEATURE_AVX512IFMA52))
++    if (false) {
+         return (xranlib_5gnr_mod_compression_snc(request, response));
+-    else
++    } else {
+         return (xranlib_5gnr_mod_compression_avx512(request, response));
+ #endif
+ }
+diff --git a/fhi_lib/lib/src/xran_rx_proc.c b/fhi_lib/lib/src/xran_rx_proc.c
+index e7056f4..0d3d8ac 100644
+--- a/fhi_lib/lib/src/xran_rx_proc.c
++++ b/fhi_lib/lib/src/xran_rx_proc.c
+@@ -35,7 +35,11 @@
+ #include <stdio.h>
+ #include <pthread.h>
+ #include <malloc.h>
++#if defined(__arm__) || defined(__aarch64__)
++#include <arm_neon.h>
++#else
+ #include <immintrin.h>
++#endif
+ 
+ #include <rte_common.h>
+ #include <rte_eal.h>
+diff --git a/fhi_lib/lib/src/xran_timer.c b/fhi_lib/lib/src/xran_timer.c
+index 14a6a41..55182d8 100644
+--- a/fhi_lib/lib/src/xran_timer.c
++++ b/fhi_lib/lib/src/xran_timer.c
+@@ -29,7 +29,11 @@
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <stdint.h>
++#if defined(__arm__) || defined(__aarch64__)
++#include <arm_neon.h>
++#else
+ #include <immintrin.h>
++#endif
+ #include "xran_timer.h"
+ #include "xran_printf.h"
+ #include "xran_mlog_lnx.h"
+@@ -141,12 +145,30 @@ void timing_adjust_gps_second(struct timespec* p_time)
+ 
+     return;
+ }
++#if defined(__x86_64__)
+ uint64_t xran_tick(void)
+ {
+     uint32_t hi, lo;
+     __asm volatile ("rdtsc" : "=a"(lo), "=d"(hi));
+     return ( (uint64_t)lo)|( ((uint64_t)hi)<<32 );
+ }
++#elif defined(__aarch64__)
++#include <sys/time.h>
++uint64_t xran_tick(void) {
++    struct timeval tv;
++    gettimeofday(&tv, NULL);
++    return (uint64_t)tv.tv_sec * 1000000 + tv.tv_usec;
++}
++#elif defined(__arm__)
++#include <time.h>
++uint64_t xran_tick(void) {
++    struct timespec ts;
++    clock_gettime(CLOCK_MONOTONIC, &ts);
++    return (uint64_t)ts.tv_sec * 1000000000LL + ts.tv_nsec;
++}
++#else
++#error "Unsupported architecture"
++#endif
+ 
+ unsigned long get_ticks_diff(unsigned long curr_tick, unsigned long last_tick)
+ {
+diff --git a/fhi_lib/lib/src/xran_transport.c b/fhi_lib/lib/src/xran_transport.c
+index 72249bc..6b30084 100644
+--- a/fhi_lib/lib/src/xran_transport.c
++++ b/fhi_lib/lib/src/xran_transport.c
+@@ -27,7 +27,10 @@
+ 
+ #include <stdint.h>
+ #include <endian.h>
++#if defined(__arm__) || defined(__aarch64__)
++#else
+ #include <immintrin.h>
++#endif
+ #include <rte_common.h>
+ #include <rte_config.h>
+ 
+diff --git a/fhi_lib/lib/src/xran_tx_proc.c b/fhi_lib/lib/src/xran_tx_proc.c
+index 45a17a8..85ce6fa 100644
+--- a/fhi_lib/lib/src/xran_tx_proc.c
++++ b/fhi_lib/lib/src/xran_tx_proc.c
+@@ -35,7 +35,11 @@
+ #include <stdio.h>
+ #include <pthread.h>
+ #include <malloc.h>
++#if defined(__arm__) || defined(__aarch64__)
++#include <arm_neon.h>
++#else
+ #include <immintrin.h>
++#endif
+ 
+ #include <rte_common.h>
+ #include <rte_eal.h>
+@@ -1514,7 +1518,11 @@ xran_process_tx_sym_cp_on_opt(void* pHandle, uint8_t ctx_id, uint32_t tti, int32
+                         mb_oran_hdr_ext->buf_addr = ext_buff;
+                         mb_oran_hdr_ext->buf_iova = ((struct rte_mempool_objhdr*)RTE_PTR_SUB(mb_base, rte_mempool_objhdr_size))->iova + RTE_PTR_DIFF(ext_buff, mb_base);
+                         mb_oran_hdr_ext->buf_len = ext_buff_len;
++#if (RTE_VER_YEAR >= 21)
++                        mb_oran_hdr_ext->ol_flags |= RTE_MBUF_F_EXTERNAL;
++#else
+                         mb_oran_hdr_ext->ol_flags |= EXT_ATTACHED_MBUF;
++#endif
+                         mb_oran_hdr_ext->shinfo = p_share_data;
+                         mb_oran_hdr_ext->data_off = (uint16_t)RTE_MIN((uint16_t)RTE_PKTMBUF_HEADROOM, (uint16_t)mb_oran_hdr_ext->buf_len) - rte_ether_hdr_size;
+                         mb_oran_hdr_ext->data_len = (uint16_t)(mb_oran_hdr_ext->data_len + rte_ether_hdr_size);
+@@ -1532,8 +1540,13 @@ xran_process_tx_sym_cp_on_opt(void* pHandle, uint8_t ctx_id, uint32_t tti, int32
+ 
+                         /* Fill in the ethernet header. */
+ #ifndef TRANSMIT_BURST
++#if (RTE_VER_YEAR >= 21)
++                        rte_eth_macaddr_get(mb_oran_hdr_ext->port, &((struct rte_ether_hdr*)pStart)->src_addr);         /* set source addr */
++                        ((struct rte_ether_hdr*)pStart)->dst_addr = eth_ctx->entities[vf_id][ID_O_RU];                  /* set dst addr */
++#else
+                         rte_eth_macaddr_get(mb_oran_hdr_ext->port, &((struct rte_ether_hdr*)pStart)->s_addr);         /* set source addr */
+                         ((struct rte_ether_hdr*)pStart)->d_addr = eth_ctx->entities[vf_id][ID_O_RU];                  /* set dst addr */
++#endif
+                         ((struct rte_ether_hdr*)pStart)->ether_type = ETHER_TYPE_ECPRI_BE;                            /* ethertype */
+ #endif
+                         nPktSize = sizeof(struct rte_ether_hdr)
+@@ -1878,7 +1891,11 @@ xran_process_tx_srs_cp_on(void* pHandle, uint8_t ctx_id, uint32_t tti, int32_t s
+                         mb_oran_hdr_ext->buf_addr = ext_buff;
+                         mb_oran_hdr_ext->buf_iova = ((struct rte_mempool_objhdr*)RTE_PTR_SUB(mb_base, rte_mempool_objhdr_size))->iova + RTE_PTR_DIFF(ext_buff, mb_base);
+                         mb_oran_hdr_ext->buf_len = ext_buff_len;
++#if (RTE_VER_YEAR >= 21)
++                        mb_oran_hdr_ext->ol_flags |= RTE_MBUF_F_EXTERNAL;
++#else
+                         mb_oran_hdr_ext->ol_flags |= EXT_ATTACHED_MBUF;
++#endif
+                         mb_oran_hdr_ext->shinfo = p_share_data;
+                         mb_oran_hdr_ext->data_off = (uint16_t)RTE_MIN((uint16_t)RTE_PKTMBUF_HEADROOM, (uint16_t)mb_oran_hdr_ext->buf_len) - rte_ether_hdr_size;
+                         mb_oran_hdr_ext->data_len = (uint16_t)(mb_oran_hdr_ext->data_len + rte_ether_hdr_size);
+@@ -1887,8 +1904,13 @@ xran_process_tx_srs_cp_on(void* pHandle, uint8_t ctx_id, uint32_t tti, int32_t s
+                         pStart = (char*)((char*)mb_oran_hdr_ext->buf_addr + mb_oran_hdr_ext->data_off);
+ 
+                         /* Fill in the ethernet header. */
++#if (RTE_VER_YEAR >= 21)
++                        rte_eth_macaddr_get(mb_oran_hdr_ext->port, &((struct rte_ether_hdr*)pStart)->src_addr);         /* set source addr */
++                        ((struct rte_ether_hdr*)pStart)->dst_addr = eth_ctx->entities[vf_id][ID_O_RU];                  /* set dst addr */
++#else
+                         rte_eth_macaddr_get(mb_oran_hdr_ext->port, &((struct rte_ether_hdr*)pStart)->s_addr);         /* set source addr */
+                         ((struct rte_ether_hdr*)pStart)->d_addr = eth_ctx->entities[vf_id][ID_O_RU];                  /* set dst addr */
++#endif
+                         ((struct rte_ether_hdr*)pStart)->ether_type = ETHER_TYPE_ECPRI_BE;                            /* ethertype */
+ 
+                         nPktSize = sizeof(struct rte_ether_hdr)
+diff --git a/fhi_lib/lib/src/xran_up_api.c b/fhi_lib/lib/src/xran_up_api.c
+index fe22a1f..3fd369b 100644
+--- a/fhi_lib/lib/src/xran_up_api.c
++++ b/fhi_lib/lib/src/xran_up_api.c
+@@ -25,7 +25,11 @@
+  *
+  **/
+ #include <inttypes.h>
++#if defined(__arm__) || defined(__aarch64__)
++#else
+ #include <immintrin.h>
++#endif
++#include <rte_mbuf.h>
+ #include <rte_mbuf.h>
+ 
+ #include "xran_fh_o_du.h"
+@@ -336,6 +340,7 @@ int32_t xran_extract_iq_samples(struct rte_mbuf *mbuf,
+     uint8_t *subframe_id,
+     uint8_t *slot_id,
+     uint8_t *symb_id,
++    uint8_t *filter_id,
+     union ecpri_seq_id *seq_id,
+     uint16_t *num_prbu,
+     uint16_t *start_prbu,
+@@ -345,7 +350,8 @@ int32_t xran_extract_iq_samples(struct rte_mbuf *mbuf,
+     int8_t   expect_comp,
+     enum xran_comp_hdr_type staticComp,
+     uint8_t *compMeth,
+-    uint8_t *iqWidth)
++    uint8_t *iqWidth,
++    uint8_t *is_prach)
+ {
+ #if XRAN_MLOG_VAR
+     uint32_t mlogVar[10];
+@@ -381,6 +387,7 @@ int32_t xran_extract_iq_samples(struct rte_mbuf *mbuf,
+         return 0;       /* packet too short */
+ 
+     radio_hdr->sf_slot_sym.value = rte_be_to_cpu_16(radio_hdr->sf_slot_sym.value);
++    *is_prach = (radio_hdr->data_feature.filter_id > 0);
+ 
+     if (frame_id)
+         *frame_id    = radio_hdr->frame_id;
+@@ -394,6 +401,9 @@ int32_t xran_extract_iq_samples(struct rte_mbuf *mbuf,
+     if (symb_id)
+         *symb_id = radio_hdr->sf_slot_sym.symb_id;
+ 
++    if (filter_id)
++	    *filter_id = radio_hdr->data_feature.filter_id;
++
+     /* Process data section hdr */
+     struct data_section_hdr *data_hdr =
+         (void *)rte_pktmbuf_adj(mbuf, sizeof(*radio_hdr));

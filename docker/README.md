@@ -78,7 +78,7 @@ Targets can be:
 The currently-supported OS are:
 
 - `rhel9` for Red Hat Enterprise Linux and Openshift Universal Base Image
-- `ubuntu22` for Ubuntu 22.04 LTS
+- `ubuntu` for Ubuntu 24.04 LTS
 - `rocky` for Rocky-Linux 9
 
 For more details regarding the build on an Openshift Cluster, see [OpenShift README](../openshift/README.md).
@@ -91,6 +91,24 @@ For more details regarding the build on an Openshift Cluster, see [OpenShift REA
 * `docker-ce` installed
 * Pulling `ubuntu:jammy` from DockerHub
 
+The docker files in this directory rely on [automatic Docker platform
+arguments](https://docs.docker.com/reference/dockerfile/#automatic-platform-args-in-the-global-scope)
+`TARGETARCH` and `TARGETPLATFORM` to be defined. This is the case when using
+[BuildKit](https://docs.docker.com/build/buildkit/), which is automatically
+enabled in newer (v23.0+) docker versions.
+
+If you are running an older version of docker that does not have BuildKit
+enabled and do not wish to upgrade to a newer docker version, you have two
+possibilities:
+
+1. [Enable BuildKit](https://docs.docker.com/build/buildkit/#getting-started)
+   when building: `DOCKER_BUILDKIT=1 docker build ...`
+2. You should be able to define these variables manually.
+   - x86: `docker build --build-arg TARGETARCH=amd64 --build-arg
+     TARGETPLATFORM=linux/amd64 ...`
+   - arm: `docker build --build-arg TARGETARCH=arm64 --build-arg
+     TARGETPLATFORM=linux/arm64 ...`
+
 ## 3.2. Building the shared images ##
 
 There are two shared images: one that has all dependencies, and a second that compiles all targets (eNB, gNB, [nr]UE).
@@ -99,11 +117,11 @@ There are two shared images: one that has all dependencies, and a second that co
 git clone https://gitlab.eurecom.fr/oai/openairinterface5g.git
 cd openairinterface5g
 # default branch is develop, to change use git checkout <BRANCH>
-docker build --target ran-base --tag ran-base:latest --file docker/Dockerfile.base.ubuntu22 .
+docker build --target ran-base --tag ran-base:latest --file docker/Dockerfile.base.ubuntu .
 # if you want use USRP, AW2S and RFSimulator radios
-docker build --target ran-build --tag ran-build:latest --file docker/Dockerfile.build.ubuntu22 .
+docker build --target ran-build --tag ran-build:latest --file docker/Dockerfile.build.ubuntu .
 # if you want to use front-haul 7.2 and RFSimulator radios
-docker build --tag ran-build-fhi72:latest --file docker/Dockerfile.build.fhi72.ubuntu22 .
+docker build --tag ran-build-fhi72:latest --file docker/Dockerfile.build.fhi72.ubuntu .
 ```
 
 After building:
@@ -126,7 +144,7 @@ This is only available for the Ubuntu version of Dockerfiles.
 You can, for example, create a `sanitizer` version of the ran-build image.
 
 ```bash
-docker build --target ran-build --tag ran-build:latest --file docker/Dockerfile.build.ubuntu22 --build-arg "BUILD_OPTION=--sanitize" .
+docker build --target ran-build --tag ran-build:latest --file docker/Dockerfile.build.ubuntu --build-arg "BUILD_OPTION=--sanitize" .
 ```
 
 Currently the `--sanitize` option for `build_oai` enables:
@@ -152,13 +170,13 @@ You can also use this docker build arguments to pass any available option(s) on 
 For example, the eNB:
 
 ```bash
-docker build --target oai-enb --tag oai-enb:latest --file docker/Dockerfile.eNB.ubuntu22 .
+docker build --target oai-enb --tag oai-enb:latest --file docker/Dockerfile.eNB.ubuntu .
 ```
 
 To build gNB/DU with 7.2 fronthaul support:
 
 ```bash
-docker build --target oai-gnb-fhi72 --tag oai-gnb-fhi72:latest --file docker/Dockerfile.gNB.fhi72.ubuntu22  .
+docker build --target oai-gnb-fhi72 --tag oai-gnb-fhi72:latest --file docker/Dockerfile.gNB.fhi72.ubuntu  .
 ```
 
 After a while:
@@ -182,7 +200,7 @@ Note that the steps are identical for `rocky-linux`.
 If you have used the sanitizer option, then you should also pass it when building the target image:
 
 ```bash
-docker build --target oai-gnb --tag oai-gnb:latest --file docker/Dockerfile.gNB.ubuntu22 --build-arg "BUILD_OPTION=--sanitize" .
+docker build --target oai-gnb --tag oai-gnb:latest --file docker/Dockerfile.gNB.ubuntu --build-arg "BUILD_OPTION=--sanitize" .
 ```
 
 Normally the target image will be around 200 Mbytes bigger.
@@ -243,7 +261,7 @@ services:
           core: -1 # for core dumps
         environment:
             USE_B2XX: 'yes'
-            USE_ADDITIONAL_OPTIONS: --sa --RUs.[0].sdr_addrs serial=30C51D4 --telnetsrv --telnetsrv.shrmod ci --continuous-tx --log_config.global_log_options level,nocolor,time,line_num,function
+            USE_ADDITIONAL_OPTIONS: --RUs.[0].sdr_addrs serial=30C51D4 --telnetsrv --telnetsrv.shrmod ci --continuous-tx --log_config.global_log_options level,nocolor,time,line_num,function
         devices:
             - /dev/bus/usb/:/dev/bus/usb/
         volumes:

@@ -345,12 +345,12 @@ typedef struct emm_data_s {
    * ----------------------------
    * see "Non Access Stratum Configuration" in USIM API header file
    */
-  Byte_t NAS_SignallingPriority;
-  Byte_t NMO_I_Behaviour;
-  Byte_t AttachWithImsi;
-  Byte_t MinimumPeriodicSearchTimer;
-  Byte_t ExtendedAccessBarring;
-  Byte_t Timer_T3245_Behaviour;
+  uint8_t NAS_SignallingPriority;
+  uint8_t NMO_I_Behaviour;
+  uint8_t AttachWithImsi;
+  uint8_t MinimumPeriodicSearchTimer;
+  uint8_t ExtendedAccessBarring;
+  uint8_t Timer_T3245_Behaviour;
 
   /*
    * EMM data stored in the UE's memory

@@ -27,6 +27,7 @@
  */
 
 #include <stdint.h>
+#include "NGAP_NGAP-PDU.h"
 
 #ifndef NGAP_GNB_DECODER_H_
 #define NGAP_GNB_DECODER_H_

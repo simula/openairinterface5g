@@ -105,11 +105,7 @@ add_definitions("-DFIRMWARE_VERSION=\"${FIRMWARE_VERSION}\"")
 ##########################
 # NAS LAYER OPTIONS
 ##########################
-add_boolean_option(ENABLE_NAS_UE_LOGGING   True  "????")
-add_boolean_option(NAS_BUILT_IN_EPC        False "MME NAS layer not present in this executable")
 add_boolean_option(NAS_BUILT_IN_UE         False  "UE NAS layer present in this executable")
-add_boolean_option(NAS_UE                  True  "NAS UE INSTANCE (<> NAS_MME)")
-add_boolean_option(NAS_MME                 False "NAS_UE and NAS_MME are incompatible options")
 
 ################################################################################
 # SECU LIB
@@ -145,7 +141,6 @@ set(util_SRC
     ${OPENAIR_NAS_DIR}/COMMON/UTIL/OctetString.c
     ${OPENAIR_NAS_DIR}/COMMON/UTIL/parser.c
     ${OPENAIR_NAS_DIR}/COMMON/UTIL/TLVDecoder.c
-    ${OPENAIR_NAS_DIR}/COMMON/UTIL/TLVEncoder.c
     ${OPENAIR_NAS_DIR}/COMMON/UTIL/socket.c
     ${OPENAIR_NAS_DIR}/COMMON/UTIL/stty.c
 )

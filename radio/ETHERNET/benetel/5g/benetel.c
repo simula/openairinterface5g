@@ -257,7 +257,6 @@ printf("rxdata in benetel_fh_if4p5_south_in %p\n", &ru->common.rxdataF[antenna][
   //printf("BENETEL: %s (f.sf %d.%d)\n", __FUNCTION__, *frame, *slot);
 
   RU_proc_t *proc = &ru->proc;
-  extern uint16_t sl_ahead;
   int f = *frame;
   int sl = *slot;
 
@@ -272,8 +271,8 @@ printf("rxdata in benetel_fh_if4p5_south_in %p\n", &ru->common.rxdataF[antenna][
 
   if (get_nprocs()<=4) {
     // why? what if there are more?
-    proc->tti_tx   = (sl+sl_ahead)%20;
-    proc->frame_tx = (sl>(19-sl_ahead)) ? (f+1)&1023 : f;
+    proc->tti_tx   = (sl+ru->sl_ahead)%20;
+    proc->frame_tx = (sl>(19-ru->sl_ahead)) ? (f+1)&1023 : f;
   }
 }
 

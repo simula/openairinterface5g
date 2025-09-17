@@ -38,6 +38,8 @@
 #include <openair1/PHY/NR_UE_TRANSPORT/nr_transport_proto_ue.h>
 #include <openair1/PHY/TOOLS/phy_scope_interface.h>
 #include "openair1/PHY/NR_REFSIG/nr_refsig_common.h"
+#include "PHY/nr_phy_common/inc/nr_phy_common.h"
+#include "instrumentation.h"
 //#define DEBUG_PBCH
 //#define DEBUG_PBCH_ENCODING
 
@@ -200,48 +202,6 @@ static uint16_t nr_pbch_extract(uint32_t rxdataF_sz,
   return(0);
 }
 
-//__m128i avg128;
-
-//compute average channel_level on each (TX,RX) antenna pair
-int nr_pbch_channel_level(struct complex16 dl_ch_estimates_ext[][PBCH_MAX_RE_PER_SYMBOL],
-                          const NR_DL_FRAME_PARMS *frame_parms,
-                          int nb_re)
-{
-  int16_t nb_rb=nb_re/12;
-  simde__m128i avg128;
-  simde__m128i *dl_ch128;
-  int avg1=0,avg2=0;
-
-  for (int aarx=0; aarx<frame_parms->nb_antennas_rx; aarx++) {
-    //clear average level
-    avg128 = simde_mm_setzero_si128();
-    dl_ch128=(simde__m128i *)dl_ch_estimates_ext[aarx];
-
-    for (int rb=0; rb<nb_rb; rb++) {
-      avg128 = simde_mm_add_epi32(avg128, simde_mm_madd_epi16(dl_ch128[0],dl_ch128[0]));
-      avg128 = simde_mm_add_epi32(avg128, simde_mm_madd_epi16(dl_ch128[1],dl_ch128[1]));
-      avg128 = simde_mm_add_epi32(avg128, simde_mm_madd_epi16(dl_ch128[2],dl_ch128[2]));
-      dl_ch128+=3;
-      /*
-      if (rb==0) {
-      print_shorts("dl_ch128",&dl_ch128[0]);
-      print_shorts("dl_ch128",&dl_ch128[1]);
-      print_shorts("dl_ch128",&dl_ch128[2]);
-      }*/
-    }
-
-    for (int i = 0; i < 4; i++)
-      avg1 += ((int *)&avg128)[i] / (nb_rb * 12);
-
-    if (avg1>avg2)
-      avg2 = avg1;
-
-    //LOG_I(PHY,"Channel level : %d, %d\n",avg1, avg2);
-  }
-
-  return(avg2);
-}
-
 void nr_pbch_channel_compensation(struct complex16 rxdataF_ext[][PBCH_MAX_RE_PER_SYMBOL],
                                   struct complex16 dl_ch_estimates_ext[][PBCH_MAX_RE_PER_SYMBOL],
                                   int nb_re,
@@ -250,13 +210,11 @@ void nr_pbch_channel_compensation(struct complex16 rxdataF_ext[][PBCH_MAX_RE_PER
                                   uint8_t output_shift)
 {
   for (int aarx=0; aarx<frame_parms->nb_antennas_rx; aarx++) {
-    simde__m128i *dl_ch128          = (simde__m128i *)dl_ch_estimates_ext[aarx];
-    simde__m128i *rxdataF128        = (simde__m128i *)rxdataF_ext[aarx];
-    simde__m128i *rxdataF_comp128   = (simde__m128i *)rxdataF_comp[aarx];
-
-    for (int re = 0; re < nb_re; re += 4) {
-      *rxdataF_comp128++ = mulByConjugate128(rxdataF128++, dl_ch128++, output_shift);
-    }
+    mult_cpx_conj_vector((c16_t *)dl_ch_estimates_ext[aarx],
+                         (c16_t *)rxdataF_ext[aarx],
+                         (c16_t *)rxdataF_comp[aarx],
+                         nb_re,
+                         output_shift);
   }
 }
 
@@ -279,8 +237,6 @@ void nr_pbch_detection_mrc(NR_DL_FRAME_PARMS *frame_parms,
     }
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 }
 
 void nr_pbch_unscrambling(int16_t *demod_pbch_e,
@@ -307,11 +263,7 @@ void nr_pbch_unscrambling(int16_t *demod_pbch_e,
       *pbch_a_interleaved ^= ((unscrambling_mask >> i) & 1)
                                  ? ((pbch_a_prime >> i) & 1) << i
                                  : (((pbch_a_prime >> i) & 1) ^ ((seq[idxGold] >> ((k + offset) & 0x1f)) & 1)) << i;
-      k += (!((unscrambling_mask>>i)&1));
-#ifdef DEBUG_PBCH_ENCODING
-      printf("i %d k %d offset %d (unscrambling_mask>>i)&1) %d s: %08x\t  pbch_a_interleaved 0x%08x (!((unscrambling_mask>>i)&1)) %d\n", i, k, offset, (unscrambling_mask>>i)&1, s, *pbch_a_interleaved,
-             (!((unscrambling_mask>>i)&1)));
-#endif
+      k += (!((unscrambling_mask >> i) & 1));
     } else {
       if (((i + offset) & 0x1f) == 0)
         idxGold++;
@@ -365,7 +317,7 @@ int nr_rx_pbch(PHY_VARS_NR_UE *ue,
                int rxdataFSize,
                const struct complex16 rxdataF[][rxdataFSize])
 {
-  int max_h=0;
+  TracyCZone(ctx, true);
   int symbol;
   uint8_t Lmax=frame_parms->Lmax;
   int M = NR_POLAR_PBCH_E;
@@ -409,11 +361,14 @@ int nr_rx_pbch(PHY_VARS_NR_UE *ue,
     LOG_I(PHY,"[PHY] PBCH starting channel_level\n");
 #endif
 
+    int max_h = 0;
     if (symbol == 1) {
-      max_h = nr_pbch_channel_level(dl_ch_estimates_ext,
-                                    frame_parms,
-                                    nb_re);
-      log2_maxh = 3+(log2_approx(max_h)/2);
+      int avg[frame_parms->nb_antennas_rx];
+      nr_channel_level(0, PBCH_MAX_RE_PER_SYMBOL, dl_ch_estimates_ext, frame_parms->nb_antennas_rx, 1, avg, nb_re);
+      max_h = avg[0];
+      for (int i = 1; i < frame_parms->nb_antennas_rx; i++)
+        max_h = cmax(avg[i], max_h);
+      log2_maxh = 3 + (log2_approx(max_h) / 2);
     }
 
 #ifdef DEBUG_PBCH
@@ -539,5 +494,24 @@ int nr_rx_pbch(PHY_VARS_NR_UE *ue,
       ue->if_inst->dl_indication(&dl_indication);
   }
 
+  TracyCZoneEnd(ctx);
   return 0;
+}
+
+double nr_ue_pbch_freq_offset(const NR_DL_FRAME_PARMS *frame_parms,
+                              int estimateSz,
+                              const c16_t dl_ch_estimates[][estimateSz])
+{
+  const int i_ssb = frame_parms->ssb_index;
+  const int symbol_offset = nr_get_ssb_start_symbol(frame_parms, i_ssb) % frame_parms->symbols_per_slot;
+  const c16_t *dl_ch_est_symb1 = &dl_ch_estimates[0][(symbol_offset + 1) * frame_parms->ofdm_symbol_size];
+  const c16_t *dl_ch_est_symb3 = &dl_ch_estimates[0][(symbol_offset + 3) * frame_parms->ofdm_symbol_size];
+  const int nb_re = 240;
+  const c32_t dot_prod_res = dot_product(dl_ch_est_symb1, dl_ch_est_symb3, nb_re, 8);
+  const double res_phase = atan2(dot_prod_res.i, dot_prod_res.r);
+  const int samples_per_symbol = frame_parms->ofdm_symbol_size + frame_parms->nb_prefix_samples;
+  const double t_ofdm = samples_per_symbol / (frame_parms->samples_per_subframe * 1000.0); // symbol duration in sec
+  const double freq_offset = res_phase / (2 * M_PI * (3 - 1) * t_ofdm);
+
+  return freq_offset;
 }

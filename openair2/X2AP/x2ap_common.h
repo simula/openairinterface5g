@@ -49,8 +49,6 @@
 # define X2AP_PORT 36422
 #endif
 
-extern int asn1_xer_print;
-
 #include "common/utils/LOG/log.h"
 #define X2AP_INFO(x, args...) LOG_I(X2AP, x, ##args)
 #define X2AP_ERROR(x, args...) LOG_E(X2AP, x, ##args)

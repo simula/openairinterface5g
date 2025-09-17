@@ -13,13 +13,17 @@ The `UE_thread` function in `nr-ue.c` is the main top level thread that interact
 
 The UE exits when at any point in operation it gets out of synchronization. When the command line option `--non-stop` is used, the UE goes to 'Initial Synchronization' mode when it loses synchronization with gNB. However, this feature is not fully implemented and it is a work in progress at the time of writing this documentation. This will be the default behavior (not a command line option) when the feature is fully implemented.
 
+UE uses actors which are threads dedicated to particular activity. Sync Actor handles initial sync. DL Actors handle DLSCH PHY procedures. UL procedures are are run on the UL Actor
+
+![design](nr-ue-threads.svg)
+
 ## Initial Synchronization Block
 ```mermaid
 graph TD
     start(Start) -->|UE_thread| rxRu["RU read<br/>(Reads two frames)"]
-    rxRu --> |Tpool thread| sync["SSB detection<br/>(PSS & SSS detection<br/>PBCH decoding<br/>SIB decoding)"]
+    rxRu --> |Sync Actor| sync["SSB detection<br/>(PSS & SSS detection<br/>PBCH decoding<br/>SIB decoding)"]
     rxRu --> |UE_thread| rxRuDummy["RU read<br/>(Dummy read till sync detection to avoid buffer overflow at radio)"]
-    sync --> |Tpool thread| frameSync["Frame synchronization<br/>(Shift received samples to align with frame)"]
+    sync --> |UE_thread| frameSync["Frame synchronization<br/>(Shift received samples to align with frame)"]
     rxRuDummy --> |UE_thread| frameSync
 ```
 ## Regular Slot Processing
@@ -27,9 +31,8 @@ graph TD
 graph TD
     sync["Frame synchronization<br/>(Shift received samples to align with frame)"] -->|UE_thread| hw_read["RU read (slot n)"]
     hw_read --> |UE_thread| rxPreProc["PBCH & PDCCH decoding (slot n)"]
-    hw_read --> |Tpool thread| txProc["Tx processing (slot n+3)<br/>PUSCH encode<br/>PUCCH encode (wait for DLSCH in slot n+3-k1 to finish)<br/>RU write"]
-    rxPreProc --> |Tpool thread| rxProc["PDSCH decoding (slot n)"]
+    hw_read --> |UL Actor| txProc["Tx processing (slot n+3)<br/>PUSCH encode<br/>PUCCH encode (wait for DLSCH in slot n+3-k1 to finish)<br/>RU write"]
+    rxPreProc --> |DL Actor| rxProc["PDSCH decoding (slot n)"]
     rxPreProc --> |UE_thread| join(Merge)
-    txProc --> |Tpool thread| join
     join --> |Go to next slot<br/>UE_thread| hw_read
 ```

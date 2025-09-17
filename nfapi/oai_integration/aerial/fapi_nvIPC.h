@@ -36,6 +36,7 @@
 #include "nv_ipc_utils.h"
 #include "nvlog.h"
 #include "nfapi/open-nFAPI/vnf/public_inc/nfapi_vnf_interface.h"
+#include "vnf.h"
 #include "debug.h"
 
 #include "openair2/LAYER2/NR_MAC_gNB/nr_mac_gNB.h"
@@ -47,14 +48,19 @@ typedef struct {
   uint32_t message_length;
 } fapi_phy_api_msg;
 
-int aerial_send_P5_msg(void *packedBuf, uint32_t packedMsgLength, nfapi_p4_p5_message_header_t *header);
-int aerial_send_P7_msg(void *packedBuf, uint32_t packedMsgLength, nfapi_p7_message_header_t *header);
-int aerial_send_P7_msg_with_data(void *packedBuf,
-                                      uint32_t packedMsgLength,
-                                      void *dataBuf,
-                                      uint32_t dataLength,
-                                      nfapi_p7_message_header_t *header);
+bool aerial_nr_send_p5_message(vnf_t *vnf, uint16_t p5_idx, nfapi_nr_p4_p5_message_header_t *msg, uint32_t msg_len);
+bool aerial_send_P5_msg(void *packedBuf, uint32_t packedMsgLength, nfapi_nr_p4_p5_message_header_t *header);
+bool aerial_send_P7_msg(void *packedBuf, uint32_t packedMsgLength, nfapi_nr_p7_message_header_t *header);
+bool aerial_send_P7_msg_with_data(void *packedBuf,
+                                 uint32_t packedMsgLength,
+                                 void *dataBuf,
+                                 uint32_t dataLength,
+                                 nfapi_nr_p7_message_header_t *header);
 void set_config(nfapi_vnf_config_t *conf);
 int nvIPC_Init(nvipc_params_t nvipc_params_s);
-
+int oai_fapi_send_end_request(int cell_id, uint32_t frame, uint32_t slot);
+int oai_fapi_ul_tti_req(nfapi_nr_ul_tti_request_t *ul_tti_req);
+int oai_fapi_ul_dci_req(nfapi_nr_ul_dci_request_t *ul_dci_req);
+int oai_fapi_tx_data_req(nfapi_nr_tx_data_request_t *tx_data_req);
+int oai_fapi_dl_tti_req(nfapi_nr_dl_tti_request_t *dl_config_req);
 #endif // OPENAIRINTERFACE_FAPI_NVIPC_H

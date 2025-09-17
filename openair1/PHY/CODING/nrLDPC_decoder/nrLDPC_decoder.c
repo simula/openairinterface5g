@@ -170,9 +170,6 @@ int32_t LDPCshutdown()
 }
 
 int32_t LDPCdecoder(t_nrLDPC_dec_params* p_decParams,
-                    uint8_t harq_pid,
-                    uint8_t ulsch_id,
-                    uint8_t C,
                     int8_t* p_llr,
                     int8_t* p_out,
                     t_nrLDPC_time_stats* p_profiler,
@@ -187,7 +184,7 @@ int32_t LDPCdecoder(t_nrLDPC_dec_params* p_decParams,
 
   // Launch LDPC decoder core for one segment
   int numIter = nrLDPC_decoder_core(p_llr, p_out, numLLR, p_lut, p_decParams, p_profiler, ab);
-  if (numIter > p_decParams->numMaxIter) {
+  if (numIter >= p_decParams->numMaxIter) {
     LOG_D(PHY, "set abort: %d, %d\n", numIter, p_decParams->numMaxIter);
     set_abort(ab, true);
   }
@@ -549,13 +546,11 @@ static inline uint32_t nrLDPC_decoder_core(int8_t* p_llr,
     // estimated after only one iteration
 
     // First iteration finished
-    uint32_t numIter = 1;
+    uint32_t numIter = 0;
     int32_t pcRes = 1; // pcRes is 0 if the ldpc decoder is succesful
-    while ((numIter <= numMaxIter) && (pcRes != 0)) {
-      // Increase iteration counter
-      numIter++;
+    while ((numIter < numMaxIter) && (pcRes != 0)) {
       if (check_abort(ab)) {
-        numIter = numMaxIter + 2;
+        numIter = numMaxIter;
         break;
       }
       // CN processing
@@ -847,7 +842,7 @@ static inline uint32_t nrLDPC_decoder_core(int8_t* p_llr,
             pcRes = nrLDPC_cnProcPc_BG2(p_lut, cnProcBuf, cnProcBufRes, Z);
           NR_LDPC_PROFILER_DETAIL(stop_meas(&p_profiler->cnProcPc));
         } else {
-          if (numIter > 2) {
+          if (numIter > 0) {
             int8_t llrOut[NR_LDPC_MAX_NUM_LLR] __attribute__((aligned(64))) = {0};
             int8_t* p_llrOut = outMode == nrLDPC_outMode_LLRINT8 ? p_out : llrOut;
             nrLDPC_llrRes2llrOut(p_lut, p_llrOut, llrRes, Z, BG);
@@ -855,12 +850,14 @@ static inline uint32_t nrLDPC_decoder_core(int8_t* p_llr,
               nrLDPC_llr2bitPacked(p_out, p_llrOut, numLLR);
             else // if (outMode == nrLDPC_outMode_BITINT8)
               nrLDPC_llr2bit(p_out, p_llrOut, numLLR);
-            if (p_decParams->check_crc((uint8_t*)p_out, p_decParams->E, p_decParams->crc_type)) {
+            if (p_decParams->check_crc((uint8_t*)p_out, p_decParams->Kprime, p_decParams->crc_type)) {
               LOG_D(PHY, "Segment CRC OK, exiting LDPC decoder\n");
               break;
             }
           }
         }
+      // Increase iteration counter
+      numIter++;
     }
     if (!p_decParams->check_crc) {
       int8_t llrOut[NR_LDPC_MAX_NUM_LLR] __attribute__((aligned(64))) = {0};

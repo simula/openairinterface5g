@@ -73,5 +73,17 @@ class TestIperfAnalysis(unittest.TestCase):
 		self.assertEqual(msg, "Iperf3 UDP: Log file not present")
 		self.assertFalse(success)
 
+	def test_iperf_analyzeV2UDP(self):
+		filename_ok = "tests/log/iperf_udp_v2_ok.log"
+		msg_filename_ok = "tests/log/iperf_udp_v2_ok.txt"
+		target_bitrate = "2.00"
+		bitrate_thresh = 80
+		packetloss_thresh = 25
+		with open(msg_filename_ok, 'r') as file:
+			expected_msg_ok = file.read().strip()
+		success, msg = cls_oaicitest.Iperf_analyzeV2UDP(filename_ok, bitrate_thresh, packetloss_thresh, target_bitrate)
+		self.assertEqual(msg, expected_msg_ok)
+		self.assertTrue(success)
+
 if __name__ == '__main__':
 	unittest.main()

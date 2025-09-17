@@ -1,0 +1,362 @@
+module o-ran-processing-element {
+  yang-version 1.1;
+  namespace "urn:o-ran:processing-element:1.0";
+  prefix "o-ran-elements";
+
+  import ietf-yang-types {
+    prefix yang;
+  }
+
+  import ietf-inet-types {
+    prefix "inet";
+  }
+
+  import ietf-interfaces {
+    prefix "if";
+  }
+
+  import ietf-ip {
+    prefix "ip";
+  }
+
+  import o-ran-interfaces {
+    prefix "o-ran-int";
+  }
+
+  organization "O-RAN Alliance";
+
+  contact
+    "www.o-ran.org";
+
+  description
+    "This module defines the YANG definitions for mapping of transport flows to
+    processing elements. Three options are supported:
+    i) virtual MAC based mapping
+    ii) MAC addrress + VLAN-ID based mapping
+    iii) UDP/IP based mapping
+
+    Copyright 2020 the O-RAN Alliance.
+
+    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS 'AS IS'
+    AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+    IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+    ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+    LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+    CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+    SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+    INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+    CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+    ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+    POSSIBILITY OF SUCH DAMAGE.
+
+    Redistribution and use in source and binary forms, with or without
+    modification, are permitted provided that the following conditions are met:
+
+    * Redistributions of source code must retain the above copyright notice,
+    this list of conditions and the above disclaimer.
+    * Redistributions in binary form must reproduce the above copyright notice,
+    this list of conditions and the above disclaimer in the documentation
+    and/or other materials provided with the distribution.
+    * Neither the Members of the O-RAN Alliance nor the names of its
+    contributors may be used to endorse or promote products derived from
+    this software without specific prior written permission.";
+
+    revision "2020-04-17" {
+      description
+        "version 3.0.0
+
+        1) added new enum SHARED-CELL-ETH-INTERFACE in
+           transport-session-type and new containers north-eth-flow and
+           south-eth-flow to enable Shared cell scenario.";
+
+      reference "ORAN-WG4.M.0-v03.00";
+    }
+
+  revision "2019-07-03" {
+    description
+      "version 1.1.0
+
+      1) added new leaf to enable O-RU to report the maximum number of
+      transport flows it can support, e.g., due to restrictions on number
+      of VLAN-IDs when ethernet type transport is used.";
+
+    reference "ORAN-WG4.M.0-v01.00";
+  }
+  revision "2019-02-04" {
+    description
+      "version 1.0.0
+
+      1) imported model from xRAN
+      2) changed namespace and reference from xran to o-ran";
+
+    reference "ORAN-WG4.M.0-v01.00";
+  }
+
+  feature SHARED_CELL {
+    description
+      "Presence of feature indicates that this O-RU is capable to support
+       shared cell.";
+  }
+// groupings
+
+  grouping pe-group {
+    leaf maximum-number-of-transport-flows {
+      type uint16 {
+        range "1..4094";
+      }
+      config false;
+      default 4094;
+      description
+        "The maximum number of transport flows that can be supported by an O-RU";
+    }
+    leaf transport-session-type {
+      type enumeration {
+        enum ETH-INTERFACE {
+          description "VLAN based CUS Transport ";
+        }
+        enum UDPIP-INTERFACE {
+          description "UDP/IP based CUS Transport ";
+        }
+        enum ALIASMAC-INTERFACE{
+          description "Alias MAC address based CUS Transport ";
+        }
+        enum SHARED-CELL-ETH-INTERFACE {
+          if-feature "SHARED_CELL";
+          description "VLAN based CUS Transport used for Shared Cell scenario";
+        }
+      }
+      default ETH-INTERFACE;
+      description
+        "the type of transport session used for identifying different processing
+        elements";
+    }
+    container enhanced-uplane-mapping {
+      presence "indicates that enhanced uplane mapping is used";
+      description "a mapping table for enhanced user plane marking";
+      list uplane-mapping {
+        key "up-marking-name";
+        description
+          "a mapping between up-link name and o-ran-interfaces:up-marking-name";
+        leaf up-marking-name {
+          type string;
+          description "a unique up marking name that is used for enhanced up marking";
+        }
+        choice up-markings {
+          description
+            "U-Plane markings";
+          case ethernet {
+            when "(../../transport-session-type = 'ALIASMAC-INTERFACE') or
+            (../../transport-session-type = 'ETH-INTERFACE') or
+            (../../transport-session-type = 'SHARED-CELL-ETH-INTERFACE')";
+            leaf up-cos-name {
+              type leafref {
+                path "/if:interfaces/if:interface/o-ran-int:class-of-service/o-ran-int:enhanced-uplane-markings/o-ran-int:up-marking-name";
+              }
+              description "the Ethernet U-plane transport marking as defined in o-ran-interfaces";
+            }
+          }
+          case ipv4 {
+            when "(../../transport-session-type = 'UDPIP-INTERFACE')";
+            leaf upv4-dscp-name {
+              if-feature o-ran-int:UDPIP-BASED-CU-PLANE;
+              type leafref {
+                path "/if:interfaces/if:interface/ip:ipv4/o-ran-int:diffserv-markings/o-ran-int:enhanced-uplane-markings/o-ran-int:up-marking-name";
+              }
+              description "the IPv4 U-plane transport marking as defined in o-ran-interfaces";
+            }
+          }
+          case ipv6 {
+            when "(../../transport-session-type = 'UDPIP-INTERFACE')";
+            leaf upv6-dscp-name {
+              if-feature o-ran-int:UDPIP-BASED-CU-PLANE;
+              type leafref {
+                path "/if:interfaces/if:interface/ip:ipv6/o-ran-int:diffserv-markings/o-ran-int:enhanced-uplane-markings/o-ran-int:up-marking-name";
+              }
+              description "the IPv6 U-plane transport marking as defined in o-ran-interfaces";
+            }
+          }
+        }
+      }
+    }
+    list ru-elements {
+      key "name";
+      description
+        "the list of transport definitions for each processing element";
+      leaf name {
+        type string {
+          length "1..255";
+        }
+        description
+          "A name that is unique across the O-RU that identifies a processing
+          element instance.
+
+          This name may be used in fault management to refer to a fault source
+          or affected object";
+      }
+      container transport-flow {
+        description
+          "container for the transport-flow used for CU plane";
+        leaf interface-name {
+          type leafref {
+            path "/if:interfaces/if:interface/if:name";
+          }
+          description "the interface name ";
+        }
+        container aliasmac-flow {
+          when "../../../transport-session-type = 'ALIASMAC-INTERFACE'";
+          if-feature o-ran-int:ALIASMAC-BASED-CU-PLANE;
+          description "leafs for virtual mac type data flows";
+          leaf ru-aliasmac-address {
+            type leafref {
+              path "/if:interfaces/if:interface[if:name = current()/../../interface-name]/o-ran-int:alias-macs";
+            }
+            mandatory true;
+            description
+              "O-RU's alias MAC address used for alias MAC based flow";
+          }
+          leaf vlan-id {
+            type leafref {
+              path "/if:interfaces/if:interface[if:name = current()/../../interface-name]/o-ran-int:vlan-id";
+            }
+            description
+              "O-RU's VLAN-ID used for alias MAC based flow";
+          }
+          leaf o-du-mac-address {
+            type yang:mac-address;
+            mandatory true;
+            description
+              "O-DU's MAC address used for alias MAC based flow";
+          }
+        }
+        container eth-flow {
+          when "../../../transport-session-type = 'ETH-INTERFACE'";
+          description "leafs for mac + vlan-id type data flows";
+          leaf ru-mac-address {
+            type leafref {
+              path "/if:interfaces/if:interface[if:name = current()/../../interface-name]/o-ran-int:mac-address";
+            }
+            mandatory true;
+            description
+              "O-RU's MAC address used for Ethernet based flow";
+          }
+          leaf vlan-id {
+            type leafref {
+              path "/if:interfaces/if:interface[if:name = current()/../../interface-name]/o-ran-int:vlan-id";
+            }
+            mandatory true;
+            description
+              "O-RU's VLAN-ID used for Ethernet based flow";
+          }
+          leaf o-du-mac-address {
+            type yang:mac-address;
+            mandatory true;
+            description
+              "O-DU's MAC address used for Ethernet based flow";
+          }
+        }
+        container udpip-flow {
+          when "../../../transport-session-type = 'UDPIP-INTERFACE'";
+          description "leafs for UDP/IP type data flows";
+          choice address {
+            leaf ru-ipv4-address {
+              type leafref {
+                path "/if:interfaces/if:interface[if:name = current()/../../interface-name]/ip:ipv4/ip:address/ip:ip";
+              }
+              description "O-RU's IPv4 address";
+            }
+            leaf ru-ipv6-address {
+              type leafref {
+                path "/if:interfaces/if:interface[if:name = current()/../../interface-name]/ip:ipv6/ip:address/ip:ip";
+              }
+              description "O-RU's IPv6 address";
+            }
+            mandatory true;
+            description "choice of O-RU IPv4 or IPv6 address";
+          }
+          leaf o-du-ip-address {
+            type inet:ip-address;
+            mandatory true;
+            description "O-DU's IPv address";
+          }
+          leaf ru-ephemeral-udp-port {
+            type inet:port-number;
+            mandatory true;
+            description
+              "ephemeral port used by O-RU";
+          }
+          leaf o-du-ephemeral-udp-port {
+            type inet:port-number;
+            mandatory true;
+            description
+              "ephemeral port used by O-DU";
+          }
+          leaf ecpri-destination-udp {
+            type inet:port-number;
+            mandatory true;
+            description "the well known UDP port number used by eCPRI";
+            // fixme - add in a default when allocated by IANA
+          }
+        }
+        container north-eth-flow {
+          when "../../../transport-session-type = 'SHARED-CELL-ETH-INTERFACE'";
+          if-feature "SHARED_CELL";
+          description "leafs for mac + vlan-id type data flows";
+          leaf ru-mac-address {
+            type leafref {
+              path "/if:interfaces/if:interface[if:name = current()/../../interface-name]/o-ran-int:mac-address";
+            }
+            description
+              "O-RU's MAC address used for Ethernet based flow";
+          }
+          leaf vlan-id {
+            type leafref {
+              path "/if:interfaces/if:interface[if:name = current()/../../interface-name]/o-ran-int:vlan-id";
+            }
+            description
+              "O-RU's VLAN-ID used for Ethernet based flow";
+          }
+          leaf north-node-mac-address {
+            type yang:mac-address;
+            description
+              "North-node's MAC address used for Ethernet based flow";
+          }
+        }
+        container south-eth-flow {
+          when "../../../transport-session-type = 'SHARED-CELL-ETH-INTERFACE'";
+          if-feature "SHARED_CELL";
+          description "leafs for mac + vlan-id type data flows";
+          leaf ru-mac-address {
+            type leafref {
+              path "/if:interfaces/if:interface[if:name = current()/../../interface-name]/o-ran-int:mac-address";
+            }
+            description
+              "O-RU's MAC address used for Ethernet based flow";
+          }
+          leaf vlan-id {
+            type leafref {
+              path "/if:interfaces/if:interface[if:name = current()/../../interface-name]/o-ran-int:vlan-id";
+            }
+            description
+              "O-RU's VLAN-ID used for Ethernet based flow";
+          }
+          leaf south-node-mac-address {
+            type yang:mac-address;
+            description
+              "south-node's MAC address used for Ethernet based flow";
+          }
+        }
+      }
+    }
+  }
+
+// top level container
+
+  container processing-elements {
+    description
+      "a model defining the mapping between transport flows and arbitrary
+      O-RAN processing elements. A processing element may be then defined for
+      handling connectivity or delay procedures, or defined with a corresponding
+      eaxcid for CU plane operations";
+    uses pe-group;
+  }
+}

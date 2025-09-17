@@ -220,14 +220,10 @@ Calls nr_schedule_ulsch(): It is divided into the "preprocessor" and the
 "postprocessor": the first makes the scheduling decisions, the second fills
 nFAPI structures to indicate to the PHY what it is supposed to do. To signal
 which users have how many resources, the preprocessor populates the
-NR_sched_pusch_t (for values changing every TTI, e.g., frequency domain
-allocation) and NR_sched_pusch_save_t (for values changing less frequently, at
-least in FR1 [to my understanding], e.g., DMRS fields when the time domain
-allocation stays between TTIs) structures. Furthermore, the preprocessor is an
+NR_sched_pusch_t structures. Furthermore, the preprocessor is an
 exchangeable module that schedules differently based on a particular
-use-case/deployment type, e.g., one user for phytest [in
-nr_ul_preprocessor_phytest()], multiple users in FR1
-[nr_fr1_ulsch_preprocessor()], or maybe FR2 [does not exist yet]:
+use-case/deployment type, e.g., one user for phytest in
+[nr_ul_preprocessor_phytest()], multiple users in [nr_ulsch_preprocessor()]:
 * calls preprocessor via pre_processor_ul(): the preprocessor is responsible
   for allocating CCEs (using allocate_nr_CCEs()) and deciding on resource
   allocation for the UEs including TB size. Note that we do not yet have
@@ -258,8 +254,7 @@ NR_UE_sched_ctrl_t structure of affected users. In particular, the field rbSize
 decides whether a user is to be allocated. Furthermore, the preprocessor is an
 exchangeable module that schedules differently based on a particular
 use-case/deployment type, e.g., one user for phytest [in
-nr_preprocessor_phytest()], multiple users in FR1
-[nr_fr1_dlsch_preprocessor()], or maybe FR2 [does not exist yet].
+nr_preprocessor_phytest()], multiple users [nr_dlsch_preprocessor()].
 * calls preprocessor via pre_processor_dl(): the preprocessor is responsible
   for allocating CCEs and PUCCH (using allocate_nr_CCEs() and
   nr_acknack_scheduling()) and deciding on the frequency/time domain
@@ -303,7 +298,7 @@ Even, a future evolution could remove this global rlc layer: rlc can be only a l
 When adding a UE, external code have to call `add_rlc_srb()` and/or `add_rlc_drb()`, to remove it: `rrc_rlc_remove_ue()`
 Inside UE, channels called drd or srb can be created: ??? and deleted: rrc_rlc_config_req()
 
-nr_rlc_tick() must be called periodically to manage the internal timers 
+nr_rlc_ms_tick() must be called periodically to manage the internal timers
 
 successful_delivery() and max_retx_reached(): in ??? trigger, the RLC sends a itti message to RRC: RLC_SDU_INDICATION (neutralized by #if 0 right now)
 
@@ -334,11 +329,11 @@ To manage UE connections, `nr_pdcp_add_srbs()` is employed for adding UE SRBs in
 
 ## PDCP Tx flow
 
-On the Tx side (downlink in gNB), the entry functions `nr_pdcp_data_req_drb()` and `nr_pdcp_data_req_srb()` are called by the upper layer. The upper layer could be GTP or a PDCP internal thread like `enb_tun_read_thread()`, which reads directly from the Linux socket if the 3GPP core implementation is skipped. The PDCP internals for `nr_pdcp_data_req_srb()` and `nr_pdcp_data_req_drb()` are thread-safe. Within these functions, the PDCP manager protects access to the SDU receiving function of PDCP (`recv_sdu()` callback, corresponding to `nr_pdcp_entity_recv_pdu()` for DRBs) using mutex. When necessary, the PDCP layer pushes this data to RLC by calling `rlc_data_req()`.
+On the Tx side (downlink in gNB), the entry functions `nr_pdcp_data_req_drb()` and `nr_pdcp_data_req_srb()` are called by the upper layer. The upper layer could be GTP or a PDCP internal thread like `gnb_tun_read_thread()`, which reads directly from the Linux socket if the 3GPP core implementation is skipped. The PDCP internals for `nr_pdcp_data_req_srb()` and `nr_pdcp_data_req_drb()` are thread-safe. Within these functions, the PDCP manager protects access to the SDU receiving function of PDCP (`recv_sdu()` callback, corresponding to `nr_pdcp_entity_recv_pdu()` for DRBs) using mutex. When necessary, the PDCP layer pushes this data to RLC by calling `rlc_data_req()`.
 
 ## PDCP Rx flow
 
-At the Rx side, `pdcp_data_ind()` serves as the entry point for receiving data from RLC. Within `pdcp_data_ind()`, the PDCP manager mutex protects access to the PDU receiving function of PDCP (`recv_pdu()` callback corresponding to `nr_pdcp_entity_recv_pdu()` for DRBs). Following this, the `deliver_sdu_drb()` function dispatches the received data to the GTP thread via an ITTI message (`GTPV1U_TUNNEL_DATA_REQ`).
+At the Rx side, `pdcp_data_ind()` serves as the entry point for receiving data from RLC. Within `pdcp_data_ind()`, the PDCP manager mutex protects access to the PDU receiving function of PDCP (`recv_pdu()` callback corresponding to `nr_pdcp_entity_recv_pdu()` for DRBs). Following this, the `deliver_sdu_drb()` function dispatches the received data to the SDAP sublayer.
 
 ## PDCP security
 

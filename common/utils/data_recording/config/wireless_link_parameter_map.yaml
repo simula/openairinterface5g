@@ -1,0 +1,375 @@
+#/*
+# * Licensed to the OpenAirInterface (OAI) Software Alliance under one or more
+# * contributor license agreements.  See the NOTICE file distributed with
+# * this work for additional information regarding copyright ownership.
+# * The OpenAirInterface Software Alliance licenses this file to You under
+# * the OAI Public License, Version 1.1  (the "License"); you may not use this file
+# * except in compliance with the License.
+# * You may obtain a copy of the License at
+# *
+# *      http://www.openairinterface.org/?page_id=698
+# *
+# * Unless required by applicable law or agreed to in writing, software
+# * distributed under the License is distributed on an "AS IS" BASIS,
+# * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# * See the License for the specific language governing permissions and
+# * limitations under the License.
+# *-------------------------------------------------------------------------------
+# * For more information about the OpenAirInterface (OAI) Software Alliance:
+# *      contact@openairinterface.org
+# */
+#---------------------------------------------------------------------
+# file common/utils/data_recording/config/wireless_link_parameter_map.yaml
+# brief Wireless Link Parameter Map Dictionary
+# author Abdo Gaber
+# date 2024
+# version 1.0
+# company Emerson, NI Test and Measurement
+# email:
+# note
+# warning
+
+
+# Wireless Link Parameter Map
+# Components:
+# Transmitter: list of waveform configuration based on standard
+#             Parameters pair is given via this parameter map dictionary (Parameter name in Waveform creator vs that in the API ~ SigMF meta-data)
+#             Having a separate dictionary ease of adoption in case of:
+#             - Adding new parameters
+#             - Use different waveform creator that has Different naming scheme
+#             - Define your own customized standard or new wireless system
+#             - All changes are limited to parameter map dictionary
+# the parameter name of waveform generator has the following style:
+# StandardName_WaveformGenerator_parameter, i.e. 
+# if standard = 5gnr, WaveformGenerator: ni_rfmx_rfws, then the parameter name: 5gnr_ni_rfmx_rfws_parameter
+# =====================================================================================
+# ======== list of parameter pairs between waveform config and API ~ SigMF Meta-Data ===
+# =====================================================================================
+
+# List of waveform generators that generate waveforms
+#   key:
+#     standard: "name"
+#     generator: "link or text ... etc"
+#   key: Used to create parameter names in wireless_link_parameter_map
+#     Recommended name for each waveform generator to be given as: standard_WaveformGenerator
+#     Example: 5g NR waveform created using RFmx with RFWS config file:  "5gnr_ni_rfmx_rfws" 
+#     Note: The suffix "_parameter" will be added automatically
+#   standard name: occur in meta-data
+#   generator: generator description to occur in meta-data
+
+waveform_generator:
+  # waveform_source: standard
+  5gnr_oai:  # Generated using OAI
+    standard: "5gnr"
+    generator: "OpenAirInterface: https://www.openairinterface.org/"
+  5gnr_ni_rfmx_rfws:  # Generated using NI RFmx Tool
+    standard: "5gnr"
+    generator: "NI RFmx Waveform Creator: https://www.ni.com/en-ca/shop/wireless-design-test/application-software-for-wireless-design-test-category/what-is-rfmx.html"
+transmitter:
+  # 5G NR subfield
+  5gnr:
+    # frame number
+    - sigmf_parameter_name: "frame"
+      description: "5G NR frame number"
+      5gnr_oai_parameter:
+        name: "frame"
+    # slot number
+    - sigmf_parameter_name: "slot"
+      description: "5G NR slot number"
+      5gnr_oai_parameter:
+        name: "slot"
+    # bandwidth
+    - sigmf_parameter_name: "bandwidth"
+      description: "5G NR bandwidth"
+      5gnr_ni_rfmx_rfws_parameter:
+        name: "Bandwidth (Hz)"
+      5gnr_oai_parameter:
+        name: "bandwidth"
+    # Frame structure
+    - sigmf_parameter_name: "frame_structure"
+      description: "5G NR duplexing scheme FDD, TDD, user defined"
+      5gnr_ni_rfmx_rfws_parameter:
+        name: "Duplex Scheme" # not exact, since it depends if the waveform is for UL or DL
+      5gnr_oai_parameter:
+        name: "frame_type" 
+        value_map: # simu value : SigMF value
+          0: "fdd" 
+          1: "tdd" 
+    # Link direction
+    - sigmf_parameter_name: "link_direction"
+      description: "Link direction"
+      5gnr_ni_rfmx_rfws_parameter:
+        name: "Link Direction"
+    # Frequency Range
+    - sigmf_parameter_name: "frequency_range"
+      description: "Frequency Range"
+      5gnr_ni_rfmx_rfws_parameter:
+        name: "Frequency Range"
+        value_map: # simu value : SigMF value
+          "Range 1": "fr1" 
+          "Range 2": "fr2" 
+      5gnr_oai_parameter:
+        name: "freq_range"
+        value_map: # simu value : SigMF value
+          0: "fr1" 
+          1: "fr2" 
+    # Subcarrier spacing in Hz
+    - sigmf_parameter_name: "subcarrier_spacing"
+      description: "Subcarrier spacing in Hz"
+      5gnr_ni_rfmx_rfws_parameter:
+        name: Subcarrier Spacing (Hz)
+      5gnr_oai_parameter:
+        name: subcarrier_spacing
+        value_map: # simu value : SigMF value
+          0: 15000 
+          1: 30000 
+          2: 60000
+          3: 120000
+    # Sampling rate in Hz
+    - sigmf_parameter_name: "sample_rate"
+      description: "Sampling rate in Hz"
+      5gnr_ni_rfmx_rfws_parameter:
+        name: "sample_rate_hz"
+      5gnr_oai_parameter:
+        name: "sample_rate"
+    # Cyclic prefix mode
+    - sigmf_parameter_name: "cp_mode"
+      description: "Cyclic prefix mode"
+      5gnr_ni_rfmx_rfws_parameter:
+        name: "Cyclic Prefix Mode"
+      5gnr_oai_parameter:
+        name: "cyclic_prefix"
+        value_map: # simu value : SigMF value
+          0: "normal" 
+          1: "extended"
+    # cell ID
+    - sigmf_parameter_name: "cell_id"
+      description: "cell ID"
+      5gnr_ni_rfmx_rfws_parameter:
+        name: "Cell ID"
+      5gnr_oai_parameter:
+        name: "Nid_cell"
+    # rnti
+    - sigmf_parameter_name: "rnti"
+      description: "RNTI"
+      5gnr_ni_rfmx_rfws_parameter:
+        name: "rnti"
+      5gnr_oai_parameter:
+        name: "rnti"
+    # Symbols per slot
+    - sigmf_parameter_name: "symbols_per_slot"
+      description: "Symbols per slot"
+      5gnr_oai_parameter:
+        name: "symbols_per_slot"
+    # PUSCH: content
+    - sigmf_parameter_name: "pusch:content"
+      description: "PUSCH: content"
+    # PUSCH: channel code
+    - sigmf_parameter_name: "pusch:channel_code"
+      description: "PUSCH: channel code"
+    # PUSCH: number of PRBs
+    - sigmf_parameter_name: "pusch:num_prb"
+      description: "PUSCH Resource Block Size"
+      5gnr_oai_parameter:
+        name: "rb_size"
+    # PUSCH RB Start index
+    - sigmf_parameter_name: "pusch:start_prb"
+      description: "PUSCH Resource Block Start"
+      5gnr_oai_parameter:
+        name: "rb_start"
+    # PUSCH MAPPING type
+    - sigmf_parameter_name: "pusch:mapping_type"
+      description: "PUSCH Mapping Type"
+      5gnr_oai_parameter:
+        name: "mappingType"
+        value_map: # simu value : SigMF value
+          "NR_PUSCH_TimeDomainResourceAllocation__mappingType_typeA": "A" 
+          "NR_PUSCH_TimeDomainResourceAllocation__mappingType_typeB": "B" 
+    # PUSCH: OFDM symbol start index within slot
+    - sigmf_parameter_name: "pusch:start_ofdm_symbol"
+      description: "PUSCH: OFDM symbol start index within slot"
+      5gnr_oai_parameter:
+        name: "start_symbol_index"
+    # PUSCH: number of OFDM symbols in one slot
+    - sigmf_parameter_name: "pusch:num_ofdm_symbols"
+      description: "PUSCH: number of OFDM symbols in one slot"
+      5gnr_oai_parameter:
+        name: "nr_of_symbols"
+    # PUSCH: modulation
+    - sigmf_parameter_name: "pusch:modulation"
+      description: "PUSCH: modulation"
+      5gnr_ni_rfmx_rfws_parameter:
+        name: "UL Modulation Type" 
+        value_map: # simu value : SigMF value 
+          "8PSK": "8_psk"
+          "QPSK": "qpsk"
+          "QAM16": "16_qam"
+          "QAM64": "64_qam"
+          "QAM256": "256_qam"
+          "QAM1024": "1024_qam"
+          "Standard": ""
+      5gnr_oai_parameter:
+        name: "qam_mod_order"
+        value_map: # simu value : SigMF value 
+          2 : "qpsk"
+          4 : "16_qam"
+          6 : "64_qam"
+          8 : "256_qam"
+          "Standard": ""
+    # PUSCH MCS Index
+    - sigmf_parameter_name: "pusch:mcs"
+      description: "PUSCH MCS Index"
+      5gnr_oai_parameter:
+        name: "mcs_index"
+     # PUSCH MCS Index Table
+    - sigmf_parameter_name: "pusch:mcs_table_index"
+      description: "PUSCH MCS Table Index"
+      5gnr_oai_parameter:
+        name: "mcs_table"
+    # PUSCH: number of transmission layers
+    - sigmf_parameter_name: "pusch:num_layer"
+      description: "PUSCH: number of transmission layers"
+      5gnr_oai_parameter:
+        name: "nrOfLayers"
+    # Transform Precoding
+    - sigmf_parameter_name: "pusch:transform_precoding"
+      description: "PUSCH Transform Precoding"
+      5gnr_oai_parameter:
+        name: "transform_precoding"
+        value_map: # simu value : SigMF value
+          0: "enabled"
+          1: "disabled"
+    # PUSCH DMRS: content
+    - sigmf_parameter_name: "pusch_dmrs:content"
+      description: "PUSCH DMRS: content"
+          #"none": "none"
+          #"random_qpsk": "random_qpsk"
+          #"compliant": "compliant"
+     # PUSCH DMRS: resource map configuration
+    - sigmf_parameter_name: "pusch_dmrs:resource_map_config"
+      description: "PUSCH DMRS: resource map configuration"
+      5gnr_oai_parameter:
+        name: "dmrs_config_type"
+        value_map:
+          0: "5g nr type 1"
+          1: "5g nr type 2"
+    # PUSCH DMRS: OFDM symbol start index within slot
+    - sigmf_parameter_name: "pusch_dmrs:start_ofdm_symbol"
+      description: "PUSCH DMRS: OFDM symbol start index within slot"
+      5gnr_oai_parameter:
+        # to be derived from this OAI parameter
+        name: "ul_dmrs_symb_pos"
+    # PUSCH DMRS: DMRS duration in number of OFDM symbols
+    - sigmf_parameter_name: "pusch_dmrs:duration_num_ofdm_symbols"
+      description: "PUSCH DMRS: DMRS duration in number of OFDM symbols"
+      5gnr_oai_parameter:
+        # to be derived from this OAI parameter
+        name: "ul_dmrs_symb_pos"
+    # PUSCH DMRS: OFDM symbol indices within resource grid
+    - sigmf_parameter_name: "pusch_dmrs:ofdm_symbol_idx"
+      description: "PUSCH DMRS: OFDM symbol indices within resource grid"
+      5gnr_oai_parameter:
+        # to be derived from this OAI parameter
+        name: "ul_dmrs_symb_pos"
+    # PUSCH DMRS: number of additional PUSCH DMRS positions
+    - sigmf_parameter_name: "pusch_dmrs:num_add_positions"
+      description: "PUSCH DMRS: number of additional PUSCH DMRS positions"
+      5gnr_oai_parameter:
+        # to be derived from this OAI parameter
+        name: "ul_dmrs_symb_pos"
+    # PUSCH DMRS: antenna port
+    - sigmf_parameter_name: "pusch_dmrs:antennna_port"
+      description: "PUSCH DMRS: antenna port"
+      5gnr_oai_parameter:
+        name: "dmrs_port"
+    # PUSCH DMRS: scrambler initialization
+    - sigmf_parameter_name: "pusch_dmrs:nscid"
+      description: "PUSCH DMRS: scrambler initialization"
+      5gnr_oai_parameter:
+        name: "dmrs_nscid"
+    # number of rx antennas
+    - sigmf_parameter_name: "num_rx_antennas"
+      description: "Number of Rx antennas"
+      5gnr_oai_parameter:
+        name: "nb_antennas_rx"
+    # number of tx antennas
+    - sigmf_parameter_name: "num_tx_antennas"
+      description: "Number of Tx antennas"
+      5gnr_oai_parameter:
+        name: "nb_antennas_tx"
+
+channel:
+  # Signal-to-noise ratio (Es/N0) in dB
+  - sigmf_parameter_name: "snr_esn0_db"
+    description: "Signal-to-noise ratio (Es/N0) in dB"
+  # Signal-to-noise ratio (Eb/N0) in dB
+  - sigmf_parameter_name: "snr_ebn0_db"
+    description: "Signal-to-noise ratio (Eb/N0) in dB"
+  # Channel model
+  - sigmf_parameter_name: "channel_model"
+    description: "Fading channel model"
+  # Number of channel taps
+  - sigmf_parameter_name: "num_channel_taps"
+    description: "Number of channel taps"
+  # Channel attenuation level in dB
+  - sigmf_parameter_name: "channel_attenuation_db"
+    description: "Channel attenuation level in dB"
+  # Nominal delay spread in s
+  - sigmf_parameter_name: "delay_spread"
+    description: "Nominal delay spread in s"
+  # UE speed in m/s
+  - sigmf_parameter_name: "speed"
+    description: "UE speed in m/s"
+  # Carrier frequency in Hz
+  - sigmf_parameter_name: "carrier_frequency"
+    description: "Carrier frequency in Hz"
+receiver:
+  # Frequency domain interpolation method for channel estimation
+  - sigmf_parameter_name: "channel_estimation_freq_interpolation"
+    description: "Frequency domain interpolation method for channel estimation"
+  # Time domain interpolation method for channel estimation
+  - sigmf_parameter_name: "channel_estimation_time_interpolation"
+    description: "Time domain interpolation method for channel estimation"
+  # Channel equalization method
+  - sigmf_parameter_name: "channel_equalization_method"
+    description: "Channel equalization method"
+  # Symbol demapping method
+  - sigmf_parameter_name: "symbol_demapping_method"
+    description: "Symbol demapping method"
+  # Manufacturer of the hardware used to receive the signal
+  - sigmf_parameter_name: "manufacturer"
+    description: "Manufacturer"
+  # Unique ID of the emitter, USRP serial number --> usrp_mboard_serial
+  - sigmf_parameter_name: "seid"
+    description: "Emitter ID (USRP serial number)"
+  # For USRP, use “daughterboard ID, a string read out from the device shortened by the hex ID e.g. ‘(0x0085)’
+  - sigmf_parameter_name: "hw_subtype"
+    description: "Hardware subtype (for USRP: daughterboard ID)"
+  # RX sync reference source ("internal", "external", "gpsdo")
+  - sigmf_parameter_name: "clock_reference"
+    description: "RX clock reference"
+    required_field: false
+  # Estimated SNR in dB 
+  - sigmf_parameter_name: "snr_estimate_db"
+    description: "SNR estimate in dB"
+    required_field: false
+  # Result of coarse PSS-based timing estimation (used for synchronization)
+  - sigmf_parameter_name: "timing_estimate_coarse"
+    description: "Coarse timing estimate in samples"
+    required_field: false"
+  # Result of coarse PSS-based frequency offset estimation (used for synchronization)
+  - sigmf_parameter_name: "cfo_estimate_coarse"
+    description: "Coarse frequency estimate in Hz"
+    required_field: false
+  # Result of fine CRS-based frequency offset estimation (used for synchronization)
+  - sigmf_parameter_name: "cfo_estimate_fine"
+    description: "Fine frequency estimate in Hz"
+    required_field: false
+  # Number of transmitted payload bits
+  - sigmf_parameter_name: "num_payload_bits"
+    description: "Number of transmitted payload bits"
+    required_field: false
+  # Number of bit errors when applying traditional RX processing
+  - sigmf_parameter_name: "bit_errors_trad_rx"
+    description: "Bit errors"
+    required_field: false

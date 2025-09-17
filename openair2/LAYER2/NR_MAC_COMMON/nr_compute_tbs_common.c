@@ -26,6 +26,7 @@
 #define INDEX_MAX_TBS_TABLE (93)
 
 #include "common/utils/nr/nr_common.h"
+#include "common/utils/LOG/log.h"
 #include <math.h>
 
 //Table 5.1.2.2-2
@@ -63,95 +64,84 @@ uint32_t nr_compute_tbs(uint16_t Qm,
   const uint32_t nb_re = min(156, nbp_re) * nb_rb;
   // Intermediate number of information bits
   // Rx1024 is tabulated as 10 times the actual code rate
-  const uint32_t R_5 = R/5; // R can be fractional so we can't divide by 10
+  const uint32_t R_5 = R / 5; // R can be fractional so we can't divide by 10
   // So we ned to right shift by 11 (10 for x1024 and 1 additional as above)
-  const uint32_t Ninfo = ((nb_re * R_5 * Qm * Nl)>>11)>>tb_scaling;
-
-  uint32_t nr_tbs=0;
+  const uint32_t Ninfo = ((nb_re * R_5 * Qm * Nl) >> 11) >> tb_scaling;
+  uint32_t nr_tbs = 0;
   uint32_t Np_info, C, n;
-
   if (Ninfo <= NR_MAX_PDSCH_TBS) {
     n = max(3, floor(log2(Ninfo)) - 6);
-      Np_info = max(24, (Ninfo>>n)<<n);
-      for (int i=0; i<INDEX_MAX_TBS_TABLE; i++) {
-        if (Tbstable_nr[i] >= Np_info){
-          nr_tbs = Tbstable_nr[i];
-          break;
-        }
-      }
-  } else {
-    n = log2(Ninfo-24)-5;
-    Np_info = max(3840, (ROUNDIDIV((Ninfo-24),(1<<n)))<<n);
-
-    if (R <= 2560) {
-        C = CEILIDIV((Np_info+24),3816);
-        nr_tbs = (C<<3)*CEILIDIV((Np_info+24),(C<<3)) - 24;
-    } else {
-      if (Np_info > 8424){
-          C = CEILIDIV((Np_info+24),8424);
-          nr_tbs = (C<<3)*CEILIDIV((Np_info+24),(C<<3)) - 24;
-      } else {
-        nr_tbs = ((CEILIDIV((Np_info+24),8))<<3) - 24;
-      }
-    }
-  }
-
-  LOG_D(NR_MAC, "Ninfo %u nbp_re %d nb_re %d Qm %d, R %d, tbs %d bits\n", Ninfo, nbp_re, nb_re, Qm, R, nr_tbs);
-
-  return nr_tbs;
-}
-
-//tbslbrm calculation according to 5.4.2.1 of 38.212
-uint32_t nr_compute_tbslbrm(uint16_t table,
-			    uint16_t nb_rb,
-		            uint8_t Nl) {
-
-  uint16_t R, nb_re;
-  uint16_t nb_rb_lbrm=0;
-  uint8_t Qm;
-  int i;
-  uint32_t nr_tbs=0;
-  uint32_t Ninfo, Np_info, C;
-  uint8_t n;
-
-  for (i=0; i<7; i++) {
-    if (NPRB_LBRM[i] >= nb_rb){
-    nb_rb_lbrm = NPRB_LBRM[i];
-      break;
-    }
-  }
-
-  Qm = ((table == 1)? 8 : 6);
-  R = 948;
-  nb_re = 156 * nb_rb_lbrm;
-
-  // Intermediate number of information bits
-  Ninfo = (nb_re * R * Qm * Nl)>>10;
-
-  if (Ninfo <= NR_MAX_PDSCH_TBS) {
-    n = max(3, floor(log2(Ninfo)) - 6);
-    Np_info = max(24, (Ninfo>>n)<<n);
-    for (int i=0; i<INDEX_MAX_TBS_TABLE; i++) {
+    Np_info = max(24, (Ninfo >> n) << n);
+    for (int i = 0; i < INDEX_MAX_TBS_TABLE; i++) {
       if (Tbstable_nr[i] >= Np_info){
         nr_tbs = Tbstable_nr[i];
         break;
       }
     }
   } else {
-    n = log2(Ninfo-24)-5;
-    Np_info = max(3840, (ROUNDIDIV((Ninfo-24),(1<<n)))<<n);
+    n = log2(Ninfo - 24) - 5;
+    Np_info = max(3840, (ROUNDIDIV((Ninfo - 24), (1 << n))) << n);
 
+    if (R <= 2560) {
+      C = CEILIDIV((Np_info + 24), 3816);
+      nr_tbs = (C << 3) * CEILIDIV((Np_info + 24), (C << 3)) - 24;
+    } else {
+      if (Np_info > 8424){
+        C = CEILIDIV((Np_info + 24), 8424);
+        nr_tbs = (C << 3) * CEILIDIV((Np_info + 24), (C << 3)) - 24;
+      } else {
+        nr_tbs = ((CEILIDIV((Np_info + 24), 8)) << 3) - 24;
+      }
+    }
+  }
+
+  LOG_D(NR_MAC, "Ninfo %u nbp_re %d nb_re %d Qm %d, R %d, tbs %d bits\n", Ninfo, nbp_re, nb_re, Qm, R, nr_tbs);
+  return nr_tbs;
+}
+
+//tbslbrm calculation according to 5.4.2.1 of 38.212
+uint32_t nr_compute_tbslbrm(uint16_t table, uint16_t nb_rb, uint8_t Nl)
+{
+  uint16_t nb_rb_lbrm = 0;
+  for (int i = 0; i < 7; i++) {
+    if (NPRB_LBRM[i] >= nb_rb){
+    nb_rb_lbrm = NPRB_LBRM[i];
+      break;
+    }
+  }
+
+  int Qm = (table == 1) ? 8 : 6;
+  uint32_t R = 948;
+  uint32_t nb_re = 156 * nb_rb_lbrm;
+
+  // Intermediate number of information bits
+  uint32_t Ninfo = (nb_re * R * Qm * Nl) >> 10;
+  uint32_t nr_tbs = 0;
+  uint32_t Np_info, n;
+  if (Ninfo <= NR_MAX_PDSCH_TBS) {
+    n = max(3, floor(log2(Ninfo)) - 6);
+    Np_info = max(24, (Ninfo >> n) << n);
+    for (int i = 0; i < INDEX_MAX_TBS_TABLE; i++) {
+      if (Tbstable_nr[i] >= Np_info){
+        nr_tbs = Tbstable_nr[i];
+        break;
+      }
+    }
+  } else {
+    n = log2(Ninfo - 24) - 5;
+    Np_info = max(3840, (ROUNDIDIV((Ninfo - 24), (1 << n))) << n);
+    int C;
     if (R <= 256) {
-      C = CEILIDIV((Np_info+24),3816);
-      nr_tbs = (C<<3)*CEILIDIV((Np_info+24),(C<<3)) - 24;
+      C = CEILIDIV((Np_info + 24), 3816);
+      nr_tbs = (C << 3) * CEILIDIV((Np_info + 24), (C << 3)) - 24;
     }
     else {
       if (Np_info > 8424){
-        C = CEILIDIV((Np_info+24),8424);
-        nr_tbs = (C<<3)*CEILIDIV((Np_info+24),(C<<3)) - 24;
+        C = CEILIDIV((Np_info + 24), 8424);
+        nr_tbs = (C << 3) * CEILIDIV((Np_info + 24), (C << 3)) - 24;
       }
       else
-        nr_tbs = ((CEILIDIV((Np_info+24),8))<<3) - 24;
+        nr_tbs = ((CEILIDIV((Np_info + 24), 8)) << 3) - 24;
     }
   }
   return nr_tbs;

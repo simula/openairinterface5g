@@ -29,6 +29,25 @@ cd cmake_targets/ran_build/build
 sudo LD_LIBRARY_PATH=. ./nr-softmodem ...
 ```
 
+### Possible problems
+
+On some systems with specific ASan versions, executing a program compiled with
+ASan might fail with an error `DEADLYSIGNAL`, or simply a segmentation fault.
+Note that since OAI compiles and runs some programs _during compilation_ (for
+code generation), typically already the build is impacted.
+
+The issue is related to Address Space Layout Randomization (ASLR) settings
+in Linux, a security feature designed to make it more difficult for attackers
+to predict the locations of processes in memory.  In this case, it is possible
+to avoid the bug by running
+
+```
+sudo sysctl vm.mmap_rnd_bits=30
+```
+
+which reduces the number of bits for memory mappings used to randomize mmap
+base addresses. _This reduces the security of the system._
+
 ## Undefined Behavior Sanitizer (UBSAN)
 [Undefined Behavior Sanitizer](https://clang.llvm.org/docs/UndefinedBehaviorSanitizer.html) (UBSAN) is a runtime undefined behavior checker. It uses compile-time instrumentation to catch undefined behavior by inserting code that performs specific checks before operations that may cause it. UBSAN can be activated with the `--sanitize-undefined` option or `-fsanitize=undefined`.
 

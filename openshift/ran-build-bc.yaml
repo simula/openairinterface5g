@@ -20,14 +20,16 @@
 # */
 #---------------------------------------------------------------------
 #
+### Resource consumption 2.5Gi, 17CPU (SMT ENABLED)
 kind: BuildConfig
 apiVersion: build.openshift.io/v1
 metadata:
   name: "ran-build"
+  namespace: "oaicicd-ran"
 spec:
     runPolicy: "Serial"
     nodeSelector:
-        kubernetes.io/hostname: acamas
+        node-role.kubernetes.io/ran-build: ""
     source:
         type: "Binary"
     strategy:

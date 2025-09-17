@@ -154,10 +154,6 @@ void doit (void)
 {
   int i;
   break_on_error = 1;
-
-  //     asn1_xer_print = 1;
-  //     asn_debug = 1;
-
   for (i = 0; i < sizeof(s1ap_test) / sizeof(s1ap_test_t); i++) {
     S1AP_S1AP_PDU_t pdu;
     uint8_t *buffer;

@@ -55,7 +55,7 @@ void createE1inst(E1_t type, instance_t instance, uint64_t gnb_id, e1ap_net_conf
   e1ap_inst[instance]->gtpInstF1U = -1;
 }
 
-E1AP_TransactionID_t transacID[E1AP_MAX_NUM_TRANSAC_IDS] = {0}; 
+static E1AP_TransactionID_t transacID[E1AP_MAX_NUM_TRANSAC_IDS] = {0};
 
 void e1ap_common_init() {
   srand(time(NULL));

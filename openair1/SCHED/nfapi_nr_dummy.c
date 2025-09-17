@@ -22,7 +22,7 @@ void handle_nfapi_nr_csirs_pdu(processingData_L1tx_t *msgTx,
                     }
 int l1_north_init_gNB(void){return 0;}
 
-uint8_t slot_ahead=6;
+int slot_ahead = 6;
 //uint8_t nfapi_mode=0;
 NR_IF_Module_t *NR_IF_Module_init(int Mod_id) {return NULL;}
 

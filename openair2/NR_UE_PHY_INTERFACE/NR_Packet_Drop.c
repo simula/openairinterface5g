@@ -57,7 +57,6 @@ void read_channel_param(const nfapi_nr_dl_tti_pdsch_pdu_rel15_t * pdu, int slot,
   return;
 }
 
-extern nr_bler_struct nr_bler_data[NR_NUM_MCS];
 float get_bler_val(uint8_t mcs, int sinr)
 {
   // 4th col = dropped packets, 5th col = total packets

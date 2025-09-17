@@ -161,8 +161,7 @@ int nas_network_process_data(nas_user_t *user, int msg_id, const void *data)
 
     if ( (confirm.errCode == AS_SUCCESS) ||
          (confirm.errCode == AS_TERMINATED_NAS) ) {
-      rc = nas_proc_establish_cnf(user, confirm.nasMsg.data,
-                                  confirm.nasMsg.length);
+      rc = nas_proc_establish_cnf(user, confirm.nasMsg.nas_data, confirm.nasMsg.length);
     } else {
       LOG_TRACE(WARNING, "NET-MAIN  - "
                 "Initial NAS message not delivered");
@@ -193,8 +192,7 @@ int nas_network_process_data(nas_user_t *user, int msg_id, const void *data)
   case AS_DL_INFO_TRANSFER_IND: {
     const dl_info_transfer_ind_t info = msg->msg.dl_info_transfer_ind;
     /* Received downlink data transfer indication */
-    rc = nas_proc_dl_transfer_ind(user, info.nasMsg.data,
-                                  info.nasMsg.length);
+    rc = nas_proc_dl_transfer_ind(user, info.nasMsg.nas_data, info.nasMsg.length);
     break;
   }
 

@@ -30,6 +30,10 @@
 #ifndef NGAP_GNB_ITTI_MESSAGING_H_
 #define NGAP_GNB_ITTI_MESSAGING_H_
 
+#include <assertions.h>
+#include <netinet/sctp.h>
+#include <stdint.h>
+
 void ngap_gNB_itti_send_sctp_data_req(instance_t instance,
                                       sctp_assoc_t assoc_id,
                                       uint8_t *buffer,

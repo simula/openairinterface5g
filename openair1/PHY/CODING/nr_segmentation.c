@@ -151,13 +151,8 @@ else
     for (r=0; r<*C; r++) {
 
       k = 0;
-
-      while (k<((Kprime - L)>>3)) {
-        output_buffers[r][k] = input_buffer[s];
-		//printf("encoding segment %d : byte %d (%d) => %d\n",r,k,(Kprime-L)>>3,input_buffer[s]);
-        k++;
-        s++;
-      }
+      memcpy(output_buffers[r],input_buffer+s,(Kprime-L)>>3);
+      s+=(Kprime-L)>>3;
 
       if (*C > 1) { // add CRC
         crc = crc24b(output_buffers[r],Kprime-L)>>8;

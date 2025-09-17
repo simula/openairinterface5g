@@ -1,0 +1,213 @@
+module o-ran-file-management {
+  yang-version 1.1;
+  namespace "urn:o-ran:file-management:1.0";
+  prefix "o-ran-file-mgmt";
+
+  import ietf-crypto-types {
+    prefix "ct";
+  }
+
+
+  organization "O-RAN Alliance";
+
+  contact
+    "www.o-ran.org";
+
+  description
+    "This module defines the configuration and operations for handling upload.
+
+    Copyright 2019 the O-RAN Alliance.
+
+    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS 'AS IS'
+    AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+    IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+    ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+    LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+    CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+    SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+    INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+    CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+    ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+    POSSIBILITY OF SUCH DAMAGE.
+
+    Redistribution and use in source and binary forms, with or without
+    modification, are permitted provided that the following conditions are met:
+
+    * Redistributions of source code must retain the above copyright notice,
+    this list of conditions and the above disclaimer.
+    * Redistributions in binary form must reproduce the above copyright notice,
+    this list of conditions and the above disclaimer in the documentation
+    and/or other materials provided with the distribution.
+    * Neither the Members of the O-RAN Alliance nor the names of its
+    contributors may be used to endorse or promote products derived from
+    this software without specific prior written permission.";
+
+  revision "2019-07-03" {
+    description
+      "version 1.1.0
+
+      1) backward compatible changes to correct sFTP Server Authentication .
+      2) minor fixes according to lack of descriptions
+      3) backward compatible changes to introduce groupings";
+
+    reference "ORAN-WG4.M.0-v01.00";
+  }
+
+  revision "2019-02-04" {
+    description
+      "version 1.0.0
+
+      1) imported model from xRAN
+      2) changed namespace and reference from xran to o-ran";
+
+    reference "ORAN-WG4.M.0-v01.00";
+  }
+
+  grouping file-path-grouping {
+    description "Complete logical path of the file to upload/download
+    (no wildcard is allowed) ex : /o-RAN/log/syslog.1";
+
+    leaf local-logical-file-path {
+      type string;
+      mandatory true;
+      description "Local logical file path";
+    }
+
+    leaf remote-file-path {
+      type string;
+      mandatory true;
+      description "URI specifying the remote-file-path on O-DU/NMS.
+      Format:sftp://<username>@<host>[:port]/path";
+    }
+  }
+
+  grouping output-status-grouping {
+    description "Status grouping";
+
+    leaf status {
+      type enumeration {
+        enum SUCCESS {
+            description "";}
+        enum FAILURE {
+            description "";}
+      }
+      description "Operation status";
+      }
+
+    leaf reject-reason {
+      when "../status = 'FAILURE'";
+      type string;
+      description "";
+    }
+  }
+
+  grouping credential-information {
+    description "Type of authentication to use for SFTP upload or download.";
+    choice credentials {
+      case password {
+        container password {
+          presence true;
+          leaf password {
+            type string;
+            mandatory true;
+            description
+              "password needed for O-RU authentication.";
+          }
+          description
+            "password for O-RU authentication method in use";
+        }
+        container server {
+          list keys {
+            key algorithm;
+            ordered-by user;
+            uses ct:public-key-grouping;
+            description
+              "List of allowed algorithms with its keys";
+          }
+          description
+            "Key for sFTP server authentication";
+        }
+      }
+      case certificate {
+        container certificate {
+          presence true;
+          description
+            "certificate authentication method in use";
+        }
+      }
+     description "";
+    }
+  }
+
+  grouping retrieve-input {
+    description "Grouping for information retrieval RPC input";
+    leaf logical-path {
+      type string;
+      mandatory true;
+      description "O-RAN unit of which the files are to be listed.
+      ex :  O-RAN/log, o-RAN/PM, O-RAN/transceiver";
+    }
+    leaf file-name-filter {
+      type string;
+      description "Filter which are to be applied on the result list of file names (* is allowed as wild-card).";
+    }
+  }
+
+  grouping retrieve-output {
+    description "Grouping for information retrieval RPC output";
+    uses output-status-grouping;
+    leaf-list file-list {
+      when "../status = 'SUCCESS'";
+      type string;
+      description "List of files in the unit with the filter applied.";
+    }
+  }
+
+// RPCs
+
+  rpc file-upload {
+    description "File upload over SFTP from equipment to NETCONF client";
+    input {
+      uses file-path-grouping;
+      uses credential-information;
+    }
+    output {
+      uses output-status-grouping;
+    }
+  }
+
+  rpc retrieve-file-list {
+    description "List all the files in the logical O-RAN unit (* is allowed as wild-card).";
+    input {
+      uses retrieve-input;
+
+    }
+    output {
+      uses retrieve-output;
+    }
+  }
+
+  notification file-upload-notification {
+    uses file-path-grouping;
+    uses output-status-grouping;
+    description "";
+  }
+
+  rpc file-download {
+    description
+      "Management plane triggered to generate the download file of O-RU.";
+    input {
+      uses file-path-grouping;
+      uses credential-information;
+    }
+    output {
+      uses output-status-grouping;
+    }
+  }
+
+  notification file-download-event {
+    uses file-path-grouping;
+    uses output-status-grouping;
+    description "";
+  }
+}

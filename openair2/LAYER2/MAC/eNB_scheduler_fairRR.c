@@ -52,7 +52,6 @@
 
 #ifdef PHY_TX_THREAD
   extern volatile int16_t phy_tx_txdataF_end;
-  extern int oai_exit;
 #endif
 extern uint16_t sfnsf_add_subframe(uint16_t frameP, uint16_t subframeP, int offset);
 extern void add_subframe(uint16_t *frameP, uint16_t *subframeP, int offset);

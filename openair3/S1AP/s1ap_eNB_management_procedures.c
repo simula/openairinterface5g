@@ -41,7 +41,7 @@
 #include "s1ap_eNB_defs.h"
 #include "s1ap_eNB.h"
 
-s1ap_eNB_internal_data_t s1ap_eNB_internal_data;
+static s1ap_eNB_internal_data_t s1ap_eNB_internal_data;
 
 RB_GENERATE(s1ap_mme_map, s1ap_eNB_mme_data_s, entry, s1ap_eNB_compare_assoc_id);
 

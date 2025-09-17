@@ -506,7 +506,7 @@ typedef struct {
 
 /*!\brief RA process state*/
 typedef enum { IDLE = 0, MSG2, WAITMSG3, MSG4, WAITMSG4ACK, MSGCRNTI, MSGCRNTI_ACK } eRA_state;
-static const char *const era_text[] = {"IDLE", "Ms2", "WAITMSG3", "WAITMSG4ACK", "MSGCRNTI", "MSGCRNTIACK"};
+static const char *const era_text[] = {"IDLE", "Msg2", "WAITMSG3", "WAITMSG4ACK", "MSGCRNTI", "MSGCRNTIACK"};
 
 /*!\brief  UE DLSCH scheduling states*/
 typedef enum { S_DL_NONE = 0, S_DL_SCHEDULED } UE_DLSCH_STATUS;

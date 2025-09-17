@@ -23,7 +23,7 @@
 #define _NR_PDCP_UE_MANAGER_H_
 
 #include "nr_pdcp_entity.h"
-
+#include "common/platform_constants.h"
 #include "common/platform_types.h"
 
 typedef void nr_pdcp_ue_manager_t;

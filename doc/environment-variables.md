@@ -2,7 +2,7 @@
 
 OAI uses/supports a number of environment variables, documented in the following:
 
-- `NFAPI_TRACE_LEVEL`: set the nfapi custom logging framework's log level; can be one of `error`, `warn`, `note`, `info`, `debug`
+- `NFAPI_TRACE_LEVEL`: set the nfapi custom logging framework's log level; can be one of `error`, `warn`, `note`, `info`, `debug`. Default is `warn`.
 - `NR_AWGN_RESULTS_DIR`: directory containing BLER curves for L2simulator channel modelling in SISO case
 - `NR_MIMO2x2_AWGN_RESULTS_DIR`: directory containing BLER curves for L2simulator channel modelling in 2x2 MIMO case
 - `NVRAM_DIR`: directory to read/write NVRAM data in (5G) `nvram` tool; if not defined, will use `PWD` (working directory)

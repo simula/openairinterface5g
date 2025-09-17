@@ -48,12 +48,13 @@
 #include <sys/queue.h>
 #include <sys/epoll.h>
 #include "fapi_nvIPC.h"
+#include <nfapi_vnf.h>
+#include <nr_fapi_p7_utils.h>
 #include "nfapi_interface.h"
 #include "nfapi.h"
 #include "nfapi_nr_interface_scf.h"
 #include "nfapi/open-nFAPI/vnf/inc/vnf_p7.h"
-
-#include "fapi_vnf_p5.h"
+#include "system.h"
 #include "fapi_vnf_p7.h"
 
 #define MAX_EVENTS 10
@@ -93,90 +94,12 @@ static int ipc_handle_rx_msg(nv_ipc_t *ipc, nv_ipc_msg_t *msg)
       return -1;
     }
 
+   vnf_p7_t *vnf_p7_config = (vnf_p7_t *)((vnf_info *)vnf_config->user_data)->p7_vnfs->config;
     switch (fapi_msg.message_id) {
-      case NFAPI_NR_PHY_MSG_TYPE_PARAM_RESPONSE:
-
-        if (vnf_config->nr_param_resp) {
-          nfapi_nr_param_response_scf_t msg_param_resp;
-          aerial_unpack_nr_param_response(&pReadPackedMessage, end, &msg_param_resp, &vnf_config->codec_config);
-          (vnf_config->nr_param_resp)(vnf_config, vnf_config->pnf_list->p5_idx, &msg_param_resp);
-        }
+      case NFAPI_NR_PHY_MSG_TYPE_PARAM_RESPONSE ... NFAPI_NR_PHY_MSG_TYPE_ERROR_INDICATION:
+        vnf_nr_handle_p4_p5_message(msg->msg_buf, msg->msg_len, 1, vnf_config);
         break;
-
-      case NFAPI_NR_PHY_MSG_TYPE_CONFIG_RESPONSE: {
-        // unpack message
-        nfapi_nr_config_response_scf_t msg_config_response;
-        aerial_unpack_nr_config_response(&pReadPackedMessage, end, &msg_config_response, &vnf_config->codec_config);
-        // Check the error code
-        if (msg_config_response.error_code == NFAPI_NR_CONFIG_MSG_OK) {
-          // Invoke the call back
-          if (vnf_config->nr_config_resp) {
-            (vnf_config->nr_config_resp)(vnf_config, vnf_config->pnf_list->p5_idx, &msg_config_response);
-          }
-        } else {
-          // Error code not OK (MSG_INVALID_CONFIG)
-          /* MSG_INVALID_CONFIG.response structure
-           * Error code uint8_t
-           * Number of invalid or unsupported TLVs uint8_t
-           * Number of invalid TLVs that can only be configured in IDLE state uint8_t
-           * Number of invalid TLVs that can only be configured in RUNNING state uint8_t
-           * Number of missing TLVs uint8_t
-           * List of invalid or unsupported TLVs
-           * List of invalid TLVs that can only be configured in IDLE state
-           * List of invalid TLVs that can only be configured in RUNNING state
-           * List of missing TLVs
-           * */
-        }
-        break;
-      }
-
-      case NFAPI_NR_PHY_MSG_TYPE_STOP_INDICATION: {
-        // TODO : ADD Support for NFAPI_NR_PHY_MSG_TYPE_STOP_INDICATION (0x06)
-        LOG_D(NFAPI_VNF,"Received NFAPI_NR_PHY_MSG_TYPE_STOP_INDICATION\n");
-        break;
-      }
-
-      case NFAPI_NR_PHY_MSG_TYPE_ERROR_INDICATION: {
-        // TODO: Add Support for NFAPI_NR_PHY_MSG_TYPE_ERROR_INDICATION (0x07)
-        LOG_D(NFAPI_VNF,"Received NFAPI_NR_PHY_MSG_TYPE_ERROR_INDICATION\n");
-        //for (int i = 0; i < msg->msg_len; i++) {
-        //  printf(" msg->msg_buf[%d] = 0x%02x\n", i, ((uint8_t *) msg->msg_buf)[i]);
-        //}
-        LOG_D(NFAPI_VNF,"old sfn %u\n", old_sfn);
-        LOG_D(NFAPI_VNF,"old slot %u\n", old_slot);
-
-        break;
-      }
       // P7 Messages
-      // P7 Message Handlers -> ((vnf_info *)vnf_config->user_data)->p7_vnfs->config->
-      case NFAPI_NR_PHY_MSG_TYPE_SLOT_INDICATION: {
-        nfapi_nr_slot_indication_scf_t ind;
-        aerial_unpack_nr_slot_indication(&pReadPackedMessage,
-                                         end,
-                                         &ind,
-                                         &((vnf_p7_t *)((vnf_info *)vnf_config->user_data)->p7_vnfs->config)->_public.codec_config);
-        // check if the sfn/slot unpacked come wrong at any time, should be old + 1 (slot 0 -- 19, sfn 0 -- 1023)
-        // add 1 to current sfn number
-        uint16_t old_slot_plus = ((old_slot + 1) % 20);
-        uint16_t old_sfn_plus = old_slot_plus == 0 ? ((old_sfn + 1) % 1024) : old_sfn;
-        if (old_slot_plus != ind.slot || old_sfn_plus != ind.sfn) {
-          LOG_E(NFAPI_VNF,
-                "\n============================================================================\n"
-                "sfn slot doesn't match unpacked one! L2->L1 %d.%d  vs L1->L2 %d.%d  \n"
-                "============================================================================\n",
-                old_sfn,
-                old_slot,
-                ind.sfn,
-                ind.slot);
-        }
-        old_sfn = ind.sfn;
-        old_slot = ind.slot;
-        if (((vnf_info *)vnf_config->user_data)->p7_vnfs->config->nr_slot_indication) {
-          (((vnf_info *)vnf_config->user_data)->p7_vnfs->config->nr_slot_indication)(&ind);
-        }
-        break;
-      }
-
       case NFAPI_NR_PHY_MSG_TYPE_RX_DATA_INDICATION: {
         uint8_t *pReadData = msg->data_buf;
         int dataBufLen = msg->data_len;
@@ -190,10 +113,10 @@ static int ipc_handle_rx_msg(nv_ipc_t *ipc, nv_ipc_msg_t *msg)
             &pReadData,
             data_end,
             &ind,
-            &((vnf_p7_t *)((vnf_info *)vnf_config->user_data)->p7_vnfs->config)->_public.codec_config);
+            &vnf_p7_config->_public.codec_config);
         NFAPI_TRACE(NFAPI_TRACE_INFO, "%s: Handling RX Indication\n", __FUNCTION__);
-        if (((vnf_info *)vnf_config->user_data)->p7_vnfs->config->nr_rx_data_indication) {
-          (((vnf_info *)vnf_config->user_data)->p7_vnfs->config->nr_rx_data_indication)(&ind);
+        if (vnf_p7_config->_public.nr_rx_data_indication) {
+          (vnf_p7_config->_public.nr_rx_data_indication)(&ind);
           for (int i = 0; i < ind.number_of_pdus; ++i) {
             free(ind.pdu_list[i].pdu);
           }
@@ -202,78 +125,57 @@ static int ipc_handle_rx_msg(nv_ipc_t *ipc, nv_ipc_msg_t *msg)
         break;
       }
 
-      case NFAPI_NR_PHY_MSG_TYPE_CRC_INDICATION: {
-        nfapi_nr_crc_indication_t crc_ind;
-        crc_ind.header.message_id = fapi_msg.message_id;
-        crc_ind.header.message_length = fapi_msg.message_length;
-        aerial_unpack_nr_crc_indication(&pReadPackedMessage,
-                                        end,
-                                        &crc_ind,
-                                        &((vnf_p7_t *)((vnf_info *)vnf_config->user_data)->p7_vnfs->config)->_public.codec_config);
-        if (((vnf_info *)vnf_config->user_data)->p7_vnfs->config->nr_crc_indication) {
-          (((vnf_info *)vnf_config->user_data)->p7_vnfs->config->nr_crc_indication)(&crc_ind);
-          free(crc_ind.crc_list);
-        }
-        break;
-      }
-
-      case NFAPI_NR_PHY_MSG_TYPE_UCI_INDICATION: {
-        nfapi_nr_uci_indication_t ind;
-        aerial_unpack_nr_uci_indication(&pReadPackedMessage,
-                                        end,
-                                        &ind,
-                                        &((vnf_p7_t *)((vnf_info *)vnf_config->user_data)->p7_vnfs->config)->_public.codec_config);
-
-        if (((vnf_info *)vnf_config->user_data)->p7_vnfs->config->nr_uci_indication) {
-          (((vnf_info *)vnf_config->user_data)->p7_vnfs->config->nr_uci_indication)(&ind);
-          for (int i = 0; i < ind.num_ucis; i++) {
-            if (ind.uci_list[i].pdu_type == NFAPI_NR_UCI_FORMAT_2_3_4_PDU_TYPE) {
-              if (ind.uci_list[i].pucch_pdu_format_2_3_4.sr.sr_payload) {
-                free(ind.uci_list[i].pucch_pdu_format_2_3_4.sr.sr_payload);
-              }
-              if(ind.uci_list[i].pucch_pdu_format_2_3_4.harq.harq_payload){
-                free(ind.uci_list[i].pucch_pdu_format_2_3_4.harq.harq_payload);
-              }
-              if(ind.uci_list[i].pucch_pdu_format_2_3_4.csi_part1.csi_part1_payload){
-                free(ind.uci_list[i].pucch_pdu_format_2_3_4.csi_part1.csi_part1_payload);
-              }
-              if(ind.uci_list[i].pucch_pdu_format_2_3_4.csi_part2.csi_part2_payload){
-                free(ind.uci_list[i].pucch_pdu_format_2_3_4.csi_part2.csi_part2_payload);
-              }
-            }
-          }
-          free(ind.uci_list);
-          ind.uci_list = NULL;
-        }
-
-        break;
-      }
-
       case NFAPI_NR_PHY_MSG_TYPE_SRS_INDICATION: {
+        uint8_t *pReadData = msg->data_buf;
+        int dataBufLen = msg->data_len;
+        uint8_t *data_end = msg->data_buf + dataBufLen;
         nfapi_nr_srs_indication_t ind;
         aerial_unpack_nr_srs_indication(&pReadPackedMessage,
                                         end,
+                                        &pReadData,
+                                        data_end,
                                         &ind,
-                                        &((vnf_p7_t *)((vnf_info *)vnf_config->user_data)->p7_vnfs->config)->_public.codec_config);
-        if (((vnf_info *)vnf_config->user_data)->p7_vnfs->config->nr_srs_indication) {
-          (((vnf_info *)vnf_config->user_data)->p7_vnfs->config->nr_srs_indication)(&ind);
+                                        &vnf_p7_config->_public.codec_config);
+        if (vnf_p7_config->_public.nr_srs_indication) {
+          (vnf_p7_config->_public.nr_srs_indication)(&ind);
         }
         break;
       }
 
+      case NFAPI_NR_PHY_MSG_TYPE_SLOT_INDICATION: {
+        nfapi_nr_slot_indication_scf_t ind;
+        if (!vnf_p7_config->_public.unpack_func(msg->msg_buf, msg->msg_len, &ind, sizeof(ind), &vnf_p7_config->_public.codec_config)) {
+          NFAPI_TRACE(NFAPI_TRACE_ERROR, "%s: Failed to unpack message\n", __FUNCTION__);
+        } else {
+          NFAPI_TRACE(NFAPI_TRACE_DEBUG, "%s: Handling NR SLOT Indication\n", __FUNCTION__);
+          // check if the sfn/slot unpacked come wrong at any time, should be old + 1 (slot 0 -- 19, sfn 0 -- 1023)
+          // add 1 to current sfn number
+          uint16_t old_slot_plus = ((old_slot + 1) % 20);
+          uint16_t old_sfn_plus = old_slot_plus == 0 ? ((old_sfn + 1) % 1024) : old_sfn;
+          if (old_slot_plus != ind.slot || old_sfn_plus != ind.sfn) {
+            LOG_E(NFAPI_VNF,
+                  "\n============================================================================\n"
+                  "sfn slot doesn't match unpacked one! L2->L1 %d.%d  vs L1->L2 %d.%d  \n"
+                  "============================================================================\n",
+                  old_sfn,
+                  old_slot,
+                  ind.sfn,
+                  ind.slot);
+          }
+          old_sfn = ind.sfn;
+          old_slot = ind.slot;
+          if (vnf_p7_config->_public.nr_slot_indication) {
+            (vnf_p7_config->_public.nr_slot_indication)(&ind);
+          }
+        }
+        break;
+      }
+      case NFAPI_NR_PHY_MSG_TYPE_CRC_INDICATION:
+      case NFAPI_NR_PHY_MSG_TYPE_UCI_INDICATION:
       case NFAPI_NR_PHY_MSG_TYPE_RACH_INDICATION: {
-        nfapi_nr_rach_indication_t ind;
-        aerial_unpack_nr_rach_indication(&pReadPackedMessage,
-                                         end,
-                                         &ind,
-                                         &((vnf_p7_t *)((vnf_info *)vnf_config->user_data)->p7_vnfs->config)->_public.codec_config);
-        if (((vnf_info *)vnf_config->user_data)->p7_vnfs->config->nr_rach_indication) {
-          (((vnf_info *)vnf_config->user_data)->p7_vnfs->config->nr_rach_indication)(&ind);
-          free(ind.pdu_list);
-        }
+        vnf_nr_handle_p7_message(msg->msg_buf, msg->msg_len, vnf_p7_config);
         break;
       }
-
       default: {
         NFAPI_TRACE(NFAPI_TRACE_ERROR, "%s P5 Unknown message ID %d\n", __FUNCTION__, fapi_msg.message_id);
 
@@ -288,10 +190,26 @@ int8_t buf[1024];
 
 nv_ipc_config_t nv_ipc_config;
 
-int aerial_send_P5_msg(void *packedBuf, uint32_t packedMsgLength, nfapi_p4_p5_message_header_t *header)
+bool aerial_nr_send_p5_message(vnf_t *vnf, uint16_t p5_idx, nfapi_nr_p4_p5_message_header_t *msg, uint32_t msg_len)
+{
+  nfapi_vnf_pnf_info_t *pnf = nfapi_vnf_pnf_list_find(&(vnf->_public), p5_idx);
+
+  if (pnf) {
+    uint8_t tx_messagebufferFAPI[sizeof(vnf->tx_message_buffer)];
+    int packedMessageLengthFAPI = -1;
+    packedMessageLengthFAPI =
+        vnf->_public.pack_func(msg, msg_len, tx_messagebufferFAPI, sizeof(tx_messagebufferFAPI), &vnf->_public.codec_config);
+    return aerial_send_P5_msg(tx_messagebufferFAPI, packedMessageLengthFAPI, msg) == 0;
+  } else {
+    NFAPI_TRACE(NFAPI_TRACE_INFO, "%s() cannot find pnf info for p5_idx:%d\n", __FUNCTION__, p5_idx);
+    return false;
+  }
+}
+
+bool aerial_send_P5_msg(void *packedBuf, uint32_t packedMsgLength, nfapi_nr_p4_p5_message_header_t *header)
 {
   if (ipc == NULL) {
-    return -1;
+    return false;
   }
   nv_ipc_msg_t send_msg = {0};
   // look for the specific message
@@ -329,33 +247,33 @@ int aerial_send_P5_msg(void *packedBuf, uint32_t packedMsgLength, nfapi_p4_p5_me
   if (alloc_retval != 0) {
     LOG_E(NFAPI_VNF, "%s error: allocate TX buffer failed Error: %d\n", __FUNCTION__, alloc_retval);
     ipc->tx_release(ipc, &send_msg);
-    return alloc_retval;
+    return false;
   }
 
   memcpy(send_msg.msg_buf, packedBuf, send_msg.msg_len);
   LOG_D(NFAPI_VNF,
-         "send: cell_id=%d msg_id=0x%02X msg_len=%d data_len=%d data_pool=%d\n",
-         send_msg.cell_id,
-         send_msg.msg_id,
-         send_msg.msg_len,
-         send_msg.data_len,
-         send_msg.data_pool);
+        "send: cell_id=%d msg_id=0x%02X msg_len=%d data_len=%d data_pool=%d\n",
+        send_msg.cell_id,
+        send_msg.msg_id,
+        send_msg.msg_len,
+        send_msg.data_len,
+        send_msg.data_pool);
   // Send the message
   int send_retval = ipc->tx_send_msg(ipc, &send_msg);
   if (send_retval < 0) {
     LOG_E(NFAPI_VNF, "%s error: send TX message failed Error: %d\n", __FUNCTION__, send_retval);
     ipc->tx_release(ipc, &send_msg);
-    return send_retval;
+    return false;
   }
 
   ipc->notify(ipc, 1); // notify that there's 1 message in queue
-  return 0;
+  return true;
 }
 
-int aerial_send_P7_msg(void *packedBuf, uint32_t packedMsgLength, nfapi_p7_message_header_t *header)
+bool aerial_send_P7_msg(void *packedBuf, uint32_t packedMsgLength, nfapi_nr_p7_message_header_t *header)
 {
   if (ipc == NULL) {
-    return -1;
+    return false;
   }
   nv_ipc_msg_t send_msg;
   uint8_t *pPacketBodyField = &((uint8_t *)packedBuf)[8];
@@ -416,37 +334,37 @@ int aerial_send_P7_msg(void *packedBuf, uint32_t packedMsgLength, nfapi_p7_messa
   if (alloc_retval != 0) {
     LOG_E(NFAPI_VNF, "%s error: allocate TX buffer failed Error: %d\n", __FUNCTION__, alloc_retval);
     ipc->tx_release(ipc, &send_msg);
-    return alloc_retval;
+    return false;
   }
 
   memcpy(send_msg.msg_buf, packedBuf, send_msg.msg_len);
   LOG_D(NFAPI_VNF,
-         "send: cell_id=%d msg_id=0x%02X msg_len=%d data_len=%d data_pool=%d\n",
-         send_msg.cell_id,
-         send_msg.msg_id,
-         send_msg.msg_len,
-         send_msg.data_len,
-         send_msg.data_pool);
+        "send: cell_id=%d msg_id=0x%02X msg_len=%d data_len=%d data_pool=%d\n",
+        send_msg.cell_id,
+        send_msg.msg_id,
+        send_msg.msg_len,
+        send_msg.data_len,
+        send_msg.data_pool);
   // Send the message
   int send_retval = ipc->tx_send_msg(ipc, &send_msg);
   if (send_retval < 0) {
     LOG_E(NFAPI_VNF, "%s error: send TX message failed Error: %d\n", __FUNCTION__, send_retval);
     ipc->tx_release(ipc, &send_msg);
-    return send_retval;
+    return false;
   }
 
   ipc->notify(ipc, 1); // notify that there's 1 message in queue
-  return 0;
+  return true;
 }
 
-int aerial_send_P7_msg_with_data(void *packedBuf,
-                                      uint32_t packedMsgLength,
-                                      void *dataBuf,
-                                      uint32_t dataLength,
-                                      nfapi_p7_message_header_t *header)
+bool aerial_send_P7_msg_with_data(void *packedBuf,
+                                 uint32_t packedMsgLength,
+                                 void *dataBuf,
+                                 uint32_t dataLength,
+                                 nfapi_nr_p7_message_header_t *header)
 {
   if (ipc == NULL) {
-    return -1;
+    return false;
   }
   nv_ipc_msg_t send_msg;
   uint8_t *pPacketBodyField = &((uint8_t *)packedBuf)[8];
@@ -505,28 +423,28 @@ int aerial_send_P7_msg_with_data(void *packedBuf,
   if (alloc_retval != 0) {
     LOG_E(NFAPI_VNF, "%s error: allocate TX buffer failed Error: %d\n", __FUNCTION__, alloc_retval);
     ipc->tx_release(ipc, &send_msg);
-    return alloc_retval;
+    return false;
   }
 
   memcpy(send_msg.msg_buf, packedBuf, send_msg.msg_len);
   memcpy(send_msg.data_buf, dataBuf, send_msg.data_len);
   LOG_D(NFAPI_VNF,
-         "send: cell_id=%d msg_id=0x%02X msg_len=%d data_len=%d data_pool=%d\n",
-         send_msg.cell_id,
-         send_msg.msg_id,
-         send_msg.msg_len,
-         send_msg.data_len,
-         send_msg.data_pool);
+        "send: cell_id=%d msg_id=0x%02X msg_len=%d data_len=%d data_pool=%d\n",
+        send_msg.cell_id,
+        send_msg.msg_id,
+        send_msg.msg_len,
+        send_msg.data_len,
+        send_msg.data_pool);
   // Send the message
   int send_retval = ipc->tx_send_msg(ipc, &send_msg);
   if (send_retval != 0) {
     LOG_E(NFAPI_VNF, "%s error: send TX message failed Error: %d\n", __FUNCTION__, send_retval);
     ipc->tx_release(ipc, &send_msg);
-    return send_retval;
+    return false;
   }
 
   ipc->notify(ipc, 1); // notify that there's 1 message in queue
-  return 0;
+  return true;
 }
 
 // Always allocate message buffer, but allocate data buffer only when data_len > 0
@@ -651,6 +569,87 @@ int nvIPC_Init(nvipc_params_t nvipc_params_s)
   sleep(1);
   create_recv_thread(nvipc_params_s.nvipc_poll_core);
   while(!recv_task_running){usleep(100000);}
-  aerial_pnf_nr_connection_indication_cb(vnf_config, 1);
+  nfapi_nr_param_response_scf_t resp_msg;
+  vnf_config->nr_param_resp(vnf_config, 1, &resp_msg);
   return 0;
 }
+
+int oai_fapi_ul_tti_req(nfapi_nr_ul_tti_request_t *ul_tti_req)
+{
+  nfapi_vnf_p7_config_t *p7_config = (((vnf_info *)vnf_config->user_data)->p7_vnfs[0].config);
+
+  ul_tti_req->header.phy_id = 1; // DJP HACK TODO FIXME - need to pass this around!!!!
+  ul_tti_req->header.message_id = NFAPI_NR_PHY_MSG_TYPE_UL_TTI_REQUEST;
+
+  // int retval = nfapi_vnf_p7_ul_tti_req(p7_config, ul_tti_req);
+  int retval = p7_config->send_p7_msg((vnf_p7_t *)p7_config, &ul_tti_req->header);
+
+  if (retval != 0) {
+    LOG_E(PHY, "%s() Problem sending retval:%d\n", __FUNCTION__, retval);
+  } else {
+    // Reset number of PDUs so that it is not resent
+    ul_tti_req->n_pdus = 0;
+    ul_tti_req->n_group = 0;
+    ul_tti_req->n_ulcch = 0;
+    ul_tti_req->n_ulsch = 0;
+  }
+  return retval;
+}
+
+int oai_fapi_ul_dci_req(nfapi_nr_ul_dci_request_t *ul_dci_req)
+{
+  nfapi_vnf_p7_config_t *p7_config = (((vnf_info *)vnf_config->user_data)->p7_vnfs[0].config);
+  ul_dci_req->header.phy_id = 1; // DJP HACK TODO FIXME - need to pass this around!!!!
+  ul_dci_req->header.message_id = NFAPI_NR_PHY_MSG_TYPE_UL_DCI_REQUEST;
+  // int retval = nfapi_vnf_p7_ul_dci_req(p7_config, ul_dci_req);
+  int retval = p7_config->send_p7_msg((vnf_p7_t *)p7_config, &ul_dci_req->header);
+  if (retval != 0) {
+    LOG_E(PHY, "%s() Problem sending retval:%d\n", __FUNCTION__, retval);
+  } else {
+    ul_dci_req->numPdus = 0;
+  }
+  return retval;
+}
+
+int oai_fapi_tx_data_req(nfapi_nr_tx_data_request_t *tx_data_req)
+{
+  nfapi_vnf_p7_config_t *p7_config = (((vnf_info *)vnf_config->user_data)->p7_vnfs[0].config);
+  tx_data_req->header.phy_id = 1; // DJP HACK TODO FIXME - need to pass this around!!!!
+  tx_data_req->header.message_id = NFAPI_NR_PHY_MSG_TYPE_TX_DATA_REQUEST;
+  // LOG_D(PHY, "[VNF] %s() TX_REQ sfn_sf:%d number_of_pdus:%d\n", __FUNCTION__, NFAPI_SFNSF2DEC(tx_data_req->SFN),
+  // tx_data_req->Number_of_PDUs); int retval = nfapi_vnf_p7_tx_data_req(p7_config, tx_data_req);
+  int retval = p7_config->send_p7_msg((vnf_p7_t *)p7_config, &tx_data_req->header);
+  if (retval != 0) {
+    LOG_E(PHY, "%s() Problem sending retval:%d\n", __FUNCTION__, retval);
+  } else {
+    tx_data_req->Number_of_PDUs = 0;
+  }
+
+  return retval;
+}
+
+int oai_fapi_dl_tti_req(nfapi_nr_dl_tti_request_t *dl_config_req)
+{
+  nfapi_vnf_p7_config_t *p7_config = (((vnf_info *)vnf_config->user_data)->p7_vnfs[0].config);
+  dl_config_req->header.message_id = NFAPI_NR_PHY_MSG_TYPE_DL_TTI_REQUEST;
+  dl_config_req->header.phy_id = 1; // DJP HACK TODO FIXME - need to pass this around!!!!
+  int retval = p7_config->send_p7_msg((vnf_p7_t *)p7_config, &dl_config_req->header);
+  dl_config_req->dl_tti_request_body.nPDUs = 0;
+  dl_config_req->dl_tti_request_body.nGroup = 0;
+
+  if (retval != 0) {
+    LOG_E(PHY, "%s() Problem sending retval:%d\n", __FUNCTION__, retval);
+  }
+  return retval;
+}
+
+int oai_fapi_send_end_request(int cell, uint32_t frame, uint32_t slot){
+  nfapi_vnf_p7_config_t *p7_config = (((vnf_info *)vnf_config->user_data)->p7_vnfs[0].config);
+  nfapi_nr_slot_indication_scf_t nr_slot_resp = {.header.message_id = 0x8F, .sfn = frame, .slot = slot};
+  int retval = p7_config->send_p7_msg((vnf_p7_t *)p7_config, &nr_slot_resp.header);
+  if (retval != 0) {
+    LOG_E(PHY, "%s() Problem sending retval:%d\n", __FUNCTION__, retval);
+  }
+  return retval;
+}
+

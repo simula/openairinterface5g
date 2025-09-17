@@ -5,31 +5,36 @@
 #include <pthread.h>
 #include <stdarg.h>
 #include <string.h>
+#include <math.h>
 
 struct tti {
   view common;
   gui *g;
   widget *w;
+  int automax;
+  widget *w2;
   int plot;
   float refresh_rate;
   pthread_mutex_t lock;
-  float data[1024*10];
-  int valid[1024*10];
-  float xout[1024*10];
-  float yout[1024*10];
+  float *data;
+  int *valid;
+  float *xout;
+  float *yout;
   int last_insert_point;
+  int ticks_per_frame;
 };
 
-static int far_enough(int i, int last_insert, int plot_width)
+static int far_enough(int i, int last_insert, int plot_width,
+    int ticks_per_frame)
 {
   int p1;
   int p2;
   int hole_size_px;
   int hole_size_tti;
   hole_size_px = 10;
-  hole_size_tti = 10240 * hole_size_px / plot_width;
+  hole_size_tti = 1024 * ticks_per_frame * hole_size_px / plot_width;
   p1 = last_insert;
-  p2 = (last_insert + hole_size_tti) % (1024*10);
+  p2 = (last_insert + hole_size_tti) % (1024 * ticks_per_frame);
   if (p1 < p2) {
     return !(i > p1 && i < p2);
   }
@@ -48,15 +53,31 @@ static void *tti_thread(void *_this)
     if (pthread_mutex_lock(&this->lock)) abort();
     xy_plot_get_dimensions(this->g, this->w, &plot_width, &plot_height);
     length = 0;
+    double max = 0;
     /* TODO: optimize */
-    for (i = 0; i < 1024*10; i++)
+    for (i = 0; i < 1024 * this->ticks_per_frame; i++)
       /* do not take points too close after last insertion point */
       if (this->valid[i] &&
-          far_enough(i, this->last_insert_point, plot_width)) {
+          far_enough(i, this->last_insert_point, plot_width,
+                     this->ticks_per_frame)) {
         this->xout[length] = i;
         this->yout[length] = this->data[i];
+        if (this->data[i] > max) max = this->data[i];
         length++;
       }
+    if (this->automax) {
+      char o[128];
+      sprintf(o, "%d", (int)max);
+      textarea_set_text(this->g, this->w2, o);
+      /* for Y range we want 10, 20, 50, 100, 200, 500, etc. */
+      if (max < 10) max = 10;
+      double mlog = pow(10, floor(log10(max)));
+      static int tolog[11] = { -1, 1, 2, 5, 5, 5, 10, 10, 10, 10, 10 };
+      max = tolog[(int)ceil(max/mlog)] * mlog;
+      float xmin, xmax, ymin, ymax;
+      xy_plot_get_range(this->g, this->w, &xmin, &xmax, &ymin, &ymax);
+      xy_plot_set_range(this->g, this->w, xmin, xmax, 0, max);
+    }
     xy_plot_set_points(this->g, this->w, this->plot,
         length, this->xout, this->yout);
     if (pthread_mutex_unlock(&this->lock)) abort();
@@ -71,11 +92,11 @@ static void clear(view *this)
   /* TODO */
 }
 
-static void append(view *_this, int frame, int subframe, double value)
+static void append(view *_this, int frame, int tick, double value)
 {
   struct tti *this = (struct tti *)_this;
   int i;
-  int index = frame * 10 + subframe;
+  int index = frame * this->ticks_per_frame + tick;
 
   if (pthread_mutex_lock(&this->lock)) abort();
 
@@ -84,10 +105,10 @@ static void append(view *_this, int frame, int subframe, double value)
    * this may be wrong if delay between two append is
    * greater than 1024 frames (something like that)
    */
-  i = (this->last_insert_point + 1) % (1024*10);
+  i = (this->last_insert_point + 1) % (1024 * this->ticks_per_frame);
   while (i != index) {
     this->valid[i] = 0;
-    i = (i + 1) % (1024*10);
+    i = (i + 1) % (1024 * this->ticks_per_frame);
   }
 
   this->data[index] = value;
@@ -98,7 +119,8 @@ static void append(view *_this, int frame, int subframe, double value)
   if (pthread_mutex_unlock(&this->lock)) abort();
 }
 
-view *new_view_tti(float refresh_rate, gui *g, widget *w, int color)
+view *new_view_tti(float refresh_rate, gui *g, widget *w, int color,
+    int ticks_per_frame)
 {
   struct tti *ret = calloc(1, sizeof(struct tti));
   if (ret == NULL) abort();
@@ -115,7 +137,24 @@ view *new_view_tti(float refresh_rate, gui *g, widget *w, int color)
 
   if (pthread_mutex_init(&ret->lock, NULL)) abort();
 
+  ret->ticks_per_frame = ticks_per_frame;
+  ret->data = calloc(ticks_per_frame * 1024, sizeof(float));
+  if (ret->data == NULL) abort();
+  ret->valid = calloc(ticks_per_frame * 1024, sizeof(int));
+  if (ret->valid == NULL) abort();
+  ret->xout = calloc(ticks_per_frame * 1024, sizeof(float));
+  if (ret->xout == NULL) abort();
+  ret->yout = calloc(ticks_per_frame * 1024, sizeof(float));
+  if (ret->yout == NULL) abort();
+
   new_thread(tti_thread, ret);
 
   return (view *)ret;
+}
+
+void view_tti_enable_automax(view *_tti, widget *w2)
+{
+  struct tti *tti = (struct tti *)_tti;
+  tti->automax = 1;
+  tti->w2 = w2;
 }

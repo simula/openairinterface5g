@@ -25,24 +25,15 @@
 	<htmlTabName>EPC-Start</htmlTabName>
 	<htmlTabIcon>log-in</htmlTabIcon>
 	<TestCaseRequestedList>
- 000100 000101 000102
+ 000100
 	</TestCaseRequestedList>
 	<TestCaseExclusionList>
 	</TestCaseExclusionList>
 
 	<testCase id="000100">
-		<class>Initialize_HSS</class>
-		<desc>Initialize HSS</desc>
-	</testCase>
-
-	<testCase id="000101">
-		<class>Initialize_MME</class>
-		<desc>Initialize MME</desc>
-	</testCase>
-
-	<testCase id="000102">
-		<class>Initialize_SPGW</class>
-		<desc>Initialize SPGW</desc>
+		<class>DeployCoreNetwork</class>
+		<desc>Initialize EPC</desc>
+		<cn_id>ltebox-nano</cn_id>
 	</testCase>
 
 </testCaseList>

@@ -38,7 +38,7 @@
 int nas_sock_fd[MAX_MOBILES_PER_ENB * 2]; // Allocated for both LTE UE and NR UE.
 int nas_sock_mbms_fd;
 
-static int tun_alloc(char *dev)
+int tun_alloc(const char *dev)
 {
   struct ifreq ifr;
   int fd, err;
@@ -55,25 +55,27 @@ static int tun_alloc(char *dev)
    *        IFF_NO_PI - Do not provide packet information
    */
   ifr.ifr_flags = IFF_TUN | IFF_NO_PI;
-
-  if (*dev)
-    strncpy(ifr.ifr_name, dev, sizeof(ifr.ifr_name) - 1);
-
+  strncpy(ifr.ifr_name, dev, sizeof(ifr.ifr_name) - 1);
   if ((err = ioctl(fd, TUNSETIFF, (void *)&ifr)) < 0) {
     close(fd);
     return err;
   }
+  // According to https://www.kernel.org/doc/Documentation/networking/tuntap.txt, TUNSETIFF performs string
+  // formatting on ifr_name. To ensure that the generated name is what we expect, check it here.
+  AssertFatal(strcmp(ifr.ifr_name, dev) == 0, "Failed to create tun interface, expected ifname %s, got %s\n", dev, ifr.ifr_name);
 
-  strcpy(dev, ifr.ifr_name);
+  err = fcntl(fd, F_SETFL, O_NONBLOCK);
+  if (err == -1) {
+    close(fd);
+    LOG_E(UTIL, "Error fcntl (%d:%s)\n", errno, strerror(errno));
+    return err;
+  }
+
   return fd;
 }
 
-int tun_init_mbms(char *ifprefix, int id)
+int tun_init_mbms(char *ifname)
 {
-  int ret;
-  char ifname[64];
-
-  sprintf(ifname, "%s%d", ifprefix, id);
   nas_sock_mbms_fd = tun_alloc(ifname);
 
   if (nas_sock_mbms_fd == -1) {
@@ -82,48 +84,26 @@ int tun_init_mbms(char *ifprefix, int id)
   }
 
   LOG_D(UTIL, "Opened socket %s with fd %d\n", ifname, nas_sock_mbms_fd);
-  ret = fcntl(nas_sock_mbms_fd, F_SETFL, O_NONBLOCK);
-
-  if (ret == -1) {
-    LOG_E(UTIL, "Error fcntl (%d:%s)\n", errno, strerror(errno));
-    return 0;
-  }
 
   struct sockaddr_nl nas_src_addr = {0};
   nas_src_addr.nl_family = AF_NETLINK;
   nas_src_addr.nl_pid = 1;
   nas_src_addr.nl_groups = 0; /* not in mcast groups */
-  ret = bind(nas_sock_mbms_fd, (struct sockaddr *)&nas_src_addr, sizeof(nas_src_addr));
+  bind(nas_sock_mbms_fd, (struct sockaddr *)&nas_src_addr, sizeof(nas_src_addr));
 
   return 1;
 }
 
-int tun_init(const char *ifprefix, int num_if, int id)
+int tun_init(const char *ifname, int instance_id)
 {
-  int ret;
-  char ifname[64];
+  nas_sock_fd[instance_id] = tun_alloc(ifname);
 
-  int begx = (id == 0) ? 0 : id - 1;
-  int endx = (id == 0) ? num_if : id;
-  for (int i = begx; i < endx; i++) {
-    sprintf(ifname, "%s%d", ifprefix, i + 1);
-    nas_sock_fd[i] = tun_alloc(ifname);
-
-    if (nas_sock_fd[i] == -1) {
-      LOG_E(UTIL, "Error opening socket %s (%d:%s)\n", ifname, errno, strerror(errno));
-      return 0;
-    }
-
-    LOG_I(UTIL, "Opened socket %s with fd nas_sock_fd[%d]=%d\n", ifname, i, nas_sock_fd[i]);
-    ret = fcntl(nas_sock_fd[i], F_SETFL, O_NONBLOCK);
-
-    if (ret == -1) {
-      LOG_E(UTIL, "Error fcntl (%d:%s)\n", errno, strerror(errno));
-
-      return 0;
-    }
+  if (nas_sock_fd[instance_id] == -1) {
+    LOG_E(UTIL, "Error opening socket %s (%d:%s)\n", ifname, errno, strerror(errno));
+    return 0;
   }
 
+  LOG_I(UTIL, "Opened socket %s with fd nas_sock_fd[%d]=%d\n", ifname, instance_id, nas_sock_fd[instance_id]);
   return 1;
 }
 
@@ -140,7 +120,7 @@ static bool setInterfaceParameter(int sock_fd, const char *ifn, int af, const ch
 {
   DevAssert(af == AF_INET || af == AF_INET6);
   struct ifreq ifr = {0};
-  strncpy(ifr.ifr_name, ifn, sizeof(ifr.ifr_name));
+  strncpy(ifr.ifr_name, ifn, sizeof(ifr.ifr_name) - 1);
   struct in6_ifreq ifr6 = {0};
 
   void *ioctl_opt = NULL;
@@ -177,20 +157,25 @@ static bool setInterfaceParameter(int sock_fd, const char *ifn, int af, const ch
   return success;
 }
 
-/*
- * \brief bring interface up (up != 0) or down (up == 0)
- */
+
 typedef enum { INTERFACE_DOWN, INTERFACE_UP } if_action_t;
+/*
+* \brief bring interface up (up != 0) or down (up == 0)
+*/
 static bool change_interface_state(int sock_fd, const char *ifn, if_action_t if_action)
 {
-  const char* action = if_action == INTERFACE_DOWN ? "DOWN" : "UP";
+  const char *action = if_action == INTERFACE_DOWN ? "DOWN" : "UP";
 
   struct ifreq ifr = {0};
-  strncpy(ifr.ifr_name, ifn, sizeof(ifr.ifr_name));
+  strncpy(ifr.ifr_name, ifn, sizeof(ifr.ifr_name) - 1);
+
   /* get flags of this interface: see netdevice(7) */
   bool success = ioctl(sock_fd, SIOCGIFFLAGS, (caddr_t)&ifr) == 0;
-  if (!success)
-    goto fail_interface_state;
+  if (!success && if_action == INTERFACE_DOWN && errno == ENODEV) {
+    LOG_W(OIP, "trying to remove non-existant device %s\n", ifn);
+    return true;
+  }
+  LOG_D(OIP, "Got flags for %s: 0x%x (action: %s)\n", ifn, ifr.ifr_flags, action);
 
   if (if_action == INTERFACE_UP) {
     ifr.ifr_flags |= IFF_UP | IFF_NOARP | IFF_POINTOPOINT;
@@ -202,6 +187,8 @@ static bool change_interface_state(int sock_fd, const char *ifn, if_action_t if_
   success = ioctl(sock_fd, SIOCSIFFLAGS, (caddr_t)&ifr) == 0;
   if (!success)
     goto fail_interface_state;
+  LOG_D(OIP, "Interface %s successfully set %s\n", ifn, action);
+
   return true;
 
 fail_interface_state:
@@ -209,12 +196,9 @@ fail_interface_state:
   return false;
 }
 
-// non blocking full configuration of the interface (address, and the two lest octets of the address)
-bool tun_config(int interface_id, const char *ipv4, const char *ipv6, const char *ifpref)
-{
-  char interfaceName[IFNAMSIZ];
-  snprintf(interfaceName, sizeof(interfaceName), "%s%d", ifpref, interface_id);
 
+bool tun_config(const char* ifname, const char *ipv4, const char *ipv6)
+{
   AssertFatal(ipv4 != NULL || ipv6 != NULL, "need to have IP address, but none given\n");
 
   int sock_fd = socket(AF_INET, SOCK_DGRAM, 0);
@@ -223,13 +207,12 @@ bool tun_config(int interface_id, const char *ipv4, const char *ipv6, const char
     return false;
   }
 
-  change_interface_state(sock_fd, interfaceName, INTERFACE_DOWN);
   bool success = true;
   if (ipv4 != NULL)
-    success = setInterfaceParameter(sock_fd, interfaceName, AF_INET, ipv4, SIOCSIFADDR);
+    success = setInterfaceParameter(sock_fd, ifname, AF_INET, ipv4, SIOCSIFADDR);
   // set the machine network mask for IPv4
   if (success && ipv4 != NULL)
-    success = setInterfaceParameter(sock_fd, interfaceName, AF_INET, "255.255.255.0", SIOCSIFNETMASK);
+    success = setInterfaceParameter(sock_fd, ifname, AF_INET, "255.255.255.0", SIOCSIFNETMASK);
 
   if (ipv6 != NULL) {
     // for setting the IPv6 address, we need an IPv6 socket. For setting IPv4,
@@ -240,27 +223,25 @@ bool tun_config(int interface_id, const char *ipv4, const char *ipv6, const char
       LOG_E(UTIL, "Failed creating socket for interface management: %d, %s\n", errno, strerror(errno));
       success = false;
     }
-    success = success && setInterfaceParameter(sock_fd, interfaceName, AF_INET6, ipv6, SIOCSIFADDR);
+    success = success && setInterfaceParameter(sock_fd, ifname, AF_INET6, ipv6, SIOCSIFADDR);
     close(sock_fd);
   }
 
   if (success)
-    success = change_interface_state(sock_fd, interfaceName, INTERFACE_UP);
+    success = change_interface_state(sock_fd, ifname, INTERFACE_UP);
 
   if (success)
-    LOG_I(OIP, "Interface %s successfully configured, IPv4 %s, IPv6 %s\n", interfaceName, ipv4, ipv6);
+    LOG_I(OIP, "Interface %s successfully configured, IPv4 %s, IPv6 %s\n", ifname, ipv4, ipv6);
   else
-    LOG_E(OIP, "Interface %s couldn't be configured (IPv4 %s, IPv6 %s)\n", interfaceName, ipv4, ipv6);
+    LOG_E(OIP, "Interface %s couldn't be configured (IPv4 %s, IPv6 %s)\n", ifname, ipv4, ipv6);
 
   close(sock_fd);
   return success;
 }
 
-void setup_ue_ipv4_route(int interface_id, const char *ipv4, const char *ifpref)
+void setup_ue_ipv4_route(const char* ifname, int instance_id, const char *ipv4)
 {
-  int table_id = interface_id - 1 + 10000;
-  char interfaceName[IFNAMSIZ];
-  snprintf(interfaceName, sizeof(interfaceName), "%s%d", ifpref, interface_id);
+  int table_id = instance_id - 1 + 10000;
 
   char command_line[500];
   int res = sprintf(command_line,
@@ -271,7 +252,7 @@ void setup_ue_ipv4_route(int interface_id, const char *ipv4, const char *ifpref)
                     table_id,
                     ipv4,
                     table_id,
-                    interfaceName,
+                    ifname,
                     table_id);
 
   if (res < 0) {
@@ -281,3 +262,32 @@ void setup_ue_ipv4_route(int interface_id, const char *ipv4, const char *ifpref)
   background_system(command_line);
 }
 
+int tun_generate_ifname(char *ifname, const char *ifprefix, int instance_id)
+{
+  return snprintf(ifname, IFNAMSIZ, "%s%d", ifprefix, instance_id + 1);
+}
+
+int tun_generate_ue_ifname(char *ifname, int instance_id, int pdu_session_id)
+{
+  char pdu_session_string[10];
+  snprintf(pdu_session_string, sizeof(pdu_session_string), "p%d", pdu_session_id);
+  return snprintf(ifname, IFNAMSIZ, "%s%d%s", "oaitun_ue", instance_id + 1, pdu_session_id == -1 ? "" : pdu_session_string);
+}
+
+void tun_destroy(const char *dev)
+{
+  // Use a new socket for ioctl operations
+  int fd = socket(AF_INET, SOCK_DGRAM, 0);
+  if (fd < 0) {
+    LOG_E(UTIL, "Failed to create socket for interface teardown: %d, %s\n", errno, strerror(errno));
+    return;
+  }
+
+  bool success = change_interface_state(fd, dev, INTERFACE_DOWN);
+  if (success) {
+    LOG_I(UTIL, "Interface %s is now down.\n", dev);
+  } else {
+    LOG_E(UTIL, "Could not bring interface %s down.\n", dev);
+  }
+  close(fd);
+}

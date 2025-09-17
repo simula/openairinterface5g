@@ -97,8 +97,7 @@ void mac_rlc_data_ind     (
     rb->set_time(rb, rlc_current_time);
     rb->recv_pdu(rb, buffer_pP, tb_sizeP);
   } else {
-    LOG_E(RLC, "%s:%d:%s: fatal: no RB found (rnti %d channel ID %d)\n",
-          __FILE__, __LINE__, __FUNCTION__, rnti, channel_id);
+    LOG_E(RLC, "fatal: no RB found (rnti %x channel ID %d)\n", rnti, channel_id);
     exit(1);
   }
 
@@ -388,9 +387,7 @@ static void deliver_sdu(void *_ue, rlc_entity_t *entity, char *buf, int size)
   exit(1);
 
 rb_found:
-  LOG_D(RLC, "%s:%d:%s: delivering SDU (rnti %d is_srb %d rb_id %d) size %d",
-        __FILE__, __LINE__, __FUNCTION__, ue->rnti, is_srb, rb_id, size);
-
+  LOG_D(RLC, "delivering SDU (rnti %x is_srb %d rb_id %d) size %d", ue->rnti, is_srb, rb_id, size);
 
   /* unused fields? */
   ctx.instance = ue->module_id;
@@ -419,9 +416,7 @@ rb_found:
   }
   memcpy(memblock, buf, size);
   if (!pdcp_data_ind(&ctx, is_srb, is_mbms, rb_id, size, memblock, NULL, NULL)) {
-    LOG_E(RLC, "%s:%d:%s: ERROR: pdcp_data_ind failed (is_srb %d rb_id %d rnti %d)\n",
-          __FILE__, __LINE__, __FUNCTION__,
-          is_srb, rb_id, ue->rnti);
+    LOG_E(RLC, "ERROR: pdcp_data_ind failed (is_srb %d rb_id %d rnti %x)\n", is_srb, rb_id, ue->rnti);
     /* what to do in case of failure? for the moment: nothing */
   }
 }
@@ -623,7 +618,7 @@ static void add_srb(int rnti, int module_id, struct LTE_SRB_ToAddMod *s)
                                poll_pdu, poll_byte, max_retx_threshold);
     rlc_ue_add_srb_rlc_entity(ue, srb_id, rlc_am);
 
-    LOG_D(RLC, "%s:%d:%s: added SRB %d to UE RNTI %x\n", __FILE__, __LINE__, __FUNCTION__, srb_id, rnti);
+    LOG_D(RLC, "added SRB %d to UE RNTI %x\n", srb_id, rnti);
   }
   rlc_manager_unlock(rlc_ue_manager);
 }
@@ -944,7 +939,7 @@ rlc_op_status_t rrc_rlc_config_req   (
     exit(1);
   }
   rlc_manager_lock(rlc_ue_manager);
-  LOG_D(RLC, "%s:%d:%s: remove rb %d (is_srb %d) for UE %ld\n", __FILE__, __LINE__, __FUNCTION__, (int)rb_idP, srb_flagP, ctxt_pP->rntiMaybeUEid);
+  LOG_D(RLC, "remove rb %d (is_srb %d) for UE %lx\n", (int)rb_idP, srb_flagP, ctxt_pP->rntiMaybeUEid);
   ue = rlc_manager_get_ue(rlc_ue_manager, ctxt_pP->rntiMaybeUEid);
   if (srb_flagP) {
     if (ue->srb[rb_idP-1] != NULL) {
@@ -976,7 +971,7 @@ rlc_op_status_t rrc_rlc_config_req   (
 
 rlc_op_status_t rrc_rlc_remove_ue (const protocol_ctxt_t* const x)
 {
-  LOG_D(RLC, "%s:%d:%s: remove UE %ld\n", __FILE__, __LINE__, __FUNCTION__, x->rntiMaybeUEid);
+  LOG_D(RLC, "remove UE %lx\n", x->rntiMaybeUEid);
   rlc_manager_lock(rlc_ue_manager);
   rlc_manager_remove_ue(rlc_ue_manager, x->rntiMaybeUEid);
   rlc_manager_unlock(rlc_ue_manager);

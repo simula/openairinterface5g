@@ -34,6 +34,7 @@
 //#define NR_PBCH_DMRS_LENGTH 144
 //#define DEBUG_PUSCH
 
+#include "PHY/TOOLS/tools_defs.h"
 #include "refsig_defs_ue.h"
 #include "PHY/defs_nr_UE.h"
 #include "nr_refsig.h"
@@ -49,10 +50,21 @@ static const int wt2[12][2] =
     {{1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, -1}, {1, -1}, {1, -1}, {1, -1}, {1, -1}, {1, -1}};
 
 // complex conjugate of mod table
-static const c16_t nr_rx_mod_table[7] =
-    {{0, 0}, {23170, -23170}, {-23170, 23170}, {23170, -23170}, {23170, 23170}, {-23170, -23170}, {-23170, 23170}};
-static const c16_t nr_rx_nmod_table[7] =
-    {{0, 0}, {-23170, 23170}, {23170, -23170}, {-23170, 23170}, {-23170, -23170}, {23170, 23170}, {23170, -23170}};
+static const c16_t nr_rx_mod_table[4] = {{23170, -23170}, {23170, 23170}, {-23170, -23170}, {-23170, 23170}};
+
+static inline c16_t get_modulated(const uint32_t *gold_sequence, const int idx_gold, const bool inverse)
+{
+  const uint8_t *gold = (uint8_t *)gold_sequence;
+  const int swap2bits[4] = {0, 2, 1, 3};
+  const uint8_t packedbyte = gold[idx_gold / 4];
+  const int indexByte = (idx_gold * 2) & 7;
+  const int idx = swap2bits[(packedbyte >> indexByte) & 3];
+  const c16_t val = nr_rx_mod_table[idx];
+  if (inverse)
+    return val;
+  else
+    return (c16_t){-val.r, -val.i};
+}
 
 int nr_pusch_dmrs_rx(PHY_VARS_gNB *gNB,
                      unsigned int Ns,
@@ -62,43 +74,31 @@ int nr_pusch_dmrs_rx(PHY_VARS_gNB *gNB,
                      unsigned char lp,
                      unsigned short nb_pusch_rb,
                      uint32_t re_offset,
-                     uint8_t dmrs_type)
+                     uint8_t dmrs_type,
+                     int16_t dmrs_scaling)
 {
-  int8_t w, nb_dmrs;
-  unsigned char idx=0;
-  int k;
   typedef int array_of_w[2];
   const array_of_w *wf = (dmrs_type == pusch_dmrs_type1) ? wf1 : wf2;
   const array_of_w *wt = (dmrs_type == pusch_dmrs_type1) ? wt1 : wt2;
 
-  int dmrs_offset = re_offset/((dmrs_type==pusch_dmrs_type1)?2:3);
-
+  const int dmrs_offset = re_offset / ((dmrs_type == pusch_dmrs_type1) ? 2 : 3);
   if (dmrs_type > 2)
     LOG_E(PHY,"PUSCH DMRS config type %d not valid\n", dmrs_type+1);
 
+  const int nb_dmrs = dmrs_type == pusch_dmrs_type1 ? 6 : 4;
+
   if ((p>=1000) && (p<((dmrs_type==pusch_dmrs_type1) ? 1008 : 1012))) {
       if (gNB->frame_parms.Ncp == NORMAL) {
-        nb_dmrs = ((dmrs_type==pusch_dmrs_type1) ? 6:4);
-        for (int i=dmrs_offset; i<dmrs_offset+(nb_pusch_rb*nb_dmrs); i++) {
-          k = i-dmrs_offset;
-          w = (wf[p-1000][i&1])*(wt[p-1000][lp]);
-          const c16_t *mod_table = (w == 1) ? nr_rx_mod_table : nr_rx_nmod_table;
-
-          idx = ((((nr_gold_pusch[(i<<1)>>5])>>((i<<1)&0x1f))&1)<<1) ^ (((nr_gold_pusch[((i<<1)+1)>>5])>>(((i<<1)+1)&0x1f))&1);
-          output[k] = mod_table[NR_MOD_TABLE_QPSK_OFFSET + idx];
+        for (int k = 0; k < nb_pusch_rb * nb_dmrs; k++) {
+          int i = k + dmrs_offset;
+          int w = (wf[p - 1000][i & 1]) * (wt[p - 1000][lp]);
+          output[k] = get_modulated(nr_gold_pusch, i, w == 1);
+          output[k] = c16mulRealShift(output[k], dmrs_scaling, 14);
 #ifdef DEBUG_PUSCH
           printf("nr_pusch_dmrs_rx dmrs config type %d port %d nb_pusch_rb %d\n", dmrs_type, p, nb_pusch_rb);
           printf("wf[%d] = %d wt[%d]= %d\n", i&1, wf[p-1000][i&1], lp, wt[p-1000][lp]);
-          printf("i %d idx %d pusch gold %u b0-b1 %d-%d mod_dmrs %d %d\n",
-                 i,
-                 idx,
-                 nr_gold_pusch[(i << 1) >> 5],
-                 (((nr_gold_pusch[(i << 1) >> 5]) >> ((i << 1) & 0x1f)) & 1),
-                 (((nr_gold_pusch[((i << 1) + 1) >> 5]) >> (((i << 1) + 1) & 0x1f)) & 1),
-                 output[k].r,
-                 output[k].i);
+          printf("i %d idx %d pusch mod_dmrs %d %d\n", i, idx, output[k].r, output[k].i);
 #endif
-
         }
       } else {
         LOG_E(PHY,"extended cp not supported for PUSCH DMRS yet\n");
@@ -117,11 +117,9 @@ int nr_pdsch_dmrs_rx(const PHY_VARS_NR_UE *ue,
                      unsigned short p,
                      unsigned char lp,
                      unsigned short nb_pdsch_rb,
-                     uint8_t config_type)
+                     uint8_t config_type,
+                     int16_t dmrs_scaling)
 {
-  int8_t w;
-  unsigned char idx=0;
-
   typedef int array_of_w[2];
   const array_of_w *wf = (config_type == NFAPI_NR_DMRS_TYPE1) ? wf1 : wf2;
   const array_of_w *wt = (config_type == NFAPI_NR_DMRS_TYPE1) ? wt1 : wt2;
@@ -132,22 +130,14 @@ int nr_pdsch_dmrs_rx(const PHY_VARS_NR_UE *ue,
   if ((p >= 1000) && (p < ((config_type == NFAPI_NR_DMRS_TYPE1) ? 1008 : 1012))) {
     if (ue->frame_parms.Ncp == NORMAL) {
       for (int i = 0; i < nb_pdsch_rb * ((config_type == NFAPI_NR_DMRS_TYPE1) ? 6 : 4); i++) {
-        w = (wf[p - 1000][i & 1]) * (wt[p - 1000][lp]);
-        const c16_t *mod_table = (w == 1) ? nr_rx_mod_table : nr_rx_nmod_table;
+        int w = (wf[p - 1000][i & 1]) * (wt[p - 1000][lp]);
+        output[i] = get_modulated(nr_gold_pdsch, i, w == 1);
+        output[i] = c16mulRealShift(output[i], dmrs_scaling, 14);
 
-        idx = ((((nr_gold_pdsch[(i << 1) >> 5]) >> ((i << 1) & 0x1f)) & 1) << 1) ^ (((nr_gold_pdsch[((i << 1) + 1) >> 5]) >> (((i << 1) + 1) & 0x1f)) & 1);
-        output[i] = mod_table[NR_MOD_TABLE_QPSK_OFFSET + idx];
 #ifdef DEBUG_PDSCH
         printf("nr_pdsch_dmrs_rx dmrs config type %d port %d nb_pdsch_rb %d\n", config_type, p, nb_pdsch_rb);
         printf("wf[%d] = %d wt[%d]= %d\n", i & 1, wf[p - 1000][i & 1], lp, wt[p - 1000][lp]);
-        printf("i %d idx %d pdsch gold %u b0-b1 %d-%d mod_dmrs %d %d\n",
-               i,
-               idx,
-               nr_gold_pdsch[(i << 1) >> 5],
-               (((nr_gold_pdsch[(i << 1) >> 5]) >> ((i << 1) & 0x1f)) & 1),
-               (((nr_gold_pdsch[((i << 1) + 1) >> 5]) >> (((i << 1) + 1) & 0x1f)) & 1),
-               output[i].r,
-               output[i].i);
+        printf("i %d idx %d pdsch mod_dmrs %d %d\n", i, idx, output[i].r, output[i].i);
 #endif
       }
     } else {
@@ -167,24 +157,12 @@ int nr_pdcch_dmrs_rx(const PHY_VARS_NR_UE *ue,
                      unsigned short p,
                      unsigned short nb_rb_coreset)
 {
-  uint8_t idx=0;
-  //uint8_t pdcch_rb_offset =0;
-  //nr_gold_pdcch += ((int)floor(ue->frame_parms.ssb_start_subcarrier/12)+pdcch_rb_offset)*3/32;
-
   if (p==2000) {
     for (int i=0; i<((nb_rb_coreset*6)>>1); i++) {
-      idx = ((((nr_gold_pdcch[(i<<1)>>5])>>((i<<1)&0x1f))&1)<<1) ^ (((nr_gold_pdcch[((i<<1)+1)>>5])>>(((i<<1)+1)&0x1f))&1);
-      output[i] = nr_rx_mod_table[NR_MOD_TABLE_QPSK_OFFSET + idx];
+      output[i] = get_modulated(nr_gold_pdcch, i, true);
 #ifdef DEBUG_PDCCH
       if (i<8)
-        printf("i %d idx %d pdcch gold %u b0-b1 %d-%d mod_dmrs %d %d\n",
-               i,
-               idx,
-               nr_gold_pdcch[(i << 1) >> 5],
-               (((nr_gold_pdcch[(i << 1) >> 5]) >> ((i << 1) & 0x1f)) & 1),
-               (((nr_gold_pdcch[((i << 1) + 1) >> 5]) >> (((i << 1) + 1) & 0x1f)) & 1),
-               output[i].r,
-               output[i].i);
+        printf("i %d idx %d pdcch mod_dmrs %d %d\n", i, idx, output[i].r, output[i].i);
 #endif
     }
   }
@@ -194,8 +172,7 @@ int nr_pdcch_dmrs_rx(const PHY_VARS_NR_UE *ue,
 
 void nr_pbch_dmrs_rx(int symbol, const unsigned int *nr_gold_pbch, c16_t *output, bool sidelink)
 {
-  int m,m0,m1;
-  uint8_t idx=0;
+  int m0, m1;
   if (sidelink) {
     AssertFatal(symbol == 0 || (symbol >= 5 && symbol <= 12), "illegal symbol %d\n", symbol);
     m0 = (symbol) ? (symbol - 4) * 33 : 0;
@@ -216,9 +193,8 @@ void nr_pbch_dmrs_rx(int symbol, const unsigned int *nr_gold_pbch, c16_t *output
   }
   //    printf("Generating pilots symbol %d, m0 %d, m1 %d\n",symbol,m0,m1);
   /// QPSK modulation
-  for (m=m0; m<m1; m++) {
-    idx = ((((nr_gold_pbch[(m<<1)>>5])>>((m<<1)&0x1f))&1)<<1) ^ (((nr_gold_pbch[((m<<1)+1)>>5])>>(((m<<1)+1)&0x1f))&1);
-    output[m - m0] = nr_rx_mod_table[NR_MOD_TABLE_QPSK_OFFSET + idx];
+  for (int m = m0; m < m1; m++) {
+    output[m - m0] = get_modulated(nr_gold_pbch, m, true);
 
 #ifdef DEBUG_PBCH
     if (m<16)
@@ -235,7 +211,7 @@ void nr_pbch_dmrs_rx(int symbol, const unsigned int *nr_gold_pbch, c16_t *output
   \param length is number of RE in a OFDM symbol
   \param *output pointer to all ptrs RE in a OFDM symbol
 */
-void nr_gen_ref_conj_symbols(const uint32_t *in, uint32_t length, c16_t *output, uint16_t offset, int mod_order)
+void nr_gen_ref_conj_symbols(const uint32_t *in, uint32_t length, c16_t *output, int mod_order)
 {
   uint8_t idx, b_idx;
   for (int i=0; i<length/mod_order; i++)
@@ -248,7 +224,7 @@ void nr_gen_ref_conj_symbols(const uint32_t *in, uint32_t length, c16_t *output,
             in++;
           idx ^= (((*in)>>b_idx)&1)<<(mod_order-j-1);
         }
-        output[i] = nr_rx_mod_table[offset + idx];
+        output[i] = nr_rx_mod_table[idx];
     }
 }
 

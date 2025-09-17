@@ -54,10 +54,6 @@
 #include <string.h>
 #endif
 
-#ifdef MEX
-#include "mex.h"
-#endif
-
 #include "PHY/sse_intrin.h"
 
 //#define DEBUG_LOGMAP
@@ -837,19 +833,11 @@ void init_td16avx2(void)
 
   for (ind=0; ind<188; ind++) {
     n = f1f2mat[ind].nb_bits;
-    base_interleaver=il_tb+f1f2mat[ind].beg_index;
-#ifdef MEX
-    // This is needed for the Mex implementation to make the memory persistent
-    pi2tab16[ind] = mxMalloc((n+8)*sizeof(int));
-    pi5tab16[ind] = mxMalloc((n+8)*sizeof(int));
-    pi4tab16[ind] = mxMalloc((n+8)*sizeof(int));
-    pi6tab16[ind] = mxMalloc((n+8)*sizeof(int));
-#else
+    base_interleaver = il_tb + f1f2mat[ind].beg_index;
     pi2tab16avx2[ind] = malloc((n+8)*sizeof(int));
     pi5tab16avx2[ind] = malloc((n+8)*sizeof(int));
     pi4tab16avx2[ind] = malloc((n+8)*sizeof(int));
-    pi6tab16avx2[ind] = malloc((n+8)*sizeof(int));
-#endif
+    pi6tab16avx2[ind] = malloc((n + 8) * sizeof(int));
 
     //    fprintf(fdavx2,"Interleaver index %d\n",ind);
     for (i=i2=0; i2<8; i2++) {
@@ -1258,8 +1246,6 @@ unsigned char phy_threegpplte_turbo_decoder16avx2(int16_t *y,
 
   //  fprintf(fdavx2,"crc %x, oldcrc %x\n",crc,oldcrc);
 
-  simde_mm_empty();
-  simde_m_empty();
 
 #ifdef DEBUG_LOGMAP
   fclose(fdavx2);

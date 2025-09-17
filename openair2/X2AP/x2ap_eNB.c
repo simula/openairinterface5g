@@ -756,7 +756,7 @@ mutex_error:
   exit(1);
 }
 
-void x2ap_trigger(void)
+void x2ap_ms_tick(void)
 {
   MessageDef *msg = itti_alloc_new_message(TASK_X2AP, 0, X2AP_SUBFRAME_PROCESS);
   itti_send_msg_to_task(TASK_X2AP, 0, msg);

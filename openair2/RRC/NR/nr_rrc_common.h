@@ -22,12 +22,11 @@
 #ifndef __NR_RRC_COMMON_H__
 #define __NR_RRC_COMMON_H__
 
-#include <stdio.h>
-#include <stdlib.h>
 #include <stdint.h> 
+#include "NR_BWP-Downlink.h"
 
 #define NR_NUM_SRB 4 /* Number of Signalling Radio Bearers according to clause 4.2.2 of 3GPP TS 38.331 */
-#define NR_K_KEY_SIZE 16 /* K keys have 128 bits length */
+#define NR_RRC_BUF_SIZE 4096
 
 typedef enum UE_STATE_NR_e {
   NR_RRC_INACTIVE=0,

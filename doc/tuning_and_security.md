@@ -146,6 +146,9 @@ on DPDK:
 - `IPC_LOCK` (becomes mandatory with DPDK)
 - `SYS_RESOURCE`
 - `NET_RAW`
+- `SYS_ADMIN`: This is required by DPDK when using IOVA PA (Physical Address)
+   mode to read `/proc/self/pagemaps`. However, if DPDK EAL is configured to use
+   IOVA VA (Virtual Address) mode, this capability is no longer required.
 
 ## Capabilities with UHD
 

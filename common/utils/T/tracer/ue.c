@@ -250,15 +250,15 @@ static void ue_main_gui(ue_gui *e, gui *g, event_handler *h, void *database,
   widget_add_child(g, line, w, -1);
   xy_plot_set_range(g, w, 0, 1024*10, -130, 35);
   /*l = new_ticked_ttilog(h, database,"UE_PHY_DL_TICK", "frame", "subframe","UE_PHY_MEAS", "rssi", 0, -1);
-  v = new_view_tti(10, g, w, new_color(g, "#720c0c"));
+  v = new_view_tti(10, g, w, new_color(g, "#720c0c"), 10);
   logger_add_view(l, v);
   e->phy_meas_logger = l;*/
   l = new_ticked_ttilog(h, database,"UE_PHY_DL_TICK", "frame", "subframe","UE_PHY_MEAS", "rsrp", 0, -1);
-  v = new_view_tti(10, g, w, new_color(g, "#0c0c72"));
+  v = new_view_tti(10, g, w, new_color(g, "#0c0c72"), 10);
   logger_add_view(l, v);
   e->phy_meas_logger = l;
   l = new_ticked_ttilog(h, database,"UE_PHY_DL_TICK", "frame", "subframe","UE_PHY_MEAS", "snr", 0, -1);
-  v = new_view_tti(10, g, w, new_color(g, "#0c720c"));
+  v = new_view_tti(10, g, w, new_color(g, "#0c720c"), 10);
   logger_add_view(l, v);
   e->phy_meas_logger = l;
 
@@ -277,7 +277,7 @@ static void ue_main_gui(ue_gui *e, gui *g, event_handler *h, void *database,
   widget_add_child(g, line, w, -1);
   l = new_ticked_ttilog(h, database, "UE_PHY_DL_TICK", "frame", "subframe",
       "UE_PHY_DLSCH_UE_DCI", "mcs", 0, -1);
-  v = new_view_tti(10, g, w, new_color(g, "#0c0c72"));
+  v = new_view_tti(10, g, w, new_color(g, "#0c0c72"), 10);
   logger_add_view(l, v);
   e->dl_mcs_logger = l;
 
@@ -288,7 +288,7 @@ static void ue_main_gui(ue_gui *e, gui *g, event_handler *h, void *database,
   widget_add_child(g, line, w, -1);
   l = new_ticked_ttilog(h, database, "UE_PHY_DL_TICK", "frame", "subframe",
       "UE_PHY_ULSCH_UE_DCI", "mcs", 0, -1);
-  v = new_view_tti(10, g, w, new_color(g, "#0c0c72"));
+  v = new_view_tti(10, g, w, new_color(g, "#0c0c72"), 10);
   logger_add_view(l, v);
   e->ul_mcs_logger = l;
 
@@ -301,12 +301,12 @@ static void ue_main_gui(ue_gui *e, gui *g, event_handler *h, void *database,
   xy_plot_set_range(g, w, 0, 1024*10, -30, 50);
   l = new_ttilog(h, database,
       "UE_PHY_PUSCH_TX_POWER", "frame", "subframe", "p0_pusch", 0);
-  v = new_view_tti(10, g, w, new_color(g, "#0c0c72"));
+  v = new_view_tti(10, g, w, new_color(g, "#0c0c72"), 10);
   logger_add_view(l, v);
   e->pusch_power_logger = l;
   l = new_ttilog(h, database,
       "UE_PHY_PUSCH_TX_POWER", "frame", "subframe", "ampl", 1);
-  v = new_view_tti(10, g, w, new_color(g, "#720c0c"));
+  v = new_view_tti(10, g, w, new_color(g, "#720c0c"), 10);
   logger_add_view(l, v);
   e->pusch_ampl_logger = l;
 
@@ -319,12 +319,12 @@ static void ue_main_gui(ue_gui *e, gui *g, event_handler *h, void *database,
   xy_plot_set_range(g, w, 0, 1024*10, -30, 50);
   l = new_ttilog(h, database,
       "UE_PHY_PUCCH_TX_POWER", "frame", "subframe", "p0_pucch", 0);
-  v = new_view_tti(10, g, w, new_color(g, "#0c0c72"));
+  v = new_view_tti(10, g, w, new_color(g, "#0c0c72"), 10);
   logger_add_view(l, v);
   e->pucch_power_logger = l;
   l = new_ttilog(h, database,
       "UE_PHY_PUCCH_TX_POWER", "frame", "subframe", "ampl", 1);
-  v = new_view_tti(10, g, w, new_color(g, "#720c0c"));
+  v = new_view_tti(10, g, w, new_color(g, "#720c0c"), 10);
   logger_add_view(l, v);
   e->pucch_ampl_logger = l;
 
@@ -335,22 +335,22 @@ static void ue_main_gui(ue_gui *e, gui *g, event_handler *h, void *database,
   xy_plot_set_range(g, w, 0, 1024*10, -10, 80);
   l = new_ttilog(h, database,
       "UE_PHY_PDSCH_ENERGY", "frame", "subframe", "pdsch_ch_level00", 1);
-  v = new_view_tti(10, g, w, new_color(g, "#ff0000"));
+  v = new_view_tti(10, g, w, new_color(g, "#ff0000"), 10);
   logger_add_view(l, v);
   e->pdsch_energy_logger = l;
   l = new_ttilog(h, database,
       "UE_PHY_PDSCH_ENERGY", "frame", "subframe", "pdsch_ch_level01", 1);
-  v = new_view_tti(10, g, w, new_color(g, "#00ff00"));
+  v = new_view_tti(10, g, w, new_color(g, "#00ff00"), 10);
   logger_add_view(l, v);
   e->pdsch_energy_logger = l;
   l = new_ttilog(h, database,
       "UE_PHY_PDSCH_ENERGY", "frame", "subframe", "pdsch_ch_level10", 1);
-  v = new_view_tti(10, g, w, new_color(g, "#0f0f0f"));
+  v = new_view_tti(10, g, w, new_color(g, "#0f0f0f"), 10);
   logger_add_view(l, v);
   e->pdsch_energy_logger = l;
   l = new_ttilog(h, database,
       "UE_PHY_PDSCH_ENERGY", "frame", "subframe", "pdsch_ch_level11", 1);
-  v = new_view_tti(10, g, w, new_color(g, "#0000ff"));
+  v = new_view_tti(10, g, w, new_color(g, "#0000ff"), 10);
   logger_add_view(l, v);
   e->pdsch_energy_logger = l;
 
@@ -361,22 +361,22 @@ static void ue_main_gui(ue_gui *e, gui *g, event_handler *h, void *database,
   xy_plot_set_range(g, w, 0, 1024*10, -10, 80);
   l = new_ttilog(h, database,
       "UE_PHY_PDCCH_ENERGY", "frame", "subframe", "pdcch_ch_level00", 1);
-  v = new_view_tti(10, g, w, new_color(g, "#ff0000"));
+  v = new_view_tti(10, g, w, new_color(g, "#ff0000"), 10);
   logger_add_view(l, v);
   e->pdcch_energy_logger = l;
   l = new_ttilog(h, database,
       "UE_PHY_PDCCH_ENERGY", "frame", "subframe", "pdcch_ch_level01", 1);
-  v = new_view_tti(10, g, w, new_color(g, "#00ff00"));
+  v = new_view_tti(10, g, w, new_color(g, "#00ff00"), 10);
   logger_add_view(l, v);
   e->pdcch_energy_logger = l;
   l = new_ttilog(h, database,
       "UE_PHY_PDCCH_ENERGY", "frame", "subframe", "pdcch_ch_level10", 1);
-  v = new_view_tti(10, g, w, new_color(g, "#0f0f0f"));
+  v = new_view_tti(10, g, w, new_color(g, "#0f0f0f"), 10);
   logger_add_view(l, v);
   e->pdcch_energy_logger = l;
   l = new_ttilog(h, database,
       "UE_PHY_PDCCH_ENERGY", "frame", "subframe", "pdcch_ch_level11", 1);
-  v = new_view_tti(10, g, w, new_color(g, "#0000ff"));
+  v = new_view_tti(10, g, w, new_color(g, "#0000ff"), 10);
   logger_add_view(l, v);
   e->pdcch_energy_logger = l;
 

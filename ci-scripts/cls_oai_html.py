@@ -31,14 +31,12 @@
 #-----------------------------------------------------------
 # Import
 #-----------------------------------------------------------
-import sys              # arg
 import re               # reg
 import fileinput
 import logging
 import os
 import time
 import subprocess
-from multiprocessing import Process, Lock, SimpleQueue
 
 import constants as CONST
 
@@ -71,16 +69,6 @@ class HTMLManagement():
 		self.startTime = int(round(time.time() * 1000))
 		self.testCase_id = ''
 		self.desc = ''
-
-		self.OsVersion = ['', '']
-		self.KernelVersion = ['', '']
-		self.UhdVersion = ['', '']
-		self.UsrpBoard = ['', '']
-		self.CpuNb = ['', '']
-		self.CpuModel = ['', '']
-		self.CpuMHz = ['', '']
-
-
 
 #-----------------------------------------------------------
 # HTML structure creation functions
@@ -149,7 +137,7 @@ class HTMLManagement():
 				self.htmlFile.write('       <td bgcolor = "lightcyan" > <span class="glyphicon glyphicon-tag"></span> Commit ID </td>\n')
 			self.htmlFile.write('       <td>' + self.ranCommitID + '</td>\n')
 			self.htmlFile.write('     </tr>\n')
-			if self.ranAllowMerge != '':
+			if self.ranAllowMerge != '' and self.ranCommitID != 'develop':
 				commit_message = subprocess.check_output("git log -n1 --pretty=format:\"%s\" " + self.ranCommitID, shell=True, universal_newlines=True)
 				commit_message = commit_message.strip()
 				self.htmlFile.write('     <tr>\n')
@@ -226,7 +214,6 @@ class HTMLManagement():
 			self.htmlFile.write('  </table>\n')
 			self.htmlFile.write('  </div>\n')
 			self.htmlFile.close()
-			time.sleep(1)
 			if passStatus:
 				cmd = "sed -i -e 's/__STATE_" + self.htmlTabNames[0] + "__//' test_results.html"
 				subprocess.run(cmd, shell=True)
@@ -260,7 +247,7 @@ class HTMLManagement():
 			self.htmlFile.write('      </tr>\n')
 			self.htmlFile.write('  </table>\n')
 			self.htmlFile.write('  <p></p>\n')
-			self.htmlFile.write('  <div class="well well-lg">End of Test Report -- Copyright <span class="glyphicon glyphicon-copyright-mark"></span> 2018 <a href="http://www.openairinterface.org/">OpenAirInterface</a>. All Rights Reserved.</div>\n')
+			self.htmlFile.write('  <div class="well well-lg">End of Test Report -- Copyright <span class="glyphicon glyphicon-copyright-mark"></span> 2025 <a href="http://www.openairinterface.org/">OpenAirInterface</a>. All Rights Reserved.</div>\n')
 			self.htmlFile.write('</div></body>\n')
 			self.htmlFile.write('</html>\n')
 			self.htmlFile.close()
@@ -343,58 +330,6 @@ class HTMLManagement():
 		else:
 			self.htmlFile.write('        <td>-</td>\n')
 		self.htmlFile.write('      </tr>\n')
-		self.htmlFile.close()
-
-
-	def CreateHtmlNextTabHeaderTestRow(self, collectInfo, allImagesSize, machine='eNB'):
-		if (self.htmlFooterCreated or (not self.htmlHeaderCreated)):
-			return
-		self.htmlFile = open('test_results.html', 'a')
-		if bool(collectInfo) == False:
-			self.htmlFile.write('      <tr bgcolor = "red" >\n')
-			self.htmlFile.write('        <td colspan="6"><b> ----IMAGES BUILDING FAILED - Unable to recover the image logs ---- </b></td>\n')
-			self.htmlFile.write('      </tr>\n')
-		else:
-			for image in collectInfo:
-				files = collectInfo[image]
-        		# TabHeader for image logs on built shared and target images
-				if allImagesSize[image].count('unknown') > 0:
-					self.htmlFile.write('      <tr bgcolor = "orange" >\n')
-				elif allImagesSize[image].count('Build Failed') > 0:
-					self.htmlFile.write('      <tr bgcolor = "red" >\n')
-				else:
-					self.htmlFile.write('      <tr bgcolor = "#F0F0F0" >\n')
-				self.htmlFile.write('        <td colspan="6"><b> ---- ' + image  + ' IMAGE STATUS ----> Size ' + allImagesSize[image] + ' </b></td>\n')
-				self.htmlFile.write('      </tr>\n')
-				self.htmlFile.write('      <tr bgcolor = "#33CCFF" >\n')
-				self.htmlFile.write('        <th colspan="2">Element</th>\n')
-				self.htmlFile.write('        <th>Nb Errors</th>\n')
-				self.htmlFile.write('        <th>Nb Warnings</th>\n')
-				self.htmlFile.write('        <th colspan="2">Status</th>\n')
-				self.htmlFile.write('      </tr>\n')
-
-				for fil in files:
-					parameters = files[fil]
-					# TestRow for image logs on built shared and target images
-					self.htmlFile.write('      <tr>\n')
-					self.htmlFile.write('        <td colspan="2" bgcolor = "lightcyan" >' + fil  + ' </td>\n')
-					if (parameters['errors'] == 0):
-						self.htmlFile.write('        <td bgcolor = "green" >' + str(parameters['errors'])  + '</td>\n')
-					else:
-						self.htmlFile.write('        <td bgcolor = "red" >' + str(parameters['errors'])  + '</td>\n')
-					if (parameters['errors'] > 0):
-						self.htmlFile.write('        <td bgcolor = "red" >' + str(parameters['warnings'])  + '</td>\n')
-					elif (parameters['warnings'] == 0):
-						self.htmlFile.write('        <td bgcolor = "green" >' + str(parameters['warnings'])  + '</td>\n')
-					else:
-						self.htmlFile.write('        <td bgcolor = "orange" >' + str(parameters['warnings'])  + '</td>\n')
-					if (parameters['errors'] == 0) and (parameters['warnings'] == 0):
-						self.htmlFile.write('        <th colspan="2" bgcolor = "green" ><font color="white">OK </font></th>\n')
-					elif (parameters['errors'] == 0):
-						self.htmlFile.write('        <th colspan="2" bgcolor = "orange" ><font color="white">OK </font></th>\n')
-					else:
-						self.htmlFile.write('        <th colspan="2" bgcolor = "red" > NOT OK  </th>\n')
-					self.htmlFile.write('      </tr>\n')
 		self.htmlFile.close()
 
 	#for the moment it is limited to 4 columns, to be made generic later
@@ -566,13 +501,13 @@ class HTMLManagement():
 			self.htmlFile.write('        <th>Nb Pass</th>\n')
 			self.htmlFile.write('      </tr>\n')
 			self.htmlFile.write('      <tr>\n')
-			self.htmlFile.write('        <td colspan="2" bgcolor = "lightcyan" > physim_test.txt  </td>\n')
+			self.htmlFile.write('        <td colspan="2" bgcolor = "lightcyan" > physim_log.txt  </td>\n')
 			self.htmlFile.write('        <td colspan="2" bgcolor = "lightcyan" >' + str(testSummary['Nbtests']) + ' </td>\n')
 			if testSummary['Nbfail'] == 0:
-				self.htmlFile.write('        <td bgcolor = "lightcyan" >' + str(testSummary['Nbfail']) + ' </td>\n')
+				self.htmlFile.write('        <td bgcolor = "lightcyan" >' + str(testSummary['Nbfail']) + '</td>\n')
 			else:
-				self.htmlFile.write('        <td bgcolor = "red" >' + str(testSummary['Nbfail']) + ' </td>\n')
-			self.htmlFile.write('        <td gcolor = "lightcyan" >' + str(testSummary['Nbpass']) + ' </td>\n')
+				self.htmlFile.write('        <td bgcolor = "red" ><font color="white">' + str(testSummary['Nbfail']) + '</font></td>\n')
+			self.htmlFile.write('        <td bgcolor = "lightcyan" >' + str(testSummary['Nbpass']) + ' </td>\n')
 			self.htmlFile.write('      </tr>\n')
 			self.htmlFile.write('      <tr bgcolor = "#F0F0F0" >\n')
 			self.htmlFile.write('        <td colspan="6"><b> ---- PHYSIM TEST DETAIL INFO---- </b></td>\n')
@@ -580,22 +515,24 @@ class HTMLManagement():
 			self.htmlFile.write('      <tr bgcolor = "#33CCFF" >\n')
 			self.htmlFile.write('        <th colspan="2">Test Name</th>\n')
 			self.htmlFile.write('        <th colspan="2">Test Description</th>\n')
-			self.htmlFile.write('        <th colspan="2">Result</th>\n')
+			self.htmlFile.write('        <th>Test Status</th>\n')
+			self.htmlFile.write('        <th>Info</th>\n')
 			self.htmlFile.write('      </tr>\n')
 			y = ''
 			for key, value in testResult.items():
 				x = key.split(".")
-				if x[0] != y:
+				if x[2] != y:
 					self.htmlFile.write('      <tr bgcolor = "lightgreen" >\n')
-					self.htmlFile.write('        <td style="text-align: center;" colspan="6"><b>"' + x[0] + '" series </b></td>\n')
+					self.htmlFile.write('        <td style="text-align: center;" colspan="6"><b>"' + x[2] + '" series </b></td>\n')
 					self.htmlFile.write('      </tr>\n')
-					y = x[0]
+					y = x[2]
 				self.htmlFile.write('      <tr>\n')
 				self.htmlFile.write('        <td colspan="2" bgcolor = "lightcyan" >' + key  + ' </td>\n')
 				self.htmlFile.write('        <td colspan="2" bgcolor = "lightcyan" >' + value[0]  + '</td>\n')
 				if 'PASS' in value:
-					self.htmlFile.write('        <td colspan="2" bgcolor = "green" >' + value[1]  + '</td>\n')
+					self.htmlFile.write('        <td bgcolor = "green" ><font color="white"><b>' + value[2]  + '</b></font></td>\n')
 				else:
-					self.htmlFile.write('        <td colspan="2" bgcolor = "red" >' + value[1]  + '</td>\n')
+					self.htmlFile.write('        <td bgcolor = "red" ><font color="white"><b>' + value[2]  + '</b></font></td>\n')
+				self.htmlFile.write(f'        <td colspan="2" bgcolor = "lightcyan"><pre style="display: inline flow-root list-item; margin: 0 3px 0 3px; min-width: 24em;">{value[1]}</pre></td>\n')
 
 		self.htmlFile.close()

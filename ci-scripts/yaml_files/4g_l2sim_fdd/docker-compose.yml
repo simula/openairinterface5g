@@ -10,7 +10,7 @@ services:
             CASSANDRA_ENDPOINT_SNITCH: GossipingPropertyFileSnitch
         healthcheck:
             test: /bin/bash -c "nodetool status"
-            interval: 10s
+            interval: 20s
             timeout: 5s
             retries: 5
 
@@ -178,7 +178,7 @@ services:
             retries: 5
 
     oai_enb:
-        image: ${REGISTRY:-oaisoftwarealliance}/oai-enb:${TAG:-develop}
+        image: ${REGISTRY:-oaisoftwarealliance}/${ENB_IMG:-oai-enb}:${TAG:-develop}
         privileged: true
         container_name: l2sim4g-oai-enb
         network_mode: "host"
@@ -210,7 +210,7 @@ services:
             retries: 5
 
     oai_ue1:
-        image: ${REGISTRY:-oaisoftwarealliance}/oai-lte-ue:${TAG:-develop}
+        image: ${REGISTRY:-oaisoftwarealliance}/${LTEUE_IMG:-oai-lte-ue}:${TAG:-develop}
         privileged: true
         container_name: l2sim4g-oai-lte-ue1
         network_mode: "host"
@@ -229,7 +229,7 @@ services:
             retries: 5
 
     oai_ue2:
-        image: ${REGISTRY:-oaisoftwarealliance}/oai-lte-ue:${TAG:-develop}
+        image: ${REGISTRY:-oaisoftwarealliance}/${LTEUE_IMG:-oai-lte-ue}:${TAG:-develop}
         privileged: true
         container_name: l2sim4g-oai-lte-ue2
         network_mode: "host"

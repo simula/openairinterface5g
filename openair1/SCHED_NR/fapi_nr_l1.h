@@ -53,8 +53,15 @@ void handle_nr_nfapi_pdsch_pdu(processingData_L1tx_t *msgTx,
 			       nfapi_nr_dl_tti_pdsch_pdu *pdsch_pdu,
                             uint8_t *sdu);
 
-
-void nr_fill_indication(PHY_VARS_gNB *gNB, int frame, int slot_rx, int UE_id, uint8_t harq_pid, uint8_t crc_flag,int dtx_flag);
+void nr_fill_indication(PHY_VARS_gNB *gNB,
+                        int frame,
+                        int slot_rx,
+                        int UE_id,
+                        uint8_t harq_pid,
+                        uint8_t crc_flag,
+                        int dtx_flag,
+                        nfapi_nr_crc_t *crc,
+                        nfapi_nr_rx_data_pdu_t *pdu);
 //added
 
 void handle_nfapi_nr_ul_dci_pdu(PHY_VARS_gNB *gNB,

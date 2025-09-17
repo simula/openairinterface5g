@@ -62,8 +62,12 @@
 #define IES_DECODE_U8(bUFFER, dECODED, vALUE) \
     DECODE_U8(bUFFER + dECODED, vALUE, dECODED)
 
-#define IES_DECODE_U16(bUFFER, dECODED, vALUE)  \
-    DECODE_U16(bUFFER + dECODED, vALUE, dECODED)
+#define IES_DECODE_U16(bUFFER, dECODED, vALUE)   \
+  do {                                           \
+    uint16_t val;                                \
+    memcpy(&val, bUFFER + dECODED, sizeof(val)); \
+    DECODE_U16(&val, vALUE, dECODED);            \
+  } while (0)
 
 #define IES_DECODE_U24(bUFFER, dECODED, vALUE)  \
     DECODE_U24(bUFFER + dECODED, vALUE, dECODED)
@@ -91,48 +95,56 @@ typedef enum {
 
 extern int errorCodeDecoder;
 
-void tlv_decode_perror(void);
+#ifdef ENABLE_TESTS
+#define TLV_DEC_ERROR(...) fprintf(stderr, "TLV Decoder: " __VA_ARGS__)
+#else
+#define TLV_DEC_ERROR(...) // Do nothing
+#endif
 
-#define CHECK_PDU_POINTER_AND_LENGTH_DECODER(bUFFER, mINIMUMlENGTH, lENGTH)    \
-  if (bUFFER == NULL)                                                    \
-        {                                                                      \
-                printf("(%s:%d) Got NULL pointer for the payload\n",           \
-                __FILE__, __LINE__);                                           \
-                errorCodeDecoder = TLV_DECODE_BUFFER_NULL;                     \
-                LOG_FUNC_RETURN(TLV_DECODE_BUFFER_NULL);                       \
-        }                                                                      \
-        if (lENGTH < mINIMUMlENGTH)                                            \
-        {                                                                      \
-                printf("(%s:%d) Expecting at least %d bytes, got %u\n",        \
-                      __FILE__, __LINE__, mINIMUMlENGTH, lENGTH);              \
-                errorCodeDecoder = TLV_DECODE_BUFFER_TOO_SHORT;                \
-                LOG_FUNC_RETURN(TLV_DECODE_BUFFER_TOO_SHORT);                  \
-        }
+#define CHECK_PDU_POINTER_AND_LENGTH_DECODER(bUFFER, mINIMUMlENGTH, lENGTH)                                          \
+  do {                                                                                                               \
+    if ((bUFFER) == NULL) {                                                                                          \
+      TLV_DEC_ERROR("(%s:%d) Got NULL pointer for the payload\n", __FILE__, __LINE__);                               \
+      return TLV_DECODE_BUFFER_NULL;                                                                                 \
+    }                                                                                                                \
+    if ((lENGTH) < (mINIMUMlENGTH)) {                                                                                \
+      TLV_DEC_ERROR("(%s:%d) Expecting at least %d bytes, got %u\n", __FILE__, __LINE__, (mINIMUMlENGTH), (lENGTH)); \
+      return TLV_DECODE_BUFFER_TOO_SHORT;                                                                            \
+    }                                                                                                                \
+  } while (0)
 
-#define CHECK_LENGTH_DECODER(bUFFERlENGTH, lENGTH)                             \
-        if (bUFFERlENGTH < lENGTH)                                             \
-        {                                                                      \
-                errorCodeDecoder = TLV_DECODE_BUFFER_TOO_SHORT;                \
-                LOG_FUNC_RETURN(TLV_DECODE_BUFFER_TOO_SHORT);                  \
-        }
+#define CHECK_LENGTH_DECODER(bUFFERlENGTH, lENGTH)                                      \
+  do {                                                                                  \
+    if ((bUFFERlENGTH) < (lENGTH)) {                                                    \
+      TLV_DEC_ERROR("(%s:%d) Buffer is too short, length (%u) is less than the required length (%u)\n", \
+                  __FILE__,                                                             \
+                  __LINE__,                                                             \
+                  (bUFFERlENGTH),                                                       \
+                  (lENGTH));                                                            \
+      return TLV_DECODE_BUFFER_TOO_SHORT;                                               \
+    }                                                                                   \
+  } while (0)
 
-#define CHECK_MESSAGE_TYPE(mESSAGE_tYPE, bUFFER)                               \
-        {                                                                      \
-                if (mESSAGE_tYPE != bUFFER)                                    \
-                {                                                              \
-                        errorCodeDecoder = TLV_DECODE_WRONG_MESSAGE_TYPE;      \
-                        LOG_FUNC_RETURN(errorCodeDecoder);                     \
-                }                                                              \
-        }
+#define CHECK_MESSAGE_TYPE(mESSAGE_TYPE, BUFFER)                                                                          \
+  do {                                                                                                                    \
+    if ((MESSAGE_TYPE) != (BUFFER)) {                                                                                     \
+      TLV_DEC_ERROR("(%s:%d) Wrong message type: Got: %u, Expected: %u\n", __FILE__, __LINE__, (BUFFER), (MESSAGE_TYPE)); \
+      return TLV_DECODE_WRONG_MESSAGE_TYPE;                                                                               \
+    }                                                                                                                     \
+  } while (0)
 
-#define CHECK_IEI_DECODER(iEI, bUFFER)                                  \
-        if(iEI != bUFFER)                                               \
-        {                                                               \
-                printf("IEI is different than the one expected."        \
-                "(Got: 0x%x, expecting: 0x%x)\n", bUFFER, iEI);          \
-                errorCodeDecoder = TLV_DECODE_UNEXPECTED_IEI;           \
-                LOG_FUNC_RETURN(TLV_DECODE_UNEXPECTED_IEI);             \
-        }
+#define CHECK_IEI_DECODER(iEI, bUFFER)                                         \
+  do {                                                                         \
+    if ((iEI) != (bUFFER)) {                                                   \
+      TLV_DEC_ERROR(                                                           \
+          "IEI check failure: %s:%d: IEI is different than the one expected: " \
+          "(Got: 0x%x, expecting: 0x%x)\n",                                    \
+          __FILE__,                                                            \
+          __LINE__,                                                            \
+          (bUFFER),                                                            \
+          (iEI));                                                              \
+      return TLV_DECODE_UNEXPECTED_IEI;                                        \
+    }                                                                          \
+  } while (0)
 
 #endif /* define (TLV_DECODER_H_) */
-

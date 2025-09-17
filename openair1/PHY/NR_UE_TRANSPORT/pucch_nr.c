@@ -491,7 +491,7 @@ static inline void nr_pucch2_3_4_scrambling(uint16_t M_bit, uint16_t rnti, uint1
   const int roundedSz = (M_bit + 31) / 32;
   uint32_t *seq = gold_cache((rnti << 15) + n_id, roundedSz);
 #ifdef DEBUG_NR_PUCCH_TX
-  printf("\t\t [nr_pucch2_3_4_scrambling] gold sequence s=%x, M_bit %d\n",s,M_bit);
+  printf("\t\t [nr_pucch2_3_4_scrambling] gold sequence s=%x, M_bit %d\n", *seq, M_bit);
 #endif
 
   uint8_t *btildep = btilde;
@@ -506,7 +506,12 @@ static inline void nr_pucch2_3_4_scrambling(uint16_t M_bit, uint16_t rnti, uint1
       uint8_t c = (uint8_t)((s >> i) & 1);
       btildep[i] = (((B>>i)&1) ^ c);
 #ifdef DEBUG_NR_PUCCH_TX
-      printf("\t\t\t btilde[%d]=%x from unscrambled bit %d and scrambling %d (%x)\n",i+(iprime<<5),btilde[i],((B>>i)&1),c,s>>i);
+      printf("\t\t\t btilde[%d]=%x from unscrambled bit %u and scrambling %d (%x)\n",
+             i + (iprime << 5),
+             btilde[i],
+             ((B >> i) & 1),
+             c,
+             s >> i);
 #endif
     }
   }
@@ -718,9 +723,10 @@ void nr_generate_pucch2(const PHY_VARS_NR_UE *ue,
     temp_x2 *= 14UL * nr_slot_tx + l + startingSymbolIndex + 1;
     temp_x2 *= 2UL * pucch_pdu->dmrs_scrambling_id + 1;
     temp_x2 = (temp_x2 + 2ULL * pucch_pdu->dmrs_scrambling_id) % (1UL << 31);
-    uint idxGold = startingPRB >> 2;
-    uint32_t *seq = gold_cache(temp_x2, idxGold + pucch_pdu->prb_size);
-    int m = 0;
+    uint32_t idxGold = startingPRB * NR_PUCCH_DMRS_RB * DMRS_MOD_ORDER / 32;
+    uint32_t m = (startingPRB * NR_PUCCH_DMRS_RB * DMRS_MOD_ORDER) % 32;
+    const int seq_sz = ((startingPRB + pucch_pdu->prb_size) * NR_PUCCH_DMRS_RB * DMRS_MOD_ORDER + 31) / 32;
+    uint32_t *seq = gold_cache(temp_x2, seq_sz);
     for (int rb=0; rb<pucch_pdu->prb_size; rb++) {
       //startingPRB = startingPRB + rb;
       const bool nb_rb_is_even = frame_parms->N_RB_DL & 1;
@@ -757,15 +763,14 @@ void nr_generate_pucch2(const PHY_VARS_NR_UE *ue,
           txdataF[0][re_offset] = d[outSample + k];
 #ifdef DEBUG_NR_PUCCH_TX
           printf(
-              "\t [nr_generate_pucch2] (n=%d,i=%d) mapping PUCCH to RE \t amp=%d \tofdm_symbol_size=%d \tN_RB_DL=%d "
+              "\t [nr_generate_pucch2] (n=%d) mapping PUCCH to RE \t amp=%d \tofdm_symbol_size=%d \tN_RB_DL=%d "
               "\tfirst_carrier_offset=%d \tz_pucch[%d]=txptr(%d)=(x_n(l=%d,n=%d)=(%d,%d))\n",
               n,
-              i,
               amp,
               frame_parms->ofdm_symbol_size,
               frame_parms->N_RB_DL,
               frame_parms->first_carrier_offset,
-              i + k,
+              k,
               re_offset,
               l,
               n,
@@ -776,20 +781,19 @@ void nr_generate_pucch2(const PHY_VARS_NR_UE *ue,
         }
 
         if (n%3 == 1) { // mapping DM-RS signal according to TS38.211 subclause 6.4.1.3.2
-          txdataF[0][re_offset].r = (int16_t)(baseVal * (1 - (2 * ((uint8_t)((seq[idxGold] >> (2 * m)) & 1)))));
-          txdataF[0][re_offset].i = (int16_t)(baseVal * (1 - (2 * ((uint8_t)((seq[idxGold] >> (2 * m + 1)) & 1)))));
-          m++;
+          txdataF[0][re_offset].r = (int16_t)(baseVal * (1 - (2 * ((uint8_t)((seq[idxGold] >> (m)) & 1)))));
+          txdataF[0][re_offset].i = (int16_t)(baseVal * (1 - (2 * ((uint8_t)((seq[idxGold] >> (m + 1)) & 1)))));
+          m += 2;
 #ifdef DEBUG_NR_PUCCH_TX
           printf(
-              "\t [nr_generate_pucch2] (n=%d,i=%d) mapping DM-RS to RE \t amp=%d \tofdm_symbol_size=%d \tN_RB_DL=%d "
+              "\t [nr_generate_pucch2] (n=%d) mapping DM-RS to RE \t amp=%d \tofdm_symbol_size=%d \tN_RB_DL=%d "
               "\tfirst_carrier_offset=%d \tz_dm-rs[%d]=txptr(%d)=(x_n(l=%d,n=%d)=(%d,%d))\n",
               n,
-              i,
               amp,
               frame_parms->ofdm_symbol_size,
               frame_parms->N_RB_DL,
               frame_parms->first_carrier_offset,
-              i + kk,
+              kk,
               re_offset,
               l,
               n,
@@ -804,7 +808,7 @@ void nr_generate_pucch2(const PHY_VARS_NR_UE *ue,
 
       outSample += 8;
 
-      if (m % 16 == 0) {
+      if (m % 32 == 0) {
         idxGold++;
         m = 0;
       }

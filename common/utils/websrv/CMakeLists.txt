@@ -62,7 +62,7 @@ add_library(websrv MODULE
             websrv_utils.c
             ../../../openair1/PHY/TOOLS/nr_phy_scope.c
 )
-target_link_libraries(websrv PRIVATE ulfius jansson asn1_nr_rrc_hdrs)
+target_link_libraries(websrv PRIVATE ulfius jansson asn1_nr_rrc_hdrs UTIL)
 target_compile_definitions(websrv PUBLIC WEBSRVSCOPE)
 # put websrv into build root and not under build/common/utils/websrv/
 set_target_properties(websrv PROPERTIES LIBRARY_OUTPUT_DIRECTORY ../../..)

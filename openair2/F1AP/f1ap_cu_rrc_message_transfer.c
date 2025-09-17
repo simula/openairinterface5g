@@ -150,12 +150,9 @@ int CU_handle_UL_RRC_MESSAGE_TRANSFER(instance_t instance, sctp_assoc_t assoc_id
 
   nr_pdcp_data_ind(&ctxt,
                    1, // srb_flag
-                   0, // embms_flag
                    msg.srb_id,
                    msg.rrc_container_length,
-                   mb,
-                   NULL,
-                   NULL);
+                   mb);
   /* Free UL RRC Message Transfer */
   free_ul_rrc_message_transfer(&msg);
   return 0;

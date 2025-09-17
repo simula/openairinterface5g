@@ -4,7 +4,8 @@ add_library(nr_rlc_core OBJECT
             nr_rlc_entity_tm.c
             nr_rlc_entity_um.c
             nr_rlc_pdu.c
-            nr_rlc_sdu.c)
+            nr_rlc_sdu.c
+            nr_rlc_rx_manager.c)
 target_include_directories(nr_rlc_core PRIVATE ../../..)
 target_link_libraries(nr_rlc_core PRIVATE ${T_LIB})
 add_library(nr_rlc STATIC

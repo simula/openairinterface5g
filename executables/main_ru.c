@@ -75,7 +75,7 @@ int sync_var=-1; //!< protected by mutex \ref sync_mutex.
 int config_sync_var=-1;
 
 int oai_exit = 0;
-uint16_t sf_ahead = 4;
+int sf_ahead = 4;
 RU_t ru_m;
 
 
@@ -97,11 +97,19 @@ void exit_function(const char *file, const char *function, const int line, const
   oai_exit = 1;
 
   if (ru_m.rfdevice.trx_end_func) {
+    if (ru_m.rfdevice.trx_get_stats_func) {
+      ru_m.rfdevice.trx_get_stats_func(&ru_m.rfdevice);
+      ru_m.rfdevice.trx_get_stats_func = NULL;
+    }
     ru_m.rfdevice.trx_end_func(&ru_m.rfdevice);
     ru_m.rfdevice.trx_end_func = NULL;
   }
 
   if (ru_m.ifdevice.trx_end_func) {
+    if (ru_m.ifdevice.trx_get_stats_func) {
+      ru_m.ifdevice.trx_get_stats_func(&ru_m.ifdevice);
+      ru_m.ifdevice.trx_get_stats_func = NULL;
+    }
     ru_m.ifdevice.trx_end_func(&ru_m.ifdevice);
     ru_m.ifdevice.trx_end_func = NULL;
   }
@@ -119,7 +127,8 @@ void exit_function(const char *file, const char *function, const int line, const
 static void get_options(configmodule_interface_t *cfg)
 {
   CONFIG_SETRTFLAG(CONFIG_NOEXITONHELP);
-  get_common_options(cfg, SOFTMODEM_ENB_BIT);
+  IS_SOFTMODEM_ENB = true;
+  get_common_options(cfg);
   CONFIG_CLEARRTFLAG(CONFIG_NOEXITONHELP);
 
   // RCConfig();
@@ -362,11 +371,19 @@ int main ( int argc, char **argv )
   end_configmodule(uniqCfg);
 
   if (ru->rfdevice.trx_end_func) {
+    if (ru->rfdevice.trx_get_stats_func) {
+      ru->rfdevice.trx_get_stats_func(&ru->rfdevice);
+      ru->rfdevice.trx_get_stats_func = NULL;
+    }
     ru->rfdevice.trx_end_func(&ru->rfdevice);
     ru->rfdevice.trx_end_func = NULL;
   }
       
   if (ru->ifdevice.trx_end_func) {
+    if (ru->ifdevice.trx_get_stats_func) {
+      ru->ifdevice.trx_get_stats_func(&ru->ifdevice);
+      ru->ifdevice.trx_get_stats_func = NULL;
+    }
     ru->ifdevice.trx_end_func(&ru->ifdevice);
     ru->ifdevice.trx_end_func = NULL;
   }

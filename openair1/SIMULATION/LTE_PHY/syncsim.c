@@ -304,7 +304,6 @@ void lte_param_init(unsigned char N_tx, unsigned char N_rx,unsigned char transmi
 
 
 int main(int argc, char **argv) {
-  char c;
   int i,iout,l,aa,aarx;
   double sigma2, sigma2_dB=0,SNR,snr0=10.0,snr1=11.0;
   uint8_t snr1set=0;
@@ -377,6 +376,7 @@ int main(int argc, char **argv) {
     rxdata[0] = (int *)malloc16(FRAME_LENGTH_BYTES);
     rxdata[1] = (int *)malloc16(FRAME_LENGTH_BYTES);
   */
+  int c;
   while ((c = getopt (argc, argv, "aehc:f:g:i:j:n:r:s:t:x:y:z:A:F:N:O:R:S:ZYDT:C:G:dB:U:u")) != -1) {
     switch (c) {
       case 'a':

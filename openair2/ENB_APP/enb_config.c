@@ -59,11 +59,6 @@
 #include "executables/thread-common.h"
 #include <openair3/ocp-gtpu/gtp_itf.h>
 
-extern uint32_t to_earfcn_DL(int eutra_bandP, uint32_t dl_CarrierFreq, uint32_t bw);
-extern uint32_t to_earfcn_UL(int eutra_bandP, uint32_t ul_CarrierFreq, uint32_t bw);
-extern char *parallel_config;
-extern char *worker_config;
-
 RAN_CONTEXT_t RC;
 
 void RCconfig_L1(void) {
@@ -266,9 +261,13 @@ int RCconfig_RRC(uint32_t i, eNB_RRC_INST *rrc) {
   paramlist_def_t ENBParamList = {ENB_CONFIG_STRING_ENB_LIST,NULL,0};
   checkedparam_t config_check_CCparams[] = CCPARAMS_CHECK;
   paramdef_t CCsParams[] = CCPARAMS_DESC(ccparams_lte);
+  static_assert(sizeofArray(config_check_CCparams) == sizeofArray(CCsParams),
+                "config_check_CCparams and CCsParams should have the same size");
   paramlist_def_t CCsParamList = {ENB_CONFIG_STRING_COMPONENT_CARRIERS,NULL,0};
   paramdef_t eMTCParams[]              = EMTCPARAMS_DESC((&eMTCconfig));
   checkedparam_t config_check_eMTCparams[] = EMTCPARAMS_CHECK;
+  static_assert(sizeofArray(config_check_eMTCparams) == sizeofArray(eMTCParams),
+                "config_check_eMTCparams and eMTCParamsCCsParams should have the same size");
   srb1_params_t srb1_params;
   memset((void *)&srb1_params,0,sizeof(srb1_params_t));
   paramdef_t SRB1Params[] = SRB1PARAMS_DESC(srb1_params);
@@ -295,7 +294,7 @@ int RCconfig_RRC(uint32_t i, eNB_RRC_INST *rrc) {
 
     if (ENBParamList.paramarray[i][ENB_ENB_ID_IDX].uptr == NULL) {
       // Calculate a default eNB ID
-      if (EPC_MODE_ENABLED) {
+      if ((!IS_SOFTMODEM_NOS1)) {
         uint32_t hash;
         hash = s1ap_generate_eNB_id ();
         enb_id = i + (hash & 0xFFFF8);
@@ -320,6 +319,8 @@ int RCconfig_RRC(uint32_t i, eNB_RRC_INST *rrc) {
         paramlist_def_t PLMNParamList = {ENB_CONFIG_STRING_PLMN_LIST, NULL, 0};
         /* map parameter checking array instances to parameter definition array instances */
         checkedparam_t config_check_PLMNParams [] = PLMNPARAMS_CHECK;
+        static_assert(sizeofArray(config_check_PLMNParams) == sizeofArray(PLMNParams),
+                      "config_check_PLMNParams and PLMNParams should have the same size");
 
         for (int I = 0; I < sizeofArray(PLMNParams); ++I)
           PLMNParams[I].chkPptr = &(config_check_PLMNParams[I]);
@@ -1892,7 +1893,7 @@ int RCconfig_M2(MessageDef *msg_p, uint32_t i) {
       for (k = 0; k < ENBParamList.numelt; k++) {
         if (ENBParamList.paramarray[k][ENB_ENB_ID_IDX].uptr == NULL) {
           // Calculate a default eNB ID
-          if (EPC_MODE_ENABLED) {
+          if ((!IS_SOFTMODEM_NOS1)) {
             uint32_t hash;
             hash = s1ap_generate_eNB_id ();
             enb_id = k + (hash & 0xFFFF8);
@@ -1910,6 +1911,8 @@ int RCconfig_M2(MessageDef *msg_p, uint32_t i) {
             paramlist_def_t PLMNParamList = {ENB_CONFIG_STRING_PLMN_LIST, NULL, 0};
             /* map parameter checking array instances to parameter definition array instances */
             checkedparam_t config_check_PLMNParams [] = PLMNPARAMS_CHECK;
+            static_assert(sizeofArray(config_check_PLMNParams) == sizeofArray(PLMNParams),
+                          "config_check_PLMNParams and PLMNParams should have the same size");
 
             for (int I = 0; I < sizeofArray(PLMNParams); ++I)
               PLMNParams[I].chkPptr = &(config_check_PLMNParams[I]);
@@ -2072,7 +2075,7 @@ int RCconfig_M2(MessageDef *msg_p, uint32_t i) {
             M2AP_REGISTER_ENB_REQ (msg_p).sctp_out_streams = SCTP_OUT_STREAMS;
             M2AP_REGISTER_ENB_REQ (msg_p).sctp_in_streams  = SCTP_IN_STREAMS;
 
-            if (EPC_MODE_ENABLED) {
+            if ((!IS_SOFTMODEM_NOS1)) {
               sprintf(aprefix,"%s.[%i].%s",ENB_CONFIG_STRING_ENB_LIST,k,ENB_CONFIG_STRING_SCTP_CONFIG);
               config_get(config_get_if(), SCTPParams, sizeofArray(SCTPParams), aprefix);
               M2AP_REGISTER_ENB_REQ (msg_p).sctp_in_streams = (uint16_t)*(SCTPParams[ENB_SCTP_INSTREAMS_IDX].uptr);
@@ -2140,7 +2143,7 @@ int RCconfig_S1(
       for (int k = 0; k < ENBParamList.numelt; k++) {
         if (ENBParamList.paramarray[k][ENB_ENB_ID_IDX].uptr == NULL) {
           // Calculate a default eNB ID
-          if (EPC_MODE_ENABLED) {
+          if ((!IS_SOFTMODEM_NOS1)) {
             uint32_t hash = 0;
             hash = s1ap_generate_eNB_id();
             enb_id = k + (hash & 0xFFFF8);
@@ -2159,6 +2162,8 @@ int RCconfig_S1(
             paramdef_t CCsParams[] = CCPARAMS_DESC(ccparams_lte);
             /* map parameter checking array instances to parameter definition array instances */
             checkedparam_t config_check_CCparams[] = CCPARAMS_CHECK;
+            static_assert(sizeofArray(config_check_CCparams) == sizeofArray(CCsParams),
+                          "config_check_CCparams and CCsParams should have the same size");
 
             for (int I = 0; I < sizeofArray(CCsParams); I++) {
               CCsParams[I].chkPptr = &(config_check_CCparams[I]);
@@ -2166,6 +2171,8 @@ int RCconfig_S1(
 
             /* map parameter checking array instances to parameter definition array instances */
             checkedparam_t config_check_PLMNParams [] = PLMNPARAMS_CHECK;
+            static_assert(sizeofArray(config_check_PLMNParams) == sizeofArray(PLMNParams),
+                          "config_check_PLMNParams and PLMNParams should have the same size");
 
             for (int I = 0; I < sizeofArray(PLMNParams); ++I) {
               PLMNParams[I].chkPptr = &(config_check_PLMNParams[I]);
@@ -2374,7 +2381,7 @@ int RCconfig_S1(
             S1AP_REGISTER_ENB_REQ (msg_p).sctp_out_streams = SCTP_OUT_STREAMS;
             S1AP_REGISTER_ENB_REQ (msg_p).sctp_in_streams  = SCTP_IN_STREAMS;
 
-            if (EPC_MODE_ENABLED) {
+            if ((!IS_SOFTMODEM_NOS1)) {
               sprintf(aprefix,"%s.[%i].%s",ENB_CONFIG_STRING_ENB_LIST,k,ENB_CONFIG_STRING_SCTP_CONFIG);
               config_get(config_get_if(), SCTPParams, sizeofArray(SCTPParams), aprefix);
               S1AP_REGISTER_ENB_REQ (msg_p).sctp_in_streams = (uint16_t)*(SCTPParams[ENB_SCTP_INSTREAMS_IDX].uptr);
@@ -2413,6 +2420,8 @@ int RCconfig_X2(MessageDef *msg_p, uint32_t i) {
   config_get(config_get_if(), ENBSParams, sizeofArray(ENBSParams), NULL);
   checkedparam_t config_check_CCparams[] = CCPARAMS_CHECK;
   paramdef_t CCsParams[] = CCPARAMS_DESC(ccparams_lte);
+  static_assert(sizeofArray(config_check_CCparams) == sizeofArray(CCsParams),
+                "config_check_CCparams and CCsParams should have the same size");
   paramlist_def_t CCsParamList = {ENB_CONFIG_STRING_COMPONENT_CARRIERS, NULL, 0};
 
   /* map parameter checking array instances to parameter definition array instances */
@@ -2432,7 +2441,7 @@ int RCconfig_X2(MessageDef *msg_p, uint32_t i) {
       for (k = 0; k < ENBParamList.numelt; k++) {
         if (ENBParamList.paramarray[k][ENB_ENB_ID_IDX].uptr == NULL) {
           // Calculate a default eNB ID
-          if (EPC_MODE_ENABLED) {
+          if ((!IS_SOFTMODEM_NOS1)) {
             uint32_t hash;
             hash = s1ap_generate_eNB_id ();
             enb_id = k + (hash & 0xFFFF8);
@@ -2450,6 +2459,8 @@ int RCconfig_X2(MessageDef *msg_p, uint32_t i) {
             paramlist_def_t PLMNParamList = {ENB_CONFIG_STRING_PLMN_LIST, NULL, 0};
             /* map parameter checking array instances to parameter definition array instances */
             checkedparam_t config_check_PLMNParams [] = PLMNPARAMS_CHECK;
+            static_assert(sizeofArray(config_check_PLMNParams) == sizeofArray(PLMNParams),
+                          "config_check_PLMNParams and PLMNParams should have the same size");
 
             for (int I = 0; I < sizeofArray(PLMNParams); ++I)
               PLMNParams[I].chkPptr = &(config_check_PLMNParams[I]);
@@ -2584,7 +2595,7 @@ int RCconfig_X2(MessageDef *msg_p, uint32_t i) {
             X2AP_REGISTER_ENB_REQ (msg_p).sctp_out_streams = SCTP_OUT_STREAMS;
             X2AP_REGISTER_ENB_REQ (msg_p).sctp_in_streams  = SCTP_IN_STREAMS;
 
-            if (EPC_MODE_ENABLED) {
+            if ((!IS_SOFTMODEM_NOS1)) {
               sprintf(aprefix,"%s.[%i].%s",ENB_CONFIG_STRING_ENB_LIST,k,ENB_CONFIG_STRING_SCTP_CONFIG);
               config_get(config_get_if(), SCTPParams, sizeofArray(SCTPParams), aprefix);
               X2AP_REGISTER_ENB_REQ (msg_p).sctp_in_streams = (uint16_t)*(SCTPParams[ENB_SCTP_INSTREAMS_IDX].uptr);
@@ -2659,7 +2670,7 @@ void RCConfig(void) {
   /* get global parameters, defined outside any section in the config file */
   printf("Getting ENBSParams\n");
   config_get(config_get_if(), ENBSParams, sizeofArray(ENBSParams), NULL);
-  //EPC_MODE_ENABLED = ((*ENBSParams[ENB_NOS1_IDX].uptr) == 0);
+  //(!IS_SOFTMODEM_NOS1) = ((*ENBSParams[ENB_NOS1_IDX].uptr) == 0);
   RC.nb_inst = ENBSParams[ENB_ACTIVE_ENBS_IDX].numelt;
 
   if (RC.nb_inst > 0) {

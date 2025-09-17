@@ -45,7 +45,6 @@ PHY_VARS_UE *UE;
 double cpuf;
 
 int main(int argc, char **argv) {
-  char c;
   int i,l,aa;
   double sigma2, sigma2_dB=0,SNR,snr0=-2.0,snr1=0.0;
   uint8_t snr1set=0;
@@ -88,6 +87,7 @@ int main(int argc, char **argv) {
   number_of_cards = 1;
   cpuf = get_cpu_freq_GHz();
 
+  int c;
   while ((c = getopt (argc, argv, "har:pf:g:n:s:S:x:y:z:N:F:T:R:")) != -1) {
     switch (c) {
       case 'a':

@@ -47,15 +47,10 @@ const char *nfapi_get_strmode(void) {
   return nfapi_str_mode[nfapi_params.nfapi_mode];
 }
 
-void nfapi_logmode() {
-  LOG_I(ENB_APP,"nfapi (%d) running mode: %s\n",nfapi_params.nfapi_mode,nfapi_get_strmode());
-}
-
 nfapi_mode_t nfapi_getmode(void) {
   return nfapi_params.nfapi_mode;
 }
 
 void nfapi_setmode(nfapi_mode_t nfapi_mode) {
   nfapi_params.nfapi_mode = nfapi_mode;
-  nfapi_logmode();
 }

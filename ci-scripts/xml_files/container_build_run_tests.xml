@@ -32,9 +32,8 @@
 	<testCase id="030201">
 		<class>Build_Run_Tests</class>
 		<desc>Build and Run UnitTests</desc>
+		<node>obelix</node>
 		<kind>all</kind>
-		<eNB_instance>0</eNB_instance>
-		<eNB_serverId>0</eNB_serverId>
 	</testCase>
 
 </testCaseList>

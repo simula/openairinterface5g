@@ -19,8 +19,10 @@
  *      contact@openairinterface.org
  */
 
+#include <netinet/in.h>
+#include <netinet/sctp.h>
+#include "assertions.h"
 #include "cucp_cuup_if.h"
-
 #include "nr_rrc_defs.h"
 #include "openair2/COMMON/e1ap_messages_types.h"
 #include "openair2/LAYER2/nr_pdcp/cucp_cuup_handler.h"

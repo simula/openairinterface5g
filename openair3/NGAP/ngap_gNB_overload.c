@@ -27,23 +27,12 @@
  * \email: yoshio.inoue@fujitsu.com,masayuki.harada@fujitsu.com (yoshio.inoue%40fujitsu.com%2cmasayuki.harada%40fujitsu.com)
  */
 
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdint.h>
-
-#include "intertask_interface.h"
-
-#include "ngap_common.h"
-#include "ngap_gNB_defs.h"
-
-#include "ngap_gNB.h"
-#include "ngap_gNB_ue_context.h"
-#include "ngap_gNB_encoder.h"
 #include "ngap_gNB_overload.h"
-#include "ngap_gNB_management_procedures.h"
-
+#include <stdint.h>
+#include <stdio.h>
 #include "assertions.h"
+#include "ngap_gNB_defs.h"
+#include "ngap_gNB_management_procedures.h"
 
 int ngap_gNB_handle_overload_start(sctp_assoc_t assoc_id, uint32_t stream, NGAP_NGAP_PDU_t *pdu)
 {

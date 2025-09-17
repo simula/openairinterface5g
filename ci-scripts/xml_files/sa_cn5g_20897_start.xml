@@ -31,7 +31,7 @@
   </TestCaseExclusionList>
 
   <testCase id="000100">
-    <class>Initialize_5GCN</class>
+    <class>DeployCoreNetwork</class>
     <desc>Initialize 5G Core</desc>
     <cn_id>oc-cn5g-20897</cn_id>
   </testCase>

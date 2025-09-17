@@ -1,10 +1,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
 #include "utils.h"
 #include "event.h"
 #include "database.h"
-#include "config.h"
+#include "configuration.h"
 #include "../T_defs.h"
 
 void usage(void)
@@ -14,7 +15,8 @@ void usage(void)
 "    -d <database file>        this option is mandatory\n"
 "    -ip <host>                connect to given IP address (default %s)\n"
 "    -p <port>                 connect to given port (default %d)\n"
-"    -e <event>                event to trace (default VCD_FUNCTION_ENB_DLSCH_ULSCH_SCHEDULER)\n",
+"    -e <event>                event to trace (default VCD_FUNCTION_ENB_DLSCH_ULSCH_SCHEDULER)\n"
+"    -s                        stat mode, print every second min/avg/max + count\n",
   DEFAULT_REMOTE_IP,
   DEFAULT_REMOTE_PORT
   );
@@ -34,6 +36,21 @@ struct timespec time_sub(struct timespec a, struct timespec b)
   return ret;
 }
 
+volatile uint64_t acc, count, acc_min, acc_max;
+
+void *stat_thread(void *_)
+{
+  while (1) {
+    uint64_t v = acc;
+    uint64_t c = count;
+    uint64_t min = acc_min;
+    uint64_t max = acc_max;
+    acc = acc_min = acc_max = count = 0;
+    printf("%ld %ld %ld [%ld]\n", min, c==0 ? 0 : v/c, max, c);
+    sleepms(1000);
+  }
+}
+
 int main(int n, char **v)
 {
   char *database_filename = NULL;
@@ -49,6 +66,7 @@ int main(int n, char **v)
   int start_valid = 0;
   struct timespec start_time, stop_time, delta_time;
   char *name = "VCD_FUNCTION_ENB_DLSCH_ULSCH_SCHEDULER";
+  int stat_mode = 0;
 
   for (i = 1; i < n; i++) {
     if (!strcmp(v[i], "-h") || !strcmp(v[i], "--help")) usage();
@@ -58,8 +76,12 @@ int main(int n, char **v)
     if (!strcmp(v[i], "-p"))
       { if (i > n-2) usage(); port = atoi(v[++i]); continue; }
     if (!strcmp(v[i], "-e")) { if (i > n-2) usage(); name = v[++i]; continue; }
+    if (!strcmp(v[i], "-s")) { stat_mode = 1; continue; }
     usage();
   }
+
+  if (stat_mode)
+    new_thread(stat_thread, NULL);
 
   if (database_filename == NULL) {
     printf("ERROR: provide a database file (-d)\n");
@@ -96,7 +118,8 @@ int main(int n, char **v)
     if (e.type != ev_fun)
       { printf("unhandled event %d\n", e.type); continue; }
     on_off = e.e[0].i;
-printf("yo %d\n", on_off);
+    if (!stat_mode)
+      printf("yo %d\n", on_off);
     if (on_off == 1) {
       start_time = e.sending_time;
       start_valid = 1;
@@ -104,11 +127,20 @@ printf("yo %d\n", on_off);
     }
     if (on_off != 0) { printf("fatal!\n"); abort(); }
     if (!start_valid) continue;
+    start_valid = 0;
     stop_time = e.sending_time;
     delta_time = time_sub(stop_time, start_time);
-    fprintf(stderr, "%ld\n",
-        delta_time.tv_sec * 1000000000UL + delta_time.tv_nsec);
-    fflush(stderr);
+    if (stat_mode) {
+      uint64_t v = delta_time.tv_sec * 1000000000UL + delta_time.tv_nsec;
+      if (count == 0 || v < acc_min) acc_min = v;
+      if (v > acc_max) acc_max = v;
+      acc += v;
+      count++;
+    } else {
+      fprintf(stderr, "%ld\n",
+              delta_time.tv_sec * 1000000000UL + delta_time.tv_nsec);
+      fflush(stderr);
+    }
   }
 
   return 0;

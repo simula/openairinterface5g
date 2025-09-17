@@ -38,6 +38,7 @@ RUN /bin/sh oaienv && \
     CXXFLAGS="-Werror -fstack-protector-strong" CFLAGS="-Werror -fstack-protector-strong" ./build_oai -c --ninja \
       --eNB --gNB --RU --UE --nrUE \
       --build-lib "telnetsrv enbscope uescope nrscope" \
+      --build-tool-opt -k10 \
       -w USRP -t Ethernet \
       --noavx512 && \
     echo "---- ldd on executables ----" && \

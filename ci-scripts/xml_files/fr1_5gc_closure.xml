@@ -30,8 +30,9 @@
 	<TestCaseExclusionList></TestCaseExclusionList>
 
 	<testCase id="060000">
-		<class>Terminate_5GCN</class>
+		<class>UndeployCoreNetwork</class>
 		<desc>Terminate 5GC</desc>
+		<cn_id>sabox-nepes</cn_id>
 	</testCase>
 
 </testCaseList>

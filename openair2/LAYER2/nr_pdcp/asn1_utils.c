@@ -19,63 +19,30 @@
  *      contact@openairinterface.org
  */
 
+#include "nr_pdcp_asn1_utils.h"
 #include "common/utils/LOG/log.h"
 #include "nr_pdcp_entity.h"
+#include "nr_pdcp_configuration.h"
 
-int decode_t_reordering(int v)
-{
-  static const int tab[36] = {0,   1,   2,   4,   5,   8,   10,  15,  20,  30,   40,   50,   60,   80,   100,  120,  140,  160,
-                              180, 200, 220, 240, 260, 280, 300, 500, 750, 1000, 1250, 1500, 1750, 2000, 2250, 2500, 2750, 3000};
-
-  if (v < 0 || v > 35) {
-    LOG_E(RLC, "%s:%d:%s: fatal\n", __FILE__, __LINE__, __FUNCTION__);
-    exit(1);
-  }
-
-  return tab[v];
+#define ENCODE_DECODE(a, b)                          \
+int decode_##a(int v)                                \
+{                                                    \
+  static const int tab[] = { VALUES_NR_PDCP_##b };   \
+  AssertFatal(v >= 0 && v < SIZEOF_NR_PDCP_##b,      \
+              "bad encoded value " #a " %d\n", v);   \
+  return tab[v];                                     \
+}                                                    \
+                                                     \
+int encode_##a(int v)                                \
+{                                                    \
+  static const int tab[] = { VALUES_NR_PDCP_##b };   \
+  for (int ret = 0; ret < SIZEOF_NR_PDCP_##b; ret++) \
+    if (tab[ret] == v)                               \
+      return ret;                                    \
+  AssertFatal(0, "bad " #a " value %d\n", v);        \
 }
 
-int decode_sn_size_ul(long s)
-{
-  if (s == 0) return SHORT_SN_SIZE;
-  if (s == 1) return LONG_SN_SIZE;
-  LOG_E(RLC, "%s:%d:%s: fatal\n", __FILE__, __LINE__, __FUNCTION__);
-  exit(1);
-}
-
-int decode_sn_size_dl(long s)
-{
-  if (s == 0) return SHORT_SN_SIZE;
-  if (s == 1) return LONG_SN_SIZE;
-  LOG_E(RLC, "%s:%d:%s: fatal\n", __FILE__, __LINE__, __FUNCTION__);
-  exit(1);
-}
-
-int decode_discard_timer(long v)
-{
-  static const int tab[16] = {
-      10,
-      20,
-      30,
-      40,
-      50,
-      60,
-      75,
-      100,
-      150,
-      200,
-      250,
-      300,
-      500,
-      750,
-      1500,
-      -1,
-  };
-
-  if (v < 0 || v > 15) {
-    LOG_E(RLC, "%s:%d:%s: fatal\n", __FILE__, __LINE__, __FUNCTION__);
-    exit(1);
-  }
-
-  return tab[v];
-}
+ENCODE_DECODE(t_reordering, T_REORDERING)
+ENCODE_DECODE(sn_size_ul, SN_SIZE)
+ENCODE_DECODE(sn_size_dl, SN_SIZE)
+ENCODE_DECODE(discard_timer, DISCARD_TIMER)

@@ -136,10 +136,10 @@ static void nr_pdcp_entity_recv_pdu(nr_pdcp_entity_t *entity,
   }
 
   if (entity->has_ciphering)
-    entity->cipher(entity->security_context,
-                   buffer + header_size + sdap_header_size,
-                   size - (header_size + sdap_header_size),
-                   entity->rb_id, rcvd_count, entity->is_gnb ? 0 : 1);
+    entity->decipher(entity->security_context,
+                     buffer + header_size + sdap_header_size,
+                     size - (header_size + sdap_header_size),
+                     entity->rb_id, rcvd_count, entity->is_gnb ? 0 : 1);
 
   if (entity->has_integrity) {
     unsigned char integrity[PDCP_INTEGRITY_SIZE] = {0};
@@ -380,10 +380,12 @@ static void nr_pdcp_entity_set_security(struct nr_pdcp_entity_t *entity,
     if (parameters->ciphering_algorithm == 2) {
       entity->security_context = nr_pdcp_security_nea2_init(entity->security_keys_and_algos.ciphering_key);
       entity->cipher = nr_pdcp_security_nea2_cipher;
+      entity->decipher = nr_pdcp_security_nea2_cipher;
       entity->free_security = nr_pdcp_security_nea2_free_security;
     } else if (parameters->ciphering_algorithm == 1) {
       entity->security_context = nr_pdcp_security_nea1_init(entity->security_keys_and_algos.ciphering_key);
       entity->cipher = nr_pdcp_security_nea1_cipher;
+      entity->decipher = nr_pdcp_security_nea1_cipher;
       entity->free_security = nr_pdcp_security_nea1_free_security;
     } else {
       LOG_E(PDCP, "FATAL: only nea1 and nea2 supported for the moment\n");

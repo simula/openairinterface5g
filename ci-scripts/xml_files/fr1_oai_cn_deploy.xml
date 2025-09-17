@@ -31,9 +31,9 @@
 	</TestCaseExclusionList>
 
 	<testCase id="000100">
-		<class>Deploy_EPC</class>
-		<desc>Deploy all EPC containers</desc>
-		<parameters>yaml_files/magma_nsa_20897</parameters>
+		<class>DeployCoreNetwork</class>
+		<desc>Deploy EPC</desc>
+		<cn_id>porcepix-cn4g</cn_id>
 	</testCase>
 
 </testCaseList>

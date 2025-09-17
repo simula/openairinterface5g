@@ -49,6 +49,7 @@
 #include "common/utils/LOG/log.h"
 #include "common_lib.h"
 #include "assertions.h"
+#include "system.h"
 
 #include "common/utils/LOG/vcd_signal_dumper.h"
 
@@ -1201,9 +1202,9 @@ extern "C" {
 	}
     }
     else {
-	if (openair0_cfg[0].clock_source != unset) {
-	  LOG_W(HW,"Time source set in both usrp_args and in time_source, ingnoring the latter!\n");
-	}
+      if (openair0_cfg[0].time_source != unset) {
+        LOG_W(HW, "Time source set in both usrp_args and in openair0_cfg[0].time_source, ignoring the latter!\n");
+      }
   }
 
 

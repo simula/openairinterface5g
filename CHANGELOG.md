@@ -1,5 +1,61 @@
 # RELEASE NOTES: #
 
+## [v2.2.0](https://gitlab.eurecom.fr/oai/openairinterface5g/-/tags/v2.2.0) -> November 2024. ##
+
+General 5G improvements (both gNB and UE):
+- Make standalone mode (SA) the default (see [`RUNMODEM.md`](doc/RUNMODEM.md))
+- Experimental support for FR2 operation
+- Support for GEO NTN and simulation of GEO satellite channel in RFsimulator
+  (see [`RUNMODEM.md`](doc/RUNMODEM.md))
+- Support 2-step RA
+- Add optional LTTng logger in logging module (see
+  [`lttng_logs.md`](common/utils/LOG/DOC/lttng_logs.md))
+- Support for YAML-based config files (alongside libconfig) (see
+  [`gnb.sa.band78.106prb.rfsim.yaml`](ci-scripts/conf_files/gnb.sa.band78.106prb.rfsim.yaml) and
+  [`nrue.uicc.yaml`](ci-scripts/conf_files/nrue.uicc.yaml))
+- Add new L1 scope based on Dear ImGui (see [`readme.md`](openair1/PHY/TOOLS/readme.md))
+- Allow cross-compilation on ARM (via SIMDE SIMD emulation library)
+- Allow to build and run with clang
+- Support/check for Linux capabilities, allow to run without sudo (see
+  [`tuning_and_security.md`](doc/tuning_and_security.md))
+- OAI does not modify CPU frequency and networking stack
+  ([`tuning_and_security.md`](doc/tuning_and_security.md))
+- Bugfixes in the entire stack (e.g.  #547, #663, #674, #687, #712, #736, #739,
+  #741, #756, #762, #773, ...)
+
+5G gNB:
+- Support for FR2 interoperability with COTS UE (no beam switching supported yet)
+- Add 4-layer DL MIMO (experimental)
+- Add gNB Neighbour configuration and Mobility over F1 interface (see
+  [`handover-tutorial.md`](doc/handover-tutorial.md))
+- Enhance O-RAN FHI 7.2: (see [`ORAN_FHI7.2_Tutorial.md`](doc/ORAN_FHI7.2_Tutorial.md))
+  * Support different bandwidths (40/60/80/100MHz) and antenna configs (1x1 up
+    to 4x4) for Benetel/VVDN/LITEON RUs
+  * Add support for multi-RU support (single-cell/distributed antenna)
+- Support AMD T2 Telco card look-aside L1 accelerator (see
+  [`LDPC_T2_OFFLOAD_SETUP.md`](doc/LDPC_T2_OFFLOAD_SETUP.md))
+- Support Nvidia Aerial/ARC in-line L1 accelerator (see
+  [`Aerial_FAPI_Split_Tutorial.md`](doc/Aerial_FAPI_Split_Tutorial.md))
+- Various fixes for multi-UE operation: by default support of up to 16 UEs concurrently
+- Documentation for
+  - 5G MAC (see [`mac-usage.md`](doc/MAC/mac-usage.md))
+  - 5G RRC (see [`rrc-usage.md`](doc/RRC/rrc-usage.md))
+  - E1 (see [`E1-design.md`](doc/E1AP/E1-design.md))
+  - F1 (see [`F1-design.md`](doc/F1AP/F1-design.md))
+
+5G UE:
+- Basic interoperability with COTS gNB (Nokia gNB)
+- Implement PHR reporting
+- Implement RRC re-establishment
+- Implement PUCCH/PUSCH/SRS power control
+- Implement UCI on PUSCH and aperiodic CSI reporting
+- Support of cell search (within the selected UE bandwidth) (see [`RUNMODEM.md`](doc/RUNMODEM.md))
+- Enhance connection control: implement timers, resync
+- A lot of internal cleanup
+
+This release also includes many fixes and documentation updates. See
+`doc/README.md` in the repository for an overview of documentation.
+
 ## [v2.1.0](https://gitlab.eurecom.fr/oai/openairinterface5g/-/tags/v2.1.0) -> February 2024. ##
 
 This release improves existing 5G support and adds various new features.

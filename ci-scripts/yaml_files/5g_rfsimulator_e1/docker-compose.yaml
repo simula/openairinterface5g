@@ -2,6 +2,7 @@ services:
     mysql:
         container_name: "rfsim5g-mysql"
         image: mysql:8.0
+        init: true
         volumes:
             - ../5g_rfsimulator/oai_db.sql:/docker-entrypoint-initdb.d/oai_db.sql
             - ../5g_rfsimulator/mysql-healthcheck.sh:/tmp/mysql-healthcheck.sh
@@ -13,6 +14,8 @@ services:
             - MYSQL_ROOT_PASSWORD=linux
         healthcheck:
             test: /bin/bash -c "/tmp/mysql-healthcheck.sh"
+            start_period: 10s
+            start_interval: 500ms
             interval: 10s
             timeout: 5s
             retries: 30
@@ -21,7 +24,7 @@ services:
                 ipv4_address: 192.168.71.131
     oai-amf:
         container_name: "rfsim5g-oai-amf"
-        image: oaisoftwarealliance/oai-amf:v2.0.0
+        image: oaisoftwarealliance/oai-amf:v2.1.10
         environment:
             - TZ=Europe/paris
         volumes:
@@ -33,7 +36,7 @@ services:
                 ipv4_address: 192.168.71.132
     oai-smf:
         container_name: "rfsim5g-oai-smf"
-        image: oaisoftwarealliance/oai-smf:v2.0.0
+        image: oaisoftwarealliance/oai-smf:v2.1.10
         environment:
             - TZ=Europe/Paris
         volumes:
@@ -45,7 +48,8 @@ services:
                 ipv4_address: 192.168.71.133
     oai-upf:
         container_name: "rfsim5g-oai-upf"
-        image: oaisoftwarealliance/oai-upf:v2.0.0
+        image: oaisoftwarealliance/oai-upf:v2.1.10
+        init: true
         environment:
             - TZ=Europe/Paris
         volumes:
@@ -61,8 +65,10 @@ services:
         networks:
             core_net:
                 ipv4_address: 192.168.71.134
+                interface_name: eth0
             traffic_net:
                 ipv4_address: 192.168.72.134
+                interface_name: eth1
 
     oai-cucp:
         image: ${REGISTRY:-oaisoftwarealliance}/${GNB_IMG:-oai-gnb}:${TAG:-develop}
@@ -70,7 +76,7 @@ services:
         cap_drop:
             - ALL
         environment:
-            USE_ADDITIONAL_OPTIONS: --sa --log_config.global_log_options level,nocolor,time
+            USE_ADDITIONAL_OPTIONS: --log_config.global_log_options level,nocolor,time
                                     --gNBs.[0].E1_INTERFACE.[0].ipv4_cucp 192.168.77.2
                                     --gNBs.[0].local_s_address 192.168.72.2
             ASAN_OPTIONS: detect_leaks=0
@@ -87,6 +93,8 @@ services:
             - ../../conf_files/gnb-cucp.sa.f1.conf:/opt/oai-gnb/etc/gnb.conf
         healthcheck:
             test: /bin/bash -c "pgrep nr-softmodem"
+            start_period: 10s
+            start_interval: 500ms
             interval: 10s
             timeout: 5s
             retries: 5
@@ -97,7 +105,7 @@ services:
         cap_drop:
             - ALL
         environment:
-            USE_ADDITIONAL_OPTIONS: --sa --log_config.global_log_options level,nocolor,time
+            USE_ADDITIONAL_OPTIONS: --log_config.global_log_options level,nocolor,time
                                     --gNBs.[0].E1_INTERFACE.[0].ipv4_cucp 192.168.77.2
                                     --gNBs.[0].E1_INTERFACE.[0].ipv4_cuup 192.168.77.3
                                     --gNBs.[0].local_s_address 192.168.73.2
@@ -116,6 +124,8 @@ services:
             - ../../conf_files/gnb-cuup.sa.f1.conf:/opt/oai-gnb/etc/gnb.conf
         healthcheck:
             test: /bin/bash -c "pgrep nr-cuup"
+            start_period: 10s
+            start_interval: 500ms
             interval: 10s
             timeout: 5s
             retries: 5
@@ -126,7 +136,7 @@ services:
         cap_drop:
             - ALL
         environment:
-            USE_ADDITIONAL_OPTIONS: --sa --log_config.global_log_options level,nocolor,time
+            USE_ADDITIONAL_OPTIONS: --log_config.global_log_options level,nocolor,time
                                     --gNBs.[0].gNB_CU_UP_ID 0xe01
                                     --gNBs.[0].E1_INTERFACE.[0].ipv4_cucp 192.168.77.2
                                     --gNBs.[0].E1_INTERFACE.[0].ipv4_cuup 192.168.77.4
@@ -148,6 +158,8 @@ services:
             - ../../conf_files/gnb-cuup.sa.f1.conf:/opt/oai-gnb/etc/gnb.conf
         healthcheck:
             test: /bin/bash -c "pgrep nr-cuup"
+            start_period: 10s
+            start_interval: 500ms
             interval: 10s
             timeout: 5s
             retries: 5
@@ -158,7 +170,7 @@ services:
         cap_drop:
             - ALL
         environment:
-            USE_ADDITIONAL_OPTIONS: --sa --log_config.global_log_options level,nocolor,time
+            USE_ADDITIONAL_OPTIONS: --log_config.global_log_options level,nocolor,time
                                     --gNBs.[0].gNB_CU_UP_ID 0xe02
                                     --gNBs.[0].E1_INTERFACE.[0].ipv4_cucp 192.168.77.2
                                     --gNBs.[0].E1_INTERFACE.[0].ipv4_cuup 192.168.77.5
@@ -180,6 +192,8 @@ services:
             - ../../conf_files/gnb-cuup.sa.f1.conf:/opt/oai-gnb/etc/gnb.conf
         healthcheck:
             test: /bin/bash -c "pgrep nr-cuup"
+            start_period: 10s
+            start_interval: 500ms
             interval: 10s
             timeout: 5s
             retries: 5
@@ -190,7 +204,7 @@ services:
         cap_drop:
             - ALL
         environment:
-            USE_ADDITIONAL_OPTIONS: --sa --rfsim --log_config.global_log_options level,nocolor,time
+            USE_ADDITIONAL_OPTIONS: --rfsim --log_config.global_log_options level,nocolor,time
                                     --MACRLCs.[0].local_n_address 192.168.72.3
                                     --MACRLCs.[0].remote_n_address oai-cucp
                                     --MACRLCs.[0].local_n_address_f1u 192.168.73.3
@@ -209,6 +223,8 @@ services:
             - ../../conf_files/gnb-du.sa.band78.106prb.rfsim.conf:/opt/oai-gnb/etc/gnb.conf
         healthcheck:
             test: /bin/bash -c "pgrep nr-softmodem"
+            start_period: 10s
+            start_interval: 500ms
             interval: 10s
             timeout: 5s
             retries: 5
@@ -219,7 +235,7 @@ services:
         cap_drop:
             - ALL
         environment:
-            USE_ADDITIONAL_OPTIONS: --sa --rfsim --log_config.global_log_options level,nocolor,time
+            USE_ADDITIONAL_OPTIONS: --rfsim --log_config.global_log_options level,nocolor,time
                                     --gNBs.[0].gNB_DU_ID 0xe01
                                     --gNBs.[0].nr_cellid 87654321
                                     --gNBs.[0].servingCellConfigCommon.[0].physCellId 1
@@ -241,6 +257,8 @@ services:
             - ../../conf_files/gnb-du.sa.band78.106prb.rfsim.conf:/opt/oai-gnb/etc/gnb.conf
         healthcheck:
             test: /bin/bash -c "pgrep nr-softmodem"
+            start_period: 10s
+            start_interval: 500ms
             interval: 10s
             timeout: 5s
             retries: 5
@@ -251,7 +269,7 @@ services:
         cap_drop:
             - ALL
         environment:
-            USE_ADDITIONAL_OPTIONS: --sa --rfsim --log_config.global_log_options level,nocolor,time
+            USE_ADDITIONAL_OPTIONS: --rfsim --log_config.global_log_options level,nocolor,time
                                     --gNBs.[0].gNB_DU_ID 0xe02
                                     --gNBs.[0].nr_cellid 11111111
                                     --gNBs.[0].servingCellConfigCommon.[0].physCellId 2
@@ -273,6 +291,8 @@ services:
             - ../../conf_files/gnb-du.sa.band78.106prb.rfsim.conf:/opt/oai-gnb/etc/gnb.conf
         healthcheck:
             test: /bin/bash -c "pgrep nr-softmodem"
+            start_period: 10s
+            start_interval: 500ms
             interval: 10s
             timeout: 5s
             retries: 5
@@ -286,7 +306,7 @@ services:
             - NET_ADMIN  # for interface bringup
             - NET_RAW    # for ping
         environment:
-            USE_ADDITIONAL_OPTIONS: --sa --rfsim --log_config.global_log_options level,nocolor,time
+            USE_ADDITIONAL_OPTIONS: --rfsim --log_config.global_log_options level,nocolor,time
                                     -r 106 --numerology 1 -C 3619200000
                                     --uicc0.imsi 208990100001100
                                     --rfsimulator.serveraddr oai-du
@@ -301,6 +321,8 @@ services:
             - ../../conf_files/nrue.uicc.conf:/opt/oai-nr-ue/etc/nr-ue.conf
         healthcheck:
             test: /bin/bash -c "pgrep nr-uesoftmodem"
+            start_period: 10s
+            start_interval: 500ms
             interval: 10s
             timeout: 5s
             retries: 5
@@ -314,7 +336,7 @@ services:
             - NET_ADMIN  # for interface bringup
             - NET_RAW    # for ping
         environment:
-            USE_ADDITIONAL_OPTIONS: --sa --rfsim --log_config.global_log_options level,nocolor,time
+            USE_ADDITIONAL_OPTIONS: --rfsim --log_config.global_log_options level,nocolor,time
                                     -r 106 --numerology 1 -C 3619200000
                                     --uicc0.imsi 208990100001101 --uicc0.nssai_sst 2
                                     --rfsimulator.serveraddr 192.168.78.3
@@ -329,6 +351,8 @@ services:
             - ../../conf_files/nrue.uicc.conf:/opt/oai-nr-ue/etc/nr-ue.conf
         healthcheck:
             test: /bin/bash -c "pgrep nr-uesoftmodem"
+            start_period: 10s
+            start_interval: 500ms
             interval: 10s
             timeout: 5s
             retries: 5
@@ -342,7 +366,7 @@ services:
             - NET_ADMIN  # for interface bringup
             - NET_RAW    # for ping
         environment:
-            USE_ADDITIONAL_OPTIONS: --sa --rfsim --log_config.global_log_options level,nocolor,time
+            USE_ADDITIONAL_OPTIONS: --rfsim --log_config.global_log_options level,nocolor,time
                                     -r 106 --numerology 1 -C 3619200000
                                     --uicc0.imsi 208990100001102 --uicc0.nssai_sst 3
                                     --rfsimulator.serveraddr 192.168.78.4
@@ -358,6 +382,8 @@ services:
             - ../../conf_files/nrue.uicc.conf:/opt/oai-nr-ue/etc/nr-ue.conf
         healthcheck:
             test: /bin/bash -c "pgrep nr-uesoftmodem"
+            start_period: 10s
+            start_interval: 500ms
             interval: 10s
             timeout: 5s
             retries: 5

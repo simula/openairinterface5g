@@ -35,7 +35,6 @@
 #include "f1ap_itti_messaging.h"
 #include "f1ap_du_interface_management.h"
 #include "lib/f1ap_interface_management.h"
-#include "lib/f1ap_lib_common.h"
 #include "openair2/LAYER2/NR_MAC_gNB/mac_rrc_dl_handler.h"
 #include "assertions.h"
 
@@ -118,35 +117,21 @@ int DU_handle_RESET(instance_t instance, sctp_assoc_t assoc_id, uint32_t stream,
 
 int DU_send_RESET_ACKNOWLEDGE(sctp_assoc_t assoc_id, const f1ap_reset_ack_t *ack)
 {
-  F1AP_F1AP_PDU_t       pdu= {0};
-  uint8_t  *buffer;
-  uint32_t  len;
-  /* Create */
-  /* 0. pdu Type */
-  pdu.present = F1AP_F1AP_PDU_PR_successfulOutcome;
-  asn1cCalloc(pdu.choice.successfulOutcome, successMsg);
-  successMsg->procedureCode = F1AP_ProcedureCode_id_Reset;
-  successMsg->criticality   = F1AP_Criticality_reject;
-  successMsg->value.present = F1AP_SuccessfulOutcome__value_PR_ResetAcknowledge;
-  F1AP_ResetAcknowledge_t *f1ResetAcknowledge = &successMsg->value.choice.ResetAcknowledge;
-  /* mandatory */
-  /* c1. Transaction ID (integer value) */
-  asn1cSequenceAdd(f1ResetAcknowledge->protocolIEs.list, F1AP_ResetAcknowledgeIEs_t, ieC1);
-  ieC1->id                        = F1AP_ProtocolIE_ID_id_TransactionID;
-  ieC1->criticality               = F1AP_Criticality_reject;
-  ieC1->value.present             = F1AP_ResetAcknowledgeIEs__value_PR_TransactionID;
-  ieC1->value.choice.TransactionID = ack->transaction_id;
-
-  /* TODO: (Optional) partialF1Interface, criticality diagnostics */
-
-  /* encode */
-  if (f1ap_encode_pdu(&pdu, &buffer, &len) < 0) {
-    LOG_E(F1AP, "Failed to encode F1ResetAcknowledge\n");
+  F1AP_F1AP_PDU_t *pdu = encode_f1ap_reset_ack(ack);
+  if (!pdu) {
+    LOG_E(F1AP, "failed to create ASN.1 message for reset acknowledge\n");
     return -1;
   }
 
-  /* send */
-  ASN_STRUCT_RESET(asn_DEF_F1AP_F1AP_PDU, &pdu);
+  /* encode */
+  uint8_t  *buffer;
+  uint32_t  len;
+  int encoded = f1ap_encode_pdu(pdu, &buffer, &len);
+  ASN_STRUCT_FREE(asn_DEF_F1AP_F1AP_PDU, pdu);
+  if (encoded <= 0) {
+    LOG_E(F1AP, "Failed to encode F1ResetAcknowledge\n");
+    return -1;
+  }
   f1ap_itti_send_sctp_data_req(assoc_id, buffer, len);
   return 0;
 }
@@ -186,6 +171,8 @@ int DU_handle_F1_SETUP_RESPONSE(instance_t instance, sctp_assoc_t assoc_id, uint
   }
   LOG_D(F1AP, "Sending F1AP_SETUP_RESP ITTI message\n");
   f1_setup_response(&resp);
+  // free F1AP message after use
+  free_f1ap_setup_response(&resp);
   return 0;
 }
 
@@ -260,12 +247,9 @@ int DU_handle_gNB_DU_CONFIGURATION_UPDATE_ACKNOWLEDGE(instance_t instance,
     free_f1ap_du_configuration_update_acknowledge(&in);
     return -1;
   }
-  // Allocate and send an ITTI message
-  MessageDef *msg_p = itti_alloc_new_message(TASK_DU_F1, 0, F1AP_GNB_DU_CONFIGURATION_UPDATE_ACKNOWLEDGE);
-  f1ap_gnb_du_configuration_update_acknowledge_t *msg = &F1AP_GNB_DU_CONFIGURATION_UPDATE_ACKNOWLEDGE(msg_p);
-  // Copy the decoded message to the ITTI message (RRC thread will free it)
-  *msg = in; // Copy the decoded message to the ITTI message (RRC thread will free it)
-  itti_send_msg_to_task(TASK_GNB_APP, GNB_MODULE_ID_TO_INSTANCE(assoc_id), msg_p);
+
+  gnb_du_configuration_update_acknowledge(&in);
+  free_f1ap_du_configuration_update_acknowledge(&in);
   return 0;
 }
 

@@ -31,6 +31,7 @@
 
 #include <LTE_DRX-Config.h>
 #include "OCTET_STRING.h"
+#include "NR_MAC_gNB/mac_config.h"
 
 //-------------------------------------------------------------------------------------------//
 // Defines to access message fields.
@@ -61,6 +62,8 @@
 
 #define RRC_MAC_DRX_CONFIG_REQ(mSGpTR)          (mSGpTR)->ittiMsg.rrc_mac_drx_config_req
 
+#define GNB_SAT_POSITION_UPDATE(mSGpTR)         (mSGpTR)->ittiMsg.gnb_sat_position_update
+
 // Some constants from "LAYER2/MAC/defs.h"
 #define BCCH_SDU_SIZE                           (512)
 #define BCCH_SDU_MBMS_SIZE                      (512)
@@ -72,13 +75,13 @@
 // Messages between RRC and MAC layers
 
 typedef struct NRRrcMacRaInd_s {
-  uint32_t frame;
   bool RA_succeeded;
 } NRRrcMacRaInd;
 
 typedef struct NRRrcMacMsg3Ind_s {
   uint16_t rnti;
   int gnb_id;
+  bool prepare_payload;
 } NRRrcMacMsg3Ind;
 
 typedef struct NRRrcMacInacInd_s {

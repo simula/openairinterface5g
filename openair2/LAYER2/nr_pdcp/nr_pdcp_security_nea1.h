@@ -30,7 +30,7 @@ void nr_pdcp_security_nea1_cipher(stream_security_context_t *security_context,
                                   unsigned char *buffer,
                                   int length,
                                   int bearer,
-                                  int count,
+                                  uint32_t count,
                                   int direction);
 
 void nr_pdcp_security_nea1_free_security(stream_security_context_t *security_context);

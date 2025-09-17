@@ -39,14 +39,13 @@ stream_security_context_t *nr_pdcp_integrity_nia2_init(uint8_t integrity_key[16]
   return (stream_security_context_t *)ctx;
 }
 
-void nr_pdcp_integrity_nia2_integrity(stream_security_context_t *integrity_context, unsigned char *out, unsigned char *buffer, int length, int bearer, int count, int direction)
+void nr_pdcp_integrity_nia2_integrity(stream_security_context_t *integrity_context, unsigned char *out, unsigned char *buffer, int length, int bearer, uint32_t count, int direction)
 {
   DevAssert(integrity_context != NULL);
   DevAssert(out != NULL);
   DevAssert(buffer != NULL);
   DevAssert(length > -1);
   DevAssert(bearer > 0 && bearer < 33);
-  DevAssert(count > -1);
 
   cbc_cmac_ctx_t *ctx = (cbc_cmac_ctx_t *)integrity_context;
 

@@ -45,7 +45,7 @@ static void BM_rotate_cpx_vector(benchmark::State &state)
 {
   int vector_size = state.range(0);
   auto input_complex_16 = generate_random_c16(vector_size);
-  auto input_alpha = generate_random_c16(vector_size);
+  auto input_alpha = generate_random_c16(1);
   AlignedVector512<c16_t> output;
   output.resize(vector_size);
   int shift = 2;

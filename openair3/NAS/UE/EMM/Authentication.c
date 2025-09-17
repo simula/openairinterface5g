@@ -210,14 +210,7 @@ int emm_proc_authentication_request(nas_user_t *user, int native_ksi, int ksi,
        * of the core network by means of the received AUTN parameter and
        * request the USIM to compute RES, CK and IK for given RAND
        */
-      if(get_softmodem_params()->usim_test == 0)
-      {
-        rc = usim_api_authenticate(&user->usim_data, rand, autn, &auts, &res, &ck, &ik);
-      }
-      else
-      {
-        rc = usim_api_authenticate_test(&user->usim_data, rand, autn, &auts, &res, &ck, &ik);
-      }
+      rc = usim_api_authenticate(&user->usim_data, rand, autn, &auts, &res, &ck, &ik);
     }
 
     if (rc != RETURNok) {

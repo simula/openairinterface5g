@@ -1,15 +1,23 @@
+OpenAirInterface Cross-Compiler User Guide: explains how to build OAI for ARM64
+(using the instruction set aarch64).
+
 [[_TOC_]]
 
+# Environment
 
-# OpenAirInterface Cross-Compiler User Guide
+Tested on Ubuntu 22. Newer version of Ubuntu should work as well, please file a
+bug report if not (Gitlab Issues page).
 
-## Environment
+You should be able to compile OAI on the host (i.e., for x86). To do so,
+install the dependencies, if not done already:
 
-- OS: ubuntu 22.04
+```shell
+cmake_targets/build_oai -I
+```
 
-### Set up the environment
+# Install ARM64 dependencies
 
-Set up for install the package for aarch64.
+Set up for install the package for ARM64.
 
 ```shell
 sudo dpkg --add-architecture arm64
@@ -28,11 +36,10 @@ sudo cp /etc/apt/sources.list "/etc/apt/sources.list.`date`.backup"
 sudo sed -i -E "s/(deb)\ (http:.+)/\1\ [arch=amd64]\ \2/" /etc/apt/sources.list
 
 sudo apt update
-sudo apt install -y gcc-11-aarch64-linux-gnu \
-                    g++-11-aarch64-linux-gnu
+sudo apt install -y gcc-aarch64-linux-gnu \
+                    g++-aarch64-linux-gnu
 
 sudo apt-get install -y \
-    libatlas-base-dev:arm64 \
     libblas-dev:arm64 \
     libc6-dev-i386 \
     liblapack-dev:arm64 \
@@ -47,21 +54,12 @@ sudo apt-get install -y \
 ```
 
 The above enables apt to download packages for arm64. It also installs
-gcc cross-compilers for aarch64 in version 11. This version needs to match the
+gcc cross-compilers for ARM64 in version 11. This version needs to match the
 versions of gcc defined in the cmake cross-compilation file (`cross-arm.cmake`).
 
-## Install and Build
+# Build for ARM64
 
-### Install required packages
-
-Use the host compiler to install its dependencies.
-
-```shell
-cd cmake_targets
-./build_oai -I
-```
-
-### Build the LDPC generators
+## Build code generation tools for host
 
 Use the x86 compiler to build the `ldpc_generators` and generate the header
 file in the `ran_build/build` folder.  They are necessary during a build for
@@ -78,7 +76,7 @@ cmake ../../..
 make -j`nproc` ldpc_generators generate_T
 ```
 
-### Build the Other Executables for aarch64
+## Build executables for ARM64
 
 Switch to the `ran_build/build-cross` folder to build the target executables
 for ARM. The `cross-arm.cmake` file defines some ARM-specific build tools
@@ -91,7 +89,13 @@ be defined in order to tell cmake where the host tools have been built.
 cd ../build-cross
 cmake ../../.. -GNinja -DCMAKE_TOOLCHAIN_FILE=../../../cmake_targets/cross-arm.cmake -DNATIVE_DIR=../build
 
-ninja -j`nproc` dlsim ulsim ldpctest polartest smallblocktest nr_pbchsim nr_dlschsim nr_ulschsim nr_dlsim nr_ulsim nr_pucchsim nr_prachsim
-ninja -j`nproc` lte-softmodem nr-softmodem nr-cuup oairu lte-uesoftmodem nr-uesoftmodem
-ninja -j`nproc` params_libconfig coding rfsimulator
+ninja dlsim ulsim ldpctest polartest smallblocktest nr_pbchsim nr_dlschsim nr_ulschsim nr_dlsim nr_ulsim nr_pucchsim nr_prachsim
+ninja lte-softmodem nr-softmodem nr-cuup oairu lte-uesoftmodem nr-uesoftmodem
+ninja params_libconfig coding rfsimulator
 ```
+
+# Further information
+
+You can do the above steps using docker, see dockerfiles
+`docker/Dockerfile.base.ubuntu.cross-arm64` and
+`docker/Dockerfile.build.ubuntu.cross-arm64` for more information.

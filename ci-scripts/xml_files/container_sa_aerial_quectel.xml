@@ -25,6 +25,7 @@
         <htmlTabName>AERIAL 100 MHz TDD SA</htmlTabName>
         <htmlTabIcon>tasks</htmlTabIcon>
         <TestCaseRequestedList>
+                555000
                 111111
                 000222
                 800813
@@ -34,42 +35,48 @@
                 000011
                 000022
                 000033
+                200022
+                300033
                 000222
                 222222
                 333333
+                000555
         </TestCaseRequestedList>
         <TestCaseExclusionList></TestCaseExclusionList>
+        <testCase id="555000">
+                <class>DeployCoreNetwork</class>
+                <desc>Initialize 5G Core</desc>
+                <cn_id>oc-cn5g-20897-aerial</cn_id>
+        </testCase>
 
         <testCase id="111111">
                 <class>Pull_Local_Registry</class>
                 <desc>Pull Images from Local Registry</desc>
-                <test_svr_id>0</test_svr_id>
-                <images_to_pull>oai-gnb-aerial</images_to_pull>
+                <node>gracehopper1-oai</node>
+                <images>oai-gnb-aerial</images>
+		<tag_prefix>arm_</tag_prefix>
         </testCase>
 
         <testCase id="800813">
                 <class>Create_Workspace</class>
                 <desc>Create new Workspace for server 0</desc>
-                <eNB_instance>0</eNB_instance>
-                <eNB_serverId>0</eNB_serverId>
+                <node>gracehopper1-oai</node>
         </testCase>
 
         <testCase id="002222">
                 <class>Deploy_Object</class>
                 <desc>Deploy PNF/Nvidia CUBB in a container</desc>
+                <node>gracehopper1-oai</node>
                 <yaml_path>ci-scripts/yaml_files/sa_gnb_aerial</yaml_path>
                 <services>nv-cubb</services>
-                <eNB_instance>0</eNB_instance>
-                <eNB_serverId>0</eNB_serverId>
         </testCase>
 
         <testCase id="002223">
                 <class>Deploy_Object</class>
                 <desc>Deploy VNF in a container</desc>
+                <node>gracehopper1-oai</node>
                 <yaml_path>ci-scripts/yaml_files/sa_gnb_aerial</yaml_path>
                 <services>oai-gnb-aerial</services>
-                <eNB_instance>0</eNB_instance>
-                <eNB_serverId>0</eNB_serverId>
         </testCase>
 
         <testCase id="000111">
@@ -82,15 +89,16 @@
                 <class>Ping</class>
                 <desc>Ping: 100pings in 20sec</desc>
                 <id>up2-aerial</id>
-                <ping_args>-c 100 -i 0.2 %cn_ip%</ping_args>
+                <svr_id>oc-cn5g-20897-aerial</svr_id>
+                <ping_args>-c 100 -i 0.2</ping_args>
                 <ping_packetloss_threshold>5</ping_packetloss_threshold>
         </testCase>
 
         <testCase id="000022">
                 <class>Iperf</class>
-                <desc>iperf (DL/UDP/700M)(30 sec)(single-ue profile)</desc>
-                <iperf_args>-u -b 600M -t 30 -R</iperf_args>
-                <svr_id>porcepix-cn5g</svr_id>
+                <desc>iperf (DL/UDP/500M)(30 sec)(single-ue profile)</desc>
+                <iperf_args>-u -b 500M -t 30 -R</iperf_args>
+                <svr_id>oc-cn5g-20897-aerial</svr_id>
                 <id>up2-aerial</id>
                 <iperf_packetloss_threshold>25</iperf_packetloss_threshold>
                 <iperf_bitrate_threshold>80</iperf_bitrate_threshold>
@@ -98,9 +106,31 @@
 
         <testCase id="000033">
                 <class>Iperf</class>
-                <desc>iperf (UL/UDP/50M)(30 sec)(single-ue profile)</desc>
-                <iperf_args>-u -b 50M -t 30</iperf_args>
-                <svr_id>porcepix-cn5g</svr_id>
+                <desc>iperf (UL/UDP/40M)(30 sec)(single-ue profile)</desc>
+                <iperf_args>-u -b 40M -t 30 -l 1428</iperf_args>
+                <svr_id>oc-cn5g-20897-aerial</svr_id>
+                <id>up2-aerial</id>
+                <iperf_packetloss_threshold>25</iperf_packetloss_threshold>
+                <iperf_bitrate_threshold>80</iperf_bitrate_threshold>
+        </testCase>
+
+       <testCase id="200022">
+                <class>Iperf</class>
+                <desc>Optional iperf (DL/UDP/1000M)(30 sec)(single-ue profile)</desc>
+                <may_fail>true</may_fail>
+                <iperf_args>-u -b 1000M -t 30 -R</iperf_args>
+                <svr_id>oc-cn5g-20897-aerial</svr_id>
+                <id>up2-aerial</id>
+                <iperf_packetloss_threshold>25</iperf_packetloss_threshold>
+                <iperf_bitrate_threshold>80</iperf_bitrate_threshold>
+        </testCase>
+
+        <testCase id="300033">
+                <class>Iperf</class>
+                <desc>Optional iperf (UL/UDP/90M)(30 sec)(single-ue profile)</desc>
+                <may_fail>true</may_fail>
+                <iperf_args>-u -b 90M -t 30 -l 1428</iperf_args>
+                <svr_id>oc-cn5g-20897-aerial</svr_id>
                 <id>up2-aerial</id>
                 <iperf_packetloss_threshold>25</iperf_packetloss_threshold>
                 <iperf_bitrate_threshold>80</iperf_bitrate_threshold>
@@ -117,9 +147,8 @@
                 <class>Undeploy_Object</class>
                 <always_exec>true</always_exec>
                 <desc>Undeploy gNB</desc>
+                <node>gracehopper1-oai</node>
                 <yaml_path>ci-scripts/yaml_files/sa_gnb_aerial</yaml_path>
-                <eNB_instance>0</eNB_instance>
-                <eNB_serverId>0</eNB_serverId>
                 <d_retx_th>20,100,100,100</d_retx_th>
                 <u_retx_th>20,100,100,100</u_retx_th>
         </testCase>
@@ -128,8 +157,15 @@
                 <class>Clean_Test_Server_Images</class>
                 <always_exec>true</always_exec>
                 <desc>Clean Test Images on Test Server</desc>
-                <test_svr_id>0</test_svr_id>
+                <node>gracehopper1-oai</node>
+                <images>oai-gnb-aerial</images>
         </testCase>
 
+        <testCase id="000555">
+                <class>UndeployCoreNetwork</class>
+                <always_exec>true</always_exec>
+                <desc>Terminate 5G Core</desc>
+                <cn_id>oc-cn5g-20897-aerial</cn_id>
+        </testCase>
 </testCaseList>
 

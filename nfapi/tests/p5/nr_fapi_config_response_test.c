@@ -18,22 +18,8 @@
  * For more information about the OpenAirInterface (OAI) Software Alliance:
  *      contact@openairinterface.org
  */
-/*! \file nfapi/tests/p5/nr_fapi_config_response_test.c
- * \brief Defines a unitary test for the FAPI CONFIG.response message ( 0x03 )
- *        The test consists of filling a message with randomized data, filling each lists as well with random TLVs
- *        After the message is created, is is packed into a byte buffer
- *        After packing, the header is unpacked to mimic SCTP PEEK and the values unpacked checked against the original message
- *        After the header is checked, the whole message is unpacked.
- *        The test ends by checking all of the unpacked message contents against the original message
- * \author Ruben S. Silva
- * \date 2024
- * \version 0.1
- * \company OpenAirInterface Software Alliance
- * \email: contact@openairinterface.org, rsilva@allbesmart.pt
- * \note
- * \warning
- */
 #include "nfapi/tests/nr_fapi_test.h"
+#include "nr_fapi_p5.h"
 #include "nr_fapi_p5_utils.h"
 
 void fill_config_response_tlv_list(nfapi_nr_generic_tlv_scf_t *list, uint8_t size)
@@ -106,7 +92,7 @@ void test_pack_unpack(nfapi_nr_config_response_scf_t *req)
     header_buffer[idx] = msg_buf[idx];
   }
   uint8_t *pReadPackedMessage = header_buffer;
-  int unpack_header_result = fapi_nr_p5_message_header_unpack(&pReadPackedMessage, NFAPI_HEADER_LENGTH, &header, sizeof(header), 0);
+  int unpack_header_result = fapi_nr_message_header_unpack(pReadPackedMessage, NFAPI_HEADER_LENGTH, &header, sizeof(header), 0);
   DevAssert(unpack_header_result >= 0);
   DevAssert(header.message_id == req->header.message_id);
   DevAssert(header.message_length == req->header.message_length);

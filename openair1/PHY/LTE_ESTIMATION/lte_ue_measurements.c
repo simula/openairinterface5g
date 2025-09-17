@@ -187,7 +187,7 @@ void ue_rrc_measurements(PHY_VARS_UE *ue,
   uint16_t off;
   uint8_t previous_thread_id = ue->current_thread_id[subframe]==0 ? (RX_NB_TH-1):(ue->current_thread_id[subframe]-1);
 
-   //uint8_t isPss; // indicate if this is a slot for extracting PSS
+  //uint8_t isPss; // indicate if this is a slot for extracting PSS
   //uint8_t isSss; // indicate if this is a slot for extracting SSS
   //int32_t pss_ext[4][72]; // contain the extracted 6*12 REs for mapping the PSS
   //int32_t sss_ext[4][72]; // contain the extracted 6*12 REs for mapping the SSS
@@ -460,58 +460,40 @@ void conjch0_mult_ch1(int *ch0,
                       unsigned char output_shift0)
 {
   //This function is used to compute multiplications in Hhermitian * H matrix
-  unsigned short rb;
-  simde__m128i *dl_ch0_128,*dl_ch1_128, *ch0conj_ch1_128, mmtmpD0,mmtmpD1,mmtmpD2,mmtmpD3;
+  simde__m128i *dl_ch0_128 = (simde__m128i *)ch0;
+  simde__m128i *dl_ch1_128 = (simde__m128i *)ch1;
 
-  dl_ch0_128 = (simde__m128i *)ch0;
-  dl_ch1_128 = (simde__m128i *)ch1;
+  simde__m128i *ch0conj_ch1_128 = (simde__m128i *)ch0conj_ch1;
 
-  ch0conj_ch1_128 = (simde__m128i *)ch0conj_ch1;
+  for (unsigned short rb=0; rb<3*nb_rb; rb++) {
 
-  for (rb=0; rb<3*nb_rb; rb++) {
-
-    mmtmpD0 = simde_mm_madd_epi16(dl_ch0_128[0],dl_ch1_128[0]);
-    mmtmpD1 = simde_mm_shufflelo_epi16(dl_ch0_128[0], SIMDE_MM_SHUFFLE(2,3,0,1));
-    mmtmpD1 = simde_mm_shufflehi_epi16(mmtmpD1, SIMDE_MM_SHUFFLE(2,3,0,1));
-    mmtmpD1 = simde_mm_sign_epi16(mmtmpD1,*(simde__m128i*)&conjugate[0]);
-    mmtmpD1 = simde_mm_madd_epi16(mmtmpD1,dl_ch1_128[0]);
-    mmtmpD0 = simde_mm_srai_epi32(mmtmpD0,output_shift0);
-    mmtmpD1 = simde_mm_srai_epi32(mmtmpD1,output_shift0);
-    mmtmpD2 = simde_mm_unpacklo_epi32(mmtmpD0,mmtmpD1);
-    mmtmpD3 = simde_mm_unpackhi_epi32(mmtmpD0,mmtmpD1);
-
-    ch0conj_ch1_128[0] = simde_mm_packs_epi32(mmtmpD2,mmtmpD3);
+    ch0conj_ch1_128[rb] = oai_mm_cpx_mult_conj(dl_ch0_128[rb], dl_ch1_128[rb], output_shift0);
 
 #ifdef DEBUG_RANK_EST
     printf("\n Computing conjugates \n");
-    print_shorts("ch0:",(int16_t*)&dl_ch0_128[0]);
-    print_shorts("ch1:",(int16_t*)&dl_ch1_128[0]);
-    print_shorts("pack:",(int16_t*)&ch0conj_ch1_128[0]);
+    print_shorts("ch0:",(int16_t*)&dl_ch0_128[rb]);
+    print_shorts("ch1:",(int16_t*)&dl_ch1_128[rb]);
+    print_shorts("pack:",(int16_t*)&ch0conj_ch1_128[rb]);
 #endif
 
-    dl_ch0_128+=1;
-    dl_ch1_128+=1;
-    ch0conj_ch1_128+=1;
   }
-  simde_mm_empty();
-  simde_m_empty();
 }
 
 void construct_HhH_elements(int *ch0conj_ch0, //00_00
-                            int *ch1conj_ch1,//01_01
-                            int *ch2conj_ch2,//11_11
-                            int *ch3conj_ch3,//10_10
-                            int *ch0conj_ch1,//00_01
-                            int *ch1conj_ch0,//01_00
-                            int *ch2conj_ch3,//10_11
-                            int *ch3conj_ch2,//11_10
+                            int *ch1conj_ch1, //01_01
+                            int *ch2conj_ch2, //11_11
+                            int *ch3conj_ch3, //10_10
+                            int *ch0conj_ch1, //00_01
+                            int *ch1conj_ch0, //01_00
+                            int *ch2conj_ch3, //10_11
+                            int *ch3conj_ch2, //11_10
                             int32_t *after_mf_00,
                             int32_t *after_mf_01,
                             int32_t *after_mf_10,
                             int32_t *after_mf_11,
                             unsigned short nb_rb)
 {
-  unsigned short rb;
+
   simde__m128i *ch0conj_ch0_128, *ch1conj_ch1_128, *ch2conj_ch2_128, *ch3conj_ch3_128;
   simde__m128i *ch0conj_ch1_128, *ch1conj_ch0_128, *ch2conj_ch3_128, *ch3conj_ch2_128;
   simde__m128i *after_mf_00_128, *after_mf_01_128, *after_mf_10_128, *after_mf_11_128;
@@ -529,13 +511,11 @@ void construct_HhH_elements(int *ch0conj_ch0, //00_00
   after_mf_10_128 = (simde__m128i *)after_mf_10;
   after_mf_11_128 = (simde__m128i *)after_mf_11;
 
-  for (rb=0; rb<3*nb_rb; rb++) {
-    after_mf_00_128[0] =
-        simde_mm_adds_epi16(ch0conj_ch0_128[0],
-                            ch3conj_ch3_128[0]); // simde_mm_adds_epi32(ch0conj_ch0_128[0], ch3conj_ch3_128[0]); //00_00 + 10_10
-    after_mf_11_128[0] =simde_mm_adds_epi16(ch1conj_ch1_128[0], ch2conj_ch2_128[0]); //01_01 + 11_11
-    after_mf_01_128[0] =simde_mm_adds_epi16(ch0conj_ch1_128[0], ch2conj_ch3_128[0]);//00_01 + 10_11
-    after_mf_10_128[0] =simde_mm_adds_epi16(ch1conj_ch0_128[0], ch3conj_ch2_128[0]);//01_00 + 11_10
+  for (unsigned short rb=0; rb<3*nb_rb; rb++) {
+    after_mf_00_128[0] = simde_mm_adds_epi16(ch0conj_ch0_128[0], ch3conj_ch3_128[0]); //00_00 + 10_10 simde_mm_adds_epi32(ch0conj_ch0_128[0], ch3conj_ch3_128[0]);
+    after_mf_11_128[0] = simde_mm_adds_epi16(ch1conj_ch1_128[0], ch2conj_ch2_128[0]); //01_01 + 11_11
+    after_mf_01_128[0] = simde_mm_adds_epi16(ch0conj_ch1_128[0], ch2conj_ch3_128[0]); //00_01 + 10_11
+    after_mf_10_128[0] = simde_mm_adds_epi16(ch1conj_ch0_128[0], ch3conj_ch2_128[0]); //01_00 + 11_10
 
 #ifdef DEBUG_RANK_EST
     printf(" \n construct_HhH_elements \n");
@@ -567,8 +547,6 @@ void construct_HhH_elements(int *ch0conj_ch0, //00_00
     after_mf_10_128+=1;
     after_mf_11_128+=1;
   }
-  simde_mm_empty();
-  simde_m_empty();
 }
 
 
@@ -576,13 +554,13 @@ void squared_matrix_element(int32_t *Hh_h_00,
                             int32_t *Hh_h_00_sq,
                             unsigned short nb_rb)
 {
-   unsigned short rb;
+
   simde__m128i *Hh_h_00_128,*Hh_h_00_sq_128;
 
   Hh_h_00_128 = (simde__m128i *)Hh_h_00;
   Hh_h_00_sq_128 = (simde__m128i *)Hh_h_00_sq;
 
-  for (rb=0; rb<3*nb_rb; rb++) {
+  for (unsigned short rb=0; rb<3*nb_rb; rb++) {
 
     Hh_h_00_sq_128[0] = simde_mm_madd_epi16(Hh_h_00_128[0],Hh_h_00_128[0]);
 
@@ -595,8 +573,6 @@ void squared_matrix_element(int32_t *Hh_h_00,
     Hh_h_00_sq_128+=1;
     Hh_h_00_128+=1;
   }
-  simde_mm_empty();
-  simde_m_empty();
 }
 
 
@@ -645,8 +621,6 @@ void det_HhH(int32_t *after_mf_00,
     //after_mf_10_128+=1;
     after_mf_11_128+=1;
   }
-  simde_mm_empty();
-  simde_m_empty();
 }
 
 void numer(int32_t *Hh_h_00_sq,
@@ -657,7 +631,7 @@ void numer(int32_t *Hh_h_00_sq,
            unsigned short nb_rb)
 
 {
-  unsigned short rb;
+
   simde__m128i *h_h_00_sq_128, *h_h_01_sq_128, *h_h_10_sq_128, *h_h_11_sq_128;
   simde__m128i *num_fin_128, sq_a_plus_sq_d_128, sq_b_plus_sq_c_128;
 
@@ -668,7 +642,7 @@ void numer(int32_t *Hh_h_00_sq,
 
   num_fin_128 = (simde__m128i *)num_fin;
 
-  for (rb=0; rb<3*nb_rb; rb++) {
+  for (unsigned short rb=0; rb<3*nb_rb; rb++) {
 
     sq_a_plus_sq_d_128 = simde_mm_add_epi32(h_h_00_sq_128[0],h_h_11_sq_128[0]);
     sq_b_plus_sq_c_128 = simde_mm_add_epi32(h_h_01_sq_128[0],h_h_10_sq_128[0]);
@@ -691,8 +665,6 @@ void numer(int32_t *Hh_h_00_sq,
     h_h_10_sq_128+=1;
     h_h_11_sq_128+=1;
   }
-  simde_mm_empty();
-  simde_m_empty();
 }
 
 void dlsch_channel_level_TM34_meas(int *ch00,
@@ -704,8 +676,6 @@ void dlsch_channel_level_TM34_meas(int *ch00,
                                    unsigned short nb_rb)
 {
 
-
-  short rb;
   unsigned char nre=12;
   simde__m128i *ch00_128, *ch01_128, *ch10_128, *ch11_128;
   simde__m128i avg_0_row0_128D, avg_1_row0_128D, avg_0_row1_128D, avg_1_row1_128D;
@@ -726,7 +696,7 @@ void dlsch_channel_level_TM34_meas(int *ch00,
   avg_0_row1_128D = simde_mm_setzero_si128();
   avg_1_row1_128D = simde_mm_setzero_si128();
 
-  for (rb=0; rb<3*nb_rb; rb++) {
+  for (short rb=0; rb<3*nb_rb; rb++) {
     ch00_128_tmp = simde_mm_load_si128(&ch00_128[0]);
     ch01_128_tmp = simde_mm_load_si128(&ch01_128[0]);
     ch10_128_tmp = simde_mm_load_si128(&ch10_128[0]);
@@ -768,8 +738,6 @@ void dlsch_channel_level_TM34_meas(int *ch00,
   avg_0[0] = min (avg_0[0], avg_1[0]);
   avg_1[0] = avg_0[0];
 
-  simde_mm_empty();
-  simde_m_empty();
 
 }
 
@@ -1235,16 +1203,9 @@ void lte_ue_measurements(PHY_VARS_UE *ue,
             // multiply by conjugated channel
                 //  print_ints("ch0",&dl_ch0_128[0]);
                 //  print_ints("ch1",&dl_ch1_128[0]);
-
             mmtmpPMI0 = simde_mm_madd_epi16(dl_ch0_128[0],dl_ch1_128[0]);
                  //  print_ints("re",&mmtmpPMI0);
-            mmtmpPMI1 = simde_mm_shufflelo_epi16(dl_ch1_128[0], SIMDE_MM_SHUFFLE(2,3,0,1));
-              //  print_ints("_mm_shufflelo_epi16",&mmtmpPMI1);
-            mmtmpPMI1 = simde_mm_shufflehi_epi16(mmtmpPMI1, SIMDE_MM_SHUFFLE(2,3,0,1));
-                //  print_ints("_mm_shufflehi_epi16",&mmtmpPMI1);
-            mmtmpPMI1 = simde_mm_sign_epi16(mmtmpPMI1,*(simde__m128i*)&conjugate[0]);
-               //  print_ints("_mm_sign_epi16",&mmtmpPMI1);
-            mmtmpPMI1 = simde_mm_madd_epi16(mmtmpPMI1,dl_ch0_128[0]);
+            mmtmpPMI1 = simde_mm_madd_epi16(oai_mm_swap(oai_mm_conj(dl_ch1_128[0])),dl_ch0_128[0]);
                //   print_ints("mm_madd_epi16",&mmtmpPMI1);
             // mmtmpPMI1 contains imag part of 4 consecutive outputs (32-bit)
             pmi128_re = simde_mm_add_epi32(pmi128_re,mmtmpPMI0);
@@ -1339,8 +1300,6 @@ void lte_ue_measurements(PHY_VARS_UE *ue,
     // printf("in lte_ue_measurements: selected rx_antenna[eNB_id==0]:%u\n", ue->measurements.selected_rx_antennas[eNB_id][i]);
   }  // eNB_id loop
 
-  simde_mm_empty();
-  simde_m_empty();
 }
 
 

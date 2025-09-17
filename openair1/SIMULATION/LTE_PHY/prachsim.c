@@ -45,7 +45,6 @@ double cpuf;
 void dump_prach_config(LTE_DL_FRAME_PARMS *frame_parms,uint8_t subframe);
 
 int main(int argc, char **argv) {
-  char c;
   int i,aa,aarx;
   double sigma2, sigma2_dB=0,SNR,snr0=-2.0,snr1=0.0,ue_speed0=0.0,ue_speed1=0.0;
   uint8_t snr1set=0;
@@ -85,6 +84,7 @@ int main(int argc, char **argv) {
   logInit();
   number_of_cards = 1;
 
+  int c;
   while ((c = getopt (argc, argv, "hHaA:Cr:p:g:n:s:S:t:x:y:v:V:z:N:F:d:Z:L:R:E")) != -1) {
     switch (c) {
       case 'a':

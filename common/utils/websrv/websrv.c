@@ -56,7 +56,7 @@ paramdef_t websrvoptions[] = {
     {"listenport", "<local port>\n", 0, uptr : &(websrvparams.listenport), defuintval : 8090, TYPE_UINT, 0},
     {"priority", "<scheduling policy (0-99)\n", 0, iptr : &websrvparams.priority, defuintval : 0, TYPE_INT, 0},
     {"debug", "<debug level>\n", 0, uptr : &websrvparams.dbglvl, defuintval : 0, TYPE_UINT, 0},
-    {"fpath", "<file directory>\n", 0, strptr : &websrvparams.fpath, defstrval : "websrv", TYPE_STRING, 0},
+    {"fpath", "<file directory>\n", 0, strptr : &websrvparams.fpath, defstrval : "common/utils/websrv", TYPE_STRING, 0},
     {"cert", "<cert file>\n", 0, strptr : &websrvparams.certfile, defstrval : NULL, TYPE_STRING, 0},
     {"key", "<key file>\n", 0, strptr : &websrvparams.keyfile, defstrval : NULL, TYPE_STRING, 0},
     {"rootca", "<root ca file>\n", 0, strptr : &websrvparams.rootcafile, defstrval : NULL, TYPE_STRING, 0},
@@ -267,7 +267,7 @@ int websrv_callback_get_softmodemhelp(const struct _u_request *request, struct _
   int httpstatus = 204; // no content
   char *hlpfile = strstr(request->http_url, "helpfiles");
   if (hlpfile != NULL) {
-    char *hlppath = malloc(strlen(hlpfile) + strlen(websrvparams.fpath) + 1);
+    char *hlppath = malloc(strlen(hlpfile) + strlen(websrvparams.fpath) + 2);
     sprintf(hlppath, "%s/%s", websrvparams.fpath, hlpfile);
     help_string = websrv_read_file(hlppath);
     if (help_string == NULL) {
@@ -291,9 +291,10 @@ int websrv_callback_default(const struct _u_request *request, struct _u_response
   LOG_I(UTIL, "[websrv] Requested file is: %s %s\n", request->http_verb, request->http_url);
   websrv_dump_request("default ", request, websrvparams.dbglvl);
 
-  char *fpath = malloc(strlen(request->http_url) + strlen(websrvparams.fpath) + 2);
+  const char *index_file_name = "index.html";
+  char *fpath = malloc(strlen(request->http_url) + strlen(websrvparams.fpath) + strlen(index_file_name) + 2);
   if ((strcmp(request->http_url + 1, websrvparams.fpath) == 0) || (strcmp(request->http_url, "/") == 0)) {
-    sprintf(fpath, "%s/index.html", websrvparams.fpath);
+    sprintf(fpath, "%s/%s", websrvparams.fpath, index_file_name);
   } else {
     sprintf(fpath, "%s/%s", websrvparams.fpath, request->http_url);
   }
@@ -620,26 +621,21 @@ int websrv_callback_get_softmodemcmd(const struct _u_request *request, struct _u
       snprintf(confstr, sizeof(confstr), "Confirm %s ?", modulestruct->cmd[j].cmdname);
       acmd = json_pack("{s:s,s:s}", "name", modulestruct->cmd[j].cmdname, "confirm", confstr);
     } else if (modulestruct->cmd[j].cmdflags & TELNETSRV_CMDFLAG_NEEDPARAM) {
-      char *question[] = {NULL,NULL};
-      char *helpcp = NULL;
+      char *question[] = {NULL, NULL};
       json_t *jQ1=NULL, *jQ2=NULL;
       json_t *jQs = json_array();
-      if (modulestruct->cmd[j].helpstr != NULL) {
-        helpcp = strdup(modulestruct->cmd[j].helpstr);
-        int ns=sscanf(helpcp,"<%m[^<>]> <%m[^<>]>",&question[0],&question[1]);
-        if (ns == 0) {
-		  LOG_W(UTIL, "[websrv] Cannot find parameters for command %s %s\n", modulestruct->module, modulestruct->cmd[j].cmdname);
-		  continue;		
-		}  
-        jQ1=json_pack("{s:s,s:s,s:s}", "display",question[0], "pname", "P0", "type", "string");
-        json_array_append_new(jQs, jQ1);
-        if (ns >1) {
-            jQ2=json_pack("{s:s,s:s,s:s}","display", (question[1] == NULL) ? "" : question[1], "pname",  "P1" , "type", "string");
-            json_array_append_new(jQs, jQ2);
-	    }
+      int ns = sscanf(modulestruct->cmd[j].helpstr, "<%m[^<>]> <%m[^<>]>", &question[0], &question[1]);
+      if (ns == 0) {
+        LOG_W(UTIL, "[websrv] Cannot find parameters for command %s %s\n", modulestruct->module, modulestruct->cmd[j].cmdname);
+        continue;
+      }
+      jQ1 = json_pack("{s:s,s:s,s:s}", "display", question[0], "pname", "P0", "type", "string");
+      json_array_append_new(jQs, jQ1);
+      if (ns > 1) {
+        jQ2 = json_pack("{s:s,s:s,s:s}", "display", (question[1] == NULL) ? "" : question[1], "pname", "P1", "type", "string");
+        json_array_append_new(jQs, jQ2);
       }
       acmd = json_pack("{s:s,s:o}", "name", modulestruct->cmd[j].cmdname, "question", jQs);
-      free(helpcp);
       free(question[0]);
       free(question[1]);
     } else {
@@ -735,7 +731,7 @@ int websrv_callback_get_softmodemstatus(const struct _u_request *request, struct
     inet_ntop(AF_INET, &(websrvparams.instance.bind_address->sin_addr), ipstr, INET_ADDRSTRLEN);
   else
     sprintf(ipstr, "%s", "0.0.0.0");
-  snprintf(srvinfo, sizeof(srvinfo) - 1, "%s:%hu %s", ipstr, websrvparams.instance.port, get_softmodem_function(NULL));
+  snprintf(srvinfo, sizeof(srvinfo) - 1, "%s:%hu %s", ipstr, websrvparams.instance.port, get_softmodem_function());
   json_t *modemvars = json_array();
   websrv_add_modeminfo(modemvars, "connected to", srvinfo, "string");
   websrv_add_modeminfo(modemvars, "config_file", CONFIG_GETCONFFILE, "configfile");

@@ -7,18 +7,21 @@ ColNames :
   - Average; Max; Count
   - Average vs Reference Deviation (Reference Value; Acceptability Deviation Threshold)
 Ref :
-  feprx : 46.0
+  feprx : 40.0
   feptx_prec : 15.0
-  feptx_ofdm : 35.0
-  feptx_total : 57.0
-  L1 Tx processing : 260.0
-  DLSCH encoding : 160.0
-  L1 Rx processing : 420.0
-  PUSCH inner-receiver : 170.0
-  Schedule Response : 3.0
-  DL & UL scheduling timing : 8.0
-  UL Indication : 3.0
-  Slot Indication : 8.0
+  feptx_ofdm : 30.0
+  feptx_total : 45.0
+  L1 Tx processing : 175.0
+  DLSCH encoding : 110.0
+  L1 Rx processing : 345.0
+  PUSCH inner-receiver : 150.0
+  Schedule Response : 1.0
+  DL & UL scheduling timing : 5.0
+  UL Indication : 1.0
+  Slot Indication : 6.0
+  feprx : 44.0
+  feptx_ofdm (per port, half_slot) : 31
+  feptx_total : 58
 DeviationThreshold :
   feprx : 0.25
   feptx_prec : 0.25
@@ -32,3 +35,6 @@ DeviationThreshold :
   DL & UL scheduling timing : 0.50
   UL Indication : 1.00
   Slot Indication : 0.50
+  feprx : 0.25
+  feptx_ofdm (per port, half_slot) : 0.25
+  feptx_total : 0.25

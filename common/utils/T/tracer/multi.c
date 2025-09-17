@@ -114,8 +114,8 @@ int read_tracee(int s, OBUF *ebuf, int *_type, int32_t *_length)
   int vpos = 0;
 
   if (fullread(s, &length, 4) == -1) return -1;
-  if (ebuf->omaxsize < length) {
-    ebuf->omaxsize = (length + 65535) & ~65535;
+  if (ebuf->omaxsize < length + 4) {
+    ebuf->omaxsize = (length + 4 + 65535) & ~65535;
     ebuf->obuf = realloc(ebuf->obuf, ebuf->omaxsize);
     if (ebuf->obuf == NULL) { printf("out of memory\n"); exit(1); }
   }
@@ -123,10 +123,12 @@ int read_tracee(int s, OBUF *ebuf, int *_type, int32_t *_length)
   memcpy(v+vpos, &length, 4);
   vpos += 4;
 #ifdef T_SEND_TIME
+  if (length < sizeof(struct timespec)) return -1;
   if (fullread(s,v+vpos,sizeof(struct timespec))==-1) return -1;
   vpos += sizeof(struct timespec);
   length -= sizeof(struct timespec);
 #endif
+  if (length < sizeof(int)) return -1;
   if (fullread(s, &type, sizeof(int)) == -1) return -1;
   memcpy(v+vpos, &type, sizeof(int));
   vpos += sizeof(int);

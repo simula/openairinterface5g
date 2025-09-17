@@ -4,27 +4,26 @@
 
 ## Machines
 
-| Machine       | IP address      | Lockable Resource     | Function           | Connected devices                                     |
-| ------------- | --------------- | --------------------- | ------------------ | ----------------------------------------------------- |
-| asterix       | 172.21.16.127   | CI-Asterix-Usage      | *unused*           | 172.21.19.14                                          |
-| obelix        | 172.21.16.128   | CI-Obelix-Usage       | eNB (n40, n78), nrUE | 172.21.19.13, X300 (192.168.60.2)                   |
-| porcepix      | 172.21.16.136   | CI-Porcepix           | Executor, EPC, 5GC | --                                                    |
-| up2           | 172.21.19.68    | CI-UP2-Usage          | COTS UE            | Quectel RM520N                                        |
-| nepes         | 172.21.16.137   | CI-Nepes              | gNB (n78), EPC/5GC | B200mini (30C51EB)                                    |
-| ofqot         | 172.21.16.109   | CI-Ofqot              | gNB (n78)          | B200mini (30C51D4)                                    |
-| idefix        | 172.21.16.135   | CI-Idefix             | COTS UE            | Quectel RM500Q                                        |
-| caracal       | 172.21.16.132   | CI-Caracal            | gNB/phytest        | N300 (192.168.10.2)                                   |
-| amariue       | 172.21.16.144   | CI-Amarisoft-UE-Usage | nrUE               | Amarisoft UE simulator                                |
-| nano          | 172.21.18.48    | CI-Nano-Legacy-EPC    | Executor, EPC, adb | 2x COTS (adb)                                         |
-| hutch         | 172.21.18.46    | CI-Hutch-Legacy-FDD-eNB | eNB (B7)           | B200mini (30C5239)                                  |
-| starsky       | 172.21.18.45    | CI-Starsky-Legacy-TDD-eNB       | eNB (B40)  | b200mini (30A3E3C)                                  |
-| carabe        | 172.21.18.47    | CI-Carabe-Legacy-FDD-OAI-LTE-UE | UE (B7UE)  | B200mini (30AE8C9)                                  |
-| nokiabox      | 172.21.19.39    | _None_                | gNB (Nokia), 5GC   | _Nokia RF integrated_                                 |
-| avra          | 172.21.16.124   | CI-Avra-Usage         | gNB (n78)          | AW2S Jaguar (192.168.80.239)                          |
-| orion         | 172.21.16.134   | CI-Orion-Build-Sanity-Check-Deploy-Test, CI-Orion-DsTester-Deploy-Test | Build | |
-| aerial2       | 172.21.16.131   | CI-Aerial2-Usage      | gNB (PNF/Nvidia CUBB + VNF) | Foxconn RU, _Nvidia Aerial SDK integrated_   |
-| cacofonix     | 172.21.16.150   | CI-Cacofonix-Usage    | gNB (n78, FHI7.2)  |                                                       |
-| matix         | 172.21.19.58    | CI-Matix-Usage        | gNB (n77)          | N310                                                  |
+| Machine       | Lockable Resource     | Function             | Connected devices                                     |
+| ------------- | --------------------- | -------------------- | ----------------------------------------------------- |
+| obelix        | Obelix                | eNB (n40, n78), nrUE | 172.21.19.13, X300 (192.168.60.2)                     |
+| porcepix      | Porcepix              | Executor, EPC, 5GC   | --                                                    |
+| up2           | UP2                   | COTS UE              | Quectel RM520N                                        |
+| nepes         | Nepes                 | gNB (n78), EPC/5GC   | B200mini (30C51EB)                                    |
+| ofqot         | Ofqot                 | gNB (n78)            | B200mini (30C51D4)                                    |
+| idefix        | Idefix                | COTS UE              | Quectel RM500Q                                        |
+| caracal       | Caracal               | gNB/phytest, OAI UE  | N300 (192.168.10.2), _AMD T2 card_                    |
+| amariue       | Amarisoft-UE          | nrUE                 | Amarisoft UE simulator                                |
+| nano          | Nano_EPC/Nano_5G_COTS_UE | Executor, EPC, adb | 2x COTS (adb)                                        |
+| hutch         | Hutch                 | eNB (B7)             | B200mini (30C5239)                                    |
+| starsky       | Starsky               | eNB (B40)            | b200mini (30A3E3C)                                    |
+| carabe        | Carabe                | UE (B7UE)            | B200mini (30AE8C9)                                    |
+| avra          | Avra                  | gNB (n78)            | AW2S Jaguar (192.168.80.239)                          |
+| cacofonix     | Cacofonix             | gNB (n78, FHI7.2)    | --                                                    |
+| matix         | Matix                 | gNB (n77)            | N310                                                  |
+| gracehopper1-oai | Gracehopper1       | gNB (n78, PNF/Nvidia CUBB + VNF) | Foxconn RU, _Nvidia Aerial integration_   |
+| gracehopper3-oai | Gracehopper3       | build                | --                                                    |
+| acamas        | Acamas                | 4G and 5G rfsimulator| --                                                    |
 
 Note: The available resources, and their current usage, is indicated here:
 - [Lockable resources of jenkins-oai](https://jenkins-oai.eurecom.fr/lockable-resources/):
@@ -78,7 +77,7 @@ Note: The available resources, and their current usage, is indicated here:
 ### [RAN-Container-Parent](https://jenkins-oai.eurecom.fr/job/RAN-Container-Parent/)
 
 **Purpose**: automatically triggered tests on MR creation or push, from Gitlab
-Webhook ~documentation ~BUILD-ONLY ~4G-LTE ~5G-NR
+Webhook ~documentation ~BUILD-ONLY ~4G-LTE ~5G-NR ~nrUE
 
 This pipeline has basically two main stages, as follows. For the image build,
 please also refer to the [dedicated documentation](../docker/README.md) for
@@ -87,16 +86,16 @@ information on how the images are built.
 #### Image Build pipelines
 
 - [RAN-ARM-Cross-Compile-Builder](https://jenkins-oai.eurecom.fr/job/RAN-ARM-Cross-Compile-Builder/)
-  ~BUILD-ONLY ~4G-LTE ~5G-NR
+  ~BUILD-ONLY ~4G-LTE ~5G-NR ~nrUE
   - orion: Cross-compilation from Intel to ARM
-  - base image from `Dockerfile.base.ubuntu22.cross-arm64`
-  - build image from `Dockerfile.build.ubuntu22.cross-arm64` (no target images)
+  - base image from `Dockerfile.base.ubuntu.cross-arm64`
+  - build image from `Dockerfile.build.ubuntu.cross-arm64` (no target images)
 - [RAN-cppcheck](https://jenkins-oai.eurecom.fr/job/RAN-cppcheck/)
-  ~BUILD-ONLY ~4G-LTE ~5G-NR
+  ~BUILD-ONLY ~4G-LTE ~5G-NR ~nrUE
   - bellatrix
   - performs static code analysis, currently not actively enforced
 - [RAN-RHEL8-Cluster-Image-Builder](https://jenkins-oai.eurecom.fr/job/RAN-RHEL8-Cluster-Image-Builder/)
-  ~BUILD-ONLY ~4G-LTE ~5G-NR
+  ~BUILD-ONLY ~4G-LTE ~5G-NR ~nrUE
   - cluster (`Asterix-OC-oaicicd-session` resource): RHEL image build using the OpenShift Cluster (using gcc/clang)
   - base image from `Dockerfile.build.rhel9`
   - build image from `Dockerfile.build.rhel9`, followed by
@@ -106,37 +105,49 @@ information on how the images are built.
     - target image from `Dockerfile.nr-cuup.rhel9`
     - target image from `Dockerfile.lteUE.rhel9`
     - target image from `Dockerfile.nrUE.rhel9`
+  - build image from `Dockerfile.build.fhi72.rhel9`, followed by
+    - target image from `Dockerfile.gNB.fhi72.rhel9`
   - build image from `Dockerfile.phySim.rhel9` (creates as direct target physical simulator
     image)
   - build image from `Dockerfile.clang.rhel9` (compilation only, artifacts not used currently)
 - [RAN-Ubuntu18-Image-Builder](https://jenkins-oai.eurecom.fr/job/RAN-Ubuntu18-Image-Builder/)
-  ~BUILD-ONLY ~4G-LTE ~5G-NR
-  - run formatting check from `ci-scripts/docker/Dockerfile.formatting.bionic`
+  ~BUILD-ONLY ~4G-LTE ~5G-NR ~nrUE
+  - run formatting check from `ci-scripts/docker/Dockerfile.formatting.ubuntu`
   - obelix: Ubuntu 22 image build using docker (Note: builds U22 images while pipeline is named U18!)
-  - base image from `Dockerfile.base.ubuntu22`
-  - build image from `Dockerfile.build.ubuntu22`, followed by
-    - target image from `Dockerfile.eNB.ubuntu22`
-    - target image from `Dockerfile.gNB.ubuntu22`
-    - target image from `Dockerfile.nr-cuup.ubuntu22`
-    - target image from `Dockerfile.nrUE.ubuntu22`
-    - target image from `Dockerfile.lteUE.ubuntu22`
-    - target image from `Dockerfile.lteRU.ubuntu22`
-  - build unit tests from `ci-scripts/docker/Dockerfile.unittest.ubuntu22`, and run them
+  - base image from `Dockerfile.base.ubuntu`
+  - build image from `Dockerfile.build.ubuntu`, followed by
+    - target image from `Dockerfile.eNB.ubuntu`
+    - target image from `Dockerfile.gNB.ubuntu`
+    - target image from `Dockerfile.nr-cuup.ubuntu`
+    - target image from `Dockerfile.nrUE.ubuntu`
+    - target image from `Dockerfile.lteUE.ubuntu`
+    - target image from `Dockerfile.lteRU.ubuntu`
+    - target image from `Dockerfile.gNB.aerial.ubuntu`
+  - build image from `Dockerfile.build.fhi72.ubuntu`, followed by
+    - target image from `Dockerfile.gNB.fhi72.ubuntu`
+  - build unit tests from `ci-scripts/docker/Dockerfile.unittest.ubuntu`, and run them
+- [RAN-Ubuntu-ARM-Image-Builder](https://jenkins-oai.eurecom.fr/job/RAN-Ubuntu-ARM-Image-Builder/)
+  ~BUILD-ONLY ~4G-LTE ~5G-NR
+  - gracehopper3-oai: ARM Ubuntu 22 image build using docker
+  - base image from `Dockerfile.base.ubuntu`
+  - build image from `Dockerfile.build.ubuntu`, followed by
+    - target image from `Dockerfile.gNB.ubuntu`
+    - target image from `Dockerfile.nr-cuup.ubuntu`
+    - target image from `Dockerfile.nrUE.ubuntu`
+    - target image from `Dockerfile.gNB.aerial.ubuntu`
 
 #### Image Test pipelines
 
 - [OAI-CN5G-COTS-UE-Test](https://jenkins-oai.eurecom.fr/job/OAI-CN5G-COTS-UE-Test/)
   ~5G-NR
-  - using 5GC bench (resources `CI-Cetautomatix-OC-oaicicd-session`, `CI-Dogmatix-CN5G-gNB`): Attach/Detach of UE with multiple PDU sessions
+  - using 5GC bench (resources `Cetautomatix`, `Dogmatix`): Attach/Detach of UE with multiple PDU sessions
+- [OAI-FLEXRIC-RAN-Integration-Test](https://jenkins-oai.eurecom.fr/job/OAI-FLEXRIC-RAN-Integration-Test/) ~5G-NR ~nrUE
+  - selfix (gNB, nrUE, OAI 5GC, FlexRIC)
+  - uses RFsimulator, tests FlexRIC/E2 interface and xApps
 - [RAN-gNB-N300-Timing-Phytest-LDPC](https://jenkins-oai.eurecom.fr/view/RAN/job/RAN-gNB-N300-Timing-Phytest-LDPC/)
   ~5G-NR
   - caracal + N310
   - pure performance test through phy-test scheduler, see command line for more details
-- [RAN-Interop-F1](https://jenkins-oai.eurecom.fr/job/RAN-Interop-F1/)
-  ~5G-NR
-  - ofqot (DU, 1x UE)
-  - F1 interoperability: set up connection between Accelleran CU and OAI DU and pass all traffic over F1
-  - 3rd-party gNB/CU interoperability: set up connection between Accelleran CU and OAI UE and test connectivity
 - [RAN-L2-Sim-Test-4G](https://jenkins-oai.eurecom.fr/job/RAN-L2-Sim-Test-4G/)
   ~4G-LTE
   - obelix (eNB, 1x UE, OAI EPC)
@@ -161,18 +172,25 @@ information on how the images are built.
   ~4G-LTE ~5G-NR
   - nepes + B200 (eNB), ofqot + B200 (gNB), idefix + Quectel, nepes w/ ltebox
   - basic NSA test
-- [RAN-PhySim-Cluster](https://jenkins-oai.eurecom.fr/job/RAN-PhySim-Cluster/)
-  ~4G-LTE ~5G-NR
-  - cluster (`Asterix-OC-oaicicd-session` resource), tests in OpenShift Cluster
-  - unitary simulators (`nr_dlsim`, etc.)
+- [RAN-PhySim-Cluster-4G](https://jenkins-oai.eurecom.fr/job/RAN-PhySim-Cluster-4G/)
+  ~4G-LTE
+  - tests 4G physical simulators (`nr_dlsim`, etc.) in OpenShift Cluster (x86)
+  - see [`./physical-simulators.md`](./physical-simulators.md) for an overview
+- [RAN-PhySim-Cluster-5G](https://jenkins-oai.eurecom.fr/job/RAN-PhySim-Cluster-5G/)
+  ~5G-NR ~nrUE
+  - tests 5G physical simulators (`nr_dlsim`, etc.) in OpenShift Cluster (x86)
+  - see [`./physical-simulators.md`](./physical-simulators.md) for an overview
+- [RAN-PhySim-GraceHopper-5G](https://jenkins-oai.eurecom.fr/job/RAN-PhySim-GraceHopper-5G/)
+  ~5G-NR ~nrUE
+  - tests 5G physical simulators (`nr_dlsim`, etc.) on Nvidia GraceHopper (ARMv9)
   - see [`./physical-simulators.md`](./physical-simulators.md) for an overview
 - [RAN-RF-Sim-Test-4G](https://jenkins-oai.eurecom.fr/job/RAN-RF-Sim-Test-4G/)
   ~4G-LTE
-  - cacofonix (eNB, lteUE, OAI EPC)
+  - acamas (eNB, lteUE, OAI EPC)
   - uses RFsimulator, for FDD 5, 10, 20MHz with core, 5MHz noS1
 - [RAN-RF-Sim-Test-5G](https://jenkins-oai.eurecom.fr/job/RAN-RF-Sim-Test-5G/)
-  ~5G-NR
-  - cacofonix (gNB, nrUE, OAI 5GC)
+  ~5G-NR ~nrUE
+  - acamas (gNB, nrUE, OAI 5GC)
   - uses RFsimulator, TDD 40MHz, FDD 40MHz, F1 split
 - [RAN-SA-AW2S-CN5G](https://jenkins-oai.eurecom.fr/job/RAN-SA-AW2S-CN5G/)
   ~5G-NR
@@ -184,12 +202,12 @@ information on how the images are built.
   - ofqot + B200, idefix + Quectel, nepes w/ sabox
   - basic SA test (20 MHz TDD), F1, reestablishment, ...
 - [RAN-SA-OAIUE-CN5G](https://jenkins-oai.eurecom.fr/job/RAN-SA-OAIUE-CN5G/)
-  ~5G-NR
+  ~5G-NR ~nrUE
   - 5G-NR SA test setup: gNB on avra + N310, OAIUE on caracal + N310, OAI CN5G
   - OpenShift cluster for CN deployment and container images for gNB and UE deployment
 - [RAN-SA-AERIAL-CN5G](https://jenkins-oai.eurecom.fr/job/RAN-SA-AERIAL-CN5G/)
   ~5G-NR
-  - 5G-NR SA test setup: OAI VNF + PNF/NVIDIA CUBB on Aerial2 + Foxconn RU, up2 + COTS UE (Quectel RM520N), OAI CN5G
+  - 5G-NR SA test setup: OAI VNF + PNF/NVIDIA CUBB on gracehopper1-oai + Foxconn RU, up2 + COTS UE (Quectel RM520N), OAI CN5G
   - container images for gNB deployment
 - [RAN-SA-2x2-Module-CN5G](https://jenkins-oai.eurecom.fr/view/RAN/job/RAN-SA-2x2-Module-CN5G/)
   ~5G-NR
@@ -197,7 +215,7 @@ information on how the images are built.
   - NR performance tests: 2x2 configuration, 60 MHz and 100 MHz bandwidth
 - [RAN-SA-FHI72-CN5G](https://jenkins-oai.eurecom.fr/view/RAN/job/RAN-SA-FHI72-CN5G/)
   ~5G-NR
-  - cacofonix + FHI72 + VVDN (gNB), up2 (Quectel RM520N UE), OAI CN5G
+  - cacofonix + FHI72 + Metanoia (gNB), up2 (Quectel RM520N UE), OAI CN5G
   - OpenShift cluster for CN deployment
   - FHI 7.2 testing with 100 MHz bandwidth, 2 layers in DL
 
@@ -244,10 +262,10 @@ steps look like this:
    `ci-scripts/conf_files/gnb.sa.band78.106prb.rfsim.conf` (note that the path
    is relative to the directory in which the docker-compose file is located).
    Further, an environment variable `USE_ADDITIONAL_OPTIONS` is declared,
-   referencing the relevant options `--sa -E --rfsim` (you can ignore logging
+   referencing the relevant options `-E --rfsim` (you can ignore logging
    options). You would therefore run the gNB from source like this:
    ```
-   sudo ./cmake_targets/ran_build/build/nr-softmodem -O ci-scripts/conf_files/gnb.sa.band78.106prb.rfsim.conf --sa -E --rfsim
+   sudo ./cmake_targets/ran_build/build/nr-softmodem -O ci-scripts/conf_files/gnb.sa.band78.106prb.rfsim.conf -E --rfsim
    ```
    To run this on your local machine, assuming you have a 5GC installed, you
    might need to change IP information in the config to match your core.

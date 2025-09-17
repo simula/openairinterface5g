@@ -193,6 +193,7 @@ static inline void merge_meas(time_stats_t *dst_ts, const time_stats_t *src_ts)
     return;
   dst_ts->trials += src_ts->trials;
   dst_ts->diff += src_ts->diff;
+  dst_ts->diff_square += src_ts->diff_square;
   if (src_ts->max > dst_ts->max)
     dst_ts->max = src_ts->max;
 }

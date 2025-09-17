@@ -46,8 +46,6 @@ typedef enum {
 typedef struct {
   /// HARQ tx status
   harq_result_t tx_status;
-  /// Status Flag indicating for this ULSCH (idle,active,disabled)
-  SCH_status_t ULstatus;
   /// Last TPC command
   uint8_t TPC;
   /// Length of ACK information (bits)
@@ -87,6 +85,7 @@ typedef struct {
 } NR_UL_UE_HARQ_t;
 
 typedef struct {
+  SCH_status_t status;
   /// NDAPI struct for UE
   nfapi_nr_ue_pusch_pdu_t pusch_pdu;
   // UL number of harq processes
@@ -104,6 +103,8 @@ typedef struct {
   uint8_t first_rx;
   /// DLSCH status flag indicating
   SCH_status_t status;
+  /// Pointer to the payload (38.212 V15.4.0 section 5.1)
+  uint8_t *b;
   /// Pointers to transport block segments
   uint8_t **c;
   /// soft bits for each received segment ("d"-sequence)(for definition see 36-212 V8.6 2009-03, p.15)
@@ -126,6 +127,8 @@ typedef struct {
   /// Last index of LLR buffer that contains information.
   /// Used for computing LDPC decoder R
   int llrLen;
+  /// Number of segments processed so far
+  uint32_t processedSegments;
   decode_abort_t abort_decode;
 } NR_DL_UE_HARQ_t;
 
@@ -143,7 +146,7 @@ typedef struct {
   /// Maximum number of LDPC iterations
   uint8_t max_ldpc_iterations;
   /// number of iterations used in last turbo decoding
-  uint8_t last_iteration_cnt;
+  int8_t last_iteration_cnt;
   /// bit mask of PT-RS ofdm symbol indicies
   uint16_t ptrs_symbols;
   // PTRS symbol index, to be updated every PTRS symbol within a slot.

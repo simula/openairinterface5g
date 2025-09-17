@@ -28,38 +28,40 @@
  * @ingroup _ngap
  */
 
-
-#include <pthread.h>
+#include <openair3/NGAP/ngap_gNB.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdint.h>
-#include "openair3/SECU/kdf.h"
-
-#include "tree.h"
-#include "queue.h"
-
+#include <string.h>
+#include <unistd.h>
+#include "BIT_STRING.h"
+#include "ngap_msg_includes.h"
+#include "OCTET_STRING.h"
+#include "T.h"
+#include "asn_internal.h"
+#include "assertions.h"
+#include "common/utils/T/T.h"
+#include "conversions.h"
+#include "ds/byte_array.h"
 #include "intertask_interface.h"
-
-#include "ngap_gNB_default_values.h"
-
 #include "ngap_common.h"
-
-#include "ngap_gNB_defs.h"
 #include "ngap_gNB.h"
+#include "ngap_gNB_context_management_procedures.h"
+#include "ngap_gNB_default_values.h"
+#include "ngap_gNB_defs.h"
 #include "ngap_gNB_encoder.h"
 #include "ngap_gNB_handlers.h"
-#include "ngap_gNB_nnsf.h"
-
-#include "ngap_gNB_nas_procedures.h"
-#include "ngap_gNB_management_procedures.h"
-#include "ngap_gNB_context_management_procedures.h"
-
 #include "ngap_gNB_itti_messaging.h"
+#include "ngap_gNB_management_procedures.h"
+#include "ngap_gNB_nas_procedures.h"
+#include "ngap_messages_types.h"
+#include "oai_asn1.h"
+#include "openair3/SECU/kdf.h"
+#include "queue.h"
+#include "s1ap_messages_types.h"
+#include "sctp_messages_types.h"
+#include "tree.h"
 
-#include "ngap_gNB_ue_context.h" // test, to be removed
-
-#include "assertions.h"
-#include "conversions.h"
 #if defined(TEST_S1C_AMF)
   #include "oaisim_amf_test_s1c.h"
 #endif
@@ -156,8 +158,8 @@ void ngap_gNB_handle_register_gNB(instance_t instance, ngap_register_gnb_req_t *
     DevCheck(new_instance->tac == ngap_register_gNB->tac, new_instance->tac, ngap_register_gNB->tac, 0);
 
     for (int i = 0; i < new_instance->num_plmn; i++) {
-      ngap_plmn_t *exist_plmn = &new_instance->plmn[i];
-      ngap_plmn_t *new_plmn = &ngap_register_gNB->plmn[i];
+      plmn_id_t *exist_plmn = &new_instance->plmn[i].plmn;
+      plmn_id_t *new_plmn = &ngap_register_gNB->plmn[i].plmn;
       DevCheck(exist_plmn->mcc == new_plmn->mcc, exist_plmn->mcc, new_plmn->mcc, 0);
       DevCheck(exist_plmn->mnc == new_plmn->mnc, exist_plmn->mnc, new_plmn->mnc, 0);
       DevCheck(exist_plmn->mnc_digit_length == new_plmn->mnc_digit_length,
@@ -183,9 +185,9 @@ void ngap_gNB_handle_register_gNB(instance_t instance, ngap_register_gnb_req_t *
        sizeof(ngap_register_gNB->gnb_ip_address));
 
     for (int i = 0; i < ngap_register_gNB->num_plmn; i++) {
-      new_instance->plmn[i].mcc = ngap_register_gNB->plmn[i].mcc;
-      new_instance->plmn[i].mnc = ngap_register_gNB->plmn[i].mnc;
-      new_instance->plmn[i].mnc_digit_length = ngap_register_gNB->plmn[i].mnc_digit_length;
+      new_instance->plmn[i].plmn.mcc = ngap_register_gNB->plmn[i].plmn.mcc;
+      new_instance->plmn[i].plmn.mnc = ngap_register_gNB->plmn[i].plmn.mnc;
+      new_instance->plmn[i].plmn.mnc_digit_length = ngap_register_gNB->plmn[i].plmn.mnc_digit_length;
 
       new_instance->plmn[i].num_nssai = ngap_register_gNB->plmn[i].num_nssai;
       memcpy(&new_instance->plmn[i].s_nssai, &ngap_register_gNB->plmn[i].s_nssai, sizeof(ngap_register_gNB->plmn[i].s_nssai));
@@ -254,6 +256,7 @@ void ngap_gNB_handle_sctp_association_resp(instance_t instance, sctp_new_associa
   ngap_amf_data_p->in_streams  = sctp_new_association_resp->in_streams;
   ngap_amf_data_p->out_streams = sctp_new_association_resp->out_streams;
   /* Prepare new NG Setup Request */
+  LOG_A(NGAP, "Send NGSetupRequest to AMF\n");
   ngap_gNB_generate_ng_setup_request(instance_p, ngap_amf_data_p);
 }
 
@@ -310,6 +313,7 @@ void *ngap_gNB_process_itti_msg(void *notUsed) {
 
       case NGAP_NAS_FIRST_REQ:
         ngap_gNB_handle_nas_first_req(instance, &NGAP_NAS_FIRST_REQ(received_msg));
+        free_byte_array(NGAP_NAS_FIRST_REQ(received_msg).nas_pdu);
         break;
 
       case NGAP_UPLINK_NAS:
@@ -324,6 +328,10 @@ void *ngap_gNB_process_itti_msg(void *notUsed) {
         ngap_gNB_initial_ctxt_resp(instance, &NGAP_INITIAL_CONTEXT_SETUP_RESP(received_msg));
         break;
 
+      case NGAP_INITIAL_CONTEXT_SETUP_FAIL:
+        ngap_gNB_initial_ctxt_fail(instance, &NGAP_INITIAL_CONTEXT_SETUP_FAIL(received_msg));
+        break;
+
       case NGAP_PDUSESSION_SETUP_RESP:
         ngap_gNB_pdusession_setup_resp(instance, &NGAP_PDUSESSION_SETUP_RESP(received_msg));
         break;
@@ -334,14 +342,6 @@ void *ngap_gNB_process_itti_msg(void *notUsed) {
 
       case NGAP_NAS_NON_DELIVERY_IND:
         ngap_gNB_nas_non_delivery_ind(instance, &NGAP_NAS_NON_DELIVERY_IND(received_msg));
-        break;
-
-      case NGAP_PATH_SWITCH_REQ:
-        ngap_gNB_path_switch_req(instance, &NGAP_PATH_SWITCH_REQ(received_msg));
-        break;
-
-      case NGAP_PDUSESSION_MODIFICATION_IND:
-        ngap_gNB_generate_PDUSESSION_Modification_Indication(instance, &NGAP_PDUSESSION_MODIFICATION_IND(received_msg));
         break;
 
       case NGAP_UE_CONTEXT_RELEASE_COMPLETE:
@@ -414,9 +414,10 @@ static int ngap_gNB_generate_ng_setup_request(
   ie->value.present = NGAP_NGSetupRequestIEs__value_PR_GlobalRANNodeID;
   ie->value.choice.GlobalRANNodeID.present = NGAP_GlobalRANNodeID_PR_globalGNB_ID;
   ie->value.choice.GlobalRANNodeID.choice.globalGNB_ID = CALLOC(1, sizeof(struct NGAP_GlobalGNB_ID));
-  MCC_MNC_TO_PLMNID(instance_p->plmn[ngap_amf_data_p->broadcast_plmn_index[0]].mcc,
-                    instance_p->plmn[ngap_amf_data_p->broadcast_plmn_index[0]].mnc,
-                    instance_p->plmn[ngap_amf_data_p->broadcast_plmn_index[0]].mnc_digit_length,
+  plmn_id_t *plmn_id = &instance_p->plmn[ngap_amf_data_p->broadcast_plmn_index[0]].plmn;
+  MCC_MNC_TO_PLMNID(plmn_id->mcc,
+                    plmn_id->mnc,
+                    plmn_id->mnc_digit_length,
                     &(ie->value.choice.GlobalRANNodeID.choice.globalGNB_ID->pLMNIdentity));
   ie->value.choice.GlobalRANNodeID.choice.globalGNB_ID->gNB_ID.present = NGAP_GNB_ID_PR_gNB_ID;
   MACRO_GNB_ID_TO_BIT_STRING(instance_p->gNB_id,
@@ -451,7 +452,8 @@ static int ngap_gNB_generate_ng_setup_request(
       for (int i = 0; i < ngap_amf_data_p->broadcast_plmn_num; ++i) {
         plmn = (NGAP_BroadcastPLMNItem_t *)calloc(1, sizeof(NGAP_BroadcastPLMNItem_t));
         ngap_plmn_t *plmn_req = &instance_p->plmn[ngap_amf_data_p->broadcast_plmn_index[i]];
-        MCC_MNC_TO_TBCD(plmn_req->mcc, plmn_req->mnc, plmn_req->mnc_digit_length, &plmn->pLMNIdentity);
+        plmn_id_t *plmn_id = &instance_p->plmn[ngap_amf_data_p->broadcast_plmn_index[i]].plmn;
+        MCC_MNC_TO_TBCD(plmn_id->mcc, plmn_id->mnc, plmn_id->mnc_digit_length, &plmn->pLMNIdentity);
 
         for (int si = 0; si < plmn_req->num_nssai; si++) {
           ssi = (NGAP_SliceSupportItem_t *)calloc(1, sizeof(NGAP_SliceSupportItem_t));

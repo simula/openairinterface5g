@@ -40,14 +40,13 @@
         <testCase id="111111">
                 <class>Pull_Local_Registry</class>
                 <desc>Pull Images from Local Registry</desc>
-                <test_svr_id>0</test_svr_id>
-                <images_to_pull>oai-enb oai-lte-ue</images_to_pull>
+                <node>localhost</node>
+                <images>oai-enb-asan oai-lte-ue-asan</images>
         </testCase>
         <testCase id="800813">
                 <class>Create_Workspace</class>
                 <desc>Create new Workspace</desc>
-                <eNB_instance>0</eNB_instance>
-                <eNB_serverId>0</eNB_serverId>
+                <node>localhost</node>
         </testCase>
         <testCase id="000001">
                 <class>IdleSleep</class>
@@ -64,28 +63,26 @@
         <testCase id="000013">
                 <class>Deploy_Object</class>
                 <desc>Deploy OAI 4G eNB RF sim (MBMS)</desc>
+                <node>localhost</node>
                 <yaml_path>ci-scripts/yaml_files/4g_rfsimulator_mbms</yaml_path>
                 <services>oai_enb0</services>
-                <eNB_instance>0</eNB_instance>
-                <eNB_serverId>0</eNB_serverId>
         </testCase>
 
         <testCase id="000014">
                 <class>Deploy_Object</class>
                 <desc>Deploy OAI 4G LTE-UE RF sim (MBMS)</desc>
+                <node>localhost</node>
                 <yaml_path>ci-scripts/yaml_files/4g_rfsimulator_mbms</yaml_path>
                 <services>oai_ue0</services>
-                <eNB_instance>0</eNB_instance>
-                <eNB_serverId>0</eNB_serverId>
         </testCase>
 
         <testCase id="030011">
                 <class>Iperf</class>
                 <desc>Iperf UDP DL</desc>
                 <id>rfsim4g_ue</id>
-                <nodes>cacofonix</nodes>
+                <nodes>acamas</nodes>
                 <svr_id>rfsim4g_enb_nos1</svr_id>
-                <svr_node>cacofonix</svr_node>
+                <svr_node>acamas</svr_node>
                 <iperf_args>-u -t 30 -b 2M -R</iperf_args>
                 <iperf_packetloss_threshold>25</iperf_packetloss_threshold>
                 <iperf_bitrate_threshold>80</iperf_bitrate_threshold>
@@ -95,16 +92,16 @@
                 <class>Undeploy_Object</class>
                 <always_exec>true</always_exec>
                 <desc>Undeploy all OAI 4G stack</desc>
+                <node>localhost</node>
                 <yaml_path>ci-scripts/yaml_files/4g_rfsimulator_mbms</yaml_path>
-                <eNB_instance>0</eNB_instance>
-                <eNB_serverId>0</eNB_serverId>
         </testCase>
 
         <testCase id="222222">
                 <class>Clean_Test_Server_Images</class>
                 <always_exec>true</always_exec>
                 <desc>Clean Test Images on Test Server</desc>
-                <test_svr_id>0</test_svr_id>
+                <node>localhost</node>
+                <images>oai-enb-asan oai-lte-ue-asan</images>
         </testCase>
 
 </testCaseList>

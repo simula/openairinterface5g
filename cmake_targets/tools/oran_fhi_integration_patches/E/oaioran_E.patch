@@ -1,5 +1,5 @@
 diff --git a/fhi_lib/app/src/common.h b/fhi_lib/app/src/common.h
-index 7508117..ce17ebd 100644
+index 7508117..318508b 100644
 --- a/fhi_lib/app/src/common.h
 +++ b/fhi_lib/app/src/common.h
 @@ -28,7 +28,7 @@
@@ -7,20 +7,24 @@ index 7508117..ce17ebd 100644
  #include <rte_mbuf.h>
  
 -#define VERSIONX                "oran_e_maintenance_release_v1.0"
-+#define VERSIONX                "oran_e_maintenance_release_v1.4"
++#define VERSIONX                "oran_e_maintenance_release_v1.6"
  
  #define APP_O_DU  0
  #define APP_O_RU  1
 diff --git a/fhi_lib/lib/Makefile b/fhi_lib/lib/Makefile
-index de141bf..c12b912 100644
+index de141bf..c2a448d 100644
 --- a/fhi_lib/lib/Makefile
 +++ b/fhi_lib/lib/Makefile
-@@ -23,11 +23,11 @@ MYCUSTOMSPACE1='------------------------------------------------------------'
+@@ -23,12 +23,25 @@ MYCUSTOMSPACE1='------------------------------------------------------------'
  ##############################################################
  #  Tools configuration
  ##############################################################
 -CC  := icc
 -CPP := icpc
++# Default target architecture and compiler
++TARGET ?= x86
++# Architecture and compiler-specific tools and flags
++ifeq ($(TARGET), x86)
 +CC  := gcc
 +CPP := g++
  AS := as
@@ -28,53 +32,102 @@ index de141bf..c12b912 100644
 -LD := icc
 +LD := gcc
  OBJDUMP := objdump
++else ifeq ($(TARGET), armv8) # aarch64
++CC := gcc
++CPP := g++
++LD := gcc
++CFLAGS += -march=armv8-a
++LDFLAGS +=
++else
++  $(error Unsupported target architecture: $(TARGET))
++endif
  
  ifeq ($(SHELL),cmd.exe)
-@@ -57,7 +57,7 @@ endif
+ MD := mkdir.exe -p
+@@ -57,7 +70,11 @@ endif
  
  RTE_TARGET ?= x86_64-native-linux-icc
  
 -RTE_INC := $(shell PKG_CONFIG_PATH=/usr/lib64/pkgconfig:$(RTE_SDK)/build/meson-uninstalled pkgconf --cflags-only-I libdpdk)
-+RTE_INC := $(shell PKG_CONFIG_PATH=$(PKG_CONFIG_PATH):/usr/lib64/pkgconfig:$(RTE_SDK)/build/meson-uninstalled pkgconf --cflags-only-I libdpdk)
++ifeq ($(TARGET), x86)
++RTE_INC := $(shell PKG_CONFIG_PATH=$(PKG_CONFIG_PATH):/usr/lib64/pkgconfig:$(RTE_SDK)/build/meson-uninstalled pkg-config --cflags-only-I libdpdk)
++else ifeq ($(TARGET), armv8)
++RTE_INC := $(shell pkg-config --cflags-only-I libdpdk)
++endif
  API_DIR := $(PROJECT_DIR)/api
  SRC_DIR := $(PROJECT_DIR)/src
  ETH_DIR := $(PROJECT_DIR)/ethernet
-@@ -95,8 +95,7 @@ CPP_SRC = $(SRC_DIR)/xran_compression.cpp \
+@@ -88,6 +105,7 @@ CC_SRC = $(ETH_DIR)/ethdi.c \
+ 	$(SRC_DIR)/xran_main.c \
+ 	$(SRC_DIR)/xran_delay_measurement.c
+ 
++ifeq ($(TARGET), x86)
+ CPP_SRC = $(SRC_DIR)/xran_compression.cpp \
+ 	$(SRC_DIR)/xran_bfp_ref.cpp \
+ 	$(SRC_DIR)/xran_bfp_cplane8.cpp \
+@@ -95,15 +113,17 @@ CPP_SRC = $(SRC_DIR)/xran_compression.cpp \
  	$(SRC_DIR)/xran_bfp_cplane32.cpp \
  	$(SRC_DIR)/xran_bfp_cplane64.cpp \
  	$(SRC_DIR)/xran_bfp_uplane_9b16rb.cpp \
 -	$(SRC_DIR)/xran_bfp_uplane.cpp \
 -	$(SRC_DIR)/xran_mod_compression.cpp
 +	$(SRC_DIR)/xran_bfp_uplane.cpp
++endif
  
++ifeq ($(TARGET), x86)
  CPP_SRC_SNC = $(SRC_DIR)/xran_compression_snc.cpp \
  	$(SRC_DIR)/xran_bfp_cplane8_snc.cpp \
-@@ -112,12 +111,12 @@ CC_FLAGS += -std=gnu11 -Wall -Wno-deprecated-declarations  \
+ 	$(SRC_DIR)/xran_bfp_cplane16_snc.cpp \
+ 	$(SRC_DIR)/xran_bfp_cplane32_snc.cpp \
+ 	$(SRC_DIR)/xran_bfp_cplane64_snc.cpp \
+ 	$(SRC_DIR)/xran_bfp_uplane_snc.cpp
++endif
+ 
+ CC_FLAGS += -std=gnu11 -Wall -Wno-deprecated-declarations  \
+ 	-fdata-sections \
+@@ -112,14 +132,23 @@ CC_FLAGS += -std=gnu11 -Wall -Wno-deprecated-declarations  \
          -fPIC \
  	-Wall \
  	-Wimplicit-function-declaration \
 -	-g -O3 -wd1786 -mcmodel=large
-+	-g -O -mavx512bw -march=skylake-avx512 -mtune=skylake-avx512#--wd1786 -mcmodel=large
++	-g -O
  
 -CPP_FLAGS := -D__STDC_LIMIT_MACROS -D__STDC_CONSTANT_MACROS -D_GNU_SOURCE -D_REENTRANT -pipe -no-prec-div \
 -                -no-prec-div -fp-model fast=2 -fPIC \
 -                -no-prec-sqrt  -falign-functions=16 -fast-transcendentals \
 -        -Werror -Wno-unused-variable -std=c++14 -mcmodel=large
++ifeq ($(TARGET), x86)
++CC_FLAGS += -mavx512bw -march=skylake-avx512 -mtune=skylake-avx512#--wd1786 -mcmodel=large
++endif
++
++ifeq ($(TARGET), x86)
 +CPP_FLAGS := -D__STDC_LIMIT_MACROS -D__STDC_CONSTANT_MACROS -D_GNU_SOURCE -D_REENTRANT -pipe \
 +                -fPIC \
 +                -falign-functions=16  \
 +        -Werror -Wno-unused-variable -std=c++14 -mcmodel=large -mavx512bw -march=skylake-avx512 -mtune=skylake-avx512
++else ifeq ($(TARGET), armv8)
++CPP_FLAGS := -D__STDC_LIMIT_MACROS -D__STDC_CONSTANT_MACROS -D_GNU_SOURCE -D_REENTRANT -pipe \
++        -Werror -Wno-unused-variable -std=c++14
++endif
  
- INC :=  -I$(API_DIR) -I$(ETH_DIR) -I$(SRC_DIR) -I$(RTE_INC)
+-INC :=  -I$(API_DIR) -I$(ETH_DIR) -I$(SRC_DIR) -I$(RTE_INC)
++INC :=  -I$(API_DIR) -I$(ETH_DIR) -I$(SRC_DIR) $(RTE_INC)
  DEF :=
-@@ -150,8 +149,8 @@ CPP_SNC_OBJTARGETS := $(addprefix $(PROJECT_OBJ_DIR)/,$(CPP_OBJS_SNC))
+ ifeq ($(MLOG),1)
+ 	INC  += -I$(MLOG_DIR)/source
+@@ -150,8 +179,13 @@ CPP_SNC_OBJTARGETS := $(addprefix $(PROJECT_OBJ_DIR)/,$(CPP_OBJS_SNC))
  
  AS_OBJTARGETS := $(addprefix $(PROJECT_OBJ_DIR)/,$(AS_OBJS))
  #-qopt-report=5 -qopt-matmul -qopt-report-phase=all
 -CPP_COMP       := -O3 -DNDEBUG  -xcore-avx512 -fPIE -restrict -fasm-blocks
 -CPP_COMP_SNC   := -O3 -DNDEBUG -march=icelake-server -fPIE -restrict -fasm-blocks
++ifeq ($(TARGET), x86)
 +CPP_COMP       := -O3 -DNDEBUG  -fPIE
 +CPP_COMP_SNC   := -O3 -DNDEBUG -march=icelake-server -fPIE
++else ifeq ($(TARGET), armv8)
++CPP_COMP       := -O3 -DNDEBUG -fPIE -Wrestrict
++CPP_COMP_SNC   := -O3 -DNDEBUG -march=icelake-server -fPIE -Wrestrict
++endif
  CC_FLAGS_FULL  := $(CC_FLAGS)  $(INC) $(DEF)
  CPP_FLAGS_FULL := $(CPP_FLAGS) $(CPP_COMP) $(INC) $(DEF)
  CPP_FLAGS_FULL_SNC := $(CPP_FLAGS) $(CPP_COMP_SNC) $(INC) $(DEF)
@@ -113,6 +166,36 @@ index 7419ae1..a85f973 100644
  /**
   * @ingroup xran
   *
+diff --git a/fhi_lib/lib/api/xran_pkt_cp.h b/fhi_lib/lib/api/xran_pkt_cp.h
+index 531c51f..bcb6541 100644
+--- a/fhi_lib/lib/api/xran_pkt_cp.h
++++ b/fhi_lib/lib/api/xran_pkt_cp.h
+@@ -33,6 +33,14 @@
+ extern "C" {
+ #endif
+ 
++#include <stdint.h>
++#if defined(__arm__) || defined(__aarch64__)
++#include <arm_neon.h>
++typedef int32x4_t simd_data_t;
++#else
++#include <xmmintrin.h>
++typedef __m128i simd_data_t;
++#endif
+ 
+ /**********************************************************************
+  * Common structures for C/U-plane
+@@ -255,8 +263,8 @@ union xran_cp_radioapp_section_ext3_first {
+     uint64_t    reserved2:16;
+     }all_bits;
+ 
+-    struct{
+-        __m128i     data_field1;
++    struct {
++        simd_data_t data_field1;
+     }data_field;
+     } __attribute__((__packed__));
+ 
 diff --git a/fhi_lib/lib/api/xran_up_api.h b/fhi_lib/lib/api/xran_up_api.h
 index 7d3afc5..e2f1f21 100644
 --- a/fhi_lib/lib/api/xran_up_api.h
@@ -136,10 +219,21 @@ index 7d3afc5..e2f1f21 100644
  inline int xran_prepare_iq_symbol_portion(
                          struct rte_mbuf *mbuf,
 diff --git a/fhi_lib/lib/ethernet/ethdi.c b/fhi_lib/lib/ethernet/ethdi.c
-index b6ba257..1618f65 100644
+index b6ba257..07b7a38 100644
 --- a/fhi_lib/lib/ethernet/ethdi.c
 +++ b/fhi_lib/lib/ethernet/ethdi.c
-@@ -326,8 +326,8 @@ xran_ethdi_init_dpdk_io(char *name, const struct xran_io_cfg *io_cfg,
+@@ -37,7 +37,10 @@
+ #include <sys/time.h>
+ #include <time.h>
+ #include <unistd.h>
++#if defined(__arm__) || defined(__aarch64__)
++#else
+ #include <immintrin.h>
++#endif
+ #include <rte_config.h>
+ #include <rte_common.h>
+ #include <rte_log.h>
+@@ -326,8 +329,8 @@ xran_ethdi_init_dpdk_io(char *name, const struct xran_io_cfg *io_cfg,
      char bbdev_wdev[32]   = "";
      char bbdev_vdev[32]   = "";
      char iova_mode[32]    = "--iova-mode=pa";
@@ -150,7 +244,7 @@ index b6ba257..1618f65 100644
      char ring_name[32]    = "";
      int32_t xran_port = -1;
      portid_t port_id;
-@@ -335,6 +335,7 @@ xran_ethdi_init_dpdk_io(char *name, const struct xran_io_cfg *io_cfg,
+@@ -335,6 +338,7 @@ xran_ethdi_init_dpdk_io(char *name, const struct xran_io_cfg *io_cfg,
      uint16_t count;
  
      char *argv[] = { name, core_mask, "-n2", iova_mode, socket_mem, socket_limit, "--proc-type=auto",
@@ -158,7 +252,7 @@ index b6ba257..1618f65 100644
          "--file-prefix", name, "-a0000:00:00.0", bbdev_wdev, bbdev_vdev};
  
  
-@@ -479,11 +480,13 @@ xran_ethdi_init_dpdk_io(char *name, const struct xran_io_cfg *io_cfg,
+@@ -479,11 +483,13 @@ xran_ethdi_init_dpdk_io(char *name, const struct xran_io_cfg *io_cfg,
                      ctx->tx_ring[i] = rte_ring_create(ring_name, NUM_MBUFS_RING_TRX,
                      rte_lcore_to_socket_id(*lcore_id), RING_F_SC_DEQ);
                      PANIC_ON(ctx->tx_ring[i] == NULL, "failed to allocate rx ring");
@@ -172,7 +266,7 @@ index b6ba257..1618f65 100644
                      }
                  }
              } else {
-@@ -553,7 +556,7 @@ xran_ethdi_init_dpdk_io(char *name, const struct xran_io_cfg *io_cfg,
+@@ -553,7 +559,7 @@ xran_ethdi_init_dpdk_io(char *name, const struct xran_io_cfg *io_cfg,
          ctx->up_dl_pkt_gen_ring[i] = rte_ring_create(ring_name, NUM_MBUFS_RING,
          rte_lcore_to_socket_id(*lcore_id), /*RING_F_SC_DEQ*/0);
          PANIC_ON(ctx->up_dl_pkt_gen_ring[i] == NULL, "failed to allocate dl gen ring");
@@ -181,6 +275,36 @@ index b6ba257..1618f65 100644
      }
  
      return 1;
+diff --git a/fhi_lib/lib/ethernet/ethernet.c b/fhi_lib/lib/ethernet/ethernet.c
+index 0930665..80e2e10 100644
+--- a/fhi_lib/lib/ethernet/ethernet.c
++++ b/fhi_lib/lib/ethernet/ethernet.c
+@@ -37,7 +37,10 @@
+ #include <sys/types.h>
+ #include <stdlib.h>
+ #include <math.h>
++#if defined(__arm__) || defined(__aarch64__)
++#else
+ #include <immintrin.h>
++#endif
+ #include <rte_config.h>
+ #include <rte_common.h>
+ #include <rte_log.h>
+diff --git a/fhi_lib/lib/src/xran_app_frag.c b/fhi_lib/lib/src/xran_app_frag.c
+index cb526ee..90b2860 100644
+--- a/fhi_lib/lib/src/xran_app_frag.c
++++ b/fhi_lib/lib/src/xran_app_frag.c
+@@ -27,7 +27,10 @@
+ #include <stdio.h>
+ #include <stddef.h>
+ #include <errno.h>
++#if defined(__arm__) || defined(__aarch64__)
++#else
+ #include <immintrin.h>
++#endif
+ #include <rte_mbuf.h>
+ #include <rte_memcpy.h>
+ #include <rte_mempool.h>
 diff --git a/fhi_lib/lib/src/xran_bfp_ref.cpp b/fhi_lib/lib/src/xran_bfp_ref.cpp
 index e6d3067..8e0abee 100644
 --- a/fhi_lib/lib/src/xran_bfp_ref.cpp
@@ -224,11 +348,37 @@ index a345df4..2a94e01 100644
      /// Store exponent first
      dataOut->dataCompressed[thisRBExpAddr] = thisExp;
      /// Now have 1 RB worth of bytes separated into 3 chunks (1 per lane)
+diff --git a/fhi_lib/lib/src/xran_cb_proc.c b/fhi_lib/lib/src/xran_cb_proc.c
+index b35d55c..2e7ec05 100644
+--- a/fhi_lib/lib/src/xran_cb_proc.c
++++ b/fhi_lib/lib/src/xran_cb_proc.c
+@@ -25,7 +25,10 @@
+ 
+ #include <unistd.h>
+ #include <stdio.h>
++#if defined(__arm__) || defined(__aarch64__)
++#else
+ #include <immintrin.h>
++#endif
+ #include <rte_common.h>
+ #include <rte_eal.h>
+ #include <rte_errno.h>
 diff --git a/fhi_lib/lib/src/xran_common.c b/fhi_lib/lib/src/xran_common.c
-index baa673f..00bfdf2 100644
+index baa673f..7bdc475 100644
 --- a/fhi_lib/lib/src/xran_common.c
 +++ b/fhi_lib/lib/src/xran_common.c
-@@ -650,12 +650,15 @@ process_mbuf(struct rte_mbuf *pkt, void* handle, struct xran_eaxc_info *p_cid)
+@@ -31,7 +31,10 @@
+ #include <sys/time.h>
+ #include <time.h>
+ #include <pthread.h>
++#if defined(__arm__) || defined(__aarch64__)
++#else
+ #include <immintrin.h>
++#endif
+ #include <rte_mbuf.h>
+ 
+ #include "xran_common.h"
+@@ -650,12 +653,15 @@ process_mbuf(struct rte_mbuf *pkt, void* handle, struct xran_eaxc_info *p_cid)
      uint8_t compMeth = 0;
      uint8_t iqWidth = 0;
  
@@ -244,7 +394,7 @@ index baa673f..00bfdf2 100644
  
      if (staticComp == XRAN_COMP_HDR_TYPE_STATIC)
      {
-@@ -674,6 +677,7 @@ process_mbuf(struct rte_mbuf *pkt, void* handle, struct xran_eaxc_info *p_cid)
+@@ -674,6 +680,7 @@ process_mbuf(struct rte_mbuf *pkt, void* handle, struct xran_eaxc_info *p_cid)
                                          &subframe_id,
                                          &slot_id,
                                          &symb_id,
@@ -252,7 +402,7 @@ index baa673f..00bfdf2 100644
                                          &seq,
                                          &num_prbu,
                                          &start_prbu,
-@@ -683,28 +687,15 @@ process_mbuf(struct rte_mbuf *pkt, void* handle, struct xran_eaxc_info *p_cid)
+@@ -683,28 +690,15 @@ process_mbuf(struct rte_mbuf *pkt, void* handle, struct xran_eaxc_info *p_cid)
                                          expect_comp,
                                          staticComp,
                                          &compMeth,
@@ -286,7 +436,7 @@ index baa673f..00bfdf2 100644
  #ifndef FCN_ADAPT
      if(valid_res != 0) {
          print_dbg("valid_res is wrong [%d] ant %u (%u : %u : %u : %u) seq %u num_bytes %d\n", valid_res, Ant_ID, frame_id, subframe_id, slot_id, symb_id, seq.seq_id, num_bytes);
-@@ -756,7 +747,7 @@ process_mbuf(struct rte_mbuf *pkt, void* handle, struct xran_eaxc_info *p_cid)
+@@ -756,7 +750,7 @@ process_mbuf(struct rte_mbuf *pkt, void* handle, struct xran_eaxc_info *p_cid)
              print_dbg("Transport layer fragmentation (eCPRI) is not supported\n");
          }
  
@@ -295,7 +445,7 @@ index baa673f..00bfdf2 100644
          /* PRACH packet has ruportid = num_eAxc + ant_id */
          Ant_ID -= p_dev_ctx->PrachCPConfig.eAxC_offset;
          symbol_total_bytes[p_dev_ctx->xran_port_id][CC_ID][Ant_ID] += num_bytes;
-@@ -1189,7 +1180,7 @@ int generate_cpmsg_prach(void *pHandle, struct xran_cp_gen_params *params, struc
+@@ -1189,7 +1183,7 @@ int generate_cpmsg_prach(void *pHandle, struct xran_cp_gen_params *params, struc
          timeOffset += startSymId * (2048 + 144);
      }
      timeOffset = timeOffset >> nNumerology; //original number is Tc, convert to Ts based on mu
@@ -304,7 +454,7 @@ index baa673f..00bfdf2 100644
          timeOffset += 16;
  
      params->dir                  = XRAN_DIR_UL;
-@@ -1295,8 +1286,7 @@ int32_t ring_processing_func(void* args)
+@@ -1295,8 +1289,7 @@ int32_t ring_processing_func(void* args)
  
      for (i = 0; i < ctx->io_cfg.num_vfs && i < XRAN_VF_MAX; i++){
          for(qi = 0; qi < ctx->rxq_per_port[i]; qi++) {
@@ -367,11 +517,159 @@ index 112caae..7c74342 100644
          return xranlib_decompress_avxsnc_bfw(request,response);
      } else {
          return xranlib_decompress_avx512_bfw(request,response);
+diff --git a/fhi_lib/lib/src/xran_cp_api.c b/fhi_lib/lib/src/xran_cp_api.c
+index 02ba81c..74ef600 100644
+--- a/fhi_lib/lib/src/xran_cp_api.c
++++ b/fhi_lib/lib/src/xran_cp_api.c
+@@ -25,7 +25,11 @@
+  * @author Intel Corporation
+  *
+  **/
++#if defined(__arm__) || defined(__aarch64__)
++#include <arm_neon.h>
++#else
+ #include <immintrin.h>
++#endif
+ #include <rte_branch_prediction.h>
+ #include <rte_malloc.h>
+ 
+@@ -821,7 +825,11 @@ xran_prepare_sectionext_3(struct rte_mbuf *mbuf, struct xran_sectionext3_info *p
+                          | (params->layerId << xran_cp_radioapp_sec_ext3_LayerId)
+                          | (params->numLayers << xran_cp_radioapp_sec_ext3_NumLayers);
+         data_fourth_byte  = params->beamIdAP1;
++#if defined(__arm__) || defined(__aarch64__)
++        ext3_f->data_field.data_field1 = (int32x4_t){data_first_byte, data_second_byte, data_third_byte, data_fourth_byte};
++#else
+         ext3_f->data_field.data_field1 = _mm_set_epi32(data_fourth_byte, data_third_byte, data_second_byte, data_first_byte);
++#endif
+ 
+         /* convert byte order */
+         tmp = (uint64_t *)ext3_f;
+diff --git a/fhi_lib/lib/src/xran_cp_proc.c b/fhi_lib/lib/src/xran_cp_proc.c
+index e40ce72..b2c6ea6 100644
+--- a/fhi_lib/lib/src/xran_cp_proc.c
++++ b/fhi_lib/lib/src/xran_cp_proc.c
+@@ -35,7 +35,10 @@
+ #include <stdio.h>
+ #include <pthread.h>
+ #include <malloc.h>
++#if defined(__arm__) || defined(__aarch64__)
++#else
+ #include <immintrin.h>
++#endif
+ 
+ #include <rte_common.h>
+ #include <rte_eal.h>
+diff --git a/fhi_lib/lib/src/xran_delay_measurement.c b/fhi_lib/lib/src/xran_delay_measurement.c
+index 931aceb..a3b53fc 100644
+--- a/fhi_lib/lib/src/xran_delay_measurement.c
++++ b/fhi_lib/lib/src/xran_delay_measurement.c
+@@ -23,7 +23,10 @@
+  * @author Intel Corporation
+  **/
+ #define _GNU_SOURCE
++#if defined(__arm__) || defined(__aarch64__)
++#else
+ #include <immintrin.h>
++#endif
+ #include <assert.h>
+ #include <err.h>
+ #include <arpa/inet.h>
+diff --git a/fhi_lib/lib/src/xran_dev.c b/fhi_lib/lib/src/xran_dev.c
+index fef64c8..612445d 100644
+--- a/fhi_lib/lib/src/xran_dev.c
++++ b/fhi_lib/lib/src/xran_dev.c
+@@ -35,7 +35,10 @@
+ #include <stdio.h>
+ #include <pthread.h>
+ #include <malloc.h>
++#if defined(__arm__) || defined(__aarch64__)
++#else
+ #include <immintrin.h>
++#endif
+ #include <rte_common.h>
+ #include <rte_eal.h>
+ #include <rte_errno.h>
+@@ -55,6 +58,27 @@
+ 
+ static struct xran_device_ctx *g_xran_dev_ctx[XRAN_PORTS_NUM] = {NULL, NULL, NULL, NULL};
+ 
++struct xran_device_ctx *allocate_device_ctx(size_t xran_ports_num, size_t alignment) {
++  void *ptr = NULL;
++
++#if defined(__arm__) || defined(__aarch64__)
++  // ARM-specific memory allocation
++  if (posix_memalign(&ptr, alignment, sizeof(struct xran_device_ctx) * xran_ports_num) != 0) {
++    print_err("posix_memalign: pCtx allocation error\n");
++    return NULL;
++  }
++#else
++  // Intel-specific memory allocation
++  ptr = _mm_malloc(sizeof(struct xran_device_ctx) * xran_ports_num, alignment);
++  if (ptr == NULL) {
++    print_err("_mm_malloc: pCtx allocation error\n");
++    return NULL;
++  }
++#endif
++
++  return (struct xran_device_ctx *)ptr;
++}
++
+ int32_t
+ xran_dev_create_ctx(uint32_t xran_ports_num)
+ {
+@@ -64,7 +88,7 @@ xran_dev_create_ctx(uint32_t xran_ports_num)
+     if (xran_ports_num > XRAN_PORTS_NUM)
+         return -1;
+ 
+-    pCtx = (struct xran_device_ctx *) _mm_malloc(sizeof(struct xran_device_ctx)*xran_ports_num, 64);
++    pCtx = allocate_device_ctx(xran_ports_num, 64);
+     if(pCtx){
+         for(i = 0; i < xran_ports_num; i++){
+             g_xran_dev_ctx[i] = pCtx;
 diff --git a/fhi_lib/lib/src/xran_main.c b/fhi_lib/lib/src/xran_main.c
-index 89dcc1f..640f6b6 100644
+index 89dcc1f..ded4116 100644
 --- a/fhi_lib/lib/src/xran_main.c
 +++ b/fhi_lib/lib/src/xran_main.c
-@@ -272,7 +272,7 @@ xran_init_prach(struct xran_fh_config* pConf, struct xran_device_ctx * p_xran_de
+@@ -35,7 +35,11 @@
+ #include <stdio.h>
+ #include <pthread.h>
+ #include <malloc.h>
++#if defined(__arm__) || defined(__aarch64__)
++#include <arm_neon.h>
++#else
+ #include <immintrin.h>
++#endif
+ 
+ #include <rte_common.h>
+ #include <rte_eal.h>
+@@ -102,6 +106,25 @@ void tti_to_phy_cb(struct rte_timer *tim, void *arg);
+ 
+ int32_t xran_pkt_gen_process_ring(struct rte_ring *r);
+ 
++void *mm_allocate_handle(size_t size, size_t alignment) {
++  void *ptr = NULL;
++#if defined(__arm__) || defined(__aarch64__)
++  // ARM-specific memory allocation
++  if (posix_memalign(&ptr, alignment, size) != 0) {
++    fprintf(stderr, "posix_memalign: allocation error\n");
++    return NULL;
++  }
++#else
++  // Intel-specific memory allocation
++  ptr = _mm_malloc(size, alignment);
++  if (ptr == NULL) {
++    fprintf(stderr, "_mm_malloc: allocation error\n");
++    return NULL;
++  }
++#endif
++  return ptr;
++}
++
+ void
+ xran_updateSfnSecStart(void)
+ {
+@@ -272,7 +295,7 @@ xran_init_prach(struct xran_fh_config* pConf, struct xran_device_ctx * p_xran_de
          printf("PRACH start symbol %u lastsymbol %u\n", p_xran_dev_ctx->prach_start_symbol[0], p_xran_dev_ctx->prach_last_symbol[0]);
      }
  
@@ -380,7 +678,7 @@ index 89dcc1f..640f6b6 100644
      print_dbg("PRACH eAxC_offset %d\n",  pPrachCPConfig->eAxC_offset);
  
      /* Save some configs for app */
-@@ -844,7 +844,7 @@ tx_cp_ul_cb(struct rte_timer *tim, void *arg)
+@@ -844,7 +867,7 @@ tx_cp_ul_cb(struct rte_timer *tim, void *arg)
                          struct xran_cp_gen_params params;
                          struct xran_section_gen_info sect_geninfo[8];
                          struct rte_mbuf *mbuf = xran_ethdi_mbuf_alloc();
@@ -389,7 +687,7 @@ index 89dcc1f..640f6b6 100644
                          /* start new section information list */
                          xran_cp_reset_section_info(pHandle, XRAN_DIR_UL, cc_id, prach_port_id, ctx_id);
  
-@@ -1059,6 +1059,7 @@ int32_t handle_ecpri_ethertype(struct rte_mbuf* pkt_q[], uint16_t xport_id, stru
+@@ -1059,6 +1082,7 @@ int32_t handle_ecpri_ethertype(struct rte_mbuf* pkt_q[], uint16_t xport_id, stru
          {
          case ECPRI_IQ_DATA:
                  pkt_data[num_data++] = pkt;
@@ -397,7 +695,7 @@ index 89dcc1f..640f6b6 100644
              break;
          // For RU emulation
          case ECPRI_RT_CONTROL_DATA:
-@@ -1076,7 +1077,7 @@ int32_t handle_ecpri_ethertype(struct rte_mbuf* pkt_q[], uint16_t xport_id, stru
+@@ -1076,7 +1100,7 @@ int32_t handle_ecpri_ethertype(struct rte_mbuf* pkt_q[], uint16_t xport_id, stru
                  break;
              default:
                  if (p_dev_ctx->fh_init.io_cfg.id == O_DU) {
@@ -406,7 +704,17 @@ index 89dcc1f..640f6b6 100644
          }
                  break;
      }
-@@ -1771,8 +1772,7 @@ ring_processing_func_per_port(void* args)
+@@ -1366,8 +1390,7 @@ xran_sector_get_instances (uint32_t xran_port, void * pDevHandle, uint16_t nNumI
+     for (i = 0; i < nNumInstances; i++) {
+ 
+         /* Allocate Memory for CC handles */
+-        pCcHandle = (XranSectorHandleInfo *) _mm_malloc( /*"xran_cc_handles",*/ sizeof (XranSectorHandleInfo), 64);
+-
++        pCcHandle = (XranSectorHandleInfo *)mm_allocate_handle(/*"xran_cc_handles",*/ sizeof(XranSectorHandleInfo), 64);
+         if(pCcHandle == NULL)
+             return XRAN_STATUS_RESOURCE;
+ 
+@@ -1771,8 +1794,7 @@ ring_processing_func_per_port(void* args)
      for (i = 0; i < ctx->io_cfg.num_vfs && i < XRAN_VF_MAX; i = i+1) {
          if (ctx->vf2xran_port[i] == port_id) {
              for(qi = 0; qi < ctx->rxq_per_port[port_id]; qi++){
@@ -416,7 +724,7 @@ index 89dcc1f..640f6b6 100644
              }
          }
      }
-@@ -1837,8 +1837,6 @@ xran_spawn_workers(void)
+@@ -1837,8 +1859,6 @@ xran_spawn_workers(void)
          nWorkerCore = nWorkerCore << 1;
      }
  
@@ -425,7 +733,385 @@ index 89dcc1f..640f6b6 100644
  
      printf("O-XU      %d\n", eth_ctx->io_cfg.id);
      printf("HW        %d\n", icx_cpu);
-@@ -3074,6 +3072,24 @@ xran_get_slot_idx (uint32_t PortId, uint32_t *nFrameIdx, uint32_t *nSubframeIdx,
+@@ -1876,7 +1896,7 @@ xran_spawn_workers(void)
+                 eth_ctx->time_wrk_cfg.arg   = NULL;
+                 eth_ctx->time_wrk_cfg.state = 1;
+ 
+-                pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                pThCtx = (struct xran_worker_th_ctx *)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                 if(pThCtx == NULL){
+                     print_err("pThCtx allocation error\n");
+                     return XRAN_STATUS_FAIL;
+@@ -1898,7 +1918,7 @@ xran_spawn_workers(void)
+ 
+                 /* workers */
+                 /** 0 **/
+-                pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                pThCtx = (struct xran_worker_th_ctx *)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                 if(pThCtx == NULL){
+                     print_err("pThCtx allocation error\n");
+                     return XRAN_STATUS_FAIL;
+@@ -1925,7 +1945,7 @@ xran_spawn_workers(void)
+                 }
+ 
+                 /** 1 - CP GEN **/
+-                pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                pThCtx = (struct xran_worker_th_ctx *)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                 if(pThCtx == NULL){
+                     print_err("pThCtx allocation error\n");
+                     return XRAN_STATUS_FAIL;
+@@ -1956,7 +1976,7 @@ xran_spawn_workers(void)
+ 
+                 p_dev->tx_sym_gen_func = xran_process_tx_sym_cp_on_opt;
+ 
+-                pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                pThCtx = (struct xran_worker_th_ctx *)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                 if(pThCtx == NULL){
+                     print_err("pThCtx allocation error\n");
+                     return XRAN_STATUS_FAIL;
+@@ -1979,7 +1999,7 @@ xran_spawn_workers(void)
+ 
+                     /* workers */
+                     /** 0 **/
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx *)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -2006,7 +2026,7 @@ xran_spawn_workers(void)
+                     }
+ 
+                     /** 1 - CP GEN **/
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx *)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -2033,7 +2053,7 @@ xran_spawn_workers(void)
+ 
+                     /* workers */
+                     /** 0 **/
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx *)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -2048,7 +2068,7 @@ xran_spawn_workers(void)
+                     eth_ctx->pkt_wrk_cfg[pThCtx->worker_id].arg   = pThCtx;
+ 
+                     /** 1 - CP GEN **/
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx *)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -2063,7 +2083,7 @@ xran_spawn_workers(void)
+                     eth_ctx->pkt_wrk_cfg[pThCtx->worker_id].arg   = pThCtx;
+ 
+                     /** 2 UP GEN **/
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx *)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -2102,7 +2122,7 @@ xran_spawn_workers(void)
+ 
+                     /* workers */
+                     /** 0 **/
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx *)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -2117,7 +2137,7 @@ xran_spawn_workers(void)
+                     eth_ctx->pkt_wrk_cfg[pThCtx->worker_id].arg   = pThCtx;
+ 
+                     /** 1 - CP GEN **/
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx *)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -2132,7 +2152,7 @@ xran_spawn_workers(void)
+                     eth_ctx->pkt_wrk_cfg[pThCtx->worker_id].arg   = pThCtx;
+ 
+                     /** 2 UP GEN **/
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx *)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -2147,7 +2167,7 @@ xran_spawn_workers(void)
+                     eth_ctx->pkt_wrk_cfg[pThCtx->worker_id].arg   = pThCtx;
+ 
+                     /** 3 UP GEN **/
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx *)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -2186,7 +2206,7 @@ xran_spawn_workers(void)
+ 
+                     /* workers */
+                     /** 0 **/
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx *)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -2201,7 +2221,7 @@ xran_spawn_workers(void)
+                     eth_ctx->pkt_wrk_cfg[pThCtx->worker_id].arg   = pThCtx;
+ 
+                     /** 1 Eth Tx **/
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx *)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+ 
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+@@ -2217,7 +2237,7 @@ xran_spawn_workers(void)
+                     eth_ctx->pkt_wrk_cfg[pThCtx->worker_id].arg   = pThCtx;
+ 
+                     /** 2 - CP GEN **/
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx *)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -2232,7 +2252,7 @@ xran_spawn_workers(void)
+                     eth_ctx->pkt_wrk_cfg[pThCtx->worker_id].arg   = pThCtx;
+ 
+                     /** 3 UP GEN **/
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx *)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -2247,7 +2267,7 @@ xran_spawn_workers(void)
+                     eth_ctx->pkt_wrk_cfg[pThCtx->worker_id].arg   = pThCtx;
+ 
+                     /** 4 UP GEN **/
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx *)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -2281,7 +2301,7 @@ xran_spawn_workers(void)
+ 
+                     /* workers */
+                     /** 0  Eth RX */
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx *)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -2296,7 +2316,7 @@ xran_spawn_workers(void)
+                     eth_ctx->pkt_wrk_cfg[pThCtx->worker_id].arg   = pThCtx;
+ 
+                     /** 1  FH RX and BBDEV */
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx *)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -2311,7 +2331,7 @@ xran_spawn_workers(void)
+                     eth_ctx->pkt_wrk_cfg[pThCtx->worker_id].arg   = pThCtx;
+ 
+                     /** 2  FH RX and BBDEV */
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx *)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -2326,7 +2346,7 @@ xran_spawn_workers(void)
+                     eth_ctx->pkt_wrk_cfg[pThCtx->worker_id].arg   = pThCtx;
+ 
+                     /** 3  FH RX and BBDEV */
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx *)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -2341,7 +2361,7 @@ xran_spawn_workers(void)
+                     eth_ctx->pkt_wrk_cfg[pThCtx->worker_id].arg   = pThCtx;
+ 
+                     /**  FH TX and BBDEV */
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx *)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -2379,7 +2399,7 @@ xran_spawn_workers(void)
+ 
+                     /* workers */
+                     /** 0 **/
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx *)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -2406,7 +2426,7 @@ xran_spawn_workers(void)
+                     }
+ 
+                     /** 1 - CP GEN **/
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx *)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -2433,7 +2453,7 @@ xran_spawn_workers(void)
+ 
+                     /* workers */
+                     /** 0 **/
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx *)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -2448,7 +2468,7 @@ xran_spawn_workers(void)
+                     eth_ctx->pkt_wrk_cfg[pThCtx->worker_id].arg   = pThCtx;
+ 
+                     /** 1 - CP GEN **/
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx *)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -2463,7 +2483,7 @@ xran_spawn_workers(void)
+                     eth_ctx->pkt_wrk_cfg[pThCtx->worker_id].arg   = pThCtx;
+ 
+                     /** 2 UP GEN **/
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx *)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -2501,7 +2521,7 @@ xran_spawn_workers(void)
+ 
+                     /* workers */
+                     /** 0  FH RX and BBDEV */
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx *)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -2516,7 +2536,7 @@ xran_spawn_workers(void)
+                     eth_ctx->pkt_wrk_cfg[pThCtx->worker_id].arg   = pThCtx;
+ 
+                     /** 1 - CP GEN **/
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx *)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -2531,7 +2551,7 @@ xran_spawn_workers(void)
+                     eth_ctx->pkt_wrk_cfg[pThCtx->worker_id].arg   = pThCtx;
+ 
+                     /** 2 UP GEN **/
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx *)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -2546,7 +2566,7 @@ xran_spawn_workers(void)
+                     eth_ctx->pkt_wrk_cfg[pThCtx->worker_id].arg   = pThCtx;
+ 
+                     /** 3 UP GEN **/
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx *)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -2569,7 +2589,7 @@ xran_spawn_workers(void)
+ 
+                     /* workers */
+                     /** 0 **/
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx *)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -2584,7 +2604,7 @@ xran_spawn_workers(void)
+                     eth_ctx->pkt_wrk_cfg[pThCtx->worker_id].arg   = pThCtx;
+ 
+                     /** 1 - CP GEN **/
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx *)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -2599,7 +2619,7 @@ xran_spawn_workers(void)
+                     eth_ctx->pkt_wrk_cfg[pThCtx->worker_id].arg   = pThCtx;
+ 
+                     /** 2 UP GEN **/
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx *)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -2614,7 +2634,7 @@ xran_spawn_workers(void)
+                     eth_ctx->pkt_wrk_cfg[pThCtx->worker_id].arg   = pThCtx;
+ 
+                     /** 3 UP GEN **/
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx *)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -2629,7 +2649,7 @@ xran_spawn_workers(void)
+                     eth_ctx->pkt_wrk_cfg[pThCtx->worker_id].arg   = pThCtx;
+ 
+                     /** 4 UP GEN **/
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx *)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -2651,7 +2671,7 @@ xran_spawn_workers(void)
+ 
+                     /* workers */
+                     /** 0  Eth RX */
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx *)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -2666,7 +2686,7 @@ xran_spawn_workers(void)
+                     eth_ctx->pkt_wrk_cfg[pThCtx->worker_id].arg   = pThCtx;
+ 
+                     /** 1  FH RX and BBDEV */
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx *)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -2681,7 +2701,7 @@ xran_spawn_workers(void)
+                     eth_ctx->pkt_wrk_cfg[pThCtx->worker_id].arg   = pThCtx;
+ 
+                     /** 2  FH RX and BBDEV */
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx *)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -2696,7 +2716,7 @@ xran_spawn_workers(void)
+                     eth_ctx->pkt_wrk_cfg[pThCtx->worker_id].arg   = pThCtx;
+ 
+                     /** 3  FH RX and BBDEV */
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx *)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -2711,7 +2731,7 @@ xran_spawn_workers(void)
+                     eth_ctx->pkt_wrk_cfg[pThCtx->worker_id].arg   = pThCtx;
+ 
+                     /**  FH TX and BBDEV */
+-                    pThCtx = (struct xran_worker_th_ctx*) _mm_malloc(sizeof(struct xran_worker_th_ctx), 64);
++                    pThCtx = (struct xran_worker_th_ctx *)mm_allocate_handle(sizeof(struct xran_worker_th_ctx), 64);
+                     if(pThCtx == NULL){
+                         print_err("pThCtx allocation error\n");
+                         return XRAN_STATUS_FAIL;
+@@ -3074,6 +3094,24 @@ xran_get_slot_idx (uint32_t PortId, uint32_t *nFrameIdx, uint32_t *nSubframeIdx,
      return tti;
  }
  
@@ -450,6 +1136,22 @@ index 89dcc1f..640f6b6 100644
  int32_t
  xran_set_debug_stop(int32_t value, int32_t count)
  {
+diff --git a/fhi_lib/lib/src/xran_mem_mgr.c b/fhi_lib/lib/src/xran_mem_mgr.c
+index 3e401e6..566490d 100644
+--- a/fhi_lib/lib/src/xran_mem_mgr.c
++++ b/fhi_lib/lib/src/xran_mem_mgr.c
+@@ -35,7 +35,11 @@
+ #include <stdio.h>
+ #include <pthread.h>
+ #include <malloc.h>
++#if defined(__arm__) || defined(__aarch64__)
++#include <arm_neon.h>
++#else
+ #include <immintrin.h>
++#endif
+ 
+ #include <rte_common.h>
+ #include <rte_eal.h>
 diff --git a/fhi_lib/lib/src/xran_mod_compression.cpp b/fhi_lib/lib/src/xran_mod_compression.cpp
 index 7d4a5d0..87bdbd5 100644
 --- a/fhi_lib/lib/src/xran_mod_compression.cpp
@@ -469,10 +1171,22 @@ index 7d4a5d0..87bdbd5 100644
  }
  
 diff --git a/fhi_lib/lib/src/xran_rx_proc.c b/fhi_lib/lib/src/xran_rx_proc.c
-index 36bd72c..f7f5678 100644
+index 36bd72c..4d57898 100644
 --- a/fhi_lib/lib/src/xran_rx_proc.c
 +++ b/fhi_lib/lib/src/xran_rx_proc.c
-@@ -107,6 +107,10 @@ int xran_process_prach_sym(void *arg,
+@@ -35,7 +35,11 @@
+ #include <stdio.h>
+ #include <pthread.h>
+ #include <malloc.h>
++#if defined(__arm__) || defined(__aarch64__)
++#include <arm_neon.h>
++#else
+ #include <immintrin.h>
++#endif
+ 
+ #include <rte_common.h>
+ #include <rte_eal.h>
+@@ -107,6 +111,10 @@ int xran_process_prach_sym(void *arg,
              if(mb)
                  rte_pktmbuf_free(mb);
  
@@ -483,11 +1197,100 @@ index 36bd72c..f7f5678 100644
              if(p_xran_dev_ctx->fh_cfg.ru_conf.byteOrder == XRAN_CPU_LE_BYTE_ORDER) {
                  int idx = 0;
                  uint16_t *psrc = (uint16_t *)iq_data_start;
+diff --git a/fhi_lib/lib/src/xran_timer.c b/fhi_lib/lib/src/xran_timer.c
+index b13101a..6d46298 100644
+--- a/fhi_lib/lib/src/xran_timer.c
++++ b/fhi_lib/lib/src/xran_timer.c
+@@ -29,7 +29,11 @@
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <stdint.h>
++#if defined(__arm__) || defined(__aarch64__)
++#include <arm_neon.h>
++#else
+ #include <immintrin.h>
++#endif
+ #include "xran_timer.h"
+ #include "xran_printf.h"
+ #include "xran_mlog_lnx.h"
+@@ -141,12 +145,30 @@ void timing_adjust_gps_second(struct timespec* p_time)
+ 
+     return;
+ }
++#if defined(__x86_64__)
+ uint64_t xran_tick(void)
+ {
+     uint32_t hi, lo;
+     __asm volatile ("rdtsc" : "=a"(lo), "=d"(hi));
+     return ( (uint64_t)lo)|( ((uint64_t)hi)<<32 );
+ }
++#elif defined(__aarch64__)
++#include <sys/time.h>
++uint64_t xran_tick(void) {
++    struct timeval tv;
++    gettimeofday(&tv, NULL);
++    return (uint64_t)tv.tv_sec * 1000000 + tv.tv_usec;
++}
++#elif defined(__arm__)
++#include <time.h>
++uint64_t xran_tick(void) {
++    struct timespec ts;
++    clock_gettime(CLOCK_MONOTONIC, &ts);
++    return (uint64_t)ts.tv_sec * 1000000000LL + ts.tv_nsec;
++}
++#else
++#error "Unsupported architecture"
++#endif
+ 
+ unsigned long get_ticks_diff(unsigned long curr_tick, unsigned long last_tick)
+ {
+diff --git a/fhi_lib/lib/src/xran_transport.c b/fhi_lib/lib/src/xran_transport.c
+index 881f6f6..dbea6a8 100644
+--- a/fhi_lib/lib/src/xran_transport.c
++++ b/fhi_lib/lib/src/xran_transport.c
+@@ -27,7 +27,10 @@
+ 
+ #include <stdint.h>
+ #include <endian.h>
++#if defined(__arm__) || defined(__aarch64__)
++#else
+ #include <immintrin.h>
++#endif
+ #include <rte_common.h>
+ #include <rte_config.h>
+ 
+diff --git a/fhi_lib/lib/src/xran_tx_proc.c b/fhi_lib/lib/src/xran_tx_proc.c
+index 3cfb2be..eb02195 100644
+--- a/fhi_lib/lib/src/xran_tx_proc.c
++++ b/fhi_lib/lib/src/xran_tx_proc.c
+@@ -35,7 +35,11 @@
+ #include <stdio.h>
+ #include <pthread.h>
+ #include <malloc.h>
++#if defined(__arm__) || defined(__aarch64__)
++#include <arm_neon.h>
++#else
+ #include <immintrin.h>
++#endif
+ 
+ #include <rte_common.h>
+ #include <rte_eal.h>
 diff --git a/fhi_lib/lib/src/xran_up_api.c b/fhi_lib/lib/src/xran_up_api.c
-index 397853a..8977e3d 100644
+index 397853a..14266de 100644
 --- a/fhi_lib/lib/src/xran_up_api.c
 +++ b/fhi_lib/lib/src/xran_up_api.c
-@@ -329,6 +329,7 @@ int32_t xran_extract_iq_samples(struct rte_mbuf *mbuf,
+@@ -25,7 +25,10 @@
+  *
+  **/
+ #include <inttypes.h>
++#if defined(__arm__) || defined(__aarch64__)
++#else
+ #include <immintrin.h>
++#endif
+ #include <rte_mbuf.h>
+ 
+ #include "xran_fh_o_du.h"
+@@ -329,6 +332,7 @@ int32_t xran_extract_iq_samples(struct rte_mbuf *mbuf,
      uint8_t *subframe_id,
      uint8_t *slot_id,
      uint8_t *symb_id,
@@ -495,7 +1298,7 @@ index 397853a..8977e3d 100644
      union ecpri_seq_id *seq_id,
      uint16_t *num_prbu,
      uint16_t *start_prbu,
-@@ -338,7 +339,8 @@ int32_t xran_extract_iq_samples(struct rte_mbuf *mbuf,
+@@ -338,7 +342,8 @@ int32_t xran_extract_iq_samples(struct rte_mbuf *mbuf,
      int8_t   expect_comp,
      enum xran_comp_hdr_type staticComp,
      uint8_t *compMeth,
@@ -505,7 +1308,7 @@ index 397853a..8977e3d 100644
  {
  #if XRAN_MLOG_VAR
      uint32_t mlogVar[10];
-@@ -374,6 +376,8 @@ int32_t xran_extract_iq_samples(struct rte_mbuf *mbuf,
+@@ -374,6 +379,8 @@ int32_t xran_extract_iq_samples(struct rte_mbuf *mbuf,
          return 0;       /* packet too short */
  
      radio_hdr->sf_slot_sym.value = rte_be_to_cpu_16(radio_hdr->sf_slot_sym.value);
@@ -514,7 +1317,7 @@ index 397853a..8977e3d 100644
  
      if (frame_id)
          *frame_id    = radio_hdr->frame_id;
-@@ -387,6 +391,8 @@ int32_t xran_extract_iq_samples(struct rte_mbuf *mbuf,
+@@ -387,6 +394,8 @@ int32_t xran_extract_iq_samples(struct rte_mbuf *mbuf,
      if (symb_id)
          *symb_id = radio_hdr->sf_slot_sym.symb_id;
  
@@ -523,7 +1326,7 @@ index 397853a..8977e3d 100644
      /* Process data section hdr */
      struct data_section_hdr *data_hdr =
          (void *)rte_pktmbuf_adj(mbuf, sizeof(*radio_hdr));
-@@ -401,6 +407,7 @@ int32_t xran_extract_iq_samples(struct rte_mbuf *mbuf,
+@@ -401,6 +410,7 @@ int32_t xran_extract_iq_samples(struct rte_mbuf *mbuf,
      *sym_inc    = data_hdr->fields.sym_inc;
      *rb         = data_hdr->fields.rb;
      *sect_id    = data_hdr->fields.sect_id;

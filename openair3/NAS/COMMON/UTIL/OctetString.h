@@ -58,9 +58,9 @@ OctetString* dup_octet_string(OctetString*octetstring);
 
 void free_octet_string(OctetString *octetstring);
 
-int encode_octet_string(OctetString *octetstring, uint8_t *buffer, uint32_t len);
+int encode_octet_string(const OctetString *octetstring, uint8_t *buffer, uint32_t len);
 
-int decode_octet_string(OctetString *octetstring, uint16_t pdulen, uint8_t *buffer, uint32_t buflen);
+int decode_octet_string(OctetString *octetstring, uint16_t pdulen, const uint8_t *buffer, uint32_t buflen);
 
 char* dump_octet_string_xml(const OctetString * const octetstring);
 

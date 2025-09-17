@@ -12,7 +12,6 @@ services:
           core: -1 # for core dumps
         environment:
             TZ: Europe/Paris
-            USE_ADDITIONAL_OPTIONS: --sa
         volumes:
             - ../../conf_files/gnb.sa.band78.51prb.aw2s.ddsuu.2x2.conf:/opt/oai-gnb-aw2s/etc/gnb.conf
         healthcheck:

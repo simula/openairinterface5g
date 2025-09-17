@@ -69,16 +69,16 @@ the corresponding section in the configuration file.
 
 The RF simulator is using the configuration module, and its parameters are defined in a specific section called "rfsimulator". Add the following options to the command line in order to enable different RFSim features:
 
-| CL option                       | usage                                                                          | default                |
-|:---------------------           |:-------------------------------------------------------------------------------|----:                   |
-|`--rfsimulator.serveraddr <addr>`| IPv4v6 address or DNS name to connect to, or `server` to behave as a IPv4v6 TCP server | 127.0.0.1      |
-|`--rfsimulator.serverport <port>`| port number to connect to or to listen on (eNB, which behaves as a tcp server) | 4043                   |
-|`--rfsimulator.options`          | list of comma separated run-time options, two are supported: `chanmod`, `saviq`| all options disabled   |
-|`--rfsimulator.options saviq`    | store IQs to a file for future replay                                          | disabled               |
-|`--rfsimulator.options chanmod`  | enable the channel model                                                       | disabled               |
-|`--rfsimulator.IQfile <file>`    | path to a file to store the IQ samples to (only with `saviq`)                  | `/tmp/rfsimulator.iqs` |
-|`--rfsimulator.prop_delay`       | simulated receive-path (gNB: UL, UE: DL) propagation delay in ms               | 0                      |
-|`--rfsimulator.wait_timeout`     | wait timeout when no UE is connected                                           | 1                      |
+| CL option                        | usage                                                                          | default                |
+|:---------------------            |:-------------------------------------------------------------------------------|----:                   |
+|`--rfsimulator.serveraddr <addr>` | IPv4v6 address or DNS name to connect to, or `server` to behave as a IPv4v6 TCP server | 127.0.0.1      |
+|`--rfsimulator.serverport <port>` | port number to connect to or to listen on (eNB, which behaves as a tcp server) | 4043                   |
+|`--rfsimulator.options`           | list of comma separated run-time options, two are supported: `chanmod`, `saviq`| all options disabled   |
+|`--rfsimulator.options saviq`     | store IQs to a file for future replay                                          | disabled               |
+|`--rfsimulator.options chanmod`   | enable the channel model                                                       | disabled               |
+|`--rfsimulator.IQfile <file>`     | path to a file to store the IQ samples to (only with `saviq`)                  | `/tmp/rfsimulator.iqs` |
+|`--rfsimulator.prop_delay`        | simulated receive-path (gNB: UL, UE: DL) propagation delay in ms               | 0                      |
+|`--rfsimulator.wait_timeout`      | wait timeout when no UE is connected                                           | 1                      |
 
 Please refer to this document [`SIMULATION/TOOLS/DOC/channel_simulation.md`](../../openair1/SIMULATION/TOOLS/DOC/channel_simulation.md) for information about using the RFSimulator options to run the simulator with a channel model.
 
@@ -114,26 +114,44 @@ $OPENAIR_DIR/cmake_targets/ran_build/build/conf2uedata -c $OPENAIR_DIR/openair3/
 
 Similarly as for 4G, first launch the gNB, here in an example for the phytest:
 
-```bash
-sudo ./nr-softmodem -O ../../../targets/PROJECTS/GENERIC-LTE-EPC/CONF/gnb.band78.tm1.106PRB.usrpn300.conf --gNBs.[0].min_rxtxtime 6 --phy-test --rfsim --rfsimulator.serveraddr server
-```
+run gNB:
 
-`--gNBs.[0].min_rxtxtime 6` is due to the UE not being able to handle shorter
+  ```bash
+  sudo ./nr-softmodem -O ../../../targets/PROJECTS/GENERIC-LTE-EPC/CONF/gnb.band78.tm1.106PRB.usrpn300.conf --gNBs.[0].min_rxtxtime 6 --phy-test --rfsim --rfsimulator.serveraddr server
+  ```
+
+where `--gNBs.[0].min_rxtxtime 6` is due to the UE not being able to handle shorter
 RX/TX times.  As in the 4G case above, you can define an `rfsimulator` section
 in the config file.
 
-Then, launch the UE:
+and run UE:
 
-```bash
-sudo ./nr-uesoftmodem --rfsim --phy-test --rfsimulator.serveraddr <TARGET_GNB_IP_ADDRESS>
-```
+  ```bash
+  sudo ./nr-uesoftmodem --rfsim --phy-test --rfsimulator.serveraddr <TARGET_GNB_IP_ADDRESS>
+  ```
+
+To run OAI RFSimulator for SA mode, gNB:
+
+  ```bash
+  sudo ./nr-softmodem -O ../../../targets/PROJECTS/GENERIC-NR-5GC/CONF/gnb.sa.band78.fr1.106PRB.usrpb210.conf --rfsim --rfsimulator.serveraddr server
+  ```
+
+and UE:
+
+  ```bash
+  sudo ./nr-uesoftmodem --rfsim --rfsimulator.serveraddr <TARGET_GNB_IP_ADDRESS>
+  ```
+
+In the commands for the UE, `TARGET_GNB_IP_ADDRESS` can be 127.0.0.1 if both UE and gNB run on the same machine.
+
+If necessary the user can provide a custom UICC configuration file to the UE with command line option `-O ue.conf`. In case of a multi-UE scenario, the user shall provide a different IMSI to each UE with the command line option `--uicc0.imsi` followed by the IMSI, e.g. `--uicc0.imsi 001010000000001`.
 
 Notes:
 
 1. This starts the gNB and UE in the `phy-test` UP-only mode where the gNB is started as if a UE had already connected. See [`RUNMODEM.md`](../../doc/RUNMODEM.md) for more details.
 2. `<TARGET_GNB_IP_ADDRESS>` should be the IP interface address of the remote host running the gNB executable, if the gNB and nrUE run on separate hosts, or be omitted if they are on the same host.
 3. To enable the noS1 mode, `--noS1` option should be added to the command line, see again [`RUNMODEM.md`](../../doc/RUNMODEM.md).
-4. To operate the gNB/UE with a 5GC, start them using the `--sa` option. More information can be found [here](../../../doc/NR_SA_Tutorial_OAI_CN5G.md).
+4. Information on operating the gNB/UE with a 5GC can be found here. [here](../../../doc/NR_SA_Tutorial_OAI_CN5G.md).
 
 ## Store and replay
 

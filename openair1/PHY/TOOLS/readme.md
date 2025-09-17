@@ -69,3 +69,21 @@ Run with `--imscope` flag
 
 Report bugs and feature requests on [gitlab](https://gitlab.eurecom.fr/oai/openairinterface5g/-/issues). There is two demo windows
 enabled in the scope that showcase imgui/implot, if you find something of interest it can be implemented in the scope.
+
+## Recording scope data and reviewing recorded IQ files
+
+It is possible to record scope data from the modems.
+ - To record IQ data, run a modem with `--imscope-record` flag.
+   The recording happens whenever a modem calls `dumpScopeData`, which currently is
+   done only in gNB on PUSCH DTX and PUSCH CRC NOK.
+   There is a limit of ~1GB of files written by the thread in a single run to avoid
+   accidentally exhausting disk space.
+   If a directory `imscope-dump` is available the data will be recorded there in .imscope
+   files. Otherwise files are written to the directory the modem was run. This is done so that
+   the directory can be mapped in a docker container.
+
+ - To view recorded IQ files, use the new executable `imscope_iq_file_viewer`. This can be done by running:
+      ```
+      ./imscope_iq_file_viewer <path_to_iq_file>
+      ```
+   Replace `<path_to_iq_file>` with the path to the IQ file you want to view.

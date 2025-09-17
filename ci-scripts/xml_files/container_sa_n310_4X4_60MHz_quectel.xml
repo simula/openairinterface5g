@@ -1,0 +1,163 @@
+<!--
+
+ Licensed to the OpenAirInterface (OAI) Software Alliance under one or more
+ contributor license agreements.  See the NOTICE file distributed with
+ this work for additional information regarding copyright ownership.
+ The OpenAirInterface Software Alliance licenses this file to You under
+ the OAI Public License, Version 1.1  (the "License"); you may not use this file
+ except in compliance with the License.
+ You may obtain a copy of the License at
+
+      http://www.openairinterface.org/?page_id=698
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+
+ For more information about the OpenAirInterface (OAI) Software Alliance:
+      contact@openairinterface.org
+
+-->
+<testCaseList>
+  <htmlTabRef>TEST-SA-FR1-N310-4x4-60MHz</htmlTabRef>
+  <htmlTabName>nFAPI 60 MHz 4x4 TDD SA</htmlTabName>
+  <htmlTabIcon>tasks</htmlTabIcon>
+  <TestCaseRequestedList>
+    100000
+    111111
+    010010
+    800813
+    030101
+    010001
+    050001
+    071000
+    071001
+    070002
+    010010
+    000001
+    030201
+    200000
+    333333
+  </TestCaseRequestedList>
+  <TestCaseExclusionList></TestCaseExclusionList>
+
+  <testCase id="111111">
+    <class>Pull_Cluster_Image</class>
+    <desc>Pull Images from Cluster</desc>
+    <images>oai-gnb</images>
+    <node>matix</node>
+  </testCase>
+
+  <testCase id="100000">
+    <class>Custom_Command</class>
+    <desc>Disable Sleep States</desc>
+    <node>matix</node>
+    <command>sudo cpupower idle-set -D 0</command>
+  </testCase>
+
+  <testCase id="200000">
+    <class>Custom_Command</class>
+    <always_exec>true</always_exec>
+    <desc>Enable Sleep States</desc>
+    <node>matix</node>
+    <command>sudo cpupower idle-set -E</command>
+  </testCase>
+
+  <testCase id="010001">
+    <class>Attach_UE</class>
+    <desc>Attach UE</desc>
+    <id>up2</id>
+  </testCase>
+
+  <testCase id="010010">
+    <class>Detach_UE</class>
+    <always_exec>true</always_exec>
+    <desc>Detach UE</desc>
+    <id>up2</id>
+  </testCase>
+  <testCase id="800813">
+      <class>Create_Workspace</class>
+      <desc>Create new Workspace</desc>
+      <node>matix</node>
+  </testCase>
+  <testCase id="030101">
+      <class>Deploy_Object</class>
+      <desc>Deploy VNF-PNF (TDD/Band77/60MHz/N310) in a container</desc>
+      <node>matix</node>
+      <yaml_path>ci-scripts/yaml_files/5g_sa_n310_4x4_60MHz</yaml_path>
+      <num_attempts>3</num_attempts>
+  </testCase>
+
+  <testCase id="000001">
+    <class>IdleSleep</class>
+    <desc>Sleep</desc>
+    <idle_sleep_time_in_sec>5</idle_sleep_time_in_sec>
+  </testCase>
+
+  <testCase id="000002">
+    <class>IdleSleep</class>
+    <desc>Sleep</desc>
+    <idle_sleep_time_in_sec>10</idle_sleep_time_in_sec>
+  </testCase>
+
+  <testCase id="050001">
+    <class>Ping</class>
+    <desc>Ping: 100pings in 20sec</desc>
+    <id>up2</id>
+    <svr_id>matix-cn5g</svr_id>
+    <ping_args>-c 100 -i 0.2</ping_args>
+    <ping_packetloss_threshold>1</ping_packetloss_threshold>
+    <ping_rttavg_threshold>15</ping_rttavg_threshold>
+  </testCase>
+
+  <testCase id="071000">
+    <class>Iperf</class>
+    <desc>iperf (DL/450Mbps/UDP)(30 sec)(single-ue profile)</desc>
+    <iperf_args>-u -b 450M -t 30 -R</iperf_args>
+    <svr_id>matix-cn5g</svr_id>
+    <id>up2</id>
+    <iperf_packetloss_threshold>25</iperf_packetloss_threshold>
+    <iperf_bitrate_threshold>80</iperf_bitrate_threshold>
+  </testCase>
+
+  <testCase id="071001">
+    <class>Iperf</class>
+    <desc>iperf (UL/120Mbps/UDP)(30 sec)(single-ue profile)</desc>
+    <iperf_args>-u -b 120M -t 30</iperf_args>
+    <svr_id>matix-cn5g</svr_id>
+    <id>up2</id>
+    <iperf_packetloss_threshold>10</iperf_packetloss_threshold>
+    <iperf_bitrate_threshold>70</iperf_bitrate_threshold>
+  </testCase>
+
+  <testCase id="070002">
+    <class>Iperf</class>
+    <desc>iperf (BIDIR TCP)(30 sec)(single-ue profile)</desc>
+    <iperf_args>-t 30 --bidir</iperf_args>
+    <svr_id>matix-cn5g</svr_id>
+    <id>up2</id>
+  </testCase>
+
+  <testCase id="030201">
+    <class>Undeploy_Object</class>
+    <always_exec>true</always_exec>
+    <desc>Undeploy VNF-PNF</desc>
+    <node>matix</node>
+    <yaml_path>ci-scripts/yaml_files/5g_sa_n310_4x4_60MHz</yaml_path>
+    <services>oai-vnf oai-pnf</services>
+    <d_retx_th>10,100,100,100</d_retx_th>
+    <u_retx_th>10,100,100,100</u_retx_th>
+  </testCase>
+
+  <testCase id="333333">
+    <class>Clean_Test_Server_Images</class>
+    <always_exec>true</always_exec>
+    <desc>Clean Test Images on Test Server</desc>
+    <node>matix</node>
+    <images>oai-gnb</images>
+  </testCase>
+
+</testCaseList>
+

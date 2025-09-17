@@ -36,7 +36,6 @@ int nr_init_frame_parms_ue_sl(NR_DL_FRAME_PARMS *fp,
 int init_nr_ue_signal(PHY_VARS_NR_UE *ue,int nb_connected_eNB);
 void term_nr_ue_signal(PHY_VARS_NR_UE *ue, int nb_connected_gNB);
 void init_nr_ue_transport(PHY_VARS_NR_UE *ue);
-void init_N_TA_offset(PHY_VARS_NR_UE *ue);
 void nr_dump_frame_parms(NR_DL_FRAME_PARMS *frame_parms);
 void phy_init_nr_gNB(PHY_VARS_gNB *gNB);
 int init_codebook_gNB(PHY_VARS_gNB *gNB);

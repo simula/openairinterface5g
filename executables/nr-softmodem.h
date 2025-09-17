@@ -41,7 +41,7 @@ extern uint64_t ulsch_slot_bitmap;
 extern char *uecap_file;
 
 // In nr-gnb.c
-extern void init_gNB(int wait_for_sync);
+extern void init_gNB();
 extern void stop_gNB(int);
 
 // In nr-ru.c
@@ -52,7 +52,7 @@ extern void stop_RU(int nb_ru);
 extern void kill_NR_RU_proc(int inst);
 extern void set_function_spec_param(RU_t *ru);
 
-void init_gNB_afterRU(void);
+void init_eNB_afterRU(void);
 
 void init_pdcp(void);
 

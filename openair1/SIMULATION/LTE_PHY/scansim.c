@@ -57,7 +57,6 @@ mod_sym_t dummy3[2048*14];
 
 
 int main(int argc, char **argv) {
-  char c;
   int i,l,aa;
   double sigma2, sigma2_dB=0,SNR,snr0=-2.0,snr1;
   uint8_t snr1set=0;
@@ -103,6 +102,7 @@ int main(int argc, char **argv) {
   number_of_cards = 1;
   openair_daq_vars.rx_rf_mode = 1;
 
+  int c;
   while ((c = getopt (argc, argv, "f:hpf:g:n:s:S:t:x:y:z:N:F:GdP:")) != -1) {
     switch (c) {
       case 'f':

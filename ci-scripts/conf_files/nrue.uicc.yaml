@@ -5,11 +5,13 @@ uicc0:
   dnn: oai
   nssai_sst: 1
 
+thread-pool: "-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1"
+
 #/* configuration for channel modelisation */
 #/* To be included in main config file when */
 #/* channel modelisation is used (rfsimulator with chanmod options enabled) */
 channelmod:
-  max_chan: 10;
+  max_chan: 10
   modellist: modellist_rfsimu_1
   modellist_rfsimu_1:
     - model_name: rfsimu_channel_enB0

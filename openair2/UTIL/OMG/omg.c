@@ -423,7 +423,7 @@ usage (void) {
 int
 get_options (int argc, char *argv[]) {
   int node_t;
-  char tag;
+  int tag;
 
   while ((tag =
             getopt (argc, argv,

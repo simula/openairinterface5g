@@ -31,9 +31,9 @@
         </TestCaseExclusionList>
 
         <testCase id="000300">
-                <class>Terminate_5GCN</class>
+                <class>UndeployCoreNetwork</class>
                 <desc>Terminate 5G Core</desc>
-                <args>--type stop-basic</args>
+                <cn_id>matix-cn5g</cn_id>
         </testCase>
 </testCaseList>
 

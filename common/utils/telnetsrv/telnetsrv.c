@@ -53,8 +53,8 @@
 #include <sys/resource.h>
 #include "common/utils/load_module_shlib.h"
 #include "common/config/config_userapi.h"
-#include "common/utils/threadPool/thread-pool.h"
 #include "executables/softmodem-common.h"
+#include "common/utils/threadPool/notified_fifo.h"
 #include <readline/history.h>
 #include "common/oai_version.h"
 
@@ -66,6 +66,12 @@ static telnetsrv_params_t telnetparams;
 
 #define TELNETSRV_OPTNAME_STATICMOD   "staticmod"
 #define TELNETSRV_OPTNAME_SHRMOD      "shrmod"
+
+#define TELNET_LOG(fmt, ...)                               \
+  do {                                                     \
+    printf("[TELNETSRV] " fmt __VA_OPT__(, ) __VA_ARGS__); \
+    fflush(stdout);                                        \
+  } while (0)
 
 // clang-format off
 paramdef_t telnetoptions[] = {
@@ -369,32 +375,32 @@ char *telnet_getvarvalue(telnetshell_vardef_t *var, int varindex)
   char *val;
   switch (var[varindex].vartype) {
     case TELNET_VARTYPE_INT32:
-      val = malloc(64);
+      val = calloc_or_fail(1, 64);
       snprintf(val, 64, "%i", *(int32_t *)(var[varindex].varvalptr));
       break;
 
     case TELNET_VARTYPE_INT64:
-      val = malloc(128);
+      val = calloc_or_fail(1, 128);
       snprintf(val, 128, "%lli", (long long)*(int64_t *)(var[varindex].varvalptr));
       break;
 
     case TELNET_VARTYPE_INT16:
-      val = malloc(16);
+      val = calloc_or_fail(1, 16);
       snprintf(val, 16, "%hi", *(short *)(var[varindex].varvalptr));
       break;
 
     case TELNET_VARTYPE_INT8:
-      val = malloc(16);
+      val = calloc_or_fail(1, 16);
       snprintf(val, 16, "%i", (int)(*(int8_t *)(var[varindex].varvalptr)));
       break;
 
     case TELNET_VARTYPE_UINT:
-      val = malloc(64);
+      val = calloc_or_fail(1, 64);
       snprintf(val, 64, "%u", *(unsigned int *)(var[varindex].varvalptr));
       break;
 
     case TELNET_VARTYPE_DOUBLE:
-      val = malloc(32);
+      val = calloc_or_fail(1, 32);
       snprintf(val, 32, "%g\n", *(double *)(var[varindex].varvalptr));
       break;
 
@@ -403,7 +409,7 @@ char *telnet_getvarvalue(telnetshell_vardef_t *var, int varindex)
       break;
 
     default:
-      val = malloc(64);
+      val = calloc_or_fail(1, 64);
       snprintf(val, 64, "ERR:var %i unknown type", varindex);
       break;
   }
@@ -652,11 +658,11 @@ void run_telnetsrv(void) {
     fprintf(stderr,"[TELNETSRV] Error %s on listen call\n",strerror(errno));
 
   using_history();
-  int plen=sprintf(prompt,"%s_%s> ",TELNET_PROMPT_PREFIX,get_softmodem_function(NULL));
-  printf("\nInitializing telnet server...\n");
+  int plen = sprintf(prompt, "%s_%s> ", TELNET_PROMPT_PREFIX, get_softmodem_function());
+  TELNET_LOG("\nInitializing telnet server...\n");
 
   while( (telnetparams.new_socket = accept(sock, &cli_addr, &cli_len)) ) {
-    printf("[TELNETSRV] Telnet client connected....\n");
+    TELNET_LOG("Telnet client connected....\n");
     read_history(telnetparams.histfile);
     stifle_history(telnetparams.histsize);
 
@@ -682,12 +688,12 @@ void run_telnetsrv(void) {
       }
 
       if(!readc) {
-        printf ("[TELNETSRV] Telnet Client disconnected.\n");
+        TELNET_LOG("Telnet Client disconnected.\n");
         break;
       }
 
-      if (telnetparams.telnetdbg > 0)
-        printf("[TELNETSRV] Command received: readc %i filled %i \"%s\"\n", readc, filled,buf);
+      //if (telnetparams.telnetdbg > 0)
+      TELNET_LOG("Command received: readc %i filled %i \"%s\"\n", readc, filled, buf);
 
       if (buf[0] == '!') {
         if (buf[1] == '!') {
@@ -720,7 +726,7 @@ void run_telnetsrv(void) {
 
         send(telnetparams.new_socket, prompt, strlen(prompt), MSG_NOSIGNAL);
       } else {
-        printf ("[TELNETSRV] Closing telnet connection...\n");
+        TELNET_LOG("Closing telnet connection...\n");
         break;
       }
     }
@@ -728,7 +734,7 @@ void run_telnetsrv(void) {
     write_history(telnetparams.histfile);
     clear_history();
     close(telnetparams.new_socket);
-    printf ("[TELNETSRV] Telnet server waitting for connection...\n");
+    TELNET_LOG("Telnet server waiting for connection...\n");
   }
 
   close(sock);
@@ -741,7 +747,7 @@ void run_telnetclt(void) {
   pthread_setname_np(pthread_self(), "telnetclt");
   set_sched(pthread_self(),0,telnetparams.priority);
   char prompt[sizeof(TELNET_PROMPT_PREFIX)+10];
-  sprintf(prompt,"%s_%s> ",TELNET_PROMPT_PREFIX,get_softmodem_function(NULL));
+  sprintf(prompt, "%s_%s> ", TELNET_PROMPT_PREFIX, get_softmodem_function());
   name.sin_family = AF_INET;
   struct in_addr addr;
   inet_aton("127.0.0.1", &addr) ;
@@ -878,7 +884,7 @@ int telnetsrv_autoinit(void) {
   memset(&telnetparams,0,sizeof(telnetparams));
   config_get(config_get_if(), telnetoptions, sizeofArray(telnetoptions), "telnetsrv");
   /* possibly load a exec specific shared lib */
-  char *execfunc=get_softmodem_function(NULL);
+  char *execfunc = get_softmodem_function();
   char libname[64];
   sprintf(libname,"telnetsrv_%s",execfunc);
   load_module_shlib(libname,NULL,0,NULL);
@@ -921,13 +927,13 @@ int add_telnetcmd(char *modulename, telnetshell_vardef_t *var, telnetshell_cmdde
       for (int j = 0; cmd[j].cmdfunc != NULL; j++) {
         if (cmd[j].cmdflags & TELNETSRV_CMDFLAG_PUSHINTPOOLQ) {
           if (afifo == NULL) {
-            afifo = malloc(sizeof(notifiedFIFO_t));
+            afifo = calloc_or_fail(1, sizeof(notifiedFIFO_t));
             initNotifiedFIFO(afifo);
           }
           cmd[j].qptr = afifo;
         }
       }
-      printf("[TELNETSRV] Telnet server: module %i = %s added to shell\n", i, telnetparams.CmdParsers[i].module);
+      TELNET_LOG("Telnet server: module %i = %s added to shell\n", i, telnetparams.CmdParsers[i].module);
       break;
     }
   }
@@ -950,8 +956,8 @@ int  telnetsrv_checkbuildver(char *mainexec_buildversion, char **shlib_buildvers
 }
 
 int telnetsrv_getfarray(loader_shlibfunc_t  **farray) {
-  int const num_func_tln_srv = 3;	
-  *farray = malloc(sizeof(loader_shlibfunc_t) * num_func_tln_srv);
+  int const num_func_tln_srv = 3;
+  *farray = calloc_or_fail(num_func_tln_srv, sizeof(loader_shlibfunc_t));
   (*farray)[0].fname=TELNET_ADDCMD_FNAME;
   (*farray)[0].fptr=(int (*)(void) )add_telnetcmd;
   (*farray)[1].fname=TELNET_POLLCMDQ_FNAME;

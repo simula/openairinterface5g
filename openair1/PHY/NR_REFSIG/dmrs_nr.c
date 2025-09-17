@@ -307,16 +307,6 @@ int8_t get_next_dmrs_symbol_in_slot(uint16_t  ul_dmrs_symb_pos, uint8_t counter,
 }
 
 
-/* return the total number of dmrs symbol in a slot */
-uint8_t get_dmrs_symbols_in_slot(uint16_t l_prime_mask,  uint16_t nb_symb, uint8_t start)
-{
-  uint8_t tmp = 0;
-  for (int i = start; i < start + nb_symb; i++) {
-    tmp += (l_prime_mask >> i) & 0x01;
-  }
-  return tmp;
-}
-
 /* return the position of valid dmrs symbol in a slot for channel compensation */
 int8_t get_valid_dmrs_idx_for_channel_est(uint16_t dmrs_symb_pos, uint8_t counter)
 {
@@ -351,7 +341,7 @@ void nr_chest_time_domain_avg(NR_DL_FRAME_PARMS *frame_parms,
   simde__m128i *ul_ch128_1;
   int16_t *ul_ch16_0;
   int total_symbols = start_symbol + num_symbols;
-  int num_dmrs_symb = get_dmrs_symbols_in_slot(dmrs_bitmap, total_symbols, start_symbol);
+  int num_dmrs_symb = count_bits64_with_mask(dmrs_bitmap, start_symbol, total_symbols);
   int first_dmrs_symb = get_next_dmrs_symbol_in_slot(dmrs_bitmap, start_symbol, total_symbols);
   AssertFatal(first_dmrs_symb > -1, "No DMRS symbol present in this slot\n");
   for (int aarx = 0; aarx < frame_parms->nb_antennas_rx; aarx++) {

@@ -2460,8 +2460,7 @@ ue_get_sdu(module_id_t module_idP, int CC_id, frame_t frameP,
              && (bsr_len + phr_len + total_rlc_pdu_header_len +
                  sdu_length_total + MIN_MAC_HDR_RLC_SIZE <= buflen)) {
         // Workaround for issue in OAI eNB or EPC which are not able to process SRB2 message multiplexed with SRB1 on the same MAC PDU
-        if (( get_softmodem_params()->usim_test == 0) && (lcid == DCCH1)
-            && (lcid_rlc_pdu_count == 0) && (num_sdus)) {
+        if ((lcid == DCCH1) && (lcid_rlc_pdu_count == 0) && (num_sdus)) {
           // Skip SRB2 multiplex if at least one SRB1 SDU is already multiplexed
           break;
         }

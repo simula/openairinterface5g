@@ -177,10 +177,9 @@ c16_t *gNB_dmrs_lowpaprtype1_sequence[U_GROUP_NUMBER][V_BASE_SEQUENCE_NUMBER][MA
 void generate_lowpapr_typ1_refsig_sequences(unsigned int scaling)
 {
   /* prevent multiple calls, relevant when both UE & gNB initialize this */
-  static bool already_called = false;
+  bool already_called = gNB_dmrs_lowpaprtype1_sequence[0][0][0] != NULL;
   if (already_called)
     return;
-  already_called = true;
   unsigned int v = 0; // sequence hopping and group hopping are not supported yet
 
   for (unsigned int Msc_RS = 0; Msc_RS <= INDEX_SB_LESS_32; Msc_RS++) {
@@ -200,9 +199,8 @@ c16_t *dmrs_lowpaprtype1_ul_ref_sig[U_GROUP_NUMBER][V_BASE_SEQUENCE_NUMBER][MAX_
 void generate_ul_reference_signal_sequences(unsigned int scaling)
 {
   /* prevent multiple calls, relevant when both UE & gNB initialize this */
-  static bool already_called = false;
+  bool already_called = rv_ul_ref_sig[0][0][0] != NULL;
   if (already_called) return;
-  already_called = true;
 
   unsigned int u,v,Msc_RS;
 

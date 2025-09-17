@@ -1,0 +1,209 @@
+diff --git a/wls_lib/Makefile b/wls_lib/Makefile
+index 2f8e4b2..e657488 100644
+--- a/wls_lib/Makefile
++++ b/wls_lib/Makefile
+@@ -1,20 +1,6 @@
+-###############################################################################
+-#
+-#   Copyright (c) 2021 Intel.
+-#
+-#   Licensed under the Apache License, Version 2.0 (the "License");
+-#   you may not use this file except in compliance with the License.
+-#   You may obtain a copy of the License at
+-#
+-#       http://www.apache.org/licenses/LICENSE-2.0
+-#
+-#   Unless required by applicable law or agreed to in writing, software
+-#   distributed under the License is distributed on an "AS IS" BASIS,
+-#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-#   See the License for the specific language governing permissions and
+-#   limitations under the License.
+-#
+-###############################################################################
++################################################################
++# <COPYRIGHT_TAG>
++################################################################
+ 
+ MYCUSTOMTAB='     '
+ MYCUSTOMSPACE='============================================================================================'
+@@ -24,11 +10,17 @@ MYCUSTOMSPACE1='------------------------------------------------------------'
+ #  Tools configuration
+ ##############################################################
+ ifeq ($(WIRELESS_SDK_TOOLCHAIN),icc)
+-CC  := icc
++    CC  := icc
+     CPP := icpc
+-AS := as
+-AR := ar
+-LD := icc
++    AS := as
++    AR := ar
++    LD := icc
++else ifeq ($(WIRELESS_SDK_TOOLCHAIN),gcc)
++    CC  := gcc
++    CPP := g++
++    AS := as
++    AR := ar
++    LD := gcc
+ else ifeq ($(WIRELESS_SDK_TOOLCHAIN),icx)
+     CC  := icx
+     CPP := icx
+@@ -44,9 +36,9 @@ ifeq ($(WIRELESS_SDK_TARGET_ISA),sse)
+ else ifeq ($(WIRELESS_SDK_TARGET_ISA),avx2)
+     TARGET_PROCESSOR := -xCORE-AVX2
+ else ifeq ($(WIRELESS_SDK_TARGET_ISA),avx512)
+-    TARGET_PROCESSOR := -xCORE-AVX512
++    TARGET_PROCESSOR := -march=skylake-avx512
+ else ifeq ($(WIRELESS_SDK_TARGET_ISA),snc)
+-    TARGET_PROCESSOR := -xicelake-server
++    TARGET_PROCESSOR := -march=icelake-server
+ else ifeq ($(WIRELESS_SDK_TARGET_ISA),spr)
+     TARGET_PROCESSOR := -march=sapphirerapids
+ endif
+@@ -66,15 +58,38 @@ PROJECT_DIR  := ./
+ BUILDDIR := make
+ PROJECT_BINARY := $(PROJECT_NAME).so
+ 
++PKGCONF ?= pkg-config
++LIBDPDK_VERSION=20.11.3
++
++ifeq ($(shell $(PKGCONF) --modversion "libdpdk = '$(LIBDPDK_VERSION)'"),$(LIBDPDK_VERSION))
++    DPDK_INSTALLED=1
++else
++    DPDK_INSTALLED=0
++endif
++
+ ifeq ($(RTE_SDK),)
+-$(error "Please define RTE_SDK environment variable")
++ifeq ($(DPDK_INSTALLED),0)
++$(error "Please define RTE_SDK environment variable OR install DPDK version $(LIBDPDK_VERSION)")
++endif
+ endif
+ 
+-RTE_INC := $(shell PKG_CONFIG_PATH=/usr/lib64/pkgconfig:$(RTE_SDK)/build/meson-uninstalled pkgconf --cflags-only-I libdpdk)
++# At least one of the options is defined
++
++ifneq ($(RTE_SDK),)
++    RTE_INC := $(shell PKG_CONFIG_PATH=/usr/lib64/pkgconfig:$(RTE_SDK)/build/meson-uninstalled pkgconf --cflags-only-I libdpdk)
++else ifeq ($(DPDK_INSTALLED),1)
++    RTE_INC := $(shell PKG_CONFIG_PATH=/usr/lib64/pkgconfig  $(PKGCONF) --cflags-only-I libdpdk)
++endif
+ 
+ CC_SRC = wls_lib_dpdk.c \
+ 	syslib.c
+ 
++CC_HDR = syslib.h \
++	ttypes.h \
++	wls.h \
++	wls_debug.h \
++	wls_lib.h
++
+ CC_FLAGS += -std=gnu11 -Wall -Wno-deprecated-declarations  \
+ 	-fdata-sections \
+ 	-ffunction-sections \
+@@ -84,18 +99,19 @@ CC_FLAGS += -std=gnu11 -Wall -Wno-deprecated-declarations  \
+ 	-Wimplicit-function-declaration \
+ 	-g -O3 -mcmodel=large $(TARGET_PROCESSOR)
+ 
+-INC := -I$(RTE_INC)
++INC := -I$(RTE_INC) -I../intel_fapi/
+ DEF :=
+ 
+ AS_FLAGS :=
+ AR_FLAGS := rc
+ 
+ PROJECT_OBJ_DIR := $(BUILDDIR)/obj
++PROJECT_DEP_DIR := $(PROJECT_OBJ_DIR)/$(PROJECT_NAME).dep.d
+ 
+ CC_OBJS := $(patsubst %.c,%.o,$(CC_SRC))
+ AS_OBJS := $(patsubst %.s,%.o,$(AS_SRC))
+ OBJS    := $(CC_OBJS) $(AS_OBJS) $(LIBS)
+-DIRLIST := $(addprefix $(PROJECT_OBJ_DIR)/,$(sort $(dir $(OBJS))))
++DIRLIST := $(addprefix $(PROJECT_OBJ_DIR)/,$(sort $(dir $(OBJS)))) $(PROJECT_DEP_DIR)
+ 
+ CC_OBJTARGETS := $(addprefix $(PROJECT_OBJ_DIR)/,$(CC_OBJS))
+ 
+@@ -104,9 +120,7 @@ CC_FLAGS_FULL  := $(CC_FLAGS) $(INC) $(DEF)
+ 
+ AS_FLAGS := $(AS_FLAGS) $(INC)
+ 
+-PROJECT_DEP_FILE := $(PROJECT_OBJ_DIR)/$(PROJECT_NAME).dep
+-
+-ifeq ($(wildcard $(PROJECT_DEP_FILE)),$(PROJECT_DEP_FILE))
++ifeq ($(wildcard $(PROJECT_DEP_DIR)),$(PROJECT_DEP_DIR))
+ GENERATE_DEPS :=
+ else
+ 
+@@ -119,11 +133,11 @@ all : welcome_line 	$(PROJECT_BINARY)
+ 
+ .PHONY : clear_dep
+ clear_dep:
+-	@$(RM) $(PROJECT_DEP_FILE)
+-	@echo [DEP]   $(subst $(PROJECT_OBJ_DIR)/,,$(PROJECT_DEP_FILE))
++	@echo [DEP] rm $(PROJECT_DEP_DIR)/$(@F).dep
++	@$(RM) $(PROJECT_DEP_DIR)/$(@F).dep
+ 
+-$(CC_DEPS) :
+-	@$(CC) -MM $(subst __up__,../,$(subst __dep__,,$@)) -MT $(PROJECT_OBJ_DIR)/$(patsubst %.c,%.o,$(subst __up__,../,$(subst __dep__,,$@))) $(CC_FLAGS_FULL) >> $(PROJECT_DEP_FILE)
++$(CC_DEPS) : $(PROJECT_DEP_DIR)
++	@$(CC) $(CC_FLAGS_FULL) -MM $(subst __up__,../,$(subst __dep__,,$@)) -MT $(PROJECT_OBJ_DIR)/$(patsubst %.c,%.o,$(subst __up__,../,$(subst __dep__,,$@))) >> $(PROJECT_DEP_DIR)/$(@F).dep
+ 
+ .PHONY : generate_deps
+ generate_deps : clear_dep $(CC_DEPS)
+@@ -136,17 +150,17 @@ echo_start_build :
+ $(DIRLIST) :
+ 	-@$(MD) $@
+ 
+-$(CC_OBJTARGETS) :
++$(CC_OBJTARGETS) : $(GENERATE_DEPS)
+ 	@echo [CC]    $(subst $(PROJECT_OBJ_DIR)/,,$@)
+ 	@$(CC) -c $(CC_FLAGS_FULL) -o"$@" $(patsubst %.o,%.c,$(subst $(PROJECT_OBJ_DIR)/,,$@))
+ 
+-$(AS_OBJTARGETS) :
++$(AS_OBJTARGETS) : $(CC_OBJTARGETS) $(CPP_OBJTARGETS)
+ 	@echo [AS]    $(subst $(PROJECT_OBJ_DIR)/,,$@)
+ 	@$(AS) $(AS_FLAGS) -o"$@" $(patsubst %.o,%.s,$(subst $(PROJECT_OBJ_DIR)/,,$@))
+ 
+-ifeq ($(wildcard $(PROJECT_DEP_FILE)),$(PROJECT_DEP_FILE))
++ifeq ($(wildcard $(PROJECT_DEP_DIR)),$(PROJECT_DEP_DIR))
+ 
+-include $(PROJECT_DEP_FILE)
++include $(PROJECT_DEP_DIR)/*
+ 
+ endif
+ 
+@@ -156,7 +170,7 @@ clean:
+ 	@$(RM) $(CC_OBJTARGETS) $(AS_OBJTARGETS)
+ ifneq ($(wildcard $(PROJECT_DIR)/$(PROJECT_MAKE)),)
+ 	@echo [CLEAN] : $(PROJECT_NAME)
+-	@$(RM) $(PROJECT_BINARY) $(PROJECT_BINARY_LIB) $(PROJECT_DEP_FILE)
++	@$(RM) -rf $(PROJECT_BINARY) $(PROJECT_BINARY_LIB) $(PROJECT_DEP_DIR)
+ endif
+ 
+ xclean: clean
+@@ -172,7 +186,24 @@ welcome_line :
+ debug :  all
+ release :  all
+ 
+-$(PROJECT_BINARY) : $(DIRLIST) echo_start_build $(GENERATE_DEPS) $(PRE_BUILD) $(CC_OBJTARGETS) $(AS_OBJTARGETS)
++$(PROJECT_BINARY) : $(DIRLIST) echo_start_build $(GENERATE_DEPS) $(CC_OBJTARGETS) $(AS_OBJTARGETS)
+ 	@echo [AR]    $(subst $(BUILDDIR)/,,$@)
+ 	@$(CC) $(CC_OBJTARGETS) $(AS_OBJTARGETS) -shared -fPIC -o $@
+ 
++##############################################################
++#  Install configuration
++##############################################################
++
++INSTALL_DIR := /usr/local
++INCLUDE_DIR := $(INSTALL_DIR)/include/
++
++.PHONY : install
++install: $(PROJECT_BINARY) install_headers
++	@echo [INSTALL] : $(PROJECT_BINARY)
++	@$(CP) $(PROJECT_BINARY) $(INSTALL_DIR)/lib
++
++.PHONY : install_headers
++install_headers: $(CC_SRC)
++	@echo [INSTALL] : $(PROJECT_NAME) headers
++	@$(MD) $(INCLUDE_DIR)
++	@$(CP) $(CC_HDR) $(INCLUDE_DIR)

@@ -228,7 +228,7 @@ static int _process_activate_default_eps_bearer_context_accept(const activate_de
 static int _process_activate_default_eps_bearer_context_reject(const activate_default_eps_bearer_context_reject_msg* msg);
 static int _process_deactivate_eps_bearer_context_accept(const deactivate_eps_bearer_context_accept_msg* msg);
 
-static void _dump_buffer(const Byte_t* buffer, size_t len)
+static void _dump_buffer(const uint8_t* buffer, size_t len)
 {
   for (int i = 0; i < len; i++) {
     if ( (i%16) == 0 ) printf("\n\t");
@@ -538,7 +538,7 @@ static int _process_establish_req(const nas_establish_req_t* req,
     if (bytes > 0) {
       /* Setup signalling connection establishment confirm message */
       rsp->errCode = AS_SUCCESS;
-      rsp->nasMsg.data = (Byte_t*)malloc(bytes * sizeof(Byte_t));
+      rsp->nasMsg.data = malloc(bytes * sizeof(uint8_t));
 
       if (rsp->nasMsg.data) {
         rsp->nasMsg.length = bytes;
@@ -618,7 +618,7 @@ static int _process_ul_info_transfer_req(const ul_info_transfer_req_t* req,
     return (AS_UL_INFO_TRANSFER_CNF);
   } else if (bytes > 0) {
     /* Some data has to be sent back to the UE */
-    ind->nasMsg.data = (Byte_t*)malloc(bytes * sizeof(Byte_t));
+    ind->nasMsg.data = malloc(bytes * sizeof(uint8_t));
 
     if (ind->nasMsg.data) {
       ind->nasMsg.length = bytes;
@@ -1258,12 +1258,12 @@ static int _assign_pdn_address(int ue_pdn_type, int is_initial, int* pdn_type, O
   U8 cause = [04] - NET_ESTABLISH_CAUSE_MO_SIGNAL
   U8 type = [10]  - NET_ESTABLISH_TYPE_ORIGINATING_SIGNAL
   plmn_t plmnID = [20 8f 10]
-  Byte_t MCCdigit2:4 = [0]
-  Byte_t MCCdigit1:4 = [2]
-  Byte_t MNCdigit3:4 = [f]
-  Byte_t MCCdigit3:4 = [8]
-  Byte_t MNCdigit2:4 = [0]
-  Byte_t MNCdigit1:4 = [1]
+  uint8_t MCCdigit2:4 = [0]
+  uint8_t MCCdigit1:4 = [2]
+  uint8_t MNCdigit3:4 = [f]
+  uint8_t MCCdigit3:4 = [8]
+  uint8_t MNCdigit2:4 = [0]
+  uint8_t MNCdigit1:4 = [1]
   as_stmsi_t s_tmsi
   U8 MMEcode = [0f]
   U32 m_tmsi = [00 00 00 01]

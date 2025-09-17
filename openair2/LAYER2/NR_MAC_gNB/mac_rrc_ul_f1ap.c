@@ -29,8 +29,9 @@
 
 #include "mac_rrc_ul.h"
 
-#include "f1ap_lib_extern.h"
+#include "lib/f1ap_rrc_message_transfer.h"
 #include "lib/f1ap_interface_management.h"
+#include "lib/f1ap_ue_context.h"
 
 static f1ap_net_config_t read_DU_IP_config(const eth_params_t* f1_params, const char *f1u_ip_addr)
 {
@@ -61,8 +62,7 @@ static void f1_reset_du_initiated_f1ap(const f1ap_reset_t *reset)
 static void f1_reset_acknowledge_cu_initiated_f1ap(const f1ap_reset_ack_t *ack)
 {
   MessageDef *msg = itti_alloc_new_message(TASK_MAC_GNB, 0, F1AP_RESET_ACK);
-  f1ap_reset_ack_t *f1ap_msg = &F1AP_RESET_ACK(msg);
-  *f1ap_msg = *ack;
+  F1AP_RESET_ACK(msg) = cp_f1ap_reset_ack(ack);
   itti_send_msg_to_task(TASK_DU_F1, 0, msg);
 }
 
@@ -82,82 +82,21 @@ static void gnb_du_configuration_update_f1ap(const f1ap_gnb_du_configuration_upd
   f1ap_gnb_du_configuration_update_t cp = cp_f1ap_du_configuration_update(upd);
   /* transfer to ITTI message */
   F1AP_GNB_DU_CONFIGURATION_UPDATE(msg) = cp;
-  /* free after copy */
-  free_f1ap_du_configuration_update(upd);
   /* send to RRC task */
-  itti_send_msg_to_task(TASK_RRC_GNB, 0, msg);
-}
-
-static void ue_context_setup_response_f1ap(const f1ap_ue_context_setup_t *req, const f1ap_ue_context_setup_t *resp)
-{
-  DevAssert(req->drbs_to_be_setup_length == resp->drbs_to_be_setup_length);
-
-  DevAssert(req->srbs_to_be_setup_length == resp->srbs_to_be_setup_length);
-  MessageDef *msg = itti_alloc_new_message (TASK_MAC_GNB, 0, F1AP_UE_CONTEXT_SETUP_RESP);
-  f1ap_ue_context_setup_t *f1ap_msg = &F1AP_UE_CONTEXT_SETUP_RESP(msg);
-  /* copy all fields, but reallocate rrc_containers! */
-  *f1ap_msg = *resp;
-
-  if (resp->srbs_to_be_setup_length > 0) {
-    DevAssert(resp->srbs_to_be_setup != NULL);
-    f1ap_msg->srbs_to_be_setup_length = resp->srbs_to_be_setup_length;
-    f1ap_msg->srbs_to_be_setup = calloc(f1ap_msg->srbs_to_be_setup_length, sizeof(*f1ap_msg->srbs_to_be_setup));
-    for (int i = 0; i < f1ap_msg->srbs_to_be_setup_length; ++i)
-      f1ap_msg->srbs_to_be_setup[i] = resp->srbs_to_be_setup[i];
-  }
-  if (resp->drbs_to_be_setup_length > 0) {
-    DevAssert(resp->drbs_to_be_setup != NULL);
-    f1ap_msg->drbs_to_be_setup_length = resp->drbs_to_be_setup_length;
-    f1ap_msg->drbs_to_be_setup = calloc(f1ap_msg->drbs_to_be_setup_length, sizeof(*f1ap_msg->drbs_to_be_setup));
-    for (int i = 0; i < f1ap_msg->drbs_to_be_setup_length; ++i)
-      f1ap_msg->drbs_to_be_setup[i] = resp->drbs_to_be_setup[i];
-  }
-
-  f1ap_msg->du_to_cu_rrc_information = malloc(sizeof(*resp->du_to_cu_rrc_information));
-  AssertFatal(f1ap_msg->du_to_cu_rrc_information != NULL, "out of memory\n");
-  f1ap_msg->du_to_cu_rrc_information_length = resp->du_to_cu_rrc_information_length;
-  du_to_cu_rrc_information_t *du2cu = f1ap_msg->du_to_cu_rrc_information;
-  du2cu->cellGroupConfig_length = resp->du_to_cu_rrc_information->cellGroupConfig_length;
-  du2cu->cellGroupConfig = calloc(du2cu->cellGroupConfig_length, sizeof(*du2cu->cellGroupConfig));
-  AssertFatal(du2cu->cellGroupConfig != NULL, "out of memory\n");
-  memcpy(du2cu->cellGroupConfig, resp->du_to_cu_rrc_information->cellGroupConfig, du2cu->cellGroupConfig_length);
-
   itti_send_msg_to_task(TASK_DU_F1, 0, msg);
 }
 
-static void ue_context_modification_response_f1ap(const f1ap_ue_context_modif_req_t *req, const f1ap_ue_context_modif_resp_t *resp)
+static void ue_context_setup_response_f1ap(const f1ap_ue_context_setup_resp_t *resp)
+{
+  MessageDef *msg = itti_alloc_new_message (TASK_MAC_GNB, 0, F1AP_UE_CONTEXT_SETUP_RESP);
+  F1AP_UE_CONTEXT_SETUP_RESP(msg) = cp_ue_context_setup_resp(resp);
+  itti_send_msg_to_task(TASK_DU_F1, 0, msg);
+}
+
+static void ue_context_modification_response_f1ap(const f1ap_ue_context_mod_resp_t *resp)
 {
   MessageDef *msg = itti_alloc_new_message(TASK_MAC_GNB, 0, F1AP_UE_CONTEXT_MODIFICATION_RESP);
-  f1ap_ue_context_modif_resp_t *f1ap_msg = &F1AP_UE_CONTEXT_MODIFICATION_RESP(msg);
-  /* copy all fields, but reallocate rrc_containers! */
-  *f1ap_msg = *resp;
-
-  if (resp->srbs_to_be_setup_length > 0) {
-    DevAssert(resp->srbs_to_be_setup != NULL);
-    f1ap_msg->srbs_to_be_setup_length = resp->srbs_to_be_setup_length;
-    f1ap_msg->srbs_to_be_setup = calloc(f1ap_msg->srbs_to_be_setup_length, sizeof(*f1ap_msg->srbs_to_be_setup));
-    for (int i = 0; i < f1ap_msg->srbs_to_be_setup_length; ++i)
-      f1ap_msg->srbs_to_be_setup[i] = resp->srbs_to_be_setup[i];
-  }
-  if (resp->drbs_to_be_setup_length > 0) {
-    DevAssert(resp->drbs_to_be_setup != NULL);
-    f1ap_msg->drbs_to_be_setup_length = resp->drbs_to_be_setup_length;
-    f1ap_msg->drbs_to_be_setup = calloc(f1ap_msg->drbs_to_be_setup_length, sizeof(*f1ap_msg->drbs_to_be_setup));
-    for (int i = 0; i < f1ap_msg->drbs_to_be_setup_length; ++i)
-      f1ap_msg->drbs_to_be_setup[i] = resp->drbs_to_be_setup[i];
-  }
-
-  if (resp->du_to_cu_rrc_information != NULL) {
-    f1ap_msg->du_to_cu_rrc_information = calloc(1, sizeof(*resp->du_to_cu_rrc_information));
-    AssertFatal(f1ap_msg->du_to_cu_rrc_information != NULL, "out of memory\n");
-    f1ap_msg->du_to_cu_rrc_information_length = resp->du_to_cu_rrc_information_length;
-    du_to_cu_rrc_information_t *du2cu = f1ap_msg->du_to_cu_rrc_information;
-    du2cu->cellGroupConfig_length = resp->du_to_cu_rrc_information->cellGroupConfig_length;
-    du2cu->cellGroupConfig = calloc(du2cu->cellGroupConfig_length, sizeof(*du2cu->cellGroupConfig));
-    AssertFatal(du2cu->cellGroupConfig != NULL, "out of memory\n");
-    memcpy(du2cu->cellGroupConfig, resp->du_to_cu_rrc_information->cellGroupConfig, du2cu->cellGroupConfig_length);
-  }
-
+  F1AP_UE_CONTEXT_MODIFICATION_RESP(msg) = cp_ue_context_mod_resp(resp);
   itti_send_msg_to_task(TASK_DU_F1, 0, msg);
 }
 
@@ -178,7 +117,6 @@ static void ue_context_modification_required_f1ap(const f1ap_ue_context_modif_re
     du2cu->cellGroupConfig = malloc(du2cu->cellGroupConfig_length * sizeof(*du2cu->cellGroupConfig));
     AssertFatal(du2cu->cellGroupConfig != NULL, "out of memory\n");
     memcpy(du2cu->cellGroupConfig, required->du_to_cu_rrc_information->cellGroupConfig, du2cu->cellGroupConfig_length);
-    AssertFatal(required->du_to_cu_rrc_information->measGapConfig == NULL && required->du_to_cu_rrc_information->measGapConfig_length == 0, "not handled yet\n");
     AssertFatal(required->du_to_cu_rrc_information->requestedP_MaxFR1 == NULL && required->du_to_cu_rrc_information->requestedP_MaxFR1_length == 0, "not handled yet\n");
   }
   f1ap_msg->cause = required->cause;
@@ -186,21 +124,19 @@ static void ue_context_modification_required_f1ap(const f1ap_ue_context_modif_re
   itti_send_msg_to_task(TASK_DU_F1, 0, msg);
 }
 
-static void ue_context_release_request_f1ap(const f1ap_ue_context_release_req_t* req)
+static void ue_context_release_request_f1ap(const f1ap_ue_context_rel_req_t* req)
 {
   MessageDef *msg = itti_alloc_new_message(TASK_MAC_GNB, 0, F1AP_UE_CONTEXT_RELEASE_REQ);
-  f1ap_ue_context_release_req_t *f1ap_msg = &F1AP_UE_CONTEXT_RELEASE_REQ(msg);
-  *f1ap_msg = *req;
+  F1AP_UE_CONTEXT_RELEASE_REQ(msg) = cp_ue_context_rel_req(req);
   itti_send_msg_to_task(TASK_DU_F1, 0, msg);
 }
 
-static void ue_context_release_complete_f1ap(const f1ap_ue_context_release_complete_t *complete)
+static void ue_context_release_complete_f1ap(const f1ap_ue_context_rel_cplt_t *complete)
 {
   newGtpuDeleteAllTunnels(0, complete->gNB_DU_ue_id);
 
   MessageDef *msg = itti_alloc_new_message(TASK_MAC_GNB, 0, F1AP_UE_CONTEXT_RELEASE_COMPLETE);
-  f1ap_ue_context_release_complete_t *f1ap_msg = &F1AP_UE_CONTEXT_RELEASE_COMPLETE(msg);
-  *f1ap_msg = *complete;
+  F1AP_UE_CONTEXT_RELEASE_COMPLETE(msg) = cp_ue_context_rel_cplt(complete);
   itti_send_msg_to_task(TASK_DU_F1, 0, msg);
 }
 

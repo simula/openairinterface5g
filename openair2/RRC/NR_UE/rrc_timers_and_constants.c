@@ -45,80 +45,80 @@ void init_SI_timers(NR_UE_RRC_SI_INFO *SInfo)
 
 void nr_rrc_SI_timers(NR_UE_RRC_SI_INFO *SInfo)
 {
-  if (SInfo->sib1) {
+  if (SInfo->sib1_validity) {
    bool sib1_expired = nr_timer_tick(&SInfo->sib1_timer);
    if (sib1_expired)
-     asn1cFreeStruc(asn_DEF_NR_SIB1, SInfo->sib1);
+     SInfo->sib1_validity = false;
   }
-  if (SInfo->sib2) {
+  if (SInfo->sib2_validity) {
    bool sib2_expired = nr_timer_tick(&SInfo->sib2_timer);
    if (sib2_expired)
-     asn1cFreeStruc(asn_DEF_NR_SIB2, SInfo->sib2);
+     SInfo->sib2_validity = false;
   }
-  if (SInfo->sib3) {
+  if (SInfo->sib3_validity) {
    bool sib3_expired = nr_timer_tick(&SInfo->sib3_timer);
    if (sib3_expired)
-     asn1cFreeStruc(asn_DEF_NR_SIB3, SInfo->sib3);
+     SInfo->sib3_validity = false;
   }
-  if (SInfo->sib4) {
+  if (SInfo->sib4_validity) {
    bool sib4_expired = nr_timer_tick(&SInfo->sib4_timer);
    if (sib4_expired)
-     asn1cFreeStruc(asn_DEF_NR_SIB4, SInfo->sib4);
+     SInfo->sib4_validity = false;
   }
-  if (SInfo->sib5) {
+  if (SInfo->sib5_validity) {
    bool sib5_expired = nr_timer_tick(&SInfo->sib5_timer);
    if (sib5_expired)
-     asn1cFreeStruc(asn_DEF_NR_SIB5, SInfo->sib5);
+     SInfo->sib5_validity = false;
   }
-  if (SInfo->sib6) {
+  if (SInfo->sib6_validity) {
    bool sib6_expired = nr_timer_tick(&SInfo->sib6_timer);
    if (sib6_expired)
-     asn1cFreeStruc(asn_DEF_NR_SIB6, SInfo->sib6);
+     SInfo->sib6_validity = false;
   }
-  if (SInfo->sib7) {
+  if (SInfo->sib7_validity) {
    bool sib7_expired = nr_timer_tick(&SInfo->sib7_timer);
    if (sib7_expired)
-     asn1cFreeStruc(asn_DEF_NR_SIB7, SInfo->sib7);
+     SInfo->sib7_validity = false;
   }
-  if (SInfo->sib8) {
+  if (SInfo->sib8_validity) {
    bool sib8_expired = nr_timer_tick(&SInfo->sib8_timer);
    if (sib8_expired)
-     asn1cFreeStruc(asn_DEF_NR_SIB8, SInfo->sib8);
+     SInfo->sib8_validity = false;
   }
-  if (SInfo->sib9) {
+  if (SInfo->sib9_validity) {
    bool sib9_expired = nr_timer_tick(&SInfo->sib9_timer);
    if (sib9_expired)
-     asn1cFreeStruc(asn_DEF_NR_SIB9, SInfo->sib9);
+     SInfo->sib9_validity = false;
   }
-  if (SInfo->sib10) {
+  if (SInfo->sib10_validity) {
    bool sib10_expired = nr_timer_tick(&SInfo->sib10_timer);
    if (sib10_expired)
-     asn1cFreeStruc(asn_DEF_NR_SIB10_r16, SInfo->sib10);
+     SInfo->sib10_validity = false;
   }
-  if (SInfo->sib11) {
+  if (SInfo->sib11_validity) {
    bool sib11_expired = nr_timer_tick(&SInfo->sib11_timer);
    if (sib11_expired)
-     asn1cFreeStruc(asn_DEF_NR_SIB11_r16, SInfo->sib11);
+     SInfo->sib11_validity = false;
   }
-  if (SInfo->sib12) {
+  if (SInfo->sib12_validity) {
    bool sib12_expired = nr_timer_tick(&SInfo->sib12_timer);
    if (sib12_expired)
-     asn1cFreeStruc(asn_DEF_NR_SIB12_r16, SInfo->sib12);
+     SInfo->sib12_validity = false;
   }
-  if (SInfo->sib13) {
+  if (SInfo->sib13_validity) {
    bool sib13_expired = nr_timer_tick(&SInfo->sib13_timer);
    if (sib13_expired)
-     asn1cFreeStruc(asn_DEF_NR_SIB13_r16, SInfo->sib13);
+     SInfo->sib13_validity = false;
   }
-  if (SInfo->sib14) {
+  if (SInfo->sib14_validity) {
    bool sib14_expired = nr_timer_tick(&SInfo->sib14_timer);
    if (sib14_expired)
-     asn1cFreeStruc(asn_DEF_NR_SIB14_r16, SInfo->sib14);
+     SInfo->sib14_validity = false;
   }
-  if (SInfo->SInfo_r17.sib19) {
+  if (SInfo->SInfo_r17.sib19_validity) {
    bool sib19_expired = nr_timer_tick(&SInfo->SInfo_r17.sib19_timer);
    if (sib19_expired)
-     asn1cFreeStruc(asn_DEF_NR_SIB19_r17, SInfo->SInfo_r17.sib19);
+     SInfo->SInfo_r17.sib19_validity = false;
   }
 }
 
@@ -144,6 +144,14 @@ void nr_rrc_handle_timers(NR_UE_RRC_INST_t *rrc)
     nr_rrc_going_to_IDLE(rrc, RRC_CONNECTION_FAILURE, NULL);
   }
 
+  bool t302_expired = nr_timer_tick(&timers->T302);
+  // 5.3.14.4 in 38.331
+  // consider the barring for this Access Category to be alleviated
+  if (t302_expired) {
+    LOG_W(NR_RRC, "Timer T302 expired! Access barring alleviated!\n");
+    handle_302_expired_stopped(rrc);
+  }
+
   bool t304_expired = nr_timer_tick(&timers->T304);
   if(t304_expired) {
     LOG_W(NR_RRC, "Timer T304 expired\n");
@@ -157,10 +165,9 @@ void nr_rrc_handle_timers(NR_UE_RRC_INST_t *rrc)
   bool t310_expired = nr_timer_tick(&timers->T310);
   if(t310_expired) {
     LOG_W(NR_RRC, "Timer T310 expired\n");
-    // TODO
     // handle detection of radio link failure
     // as described in 5.3.10.3 of 38.331
-    AssertFatal(false, "Radio link failure! Not handled yet!\n");
+    handle_rlf_detection(rrc);
   }
 
   bool t311_expired = nr_timer_tick(&timers->T311);
@@ -169,6 +176,14 @@ void nr_rrc_handle_timers(NR_UE_RRC_INST_t *rrc)
     // Upon T311 expiry, the UE shall perform the actions upon going to RRC_IDLE
     // with release cause 'RRC connection failure'
     nr_rrc_going_to_IDLE(rrc, RRC_CONNECTION_FAILURE, NULL);
+  }
+
+  bool t430_expired = nr_timer_tick(&rrc->timers_and_constants.T430);
+  if (t430_expired && rrc->nrRrcState == RRC_STATE_CONNECTED_NR && rrc->is_NTN_UE) {
+    LOG_W(NR_RRC, "Timer T430 expired! Indicate UL SYNC LOSS to MAC\n");
+    // Upon T430 expiry, the UE shall reacquire SIB19 and re-obtain UL-SYNC
+    // Spec 38.331 Section 5.2.2.6
+    handle_t430_expiry(rrc);
   }
 }
 
@@ -206,11 +221,11 @@ int nr_rrc_get_T304(long t304)
   return target;
 }
 
-void set_rlf_sib1_timers_and_constants(NR_UE_Timers_Constants_t *tac, NR_SIB1_t *sib1)
+void set_rlf_sib1_timers_and_constants(NR_UE_Timers_Constants_t *tac, NR_UE_TimersAndConstants_t *ue_TimersAndConstants)
 {
-  if(sib1 && sib1->ue_TimersAndConstants) {
+  if(ue_TimersAndConstants) {
     int k = 0;
-    switch (sib1->ue_TimersAndConstants->t301) {
+    switch (ue_TimersAndConstants->t301) {
       case NR_UE_TimersAndConstants__t301_ms100 :
         k = 100;
         break;
@@ -236,10 +251,10 @@ void set_rlf_sib1_timers_and_constants(NR_UE_Timers_Constants_t *tac, NR_SIB1_t 
         k = 2000;
         break;
       default :
-        AssertFatal(false, "Invalid T301 %ld\n", sib1->ue_TimersAndConstants->t301);
+        AssertFatal(false, "Invalid T301 %ld\n", ue_TimersAndConstants->t301);
     }
     nr_timer_setup(&tac->T301, k, 10); // 10ms step
-    switch (sib1->ue_TimersAndConstants->t310) {
+    switch (ue_TimersAndConstants->t310) {
       case NR_UE_TimersAndConstants__t310_ms0 :
         k = 0;
         break;
@@ -262,10 +277,10 @@ void set_rlf_sib1_timers_and_constants(NR_UE_Timers_Constants_t *tac, NR_SIB1_t 
         k = 2000;
         break;
       default :
-        AssertFatal(false, "Invalid T310 %ld\n", sib1->ue_TimersAndConstants->t310);
+        AssertFatal(false, "Invalid T310 %ld\n", ue_TimersAndConstants->t310);
     }
     nr_timer_setup(&tac->T310, k, 10); // 10ms step
-    switch (sib1->ue_TimersAndConstants->t311) {
+    switch (ue_TimersAndConstants->t311) {
       case NR_UE_TimersAndConstants__t311_ms1000 :
         k = 1000;
         break;
@@ -288,10 +303,10 @@ void set_rlf_sib1_timers_and_constants(NR_UE_Timers_Constants_t *tac, NR_SIB1_t 
         k = 30000;
         break;
       default :
-        AssertFatal(false, "Invalid T311 %ld\n", sib1->ue_TimersAndConstants->t311);
+        AssertFatal(false, "Invalid T311 %ld\n", ue_TimersAndConstants->t311);
     }
     nr_timer_setup(&tac->T311, k, 10); // 10ms step
-    switch (sib1->ue_TimersAndConstants->n310) {
+    switch (ue_TimersAndConstants->n310) {
       case NR_UE_TimersAndConstants__n310_n1 :
         tac->N310_k = 1;
         break;
@@ -317,9 +332,9 @@ void set_rlf_sib1_timers_and_constants(NR_UE_Timers_Constants_t *tac, NR_SIB1_t 
         tac->N310_k = 20;
         break;
       default :
-        AssertFatal(false, "Invalid N310 %ld\n", sib1->ue_TimersAndConstants->n310);
+        AssertFatal(false, "Invalid N310 %ld\n", ue_TimersAndConstants->n310);
     }
-    switch (sib1->ue_TimersAndConstants->n311) {
+    switch (ue_TimersAndConstants->n311) {
       case NR_UE_TimersAndConstants__n311_n1 :
         tac->N311_k = 1;
         break;
@@ -345,16 +360,16 @@ void set_rlf_sib1_timers_and_constants(NR_UE_Timers_Constants_t *tac, NR_SIB1_t 
         tac->N311_k = 10;
         break;
       default :
-        AssertFatal(false, "Invalid N311 %ld\n", sib1->ue_TimersAndConstants->n311);
+        AssertFatal(false, "Invalid N311 %ld\n", ue_TimersAndConstants->n311);
     }
   }
   else
-    LOG_E(NR_RRC,"SIB1 should not be NULL and neither UE_Timers_Constants\n");
+    LOG_E(NR_RRC,"UE_Timers_Constants should not be NULL\n");
 }
 
 void nr_rrc_set_sib1_timers_and_constants(NR_UE_Timers_Constants_t *tac, NR_SIB1_t *sib1)
 {
-  set_rlf_sib1_timers_and_constants(tac, sib1);
+  set_rlf_sib1_timers_and_constants(tac, sib1->ue_TimersAndConstants);
   if(sib1 && sib1->ue_TimersAndConstants) {
     int k = 0;
     switch (sib1->ue_TimersAndConstants->t300) {
@@ -431,7 +446,7 @@ void nr_rrc_handle_SetupRelease_RLF_TimersAndConstants(NR_UE_RRC_INST_t *rrc,
   switch(rlf_TimersAndConstants->present){
     case NR_SetupRelease_RLF_TimersAndConstants_PR_release :
       // use values for timers T301, T310, T311 and constants N310, N311, as included in ue-TimersAndConstants received in SIB1
-      set_rlf_sib1_timers_and_constants(tac, rrc->perNB[0].SInfo.sib1);
+      set_rlf_sib1_timers_and_constants(tac, rrc->timers_and_constants.sib1_TimersAndConstants);
       break;
     case NR_SetupRelease_RLF_TimersAndConstants_PR_setup :
       rlf_tac = rlf_TimersAndConstants->choice.setup;

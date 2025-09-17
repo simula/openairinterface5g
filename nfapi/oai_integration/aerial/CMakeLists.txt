@@ -3,7 +3,6 @@ if (OAI_AERIAL)
     add_library(aerial_lib
             fapi_nvIPC.c
             fapi_vnf_p7.c
-            fapi_vnf_p5.c
     )
 
     find_library(NVIPC_LIB nvipc REQUIRED)
@@ -21,7 +20,7 @@ if (OAI_AERIAL)
     endif ()
     target_compile_definitions(aerial_lib PUBLIC ENABLE_L2_SLT_RSP)
     target_link_libraries(aerial_lib PRIVATE asn1_lte_rrc_hdrs asn1_nr_rrc_hdrs)
-    target_link_libraries(aerial_lib PRIVATE nr_fapi_p5)
+    target_link_libraries(aerial_lib PRIVATE nr_fapi_p5 nr_fapi_p7)
     target_link_libraries(aerial_lib PRIVATE "${NVLOG_LIB}" "${NVIPC_LIB}")
 else ()
     message(STATUS "No Support for Aerial")

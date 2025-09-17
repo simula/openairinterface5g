@@ -59,8 +59,6 @@ RAN_CONTEXT_t RC;
 int32_t uplink_frequency_offset[MAX_NUM_CCs][4];
 
 double cpuf;
-//uint8_t nfapi_mode = 0;
-const int NB_UE_INST = 1;
 
 // needed for some functions
 openair0_config_t openair0_cfg[MAX_CARDS];
@@ -77,8 +75,6 @@ void deref_sched_response(int _)
   LOG_E(PHY, "fatal\n");
   exit(1);
 }
-
-uint64_t get_softmodem_optmask(void) {return 0;}
 static softmodem_params_t softmodem_params;
 softmodem_params_t *get_softmodem_params(void) {
   return &softmodem_params;
@@ -125,59 +121,13 @@ int nr_ue_pdcch_procedures(PHY_VARS_NR_UE *ue,
   return 0;
 }
 
-void nr_phy_config_request_sim_pbchsim(PHY_VARS_gNB *gNB,
-                               int N_RB_DL,
-                               int N_RB_UL,
-                               int mu,
-                               int Nid_cell,
-                               uint64_t position_in_burst)
-{
-  NR_DL_FRAME_PARMS *fp                                   = &gNB->frame_parms;
-  nfapi_nr_config_request_scf_t *gNB_config               = &gNB->gNB_config;
-  //overwrite for new NR parameters
-
-  uint64_t rev_burst=0;
-  for (int i=0; i<64; i++)
-    rev_burst |= (((position_in_burst>>(63-i))&0x01)<<i);
-
-  gNB_config->cell_config.phy_cell_id.value             = Nid_cell;
-  gNB_config->ssb_config.scs_common.value               = mu;
-  gNB_config->ssb_table.ssb_subcarrier_offset.value     = 0;
-  gNB_config->ssb_table.ssb_offset_point_a.value        = (N_RB_DL-20)>>1;
-  gNB_config->ssb_table.ssb_mask_list[1].ssb_mask.value = (rev_burst)&(0xFFFFFFFF);
-  gNB_config->ssb_table.ssb_mask_list[0].ssb_mask.value = (rev_burst>>32)&(0xFFFFFFFF);
-  gNB_config->cell_config.frame_duplex_type.value       = TDD;
-  gNB_config->ssb_table.ssb_period.value		= 1; //10ms
-  gNB_config->carrier_config.dl_grid_size[mu].value     = N_RB_DL;
-  gNB_config->carrier_config.ul_grid_size[mu].value     = N_RB_UL;
-  gNB_config->carrier_config.num_tx_ant.value           = fp->nb_antennas_tx;
-  gNB_config->carrier_config.num_rx_ant.value           = fp->nb_antennas_rx;
-
-  gNB_config->tdd_table.tdd_period.value = 0;
-  //gNB_config->subframe_config.dl_cyclic_prefix_type.value = (fp->Ncp == NORMAL) ? NFAPI_CP_NORMAL : NFAPI_CP_EXTENDED;
-
-  fp->dl_CarrierFreq = 3600000000;//from_nrarfcn(gNB_config->nfapi_config.rf_bands.rf_band[0],gNB_config->nfapi_config.nrarfcn.value);
-  fp->ul_CarrierFreq = 3600000000;//fp->dl_CarrierFreq - (get_uldl_offset(gNB_config->nfapi_config.rf_bands.rf_band[0])*100000);
-  if (mu>2) fp->nr_band = 257;
-  else fp->nr_band = 78;
-  fp->threequarter_fs= 0;
-  frequency_range_t frequency_range = fp->nr_band > 256 ? FR2 : FR1;
-  int bw_index = get_supported_band_index(mu, frequency_range, N_RB_DL);
-  gNB_config->carrier_config.dl_bandwidth.value = get_supported_bw_mhz(frequency_range, bw_index);
-
-  fp->ofdm_offset_divisor = UINT_MAX;
-  nr_init_frame_parms(gNB_config, fp);
-  init_timeshift_rotation(fp);
-
-  init_symbol_rotation(fp);
-
-  gNB->configured    = 1;
-  LOG_I(PHY,"gNB configured\n");
-}
 configmodule_interface_t *uniqCfg = NULL;
 int main(int argc, char **argv)
 {
-  char c;
+  stop = false;
+  __attribute__((unused)) struct sigaction oldaction;
+  sigaction(SIGINT, &sigint_action, &oldaction);
+
   int i,aa,start_symbol;
   double sigma2, sigma2_dB=10,SNR,snr0=-2.0,snr1=2.0;
   double cfo=0;
@@ -196,6 +146,7 @@ int main(int argc, char **argv)
   //  int subframe_offset;
   //  char fname[40], vname[40];
   int trial,n_trials=1,n_errors=0,n_errors_payload=0;
+  int ret_test = 1;
   uint8_t transmission_mode = 1,n_tx=1,n_rx=1;
   uint16_t Nid_cell=0;
   uint64_t SSB_positions=0x01;
@@ -203,8 +154,6 @@ int main(int argc, char **argv)
   int ssb_scan_threads = 0;
 
   channel_desc_t *gNB2UE;
-  get_softmodem_params()->sa = 1;
-  get_softmodem_params()->usim_test = 1;
 
   //uint8_t extended_prefix_flag=0;
   //int8_t interf1=-21,interf2=-21;
@@ -246,6 +195,7 @@ int main(int argc, char **argv)
     exit_fun("[NR_PBCHSIM] Error, configuration module init failed\n");
   }
 
+  int c;
   while ((c = getopt (argc, argv, "--:O:c:F:g:hIL:m:M:n:N:o:P:r:R:s:S:x:y:z:")) != -1) {
 
     /* ignore long options starting with '--', option '-O' and their arguments that are handled by configmodule */
@@ -499,9 +449,11 @@ int main(int argc, char **argv)
   frame_parms->ssb_type = nr_ssb_type_C;
   frame_parms->freq_range = mu<2 ? FR1 : FR2;
 
-  nr_phy_config_request_sim_pbchsim(gNB,N_RB_DL,N_RB_DL,mu,Nid_cell,SSB_positions);
+  nr_phy_config_request_sim(gNB, N_RB_DL, N_RB_DL, mu, Nid_cell, SSB_positions);
+  // TDD configuration
   gNB->gNB_config.tdd_table.tdd_period.value = 6;
-  set_tdd_config_nr(&gNB->gNB_config, mu, 7, 6, 2, 4);
+  do_tdd_config_sim(gNB, mu);
+
   phy_init_nr_gNB(gNB);
   frame_parms->ssb_start_subcarrier = 12 * gNB->gNB_config.ssb_table.ssb_offset_point_a.value + ssb_subcarrier_offset;
   initFloatingCoresTpool(ssb_scan_threads, &nrUE_params.Tpool, false, "UE-tpool");
@@ -511,40 +463,10 @@ int main(int argc, char **argv)
 
   double fs=0, eps;
   double scs = 30000;
-  double bw = 100e6;
-  
-  switch (mu) {
-    case 1:
-      scs = 30000;
-      frame_parms->Lmax = 8;
-      if (N_RB_DL == 217) {
-        fs = 122.88e6;
-        bw = 80e6;
-      }
-      else if (N_RB_DL == 245) {
-        fs = 122.88e6;
-        bw = 90e6;
-      }
-      else if (N_RB_DL == 273) {
-        fs = 122.88e6;
-        bw = 100e6;
-      }
-      else if (N_RB_DL == 106) {
-        fs = 61.44e6;
-        bw = 40e6;
-      }
-      else AssertFatal(1==0,"Unsupported numerology for mu %d, N_RB %d\n",mu, N_RB_DL);
-      break;
-    case 3:
-      frame_parms->Lmax = 64;
-      scs = 120000;
-      if (N_RB_DL == 66) {
-        fs = 122.88e6;
-        bw = 100e6;
-      }
-      else AssertFatal(1==0,"Unsupported numerology for mu %d, N_RB %d\n",mu, N_RB_DL);
-      break;
-  }
+  double txbw, rxbw;
+  uint32_t samples;
+
+  get_samplerate_and_bw(mu, N_RB_DL, frame_parms->threequarter_fs, &fs, &samples, &txbw, &rxbw);
 
   // cfo with respect to sub-carrier spacing
   eps = cfo/scs;
@@ -560,19 +482,7 @@ int main(int argc, char **argv)
 	printf("FFO = %lf; IFO = %d\n",eps-IFO,IFO);
   }
 
-  gNB2UE = new_channel_desc_scm(n_tx,
-                                n_rx,
-                                channel_model,
-                                fs,
-                                0,
-                                bw,
-                                300e-9,
-                                0.0,
-                                CORR_LEVEL_LOW,
-                                0,
-                                0,
-                                0,
-                                0);
+  gNB2UE = new_channel_desc_scm(n_tx, n_rx, channel_model, fs, 0, txbw, 300e-9, 0.0, CORR_LEVEL_LOW, 0, 0, 0, 0);
 
   if (gNB2UE==NULL) {
 	printf("Problem generating channel model. Exiting.\n");
@@ -715,12 +625,12 @@ int main(int argc, char **argv)
   printf("txlev %d (%f)\n",txlev,10*log10(txlev));*/
 
   
-  for (SNR=snr0; SNR<snr1; SNR+=.2) {
+  for (SNR = snr0; SNR < snr1 && !stop; SNR+=.2) {
 
     n_errors = 0;
     n_errors_payload = 0;
 
-    for (trial=0; trial<n_trials; trial++) {
+    for (trial = 0; trial < n_trials && !stop; trial++) {
 
       for (i=0; i<frame_length_complex_samples; i++) {
         for (aa=0; aa<frame_parms->nb_antennas_tx; aa++) {
@@ -861,6 +771,7 @@ int main(int argc, char **argv)
 
     if (((float)n_errors/(float)n_trials <= target_error_rate) && (n_errors_payload==0)) {
       printf("PBCH test OK\n");
+      ret_test = 0;
       break;
     }
       
@@ -871,7 +782,7 @@ int main(int argc, char **argv)
 
   free_channel_desc_scm(gNB2UE);
 
-  int nb_slots_to_set = TDD_CONFIG_NB_FRAMES * (1 << mu) * NR_NUMBER_OF_SUBFRAMES_PER_FRAME;
+  int nb_slots_to_set = (1 << mu) * NR_NUMBER_OF_SUBFRAMES_PER_FRAME;
   for (int i = 0; i < nb_slots_to_set; ++i)
     free(gNB->gNB_config.tdd_table.max_tdd_periodicity_list[i].max_num_of_symbol_per_slot_list);
   free(gNB->gNB_config.tdd_table.max_tdd_periodicity_list);
@@ -906,6 +817,6 @@ int main(int argc, char **argv)
   loader_reset();
   logTerm();
 
-  return(n_errors);
+  return ret_test;
 
 }

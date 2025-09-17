@@ -434,7 +434,7 @@ typedef struct timer_elm_s {
   void itti_send_terminate_message(task_id_t task_id) {
   }
 
-  sem_t itti_sem_block;
+  static sem_t itti_sem_block;
   void itti_wait_tasks_unblock()
   {
     int rc = sem_post(&itti_sem_block);
@@ -475,41 +475,5 @@ typedef struct timer_elm_s {
     return 0;
   }
 
-void log_scheduler(const char* label)
-{
-    int policy = sched_getscheduler(0);
-    struct sched_param param;
-    if (sched_getparam(0, &param) == -1)
-    {
-        LOG_E(HW, "sched_getparam: %s\n", strerror(errno));
-        abort();
-    }
-
-    cpu_set_t cpu_set;
-    if (sched_getaffinity(0, sizeof(cpu_set), &cpu_set) == -1)
-    {
-        LOG_E(HW, "sched_getaffinity: %s\n", strerror(errno));
-        abort();
-    }
-    int num_cpus = sysconf(_SC_NPROCESSORS_ONLN);
-    if (num_cpus < 1)
-    {
-        LOG_E(HW, "sysconf(_SC_NPROCESSORS_ONLN): %s\n", strerror(errno));
-        abort();
-    }
-    char buffer[num_cpus];
-    for (int i = 0; i < num_cpus; i++)
-    {
-        buffer[i] = CPU_ISSET(i, &cpu_set) ? 'Y' : '-';
-    }
-
-    LOG_A(HW, "Scheduler policy=%d priority=%d affinity=[%d]%.*s label=%s\n",
-          policy,
-          param.sched_priority,
-          num_cpus,
-          num_cpus,
-          buffer,
-          label);
-}
 } // extern "C"
 

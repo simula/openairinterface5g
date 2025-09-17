@@ -449,7 +449,7 @@ void generate_Msg2(module_id_t module_idP,
         add_msg3 (module_idP, CC_idP, ra, frameP, subframeP);
         ra->eRA_state = WAITMSG3;
         /* DL request */
-        LOG_D(MAC, "[eNB %d][RAPROC] Frame %d, Subframe %d : In generate_Msg2, Programming TX Req\n",
+        LOG_I(MAC, "[eNB %d][RAPROC] Frame %d, Subframe %d : In generate_Msg2, Programming TX Req\n",
               module_idP,
               frameP,
               subframeP);
@@ -465,12 +465,13 @@ void generate_Msg2(module_id_t module_idP,
     }
   } else {
     if ((ra->Msg2_frame == frameP) && (ra->Msg2_subframe == subframeP)) {
-      LOG_D(MAC,
-            "[eNB %d] CC_id %d Frame %d, subframeP %d: Generating RAR DCI, state %s\n",
+      LOG_I(MAC,
+            "[eNB %d] CC_id %d Frame %d, subframeP %d: Generating RAR DCI for rnti %x, state %s\n",
             module_idP,
             CC_idP,
             frameP,
             subframeP,
+            ra->RA_rnti,
             era_text[ra->eRA_state]);
       // Allocate 4 PRBS starting in RB 0
       first_rb = 0;
@@ -1227,7 +1228,7 @@ check_Msg4_retransmission(module_id_t module_idP, int CC_idP,
       }     // Msg4 frame/subframe
     }     // regular LTE case
   } else {
-    LOG_D(MAC,
+    LOG_I(MAC,
           "[eNB %d][RAPROC] CC_id %d Frame %d, subframeP %d : Msg4 acknowledged\n",
           module_idP, CC_idP, frameP, subframeP);
     ra->eRA_state = IDLE;
@@ -1284,7 +1285,7 @@ initiate_ra_proc(module_id_t module_idP,
                 ) {
   uint8_t i;
   COMMON_channels_t *cc = &RC.mac[module_idP]->common_channels[CC_id];
-  RA_t *ra = &cc->ra[0];
+  RA_t *ra = cc->ra;
   struct LTE_PRACH_ConfigSIB_v1310 *ext4_prach = NULL;
   LTE_PRACH_ParametersListCE_r13_t *prach_ParametersListCE_r13 = NULL;
 
@@ -1451,7 +1452,7 @@ cancel_ra_proc(module_id_t module_idP, int CC_id, frame_t frameP,
                rnti_t rnti) {
   unsigned char i;
   RA_t *ra = (RA_t *) & RC.mac[module_idP]->common_channels[CC_id].ra[0];
-  LOG_D(MAC,
+  LOG_I(MAC,
         "[eNB %d][RAPROC] CC_id %d Frame %d Cancelling RA procedure for UE rnti %x\n",
         module_idP, CC_id, frameP, rnti);
 
@@ -1472,7 +1473,7 @@ void clear_ra_proc(module_id_t module_idP, int CC_id, frame_t frameP) {
   RA_t *ra = (RA_t *) & RC.mac[module_idP]->common_channels[CC_id].ra[0];
 
   for (i = 0; i < NB_RA_PROC_MAX; i++) {
-    LOG_D(MAC,"[eNB %d][RAPROC] CC_id %d Frame %d Clear Random access information rnti %x\n", module_idP, CC_id, frameP, ra[i].rnti);
+    LOG_I(MAC,"[eNB %d][RAPROC] CC_id %d Frame %d Clear Random access information rnti %x\n", module_idP, CC_id, frameP, ra[i].rnti);
     ra[i].eRA_state = IDLE;
     ra[i].timing_offset = 0;
     ra[i].RRC_timer = 20;

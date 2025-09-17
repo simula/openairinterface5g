@@ -1,0 +1,2706 @@
+module o-ran-uplane-conf {
+  yang-version 1.1;
+  namespace "urn:o-ran:uplane-conf:1.0";
+  prefix "o-ran-uplane-conf";
+
+  import o-ran-processing-element {
+    prefix "o-ran-pe";
+  }
+
+  import ietf-interfaces {
+    prefix "if";
+  }
+
+  import o-ran-module-cap {
+    prefix "mcap";
+    revision-date 2020-08-10;
+  }
+
+  import o-ran-compression-factors {
+    prefix "cf";
+    revision-date 2020-08-10;
+  }
+
+  organization "O-RAN Alliance";
+
+  contact
+    "www.o-ran.org";
+
+  description
+    "This module defines the module capabilities for
+    the O-RAN Radio Unit U-Plane configuration.
+
+    Copyright 2020 the O-RAN Alliance.
+
+    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS 'AS IS'
+    AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+    IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+    ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+    LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+    CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+    SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+    INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+    CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+    ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+    POSSIBILITY OF SUCH DAMAGE.
+
+    Redistribution and use in source and binary forms, with or without
+    modification, are permitted provided that the following conditions are met:
+
+    * Redistributions of source code must retain the above copyright notice,
+    this list of conditions and the above disclaimer.
+    * Redistributions in binary form must reproduce the above copyright notice,
+    this list of conditions and the above disclaimer in the documentation
+    and/or other materials provided with the distribution.
+    * Neither the Members of the O-RAN Alliance nor the names of its
+    contributors may be used to endorse or promote products derived from
+    this software without specific prior written permission.";
+
+
+  revision "2020-08-10" {
+    description
+      "version 4.0.0
+
+      1) parameters allowing for static PRACH configuration introduced
+      2) parameters allowing for static SRS configuration introduced
+      3) parameters allowing for configuration of TDD pattern introduced
+      4) Backward compatible change to introduce new parameter 'coupling-method' related
+         to Section Description Priority to serve for CUS-Plane CR";
+
+    reference "ORAN-WG4.M.0-v04.00";
+  }
+
+  revision "2020-04-17" {
+    description
+      "version 3.0.0
+
+      1) Adding optional little endian support
+      2) Adding a new capability parameter to indicate that the O-RU
+      supports regularizationFactor in section type 5
+      3) Added support for Dynamic Spectrum Sharing feature
+      4) Clarify the supported number of reMasks in RU side
+      5) Section extension for grouping multiple ports
+      6) adding PRACH formats to endpoint capabilities";
+
+    reference "ORAN-WG4.M.0-v03.00";
+  }
+
+  revision "2019-07-03" {
+    description
+      "version 1.1.0
+
+      1) added new leaf multiple-numerology-supported to enable O-RU to report
+         whether it supports multiple numerologies.
+
+      2) fixing broken constraints (configuration cannot be dependent on
+        operational state). This is a backwards incompatible revision.
+
+       As these constraints only apply when the LAA feature is used, and also
+       when considering the limited number of implementation that need to be
+       taken into consideration for backwards compatibility, it has been
+       agreed to NOT increment the namespace integer.
+
+      3) added frequency related capabilities for tx-arrays and rx-array
+
+      4) removed redundant LAA import";
+
+    reference "ORAN-WG4.M.0-v01.00";
+  }
+
+  revision "2019-02-04" {
+    description
+      "version 1.0.0
+
+      1) imported model from xRAN
+      2) changed namespace and reference from xran to o-ran";
+
+    reference "ORAN-WG4.M.0-v01.00";
+  }
+
+  feature EAXC-GAIN-CORRECTION {
+    description
+      "Presence of feature indicates that O-RU supports eAxC specific gain correction.";
+  }
+
+  feature TX-REFERENCE-LEVEL {
+    description
+      "Presence of feature indicates that O-RU supports TX gain reference level control";
+  }
+
+  typedef prach-preamble-format {
+    type enumeration {
+      enum LTE-0 {
+        description
+          "LTE PRACH Preamble format 0";
+      }
+      enum LTE-1 {
+        description
+          "LTE PRACH Preamble format 1";
+      }
+      enum LTE-2 {
+        description
+          "LTE PRACH Preamble format 2";
+      }
+      enum LTE-3 {
+        description
+          "LTE PRACH Preamble format 3";
+      }
+      enum LTE-4 {
+        description
+          "LTE PRACH Preamble format 4";
+      }
+      enum LTE-NB0 {
+        description
+          "LTE Narrowband PRACH format 0";
+      }
+      enum LTE-NB1 {
+        description
+          "LTE Narrowband PRACH format 1";
+      }
+      enum NR-0 {
+        description
+          "5GNR PRACH Preamble format 0";
+      }
+      enum NR-1 {
+        description
+          "5GNR PRACH Preamble format 1";
+      }
+      enum NR-2 {
+        description
+          "5GNR PRACH Preamble format 2";
+      }
+      enum NR-3 {
+        description
+          "5GNR PRACH Preamble format 3";
+      }
+      enum NR-A1 {
+        description
+          "5GNR PRACH Preamble format A1";
+      }
+      enum NR-A2 {
+        description
+          "5GNR PRACH Preamble format A2";
+      }
+      enum NR-A3 {
+        description
+          "5GNR PRACH Preamble format A3";
+      }
+      enum NR-B1 {
+        description
+          "5GNR PRACH Preamble format B1";
+      }
+      enum NR-B2 {
+        description
+          "5GNR PRACH Preamble format B2";
+      }
+      enum NR-B3 {
+        description
+          "5GNR PRACH Preamble format B3";
+      }
+      enum NR-B4 {
+        description
+          "5GNR PRACH Preamble format B4";
+      }
+      enum NR-C0 {
+        description
+          "5GNR PRACH Preamble format C0";
+      }
+      enum NR-C2 {
+        description
+          "5GNR PRACH Preamble format C2";
+      }
+    }
+
+    description
+      "PRACH preamble format definition";
+  }
+
+  typedef polarisation_type {
+    type enumeration {
+      enum MINUS_45 {
+        description "MINUS_45";
+      }
+      enum ZERO {
+        description "ZERO";
+      }
+      enum PLUS_45 {
+        description "PLUS_45";
+      }
+      enum PLUS_90 {
+        description "PLUS_90";
+      }
+    }
+    description "Type definition for polarisations";
+  }
+
+  grouping general-config {
+    description "a group for general configuration";
+
+    container general-config {
+      description "a container for general configuration";
+
+      leaf regularization-factor-se-configured {
+        type boolean;
+        default false;
+        description
+          "Informs if regularizationfactor in section extension is configured(true) or not(false), this
+          leaf indicates whether the O-DU will send the regularizationfactor in section extension.
+
+          If the O-RU does not support regularization-factor-se-supported in o-ran-module-cap.yang,
+          this leaf is ignored.";
+      }
+
+      leaf little-endian-byte-order {
+        type boolean;
+        default false;
+
+        description
+          "If  little endian byte order for C/U plane data flows is supported by
+          the O-RU, indicates if the O-RU should use little endian byte order
+          for all UL and DL C/U plane data flows.
+
+          If little endian byte order is NOT supported, this node is ignored
+          (and the default bigendian byte order used)";
+      }
+    }
+  }
+
+  grouping laa-carrier-config {
+    description "Carrier Configuration for support of LAA. ";
+    leaf ed-threshold-pdsch {
+      type int8;
+      units dBm;
+      description
+        "This value indicates Energy Detection(ED) threshold for LBT for PDSCH and for measurements in dBm.";
+    }
+
+    leaf ed-threshold-drs {
+      type int8;
+      units dBm;
+      description
+        "This value indicates Energy Detection(ED) threshold for LBT for DRS in dBm.";
+    }
+
+    leaf tx-antenna-ports {
+      type uint8;
+      description
+        "This value indicates Tx antenna ports for DRS (1, 2, 4)";
+    }
+
+    leaf transmission-power-for-drs {
+      type int8;
+      units decibels;
+      description
+        "This value indicates offset of Cell specific reference Signal(CRS) power to reference signal power (dB).
+        DRS signal consists of CRS, PSS, SSS, and optionally CSI-RS.";
+    }
+
+    leaf dmtc-period {
+      type enumeration {
+        enum FORTY {
+          description
+            "40 ms";
+        }
+        enum EIGHTY {
+          description
+            "80 ms";
+        }
+        enum ONE-HUNDRED-SIXTY {
+          description
+            "160 ms";
+        }
+      }
+      units milliseconds;
+      description
+        "This value indicates DRS measurement timing configuration (DMTC) period in ms";
+    }
+
+    leaf dmtc-offset {
+      type uint8;
+      units subframes;
+      description
+        "This value indicates dmtc offset in Subframes.";
+    }
+
+    leaf lbt-timer {
+      type uint16;
+      units milliseconds;
+      description
+        "This value indicates LBT Timer in milliseconds.";
+    }
+
+    list max-cw-usage-counter {
+      when "/mcap:module-capability/mcap:rw-sub-band-info/mcap:rw-self-configure = 'true'";
+      key "priority";
+      description "";
+      leaf priority {
+        type enumeration {
+          enum P1 {
+            description "priority 1";
+          }
+          enum P2 {
+            description "priority 2";
+          }
+          enum P3 {
+            description "priority 3";
+          }
+          enum P4 {
+            description "priority 4";
+          }
+        }
+        description "This value provides the priority class traffic for which the counter is calculated.";
+      }
+
+        leaf counter-value {
+          type uint8 {
+            range "1..8";
+          }
+          description "This value indicates the maximum value of counter
+          which shows how many max congestion window value is used for backoff
+          number of priority class traffic. This value is defined at 3GPP 36.213
+          section 15.1.3 as K.";
+        }
+      }
+  }
+
+  grouping coupling-methods {
+    description
+      "Grouping for configuration of desired C-Plane / U-Plane coupling methods (if supported)";
+    leaf coupling-to {
+      type leafref {
+        path "/mcap:module-capability/mcap:ru-capabilities/mcap:coupling-methods/mcap:coupling-via-frequency-and-time";
+        require-instance false;
+      }
+
+      description
+        "RW instance of RO parameter.";
+    }
+    leaf coupling-method {
+      when "../coupling-to = 'true'";
+      type enumeration{
+        enum NORMAL {
+          description "Coupling via sectionId value. This value can be used always.";
+        }
+        enum FREQUENCY_AND_TIME {
+          description "Coupling via frequency and time. Can be used when coupling-via-frequency-and-time = true
+                      or coupling-via-frequency-and-time-with-priorities = true in o-ran-module-cap.yang";
+        }
+        enum FREQUENCY_AND_TIME_WITH_PRIORITIES {
+          description "Coupling via frequency and time with priorities. Can be used when
+                      coupling-via-frequency-and-time-with-priorities = true in o-ran-module-cap.yang";
+        }
+      }
+      default NORMAL;
+      description
+        "Method of coupling between C-Plane and U-Plane messages; see methods of coupling
+        of C-Plane and U-Plane in CUS-Plane specification";
+    }
+  }
+
+  grouping  eaxc {
+    description
+      "One eAxC identifier (eAxC ID) comprises a band and sector
+      identifier (BandSector_ID), a component-carrier identifier (CC_ID) and a
+      spatial stream identifier (RU_Port_ID).
+
+      In this version of the specification, one eAxC contains only one spatial
+      stream (i.e. one beam per subcarrier) at a time.
+
+      Bit allocation is subdivided as follows:
+      *    O_DU_Port_ID: Used to differentiate processing units at O-DU
+      *    BandSector_ID: Aggregated cell identifier
+      *    CC_ID: distinguishes Carrier Components
+      *    RU_Port_ID: Used to differentiate spatial streams or beams on the O-RU
+
+      The bitwidth of each of the above fields is variable this model is supposed to check
+        if we are occpying bits continuously but we do not have to occupy all 16 bits";
+
+
+    leaf o-du-port-bitmask {
+      type uint16;
+      mandatory true;
+      description
+        "mask for eaxc-id bits used to encode O-DU Port ID";
+    }
+
+    leaf band-sector-bitmask {
+      type uint16;
+      mandatory true;
+      description
+        "mask for eaxc-id bits used to encode the band sector ID";
+    }
+
+    leaf ccid-bitmask {
+      type uint16;
+      mandatory true;
+      description
+        "mask for eaxc-id bits used to encode the component carrier id";
+    }
+
+    leaf ru-port-bitmask {
+      type uint16;
+      mandatory true;
+      description
+        "mask for eaxc-id bits used to encode the O-RU Port ID";
+    }
+
+    leaf eaxc-id {
+      type uint16;
+      mandatory true;
+      description
+        "encoded value of eaxcid to be read by CU-Plane";
+    }
+  }
+
+  grouping parameters {
+    description
+      "Grouping of all parameters common between UL and DL";
+
+    leaf name {
+      type string;
+      mandatory true;
+      description "Unique name of array antenna";
+    }
+
+    leaf number-of-rows {
+      type uint16;
+      mandatory true;
+      description "Number of rows array elements are shaped into - M";
+    }
+
+    leaf number-of-columns {
+      type uint16;
+      mandatory true;
+      description "Number of columns array elements are shaped into - N";
+    }
+
+    leaf number-of-array-layers {
+      type uint8;
+      mandatory true;
+      description "Number of array layers array elements are shaped into - Q";
+    }
+
+    leaf horizontal-spacing {
+      type decimal64 {
+            fraction-digits 5;
+        }
+      units Meter;
+
+      description "Average distance between centers of nearby AE in horizontal direction (in array coordinates system)";
+    }
+
+    leaf vertical-spacing{
+      type decimal64 {
+            fraction-digits 5;
+        }
+      units Meter;
+
+      description "Average distance between centers of nearby AE in vertical direction (in array coordinates system)";
+    }
+
+    container normal-vector-direction {
+      description
+        "Counter-clockwise rotation around z and y axis.";
+
+      leaf azimuth-angle{
+        type decimal64 {
+          fraction-digits 4;
+          }
+        units Degrees;
+
+        description "Azimuth angle, counter-clockwise rotation around z-axis. Value 'zero' points to broad-side, value '90' points to y-axis";
+      }
+       leaf zenith-angle{
+         type decimal64 {
+          fraction-digits 4;
+          }
+        units Degrees;
+
+        description "Zenith angle, counter-clockwise rotation around y-axis. Value 'zero' points to zenith, value '90' points to horizon";
+       }
+    }
+
+    container leftmost-bottom-array-element-position {
+      description "Structure describing position of leftmost, bottom array element.";
+      leaf x {
+        type decimal64 {
+          fraction-digits 4;
+          }
+        units Meter;
+
+        description "X dimension of position of leftmost, bottom array element";
+      }
+
+      leaf y {
+        type decimal64 {
+          fraction-digits 4;
+          }
+        units Meter;
+
+        description "Y dimension of position of leftmost, bottom array element";
+      }
+
+      leaf z {
+        type decimal64 {
+          fraction-digits 4;
+          }
+        units Meter;
+
+        description "Z dimension of position of leftmost, bottom array element";
+      }
+    }
+    list polarisations {
+      key "p";
+      min-elements 1;
+      max-elements 2;
+
+      description
+        "List of supported polarisations.";
+
+      leaf p {
+      type uint8;
+      mandatory true;
+      description
+        "Polarisation index. See CUS-plane";
+      }
+
+      leaf polarisation {
+        type polarisation_type;
+        mandatory true;
+        description "Type of polarisation supported by array.";
+      }
+    }
+    leaf band-number {
+      type leafref {
+        path "/mcap:module-capability/mcap:band-capabilities/mcap:band-number";
+      }
+      mandatory true;
+      description
+        "This parameter informing which frequency band particular antenna
+         array is serving for.
+         Intended use is to deal with multiband solutions.";
+    }
+  }
+
+  grouping array-choice {
+    choice antenna-type {
+      case tx {
+        leaf tx-array-name {
+          type leafref {
+            path "/o-ran-uplane-conf:user-plane-configuration/o-ran-uplane-conf:tx-arrays/o-ran-uplane-conf:name";
+          }
+
+          description
+            "Leafref to tx array if such is choosen";
+        }
+      }
+      case rx {
+        leaf rx-array-name {
+          type leafref {
+            path "/o-ran-uplane-conf:user-plane-configuration/o-ran-uplane-conf:rx-arrays/o-ran-uplane-conf:name";
+          }
+
+          description
+            "Leafref to rx array if such is choosen";
+        }
+      }
+      description
+        "Choice for antenna type";
+    }
+    description
+      "Elements which groups choice for antenna type";
+  }
+
+  grouping scs-config {
+    description
+      "It groups all parameters related to SCS configuration";
+
+    leaf frame-structure {
+      type uint8;
+
+      description
+        "This parameter defines the frame structure. The first 4 bits define the FFT/iFFT size
+        being used for all IQ data processing related to this message.
+        The second 4 bits define the sub carrier spacing as well as the number of slots per 1ms sub-frame
+        according to 3GPP TS 38.211, taking for completeness also 3GPP TS 36.211 into account";
+    }
+
+    leaf cp-type {
+      type enumeration {
+        enum NORMAL {
+          description
+            "Normal cyclic prefix";
+        }
+
+        enum EXTENDED {
+          description
+            "Extended cyclic prefix";
+        }
+      }
+
+      description
+        "Provides type of CP (cyclic prefix) if section type 3 is not used or type of CP cannot be determined from cpLength.";
+    }
+
+    leaf cp-length {
+      type uint16;
+      units Ts;
+      mandatory true;
+      description
+        "Used for symbol 0 for NR & LTE, and symbol 7*2u for NR.
+        See CUS-plane";
+    }
+
+    leaf cp-length-other {
+      type uint16;
+      units Ts;
+      mandatory true;
+      description
+        "Used for other symbols than by cp-length above";
+    }
+
+    leaf offset-to-absolute-frequency-center {
+      type int32;
+      mandatory true;
+      description
+        "This provides value of freqOffset to be used if section type 3 is not used. See freqOffset in CUS-plane.";
+    }
+
+    list number-of-prb-per-scs {
+      key scs;
+      description
+        "List of configured for each SCS that will be used.";
+
+      leaf scs {
+        type mcap:scs-config-type;
+        description
+          "Value corresponds to SCS values defined for frameStructure in C-plane.
+          Note: set of allowed values is restricted by SCS derived from values in supported-frame-structures.";
+      }
+
+      leaf number-of-prb {
+        type uint16;
+        mandatory true;
+        description
+          "Determines max number of PRBs that will be used in all sections per one symbol.
+          This is affecting allocation of resources to endpoint. Value shall not exceed constrains
+          defined by max-prb-per-symbol of endpoint type. In addition sum (over all used epoints
+          within a group of endpoints sharing resources) of number-of-prb rounded up to
+          nearest value from prb-capacity-allocation-granularity shall not exceed max-prb-per-symbol of the group.";
+      }
+    }
+  }
+
+  grouping tx-common-array-carrier-elements {
+    description
+      "This grouping containes all common parameters for tx-array-carriers and rx-array-carriers";
+
+    leaf absolute-frequency-center {
+      type uint32;
+      mandatory true;
+      description
+        "Absolute Radio Frequency Channel Number - indirectly indicates RF center carrier frequency of signal.
+        Reflected in arfcn.";
+    }
+
+    leaf center-of-channel-bandwidth {
+      type uint64;
+          units Hz;
+      mandatory true;
+      description
+        "Center frequency of channel bandwidth in Hz. Common for all numerologies.";
+    }
+
+    leaf channel-bandwidth {
+      type uint64;
+      units Hz;
+      mandatory true;
+
+      description
+        "Width of carrier given in Hertz";
+    }
+
+    leaf active {
+      type enumeration {
+        enum INACTIVE {
+              description
+                "carrier does not provide signal - transmission is disabled";
+            }
+        enum SLEEP{
+              description
+                "carrier is fully configured and was active but is energy saving mode";
+            }
+        enum ACTIVE{
+              description
+                "carrier is fully configured and properly providing the signal";
+            }
+      }
+      default INACTIVE;
+
+      description
+        "Indicates if transmission is enabled for this array carriers. Note that Netconf server uses state parameter
+        to indicate actual state of array carriers operation. When array carriers is in sleep status,
+        Netconf server rejects all other operation request to tx-array-carriers object except either request to change from sleep
+        to active status or delete MO operation (see 4.8) to the object.";
+    }
+
+    leaf state {
+      type enumeration {
+        enum DISABLED {
+          description
+            "array carrier is not active - transmission of signal is disabled.";
+        }
+        enum BUSY {
+          description
+            "array carrier is processing an operation requested by change of active parameter.
+            When array carriers is BUSY the transmission of signal is not guaranteed.";
+        }
+        enum READY {
+          description
+            "array carrier had completed activation operation - is active and transmission of signal is ongoing.";
+        }
+      }
+      config false;
+      mandatory true;
+      description
+        "Indicates state of array carriers activation operation";
+    }
+
+    leaf type {
+      type enumeration {
+        enum NR {
+              description
+                "5G technology";
+        }
+        enum LTE {
+              description
+                "LTE technology";
+        }
+        enum DSS_LTE_NR {
+          if-feature mcap:DSS_LTE_NR;
+              description
+                "NR and LTE technologies in Dynamic Spectrum Sharing mode";
+        }
+      }
+      description
+        "Type of carrier. Indicates array-carrier technology.";
+    }
+
+    leaf duplex-scheme {
+      type enumeration {
+        enum TDD {
+              description
+                "TDD scheme";
+            }
+        enum FDD {
+              description
+                "FDD scheme";
+        }
+      }
+      config false;
+
+      description
+        "Type of duplex scheme O-RU supports.";
+    }
+    leaf rw-duplex-scheme {
+      type leafref {
+        path "/user-plane-configuration/tx-array-carriers[name=current()/../name]" + "/duplex-scheme";
+        require-instance false;
+      }
+      description
+        "Config true type of duplex scheme.";
+    }
+    leaf rw-type {
+      type leafref {
+        path "/user-plane-configuration/tx-array-carriers[name=current()/../name]" + "/type";
+        require-instance false;
+      }
+      description
+        "Config true type of carrier.";
+    }
+  }
+
+  grouping rx-common-array-carrier-elements {
+    description
+      "This grouping containes all common parameters for tx-array-carriers and rx-array-carriers";
+
+    leaf absolute-frequency-center {
+      type uint32;
+      mandatory true;
+      description
+        "Absolute Radio Frequency Channel Number - indirectly indicates RF center carrier frequency of signal.
+        Reflected in arfcn.";
+    }
+
+    leaf center-of-channel-bandwidth {
+      type uint64;
+          units Hz;
+      mandatory true;
+      description
+        "Center frequency of channel bandwidth in Hz. Common for all numerologies.";
+    }
+
+    leaf channel-bandwidth {
+      type uint64;
+      units Hz;
+      mandatory true;
+
+      description
+        "Width of carrier given in Hertz";
+    }
+
+    leaf active {
+      type enumeration {
+        enum INACTIVE {
+              description
+                "carrier does not provide signal - transmission is disabled";
+            }
+        enum SLEEP{
+              description
+                "carrier is fully configured and was active but is energy saving mode";
+            }
+        enum ACTIVE{
+              description
+                "carrier is fully configured and properly providing the signal";
+            }
+      }
+      default INACTIVE;
+
+      description
+        "Indicates if transmission is enabled for this array carriers. Note that Netconf server uses state parameter
+        to indicate actual state of array carriers operation. When array carriers is in sleep status,
+        Netconf server rejects all other operation request to tx-array-carriers object except either request to change from sleep
+        to active status or delete MO operation (see 4.8) to the object.";
+    }
+
+    leaf state {
+      type enumeration {
+        enum DISABLED {
+          description
+            "array carrier is not active - transmission of signal is disabled.";
+        }
+        enum BUSY {
+          description
+            "array carrier is processing an operation requested by change of active parameter.
+            When array carriers is BUSY the transmission of signal is not guaranteed.";
+        }
+        enum READY {
+          description
+            "array carrier had completed activation operation - is active and transmission of signal is ongoing.";
+        }
+      }
+      config false;
+      mandatory true;
+      description
+        "Indicates state of array carriers activation operation";
+    }
+
+    leaf type {
+      type enumeration {
+        enum NR {
+              description
+                "5G technology";
+        }
+        enum LTE {
+              description
+                "LTE technology";
+        }
+        enum DSS_LTE_NR {
+          if-feature mcap:DSS_LTE_NR;
+              description
+                "NR and LTE technologies in Dynamic Spectrum Sharing mode";
+        }
+      }
+      description
+        "Type of carrier. Indicates array-carrier technology.";
+    }
+
+    leaf duplex-scheme {
+      type enumeration {
+        enum TDD {
+              description
+                "TDD scheme";
+            }
+        enum FDD {
+              description
+                "FDD scheme";
+        }
+      }
+      config false;
+
+      description
+        "Type of duplex scheme O-RU supports.";
+    }
+  }
+
+  grouping endpoint-section-capacity {
+    leaf max-control-sections-per-data-section {
+      type uint8 {
+        range "1..12";
+      }
+      description
+        "Max number of C-plane sections (C-plane section is part of C-plane message that carries 'section fields')
+        referring to same U-plane section (U-plane section is part of U-plane message that carries
+        'section header fields' and 'PRB fields') that is supported by endpoint.
+        Note that additional limitations specific for each section type apply on top of this number.";
+    }
+    leaf max-sections-per-symbol {
+      type uint16;
+      description
+        "Max number of sections within one symbol that can be processed by endpoint
+        or processed collectively by group of endpoints sharing capacity";
+    }
+    leaf max-sections-per-slot {
+      type uint16;
+      description
+        "Max number of sections within one slot that can be processed by endpoint
+        or processed collectively by group of endpoints sharing capacity.";
+    }
+
+    leaf max-remasks-per-section-id {
+      type uint8 {
+        range "1..12";
+      }
+      default 12;
+      description
+        "maximum number of different reMask values that is applied to a PRB
+        within one section id. This value can be processed by endpoint
+        or processed collectively by group of endpoints sharing capacity";
+    }
+
+    description
+      "Parameters describing section capacity where section is undestood as number of different sectionId values";
+  }
+
+  grouping endpoint-beam-capacity {
+    leaf max-beams-per-symbol {
+      type uint16;
+      description
+        "Max number of beams within one symbol that can be processed by endpoint
+        or processed collectively by group of endpoints sharing capacity";
+    }
+    leaf max-beams-per-slot {
+      type uint16;
+      description
+        "Max number of beams within one slot that can be processed by endpoint
+        or processed collectively by group of endpoints sharing capacity";
+    }
+
+    description
+      "Parameters describing beam capacity where number of beams is understood as number of different beamId values";
+  }
+
+  grouping endpoint-prb-capacity {
+    leaf max-prb-per-symbol {
+      type uint16;
+      description
+        "Max number of prbs within one symbol that can be processed by endpoint
+        or processed collectively by group of endpoints sharing capacity";
+    }
+
+    description
+      "Attributes presenting processing capacity related to PRB.";
+  }
+
+  grouping endpoint-numerology-capacity {
+    leaf max-numerologies-per-symbol {
+      type uint16;
+      description
+        "Max number of numerologies within one symbol that can be processed by endpoint
+        or processed collectively by group of endpoints sharing capacity";
+    }
+
+    description
+      "Attributes presenting processing capacity related to numerology.
+
+      This leaf contains valid data only when multiple-numerology-supported
+      is set to true.";
+  }
+
+  grouping endpoint-static-config-support {
+    leaf static-config-supported {
+      type enumeration {
+        enum NONE {
+          description
+            "The endpoint does not support static PRACH / SRS configuration.
+             Reception of PRACH / SRS is possible through real time C-Plane messages
+             if other endpoint capabilities allow for that.";
+        }
+        enum PRACH {
+          if-feature mcap:PRACH-STATIC-CONFIGURATION-SUPPORTED;
+          description
+            "The endpoint supports statically configured PRACH reception";
+        }
+        enum SRS {
+          if-feature mcap:SRS-STATIC-CONFIGURATION-SUPPORTED;
+          description
+            "The endpoint supports statically configured SRS reception";
+        }
+      }
+      default NONE;
+
+      description
+        "The parameter informs if endpoint can be statically configured to process PRACH or SRS reception";
+    }
+
+    leaf max-prach-patterns {
+      when "(/user-plane-configuration/static-low-level-rx-endpoints[name=current()/../name]/static-config-supported = 'PRACH')";
+      type uint8;
+        description
+          "Maximum number of PRACH patterns the endpoint can handle in PRACH configuration";
+    }
+
+    leaf max-srs-patterns {
+      when "(/user-plane-configuration/static-low-level-rx-endpoints[name=current()/../name]/static-config-supported = 'SRS')";
+      type uint8;
+        description
+          "Maximum number of SRS patterns the endpoint can handle in SRS configuration";
+    }
+
+    description
+      "Endpoint's capabilities related to static PRACH / SRS configuration.";
+  }
+
+  grouping endpoint-tdd-pattern-support {
+    leaf configurable-tdd-pattern-supported {
+      type boolean;
+      default false;
+
+      description
+        "The parameter informs if endpoint supports configuration for TDD pattern";
+    }
+
+    leaf tdd-group {
+      type uint8;
+      description
+        "Parameter is used to group static-low-level-[tr]x-endpoints.
+        Note: [tr]x-array-carriers using static-low-level-[tr]x-endpoints
+        having the same value of tdd-group, must have the same TDD switching
+        points and the same directions to the air interface granted - regardless TDD switching
+        is controlled by M-Plane or by C-Plane";
+    }
+
+    description
+      "This grouping exposes static-low-level-[tr]x-endpoint's capabilities related to its support for configurable
+      TDD patterns and limitations regarding common TDD switching per groups of endpoints.";
+  }
+
+  grouping uplane-conf-group {
+    description
+      "Grouping for uplane configuration related parameters";
+
+    list low-level-tx-links {
+      key name;
+      description
+        "Object model for low-level-tx-link configuration";
+
+      leaf name {
+        type string;
+        description
+          "Unique name of low-level-tx-link object.";
+      }
+
+      leaf processing-element {
+        type leafref {
+          path "/o-ran-pe:processing-elements/o-ran-pe:ru-elements/o-ran-pe:name";
+        }
+        mandatory true;
+        description
+          "Contains name of processing-element to be used as transport by low-level-tx-link";
+      }
+
+      leaf tx-array-carrier {
+        type leafref {
+          path "/user-plane-configuration/tx-array-carriers/name";
+        }
+        mandatory true;
+        description
+          "Contains name of tx-array-carriers MO to be used as transport by low-level-tx-link";
+      }
+
+      leaf low-level-tx-endpoint {
+        type leafref {
+          path "/user-plane-configuration/low-level-tx-endpoints/name";
+        }
+        mandatory true;
+        description
+          "Contains name of low-level-tx-endpoints MO to be used as transport by low-level-tx-link";
+      }
+    }
+
+    list low-level-rx-links {
+      key name;
+      description
+        "Object model for low-level-rx-links configuration";
+
+      leaf name {
+        type string;
+
+        description
+          "Unique name of low-level-rx-links object.";
+      }
+
+      leaf processing-element {
+        type leafref {
+          path "/o-ran-pe:processing-elements/o-ran-pe:ru-elements/o-ran-pe:name";
+        }
+        mandatory true;
+        description
+          "Contains name of processing-element to be used as transport by LowLevelTxLink";
+      }
+
+      leaf rx-array-carrier {
+        type leafref {
+          path "/user-plane-configuration/rx-array-carriers/name";
+        }
+        mandatory true;
+
+        description
+          "Contains name of rx-array-carriers MO to be used as transport by low-level-rx-links";
+      }
+
+      leaf low-level-rx-endpoint {
+        type leafref {
+          path "/user-plane-configuration/low-level-rx-endpoints/name";
+        }
+        mandatory true;
+
+        description
+          "Contains name of low-level-rx-endpoints MO to be used as transport by low-level-rx-links";
+      }
+
+      leaf user-plane-uplink-marking {
+        type leafref {
+          path "/o-ran-pe:processing-elements/o-ran-pe:enhanced-uplane-mapping/o-ran-pe:uplane-mapping/o-ran-pe:up-marking-name";
+        }
+        description
+          "Parameter to set the non-default marking for user-plane";
+      }
+    }
+
+    list endpoint-types {
+      key "id";
+      config false;
+      description
+        "Properties of endpoint that are common to multiple endpoints if such are identified";
+
+      leaf id {
+        type uint16;
+        description
+          "Identifies type of endpoints sharing same properties. Values shall start with 0 and shall be allocated without gaps.";
+      }
+
+      list supported-section-types {
+        key "section-type";
+        description
+          "Indicates section types and extensions endpoints of this type support";
+
+        leaf section-type {
+          type uint8;
+
+          description
+            "This parameter determines the characteristics of U-plane data to be transferred or received from a beam with one pattern id.";
+        }
+
+        leaf-list supported-section-extensions {
+          type uint8;
+
+          description
+            "This parameter provides the extension types supported by the O-RU
+            which provides additional parameters specific to the subject data extension";
+        }
+      }
+
+      leaf-list supported-frame-structures {
+        type uint8;
+
+        description
+          "List of supported values of frame structure";
+      }
+
+      leaf managed-delay-support {
+        type enumeration {
+          enum MANAGED {
+            description
+              "Time managed delays are supported";
+          }
+
+          enum NON_MANAGED {
+            description
+              "Non time managed delays are supported";
+          }
+
+          enum BOTH {
+            description
+              "Both time managed and non time managed delays are supported";
+          }
+        }
+
+        description
+          "Type of delay supported by the endpoint";
+      }
+
+      leaf multiple-numerology-supported {
+        type boolean;
+        default true;
+        description
+          "Indicates whether the endpoint type supports multiple numerologies";
+      }
+
+      leaf max-numerology-change-duration {
+        type uint16 {
+          range "0..10000";
+        }
+
+        units Ts;
+        description
+          "Maximum gap of endpoint operation that will be caused by changing of
+          numerology.
+
+          This time is required for reconfiguration and flushing of pipes.
+
+          This leaf contains valid data only when multiple-numerology-supported
+          is set to true.";
+      }
+
+      uses endpoint-section-capacity;
+      uses endpoint-beam-capacity;
+      uses endpoint-prb-capacity;
+
+      leaf-list prb-capacity-allocation-granularity {
+        type uint16;
+
+        description
+          "List of capacity allocation steps. O-RU allocates PRB capacity rounding it up to nearest value N
+          from prb-capacity-allocation-granularity such that M >= number-of-prb-per-scs.
+          See also number-of-prb-per-scs/number-of-prb.";
+      }
+
+      uses endpoint-numerology-capacity;
+    }
+
+    list endpoint-capacity-sharing-groups {
+      key "id";
+      config false;
+      description
+        "Represents groups of endpoints that share capacity. Depending on O-RU implementation,
+        processing resources that handle CU-plane (e.g. memory to keep sections and beams)
+        could be allocated per endpoint or shared between several endpoints.
+        To address this O-RU shall reports own capability per endpoint (see endpoint-types)
+        and per group of endpoints sharing capacity.
+        If endpoint is in multiple groups then resulting constraint is minimum over all groups.
+        Note: values of parameters representing capacity that is not shared between endpoints in a group
+              shall be set to max value of specific parameter; this effectively removes related constraint.";
+
+      leaf id {
+        type uint16;
+        description
+          "Identifies group of endpoints sharing resources.
+          Values shall start with 0 and shall be allocated without gaps.";
+      }
+      uses endpoint-section-capacity;
+      uses endpoint-beam-capacity;
+      uses endpoint-prb-capacity;
+      uses endpoint-numerology-capacity;
+
+      leaf max-endpoints {
+        type uint16;
+        description
+          "Indicates how many endpoints in the group can be used4 simultaneously";
+      }
+      leaf max-managed-delay-endpoints {
+        type uint16;
+        description
+          "Number of endpoints supporting managed delay that can be used (configured for use) at a time";
+      }
+      leaf max-non-managed-delay-endpoints {
+        type uint16;
+        description
+          "Number of endpoints supporting non-managed delay that can be used (configured for use) at a time";
+      }
+    }
+
+    list endpoint-prach-group  {
+      key "id";
+      config false;
+      description
+        "Represents group of a series of PRACH preamble formats";
+
+      leaf id {
+        type uint16;
+        description
+          "Identifies group of PRACH preamble formats.";
+      }
+
+      leaf-list supported-prach-preamble-formats {
+        type prach-preamble-format;
+        min-elements 1;
+        description
+          "the list of PRACH preamble formats supported by the endpoint-type that is
+          applicable to static-low-level-rx-endpoints in the O-RU";
+      }
+
+    }
+
+    list supported-compression-method-sets {
+      key "id";
+      config false;
+      description
+        "List of available compression methods supported by device";
+
+      leaf id {
+        type uint16;
+        description
+          "Identification number for compression method set";
+      }
+
+      list compression-method-supported {
+        uses cf:compression-parameters;
+
+        leaf-list fs-offset {
+          if-feature cf:CONFIGURABLE-FS-OFFSET;
+          type uint8;
+          default 0;
+          description
+            "Adjusts FS (full scale) value of IQ format relative to FS derived from unmodified IQ format.
+             Please refer to CU-Plane specification for details";
+
+        }
+        description
+          "List of supported compression methods by O-RU
+           Note: if O-RU supports different compression methods per endpoint
+                 then please refer to endpoints to have information what
+                 exactly is supported on paticular endpoint";
+      }
+    }
+
+    list static-low-level-tx-endpoints {
+      key name;
+      config false;
+      description
+        "Object model for static-low-level-tx-endpoints configuration";
+
+      leaf name {
+        type string;
+
+        description
+          "Unique name of static-low-level-tx-endpoints object.";
+      }
+
+      leaf-list restricted-interfaces {
+        type leafref {
+          path "/if:interfaces/if:interface/if:name";
+        }
+        description
+          "Optionally used to indicate that a low-level link is constrained to operate only via a subset of the available interfaces.";
+      }
+
+      leaf array {
+        type leafref {
+          path "/user-plane-configuration/tx-arrays/name";
+        }
+        mandatory true;
+        description
+          "Contains distname of tx-arrays, particular low-level-tx-endpoints is in hardware dependency with.
+          Note: single instance of tx-arrays can be referenced by many instances of low-level-tx-endpoints
+          (e.g. to allow DU to handle multiple fronthauls and multiple component carriers).";
+      }
+
+      leaf endpoint-type {
+        type leafref {
+          path "../../endpoint-types/id";
+        }
+
+        description
+          "Reference to endpoint type capabilities list element supported by this endpoint";
+      }
+
+      leaf-list capacity-sharing-groups {
+        type leafref {
+          path "../../endpoint-capacity-sharing-groups/id";
+        }
+
+        description
+          "Reference to capacities of sharing-groups supported by this endpoint";
+      }
+
+      list supported-reference-level {
+        if-feature TX-REFERENCE-LEVEL;
+        key "id";
+        description
+          "Informs about supported ranges for gain reference level.";
+
+        leaf id {
+          type uint16;
+          description
+            "Identification number for particular range";
+        }
+
+        leaf min {
+          type decimal64 {
+            fraction-digits 4;
+          }
+          units dB;
+          mandatory true;
+          description
+            "Minimum of supported gain reference level";
+        }
+
+        leaf max {
+          type decimal64 {
+            fraction-digits 4;
+          }
+          units dB;
+          mandatory true;
+          description
+            "Maximum of supported gain reference level";
+        }
+      }
+
+      container compression {
+        description
+          "Container collecting compression related parameters.";
+
+        leaf dynamic-compression-supported {
+          type boolean;
+
+          description
+            "Informs if endpoint supports dynamic compression method";
+        }
+
+        leaf realtime-variable-bit-width-supported {
+          type boolean;
+
+          description
+            "Informs if endpoint supports realtime variable bit with";
+        }
+
+        leaf supported-compression-set-id {
+          type leafref {
+            path "../../../supported-compression-method-sets/id";
+          }
+
+          description
+            "Id of supported compression set for this endpoint";
+        }
+      }
+
+      uses endpoint-tdd-pattern-support;
+
+    }
+
+    list static-low-level-rx-endpoints {
+      key name;
+      config false;
+      description
+        "Object model for static-low-level-rx-endpoints configuration";
+
+      leaf name {
+        type string;
+
+        description
+          "Unique name of static-low-level-rx-endpoints object.";
+      }
+
+      leaf-list restricted-interfaces {
+        type leafref {
+          path "/if:interfaces/if:interface/if:name";
+        }
+        description
+          "Optionally used to indicate that a low-level link is constrained to operate only via a subset of the available interfaces.";
+      }
+
+      leaf array {
+        type leafref {
+          path "/user-plane-configuration/rx-arrays/name";
+        }
+        mandatory true;
+        description
+          "Contains distname of rx-arrays, particular low-level-rx-endpoints is in hardware dependency with.
+          Note: single instance of rx-arrays can be referenced by many instances of low-level-rx-endpoints
+          (e.g. to allow DU to handle multiple fronthauls and multiple component carriers).";
+      }
+
+      leaf endpoint-type {
+        type leafref {
+          path "../../endpoint-types/id";
+        }
+
+        description
+          "Reference to endpoint type capabilities list element supported by this endpoint";
+      }
+
+      leaf-list capacity-sharing-groups {
+        type leafref {
+          path "../../endpoint-capacity-sharing-groups/id";
+        }
+
+        description
+          "Reference to capacities of sharing-groups supported by this endpoint";
+      }
+
+      leaf prach-group {
+        type leafref {
+          path "../../endpoint-prach-group/id";
+          require-instance false;
+        }
+        description
+          "An optional leaf used for those rx endpoints that support PRACH, indicating
+          the group id describing the set of of PRACH preambles supported";
+      }
+
+      container compression {
+        description
+          "Container collecting compression related parameters.";
+
+        leaf dynamic-compression-supported {
+          type boolean;
+
+          description
+            "Informs if endpoint supports dynamic compression method";
+        }
+
+        leaf realtime-variable-bit-width-supported {
+          type boolean;
+
+          description
+            "Informs if endpoint supports realtime variable bit with";
+        }
+
+        leaf supported-compression-set-id {
+          type leafref {
+            path "../../../supported-compression-method-sets/id";
+          }
+
+          description
+            "Id of supported compression set for this endpoint";
+        }
+      }
+
+      uses endpoint-static-config-support;
+
+      uses endpoint-tdd-pattern-support;
+
+    }
+
+    list low-level-tx-endpoints {
+      key "name";
+
+      description
+        "Object model for low-level-tx-endpoints configuration - augmented static-low-level-tx-endpoints by local-address
+        which cannot be added to static low-level-tx-endpoints as we cannot have modificable element in static object";
+
+      leaf name {
+        type leafref {
+          path "/user-plane-configuration/static-low-level-tx-endpoints/name";
+          require-instance false;
+        }
+        mandatory true;
+
+        description
+          "Unique name of low-level-tx-endpoint object. Reference to static object";
+      }
+
+      container compression {
+        presence
+          "This container shall exists to avoid missaligned compression
+          methods between devices";
+
+        description
+          "Container which consists of global configurable parameters for compression";
+
+        uses cf:compression-details;
+
+        leaf fs-offset {
+          if-feature cf:CONFIGURABLE-FS-OFFSET;
+          type uint8;
+          default 0;
+          description
+            "Adjusts FS (full scale) value of IQ format relative to FS derived from unmodified IQ format.
+             Please refer to CU-Plane specification for details";
+        }
+
+        list dynamic-compression-configuration {
+          when "../compression-type = 'DYNAMIC'";
+          key "id";
+          unique "compression-method iq-bitwidth fs-offset";
+          description
+            "List of possible configuration in case dynamic configuration is used
+             Note: In case of empty list all available compressions can be choosen dynamically
+                   and default fs-offset is taken (0).";
+
+          leaf id {
+            type uint16;
+            description
+              "Identification number for particular compression";
+          }
+
+          uses cf:compression-method-grouping;
+
+          leaf fs-offset {
+            if-feature cf:CONFIGURABLE-FS-OFFSET;
+            type uint8;
+            default 0;
+            description
+              "Adjusts FS (full scale) value of IQ format relative to FS derived from unmodified IQ format.
+               Please refer to CU-Plane specification for details";
+          }
+        }
+      }
+
+      uses scs-config;
+
+      container e-axcid {
+        uses eaxc;
+
+        description
+          "Contains local address of low level TX endpoint offered by Netconf server.";
+      }
+
+      uses coupling-methods;
+
+      leaf configurable-tdd-pattern-supported {
+        type leafref {
+          path "/user-plane-configuration/static-low-level-rx-endpoints[name=current()/../name]/configurable-tdd-pattern-supported";
+          require-instance false;
+        }
+        description "RO to RW parameter mapping - needed for conditional under tx-array-carrier";
+      }
+    }
+
+    list low-level-rx-endpoints {
+      key name;
+
+      description
+        "Object model for low-level-rx-endpoint configuration - augmented static-low-level-rx-endpoints by local-address
+        which cannot be added to static low-level-rx-endpoints as we cannot have modificable element in static object";
+
+      leaf name {
+        type leafref {
+          path "/user-plane-configuration/static-low-level-rx-endpoints/name";
+          require-instance false;
+        }
+        mandatory true;
+
+        description
+          "Unique name of low-level-rx-endpoint object. Reference to static object";
+      }
+
+      container compression {
+        description
+          "Container which consists of global configurable parameters for compression";
+
+        uses cf:compression-details;
+
+        leaf fs-offset {
+          if-feature cf:CONFIGURABLE-FS-OFFSET;
+          type uint8;
+          default 0;
+          description
+            "Adjusts FS (full scale) value of IQ format relative to FS derived from unmodified IQ format.
+             Please refer to CU-Plane specification for details";
+        }
+
+        list dynamic-compression-configuration {
+          when "../compression-type = 'DYNAMIC'";
+          key "id";
+          unique "compression-method iq-bitwidth fs-offset";
+          description
+            "List of possible configuration in case dynamic configuration is used
+             Note: In case of empty list all available compressions can be choosen dynamically
+                   and default fs-offset is taken (0).";
+
+          leaf id {
+            type uint16;
+            description
+              "Identification number for particular compression";
+          }
+
+          uses cf:compression-method-grouping;
+
+          leaf fs-offset {
+            if-feature cf:CONFIGURABLE-FS-OFFSET;
+            type uint8;
+            default 0;
+            description
+              "Adjusts FS (full scale) value of IQ format relative to FS derived from unmodified IQ format.
+               Please refer to CU-Plane specification for details";
+          }
+        }
+      }
+
+      uses scs-config;
+
+      list ul-fft-sampling-offsets {
+        key scs;
+        description
+          "List of FFT sampling offsets configured for each SCS that will be used.
+          Client shall configure one element for each SCS that will be used.";
+
+        leaf scs {
+          type mcap:scs-config-type;
+          description
+            "Value corresponds to SCS values defined for frameStructure in C-plane
+            Note: set of allowed values is restricted by SCS derived from values in supported-frame-structures.";
+        }
+
+        leaf ul-fft-sampling-offset {
+          type uint16;
+
+          units Ts;
+          description
+            "Determines time advance of capture window for FFT.
+            Value represents time advance of capture window start in relation to the end of CP. Unit is Ts.
+            Note: value of this parameter is usually set to '0' (zero) for PRACH channels.
+            Any phase offset resulting from the non-zero value of this parameter is handled in O-DU.";
+        }
+      }
+
+      container e-axcid {
+        uses eaxc;
+
+        description
+          "Contains local address of low level RX endpoint offered by Netconf server.";
+      }
+
+      leaf eaxc-gain-correction {
+        if-feature EAXC-GAIN-CORRECTION;
+        type decimal64 {
+          fraction-digits 4;
+        }
+        units dB;
+        default 0;
+        description
+          "eAxC specifc part of overall gain_correction.
+           gain_correction = common array-carrier gain-correction + eAxC-gain-correction.";
+      }
+
+      leaf non-time-managed-delay-enabled {
+        type boolean;
+        default false;
+        description
+          "Tells if non time managed delay shall be enabled";
+      }
+
+      uses coupling-methods;
+
+      leaf static-config-supported {
+        type leafref {
+          path "/user-plane-configuration/static-low-level-rx-endpoints[name=current()/../name]/static-config-supported";
+          require-instance false;
+        }
+        description "RO to RW parameter mapping - for further conditionals";
+      }
+
+      leaf static-prach-configuration {
+        when "(/user-plane-configuration/low-level-rx-endpoints[name=current()/../name]/static-config-supported = 'PRACH')";
+        if-feature mcap:PRACH-STATIC-CONFIGURATION-SUPPORTED;
+        type leafref {
+          path "/user-plane-configuration/static-prach-configurations/static-prach-config-id";
+        }
+        description
+          "This parameter creates reference to static PRACH configuration applicable for particular endpoint";
+      }
+
+      leaf static-srs-configuration {
+        when "(/user-plane-configuration/low-level-rx-endpoints[name=current()/../name]/static-config-supported = 'SRS')";
+        if-feature mcap:SRS-STATIC-CONFIGURATION-SUPPORTED;
+        type leafref {
+          path "/user-plane-configuration/static-srs-configurations/static-srs-config-id";
+        }
+        description
+          "This parameter creates reference to static SRS configuration applicable for particular endpoint";
+	    }
+
+      leaf configurable-tdd-pattern-supported {
+        if-feature mcap:CONFIGURABLE-TDD-PATTERN-SUPPORTED;
+        type leafref {
+          path "/user-plane-configuration/static-low-level-rx-endpoints[name=current()/../name]/configurable-tdd-pattern-supported";
+          require-instance false;
+        }
+        description "RO to RW parameter mapping - needed for conditional under rx-array-carrier";
+      }
+    }
+
+    list tx-array-carriers {
+      key name;
+      description
+        "Object model for tx-array-carriers configuration";
+
+      leaf name {
+        type string;
+
+        description
+          "Unique name of tx-array-carriers object.";
+      }
+
+      uses tx-common-array-carrier-elements;
+
+      leaf band-number {
+        if-feature mcap:LAA;
+        type leafref {
+          path "/mcap:module-capability/mcap:band-capabilities/mcap:band-number";
+          require-instance false;
+        }
+        description
+          "This parameter informing which frequency band particular antenna
+           array is serving for.
+           Intended use is to deal with multiband solutions.";
+      }
+
+      container lte-tdd-frame {
+        when "(/user-plane-configuration/tx-array-carriers/rw-type = 'LTE') and  (/user-plane-configuration/tx-array-carriers/rw-duplex-scheme = 'TDD')";
+        status deprecated;
+        description
+          "Container which consists of global configurable parameters for tdd Frame.
+          This contained is deprecated due to introduction of TDD pattern configuration
+          applicable in a common way for LTE and NR.";
+
+        leaf subframe-assignment {
+          type enumeration {
+            enum SAO {
+              description "subframe assignment configuration 0";
+            }
+            enum SA1 {
+              description "subframe assignment configuration 1";
+            }
+            enum SA2 {
+              description "subframe assignment configuration 2";
+            }
+            enum SA3 {
+              description "subframe assignment configuration 3";
+            }
+            enum SA4 {
+              description "subframe assignment configuration 4";
+            }
+            enum SA5 {
+              description "subframe assignment configuration 5";
+            }
+              enum SA6 {
+                description "subframe assignment configuration 6";
+            }
+          }
+          mandatory true;
+          description
+            "Indicates DL/UL subframe configuration as specified in
+            3GPP TS 36.211 [v15.3.0, table 4.2-2]";
+        }
+        leaf special-subframe-pattern {
+          type enumeration {
+            enum SPP0 {
+              description "special subframe pattern configuration 0";
+            }
+            enum SPP1 {
+              description "special subframe pattern configuration 1";
+            }
+            enum SPP2 {
+              description "special subframe pattern configuration 2";
+            }
+            enum SPP3 {
+              description "special subframe pattern configuration 3";
+            }
+            enum SPP4 {
+              description "special subframe pattern configuration 4";
+            }
+            enum SPP5 {
+              description "special subframe pattern configuration 5";
+            }
+            enum SPP6 {
+              description "special subframe pattern configuration 6";
+            }
+            enum SPP7 {
+              description "special subframe pattern configuration 7";
+            }
+            enum SPP8 {
+              description "special subframe pattern configuration 8";
+            }
+            enum SPP9 {
+              description "special subframe pattern configuration 9";
+            }
+            enum SPP10 {
+              description "special subframe pattern configuration 10";
+            }
+          }
+          mandatory true;
+          description
+            "Indicates TDD special subframe configuration as in TS 36.211
+             [v15.3.0, table 4.2-1] ";
+        }
+      }
+
+      container laa-carrier-configuration {
+        when "../band-number = 46";
+        if-feature mcap:LAA;
+        description "Container to specify LAA feature related carrier configuration.";
+        uses laa-carrier-config;
+      }
+
+      leaf gain {
+        type decimal64 {
+          fraction-digits 4;
+        }
+        units dB;
+        mandatory true;
+
+        description
+          "Transmission gain in dB. Value applicable to each array element carrier belonging to array carrier.";
+      }
+
+      leaf downlink-radio-frame-offset {
+        type uint32 {
+          range 0..12288000;
+        }
+        mandatory true;
+
+        description
+          "This parameter is used for offsetting the starting position of 10ms radio frame.
+          Note: The value should have same value within DU to all tx-array-carrierss that have same frequency and bandwidth.
+          Note2: Unit is 1/1.2288e9 Hz and accuracy is 1/4 Tc. Then, its range is calculated 0..12288000.";
+      }
+
+      leaf downlink-sfn-offset {
+        type int16 {
+          range -32768..32767;
+        }
+        mandatory true;
+
+        description
+          "This parameter is used for offsetting SFN value.
+          Unit is in 10ms.
+          Note: The value should have same value within DU to all tx-array-carrierss that have same frequency and bandwidth.";
+      }
+
+      leaf reference-level {
+        if-feature TX-REFERENCE-LEVEL;
+        type decimal64 {
+          fraction-digits 4;
+        }
+        units dB;
+        default 0;
+        description
+          "Allows to adjust reference level for sum of IQ signal power over eAxCs in this array-carrier.";
+      }
+
+      leaf configurable-tdd-pattern {
+        when "not(/user-plane-configuration/low-level-tx-endpoints[name = string(/user-plane-configuration/low-level-tx-links[tx-array-carrier = current()/../name]/tx-array-carrier)]/configurable-tdd-pattern-supported = 'false')";
+        if-feature mcap:CONFIGURABLE-TDD-PATTERN-SUPPORTED;
+        type leafref {
+          path "/user-plane-configuration/configurable-tdd-patterns/tdd-pattern-id";
+        }
+        description
+          "This parameter creates reference to configuration for TDD pattern applicable for particular tx-array-carrier.
+          The leaf may exist under tx-array-carrier only in case O-RU supports feature 'CONFIGURABLE-TDD-PATTERN-SUPPORTED'
+          AND all low-level-tx-endpoints linked to this tx-array-carrier have configurable-tdd-pattern-supported = 'true'";
+      }
+    }
+
+    list rx-array-carriers {
+      key name;
+      description
+        "Object model for rx-array-carriers configuration";
+
+          leaf name {
+            type string;
+            description
+            "Unique name of rx-array-carriers object.";
+      }
+
+      uses rx-common-array-carrier-elements;
+
+      leaf downlink-radio-frame-offset {
+        type uint32 {
+          range 0..12288000;
+        }
+        mandatory true;
+
+        description
+          "This parameter is used for offsetting the starting position of 10ms radio frame.
+          Note: The value should have same value within DU to all tx-array-carrierss that have same frequency and bandwidth.
+          Note2: Unit is 1/1.2288e9 Hz and accuracy is 1/4 Tc. Then, its range is calculated 0..12288000.";
+      }
+
+      leaf downlink-sfn-offset {
+        type int16 {
+          range -32768..32767;
+        }
+        mandatory true;
+
+        description
+          "This parameter is used for offsetting SFN value.
+          Unit is in 10ms.
+          Note: The value should have same value within DU to all tx-array-carrierss that have same frequency and bandwidth.";
+      }
+
+      leaf gain-correction {
+        type decimal64 {
+          fraction-digits 4;
+
+        }
+        units dB;
+        mandatory true;
+        description
+          "Gain correction of RF path linked with array element or array layers.
+           Common part of overall gain_correction.
+           gain_correction = common array-carrier gain-correction + eAxC gain correction.";
+      }
+
+      leaf n-ta-offset {
+        type uint32;
+        units Tc;
+        mandatory true;
+        description
+          "Value of configurable N-TA offset
+          units are Tc=~0.5ns=1/1.96608GHz";
+      }
+
+      leaf configurable-tdd-pattern {
+        when "not(/user-plane-configuration/low-level-rx-endpoints[name = string(/user-plane-configuration/low-level-rx-links[rx-array-carrier = current()/../name]/rx-array-carrier)]/configurable-tdd-pattern-supported = 'false')";
+        if-feature mcap:CONFIGURABLE-TDD-PATTERN-SUPPORTED;
+        type leafref {
+          path "/user-plane-configuration/configurable-tdd-patterns/tdd-pattern-id";
+        }
+        description
+          "This parameter creates reference to configuration for TDD pattern applicable for particular rx-array-carrier.
+           The leaf may exist under rx-array-carrier only in case O-RU supports feature 'CONFIGURABLE-TDD-PATTERN-SUPPORTED'
+          AND all low-level-rx-endpoints linked to this rx-array-carrier have configurable-tdd-pattern-supported = 'true'";
+      }
+    }
+
+    list tx-arrays {
+      key "name";
+      config false;
+      description
+        "Structure describing TX array parameters";
+
+      uses parameters;
+
+      leaf max-gain {
+        type decimal64 {
+          fraction-digits 4;
+
+        }
+        units dB;
+        mandatory true;
+        description
+          "Max gain of RF path linked with array element (minimum over elements of array) or array layers";
+      }
+
+      leaf independent-power-budget {
+        type boolean;
+        mandatory true;
+        description
+          "If true then every element of array has own, power budget independent from power budget of other elements.
+          Else all elements of array that are at same row and column and have same polarization share power budget";
+      }
+
+      list capabilities {
+        description
+          "List of capabilities related to this tx-array";
+        uses mcap:support-for-dl;
+      }
+    }
+
+    list rx-arrays {
+      key "name";
+      config false;
+      description "Structure describing RX array parameters";
+
+      uses parameters;
+      container gain-correction-range {
+        leaf max {
+          type decimal64 {
+            fraction-digits 4;
+          }
+          units dB;
+          mandatory true;
+          description "Array gain correction factor - maximum allowed value";
+          }
+        leaf min {
+          type decimal64 {
+            fraction-digits 4;
+          }
+          units dB;
+          mandatory true;
+          description "Array gain correction factor - minimum allowed value";
+        }
+
+        description
+          "Array gain correction factor";
+      }
+
+      list capabilities {
+        description
+          "List of capabilities related to this rx-array";
+        uses mcap:support-for-ul;
+      }
+    }
+
+    list relations {
+      key "entity";
+      config false;
+      description "Structure describing relations between array elements";
+
+      leaf entity {
+        type uint16;
+
+        description
+          "Relation entity. Used as a key for list of relations.";
+      }
+
+      container array1 {
+        uses array-choice;
+
+        description
+          "Defnes name for first array";
+      }
+      container array2 {
+        uses array-choice;
+
+        description
+          "Defnes name for second array";
+      }
+      list types {
+        key "relation-type";
+        description
+          "Defines relation type and pairs for array elements for given arrays";
+
+        leaf relation-type {
+          type enumeration {
+            enum SHARED {
+              description "SHARED";
+            }
+            enum COALOCATED {
+              description "COALOCATED";
+            }
+          }
+          description "Type of relation between array elements";
+        }
+        list pairs {
+          key "element-array1";
+          description
+            "defines related array elements";
+
+          leaf element-array1 {
+            type uint16;
+
+            description
+              "Tells about id of element from array1";
+          }
+          leaf element-array2 {
+            type uint16;
+
+            description
+              "Tells about id of element from array2";
+          }
+        }
+      }
+    }
+
+    container eaxc-id-group-configuration {
+      if-feature mcap:EAXC-ID-GROUP-SUPPORTED;
+      description
+        "This is the container for eAxC ID group configuration.";
+      leaf max-num-tx-eaxc-id-groups {
+        type leafref {
+          path "/mcap:module-capability/mcap:ru-capabilities/mcap:eaxcid-grouping-capabilities/mcap:max-num-tx-eaxc-id-groups";
+          require-instance false;
+        }
+        description "eaxc-id-group-configuration";
+      }
+      leaf max-num-tx-eaxc-ids-per-group {
+        type leafref {
+          path "/mcap:module-capability/mcap:ru-capabilities/mcap:eaxcid-grouping-capabilities/mcap:max-num-tx-eaxc-ids-per-group";
+          require-instance false;
+        }
+        description "max-num-tx-eaxc-ids-per-group";
+      }
+      leaf max-num-rx-eaxc-id-groups {
+        type leafref {
+          path "/mcap:module-capability/mcap:ru-capabilities/mcap:eaxcid-grouping-capabilities/mcap:max-num-rx-eaxc-id-groups";
+          require-instance false;
+        }
+        description "max-num-rx-eaxc-id-groups";
+      }
+      leaf max-num-rx-eaxc-ids-per-group {
+        type leafref {
+          path "/mcap:module-capability/mcap:ru-capabilities/mcap:eaxcid-grouping-capabilities/mcap:max-num-rx-eaxc-ids-per-group";
+          require-instance false;
+        }
+        description "max-num-rx-eaxc-ids-per-group";
+      }
+
+      list tx-eaxc-id-group {
+        must "count(../tx-eaxc-id-group) <= ../max-num-tx-eaxc-id-groups" {
+          error-message "too many tx-eaxcid-id groups";
+        }
+        key "representative-tx-eaxc-id";
+        description
+          "This is a list of the groups of the eAxC IDs assigned to low-level-tx-endpoints.
+          Each group is a union of the 'member-tx-eaxc-id's and a 'representative-tx-eaxc-id'.
+          The low-level-tx-endpoint associated to 'representative-tx-eaxc-id' is able to
+          process the DL C-plane information for all the low-level-tx-endpoints associated
+          to 'member-tx-eaxc-id's.
+
+          Take Note: This list should only contain eAxC IDs assigned to a tx-endpoint.";
+
+
+        leaf representative-tx-eaxc-id {
+          type uint16;
+          description
+            "This parameter contains eAxC_ID that populates content of C-Plane section
+            extension 11 to eAxC_IDs configured in the group as 'member-tx-eaxc-id'(s).";
+        }
+        leaf-list member-tx-eaxc-id {
+          type uint16;
+          must "count(../member-tx-eaxc-id) <= ../../max-num-tx-eaxc-ids-per-group" {
+            error-message "too many tx-eaxcid-id members";
+          }
+          must "current()!=../representative-tx-eaxc-id" {
+            error-message "the representative eaxcid does not need to be a list member";
+          }
+          description
+            "This is a list of member eAxC IDs, which together with the representative-tx-eaxc-id,
+            are assigned to low-level-tx-endpoints in the group.";
+        }
+      }
+
+      list rx-eaxc-id-group {
+        must "count(../rx-eaxc-id-group) <= ../max-num-rx-eaxc-id-groups" {
+          error-message "too many rx-eaxcid-id groups";
+        }
+        key "representative-rx-eaxc-id";
+        description
+          "This is a list of the groups of the eAxC IDs assigned to low-level-rx-endpoints.
+          Each group is a union of 'member-rx-eaxc-id's and a 'representative-rx-eaxc-id'.
+          The low-level-rx-endpoint associated to 'representative-rx-eaxc-id' is able to
+          process the UL C-plane information for all the low-level-rx-endpoints associated
+          to 'member-rx-eaxc-id's.
+
+          Take Note: This list should only contain eAxC IDs assigned to a rx-endpoint.";
+
+        leaf representative-rx-eaxc-id {
+          type uint16;
+          description
+            "This parameter contains eAxC_ID that populates content of C-Plane section
+            extension 11 to eAxC_IDs configured in the group as 'member-rx-eaxc-id'(s).";
+        }
+
+        leaf-list member-rx-eaxc-id {
+          type uint16;
+          must "count(../member-rx-eaxc-id) <= ../../max-num-rx-eaxc-ids-per-group" {
+            error-message "too many rx-eaxcid-id members";
+          }
+          must "current()!=../representative-rx-eaxc-id" {
+            error-message "the representative eaxcid does not need to be a list member";
+          }
+          description
+            "This is a list of member eAxC IDs assigned to low-level-rx-endpoints in the group.";
+        }
+      }
+    }
+
+    list static-prach-configurations {
+      if-feature mcap:PRACH-STATIC-CONFIGURATION-SUPPORTED;
+      key static-prach-config-id;
+      description
+        "List of static PRACH configurations. An O-RU shall reject any configuration
+        modification which exceed the maximum permitted configurations supported by
+        the O-RU";
+
+      leaf static-prach-config-id {
+        type uint8;
+        description
+          "Supplementary parameter acting as key in list of static PRACH configurations.";
+      }
+
+      uses static-prach-configuration;
+    }
+
+    grouping static-prach-configuration {
+      description
+        "Set of parameters related to static PRACH configuration";
+
+      leaf pattern-period {
+        type uint16 {
+          range 1..1024;
+        }
+        mandatory true;
+        description
+          "Period after which static PRACH patterns are repeated. Unit: number of frames.";
+      }
+
+      leaf guard-tone-low-re {
+        type uint32;
+        mandatory true;
+        description
+          "Number of REs occupied by the low guard tones.";
+      }
+
+      leaf num-prach-re {
+        type uint32;
+        mandatory true;
+        description
+          "Number of contiguous PRBs per data section description";
+      }
+
+      leaf guard-tone-high-re {
+        type uint32;
+        mandatory true;
+        description
+          "Number of REs occupied by the high guard tones.";
+      }
+
+      leaf sequence-duration {
+        type uint32 {
+          range 256..24576;
+        }
+        units Ts;
+        mandatory true;
+        description
+          "Duration of single sequence of the PRACH. Sequence may be considered as 'single PRACH symbol'";
+      }
+
+      list prach-patterns {
+        key prach-pattern-id;
+        min-elements 1;
+        description
+          "Provides a PRACH pattern. Each record in the list represents a single PRACH occasion. Number of list entries cannot exceed max-prach-patterns";
+
+        leaf prach-pattern-id {
+          type uint16;
+          mandatory true;
+          description
+            "Supplementary parameter acting as key for prach-pattern list.";
+        }
+
+        leaf number-of-repetitions {
+          type uint8{
+            range 1..14;
+          }
+          mandatory true;
+          description
+            "This parameter defines number of PRACH repetitions in PRACH occasion,
+             to which the section control is applicable.";
+        }
+
+        leaf number-of-occasions {
+          type uint8;
+          mandatory true;
+          description
+            "This parameter informs how many consecutive PRACH occasions is described by the PRACH pattern.";
+        }
+
+        leaf re-offset {
+          type uint32;
+          mandatory true;
+          description
+            "Offset between the start of lowest-frequency RE of lowest-frequency PRB
+             and the start of lowest-frequency RE belonging to the PRACH occasion.
+             The re-offset is configured as number of PRACH REs.";
+        }
+
+        list occasion-parameters {
+          key occasion-id;
+          min-elements 1;
+          description
+            "This is list of cp-lengths, gp-lengths and beam-ids applicable
+             per each PRACH occasion in PRACH pattern.
+             Note: the number of records in this list MUST be equal
+                   to value of parameter number-of-occasions.";
+
+          leaf occasion-id {
+            type uint8;
+            mandatory true;
+            description
+              "Supplementary parameter acting as key in 'occasion-parameters' list";
+          }
+
+          leaf cp-length {
+            type uint16;
+            units Ts;
+            mandatory true;
+            description
+          "Cyclic prefix length. See CUS-plane specification for detailed description.";
+          }
+
+          leaf gp-length {
+            type uint16;
+            units Ts;
+            description
+              "Guard period length.";
+          }
+
+          leaf beam-id {
+            type uint16;
+            mandatory true;
+            description
+              "This parameter defines the beam pattern to be applied to the U-Plane data.
+               beamId = 0 means no beamforming operation will be performed.";
+          }
+        }
+
+        leaf frame-number {
+          type uint16{
+            range 0..1023;
+          }
+          mandatory true;
+          description
+            "This parameter is an index inside the pattern-length, such that
+             PRACH occasion is happening for SFN which fulfills following equation:
+             [SFN mod pattern-length = frame-id]";
+        }
+
+        leaf sub-frame-id {
+          type uint16;
+          mandatory true;
+          description
+            "Identifier of sub-frame of the PRACH occasion. Value is interpreted in the same way
+             as subframeId field in a section description of a C-Plane message.";
+        }
+
+        leaf time-offset {
+          type uint16;
+          units Ts;
+          mandatory true;
+          description
+            "This parameter defines the time-offset from the start of the sub-frame
+             to the start of the first Cyclic Prefix of PRACH pattern";
+        }
+      }
+    }
+
+    grouping static-srs-configuration {
+      description
+        "Set of parameters related to static PRACH configuration";
+
+      leaf pattern-period {
+        type uint16 {
+          range 1..1024;
+        }
+        mandatory true;
+        description
+          "Period after which static SRS patterns are repeated. Unit: number of frames.";
+      }
+
+      list srs-patterns {
+        key srs-pattern-id;
+        min-elements 1;
+        description
+          "Provides a SRS pattern. Each record in the list represents a single PRACH occasion. Number of list entries cannot exceed max-srs-patterns.";
+
+        leaf srs-pattern-id {
+          type uint16;
+          mandatory true;
+          description
+            "Supplementary parameter acting as key for srs-pattern list.";
+        }
+
+        leaf sub-frame-id {
+          type uint16;
+          mandatory true;
+          description
+            "Identifier of sub-frame of the Raw SRS occasion. Value is interpreted in the same way
+             as subframeId field in a section description of a C-Plane message.";
+        }
+
+        leaf slot-id {
+          type uint16;
+          mandatory true;
+          description
+            "Identifier of slot of the Raw SRS occasion. Value is interpreted in the same way
+             as slotId field in a section description of a C-Plane message.";
+        }
+
+        leaf start-symbol-id {
+          type uint16;
+          mandatory true;
+          description
+            "Identifier of first symbol of the Raw SRS occasion. Value is interpreted in the same way
+             as startSymbolId field in a section description of a C-Plane message.";
+        }
+
+        leaf beam-id {
+          type uint16;
+          mandatory true;
+          description
+            "This parameter defines the beam pattern to be applied to the U-Plane data.
+             beamId = 0 means no beamforming operation will be performed.";
+        }
+
+        leaf num-symbol {
+          type uint16;
+          mandatory true;
+          description
+            "This parameter defines number of consecutive symbols covered by specific srs-pattern. 
+             Single srs-pattern may address at least one symbol. However, possible optimizations 
+             could allow for several (up to 14) symbols.";
+        }
+
+        leaf start-prbc {
+          type uint16 {
+            range 0..1023;
+          }
+          mandatory true;
+          description
+            "Identifier of first PRB of the Raw SRS occasion. Value is interpreted in the same way
+             as startPrbc field in a section description of a C-Plane message.";
+        }
+
+        leaf num-prbc {
+          type uint16;
+          mandatory true;
+          description
+            "Number of PRBs of the Raw SRS occasion. Value is interpreted in the same way
+             as numPrbc field in a section description of a C-Plane message.";
+        }
+      }
+    }
+
+    grouping configurable-tdd-pattern {
+      description
+        "Set of parameters related to configurable TDD pattern.
+        Note: configurable-tdd-pattern shall not be used in case the usage would collide with
+        deprecated 'lte-tdd-pattern'.";
+
+      list switching-points {
+        key switching-point-id;
+        description
+          "List of switching points within frame, related to configurable TDD pattern.
+          An O-RU shall reject any configuration modification which exceeds the maximum
+          number of switching-points supported by the O-RU";
+
+        leaf switching-point-id {
+          type uint16;
+          description
+            "Supplementary parameter acting as key for switching-points list.";
+          }
+
+        leaf direction {
+          type enumeration {
+            enum UL {
+            description "Uplink";
+            }
+            enum DL {
+            description "Downlink";
+            }
+            enum GP {
+            description "Guard period";
+            }
+          }
+          mandatory true;
+          description
+            "Parameter provides information regarding desired signal direction at the moment switching point occurs.";
+        }
+
+        leaf frame-offset {
+          type uint32;
+          mandatory true;
+          description
+            "Offset from DL air frame boundary transmitted at RF connector to the point in time that is characteristic to the operation on RF switches. Unit is 1/1.2288e9 Hz and accuracy is 1/4 Tc.";
+        }
+      }
+    }
+
+    list static-srs-configurations {
+      if-feature mcap:SRS-STATIC-CONFIGURATION-SUPPORTED;
+      key static-srs-config-id;
+      description
+        "List of static SRS configurations";
+
+      leaf static-srs-config-id {
+        type uint8;
+        description
+          "Supplementary parameter acting as key in the list of static SRS configurations.";
+      }
+
+      uses static-srs-configuration;
+    }
+
+    list configurable-tdd-patterns {
+      if-feature mcap:CONFIGURABLE-TDD-PATTERN-SUPPORTED;
+      key tdd-pattern-id;
+      description
+        "List of configured TDD patterns";
+
+      leaf tdd-pattern-id {
+        type uint8;
+        description
+          "Supplementary parameter acting as key in the list of configured TDD patterns.";
+      }
+
+      uses configurable-tdd-pattern;
+    }
+  }
+
+  grouping tx-array-notification-group {
+    description
+      "Grouping for tx-array for notification";
+
+    list tx-array-carriers{
+      key name;
+      description "notification of state change for tx-array-carriers";
+
+      leaf name{
+        type leafref{
+          path "/user-plane-configuration/tx-array-carriers/name";
+        }
+        description
+          "name of tx-array-carriers is notified at state change";
+      }
+      leaf state{
+        type leafref{
+          path "/user-plane-configuration/tx-array-carriers/state";
+        }
+      description
+        "state of tx-array-carriers is notified at state change";
+      }
+    }
+  }
+
+  grouping rx-array-notification-group {
+    description
+      "Grouping for rx-array for notification";
+
+    list rx-array-carriers{
+      key name;
+      description
+        "Notification used to inform about state change of rx-array-carriers";
+      leaf name{
+        type leafref{
+          path "/user-plane-configuration/rx-array-carriers/name";
+        }
+        description
+          "name of rx-array-carriers is notified at state change";
+      }
+      leaf state{
+        type leafref{
+          path "/user-plane-configuration/rx-array-carriers/state";
+        }
+        description
+          "state of rx-array-carriers is notified at state change";
+      }
+    }
+  }
+
+// top level container
+
+  container user-plane-configuration {
+    description "top level container for user plane configuration";
+
+    uses uplane-conf-group;
+    uses general-config;
+  }
+
+  //notification statement
+  notification tx-array-carriers-state-change {
+    description
+      "Notification used to inform about state change of tx-array-carriers";
+    uses tx-array-notification-group;
+  }
+  notification rx-array-carriers-state-change {
+    description
+    "Notification used to inform about state change of tx-array-carriers";
+
+    uses rx-array-notification-group;
+  }
+}

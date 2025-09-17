@@ -18,21 +18,23 @@
  * For more information about the OpenAirInterface (OAI) Software Alliance:
  *      contact@openairinterface.org
  */
-/*! \file nfapi/open-nFAPI/fapi/inc/nr_fapi_p5.h
- * \brief
- * \author Ruben S. Silva
- * \date 2024
- * \version 0.1
- * \company OpenAirInterface Software Alliance
- * \email: contact@openairinterface.org, rsilva@allbesmart.pt
- * \note
- * \warning
- */
 
 #ifndef OPENAIRINTERFACE_NR_FAPI_P5_H
 #define OPENAIRINTERFACE_NR_FAPI_P5_H
 #include "stdint.h"
 #include "nfapi_interface.h"
+
+int fapi_nr_p5_message_pack(void *pMessageBuf,
+                            uint32_t messageBufLen,
+                            void *pPackedBuf,
+                            uint32_t packedBufLen,
+                            nfapi_p4_p5_codec_config_t *config);
+
+bool fapi_nr_p5_message_unpack(void *pMessageBuf,
+                              uint32_t messageBufLen,
+                              void *pUnpackedBuf,
+                              uint32_t unpackedBufLen,
+                              nfapi_p4_p5_codec_config_t *config);
 
 uint8_t pack_nr_param_request(void *msg, uint8_t **ppWritePackedMsg, uint8_t *end, nfapi_p4_p5_codec_config_t *config);
 uint8_t unpack_nr_param_request(uint8_t **ppReadPackedMsg, uint8_t *end, void *msg, nfapi_p4_p5_codec_config_t *config);

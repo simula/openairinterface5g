@@ -748,12 +748,6 @@ typedef struct {
   /// \brief llr values.
   /// - first index: ? [0..1179743] (hard coded)
   int16_t *llr;
-#ifdef LOCALIZATION
-  /// number of active subcarrier for a specific UE
-  int32_t active_subcarrier;
-  /// subcarrier power in dBm
-  int32_t *subcarrier_power;
-#endif
 } NB_IoT_eNB_PUSCH;
 
 #define PBCH_A_NB_IoT 24

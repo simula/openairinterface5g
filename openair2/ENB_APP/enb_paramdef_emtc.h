@@ -351,6 +351,7 @@ typedef struct ccparams_eMTC_s {
              { {NULL}} ,						     \
              { {NULL}} ,						     \
              { {NULL}} ,						     \
+             { {NULL}} ,						     \
 }
 // clang-format on
 

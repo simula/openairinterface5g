@@ -9,10 +9,11 @@ else()
   message(FATAL_ERROR "unknown X2AP_RELEASE ${X2AP_RELEASE}")
 endif()
 
-add_custom_command(OUTPUT ${x2ap_source} ${x2ap_headers}
-  COMMAND ASN1C_PREFIX=X2AP_ ${ASN1C_EXEC} -pdu=all -gen-APER -no-gen-BER -no-gen-JER -no-gen-OER -gen-UPER -fcompound-names -no-gen-example -fno-include-deps -D ${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/${X2AP_GRAMMAR}
-  DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/${X2AP_GRAMMAR}
-  COMMENT "Generating X2AP source files from ${CMAKE_CURRENT_SOURCE_DIR}/${X2AP_GRAMMAR}"
+run_asn1c(${CMAKE_CURRENT_SOURCE_DIR}/${X2AP_GRAMMAR}
+          "X2AP_"
+          OUTPUT ${x2ap_source} ${x2ap_headers}
+          OPTIONS -pdu=all -gen-APER -no-gen-BER -no-gen-JER -no-gen-OER -gen-UPER -fcompound-names -no-gen-example -fno-include-deps
+          COMMENT "X2AP source files"
 )
 
 add_library(asn1_x2ap ${x2ap_source})

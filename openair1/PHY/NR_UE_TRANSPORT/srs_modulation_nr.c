@@ -423,14 +423,26 @@ int generate_srs_nr(nfapi_nr_srs_pdu_t *srs_config_pdu,
 *                send srs according to current configuration
 *
 *********************************************************************/
-int ue_srs_procedures_nr(PHY_VARS_NR_UE *ue, const UE_nr_rxtx_proc_t *proc, c16_t **txdataF)
+int ue_srs_procedures_nr(PHY_VARS_NR_UE *ue,
+                         const UE_nr_rxtx_proc_t *proc,
+                         c16_t **txdataF,
+                         nr_phy_data_tx_t *phy_data,
+                         bool was_symbol_used[NR_NUMBER_OF_SYMBOLS_PER_SLOT])
 {
-  if(!ue->srs_vars[0]->active) {
+  if(phy_data->srs_vars.active == false) {
     return -1;
   }
-  ue->srs_vars[0]->active = false;
 
-  nfapi_nr_srs_pdu_t *srs_config_pdu = (nfapi_nr_srs_pdu_t*)&ue->srs_vars[0]->srs_config_pdu;
+  // TODO: This is wrong: casting from UE fapi to gNB NFAPI srs pdu
+  nfapi_nr_srs_pdu_t *srs_config_pdu = (nfapi_nr_srs_pdu_t *)&phy_data->srs_vars.srs_config_pdu;
+
+  int first_srs_symbol = ue->frame_parms.symbols_per_slot - 1 - srs_config_pdu->time_start_position;
+  // Num consecutive SRS symbols according to 38.211 6.4.1.4.1
+  int num_srs_symbols[] = {1, 2, 4, 8, 12};
+  int last_srs_symbol = first_srs_symbol + num_srs_symbols[srs_config_pdu->num_symbols] - 1;
+  for (int i = first_srs_symbol; i <= last_srs_symbol; i++) {
+    was_symbol_used[i] = true;
+  }
 
 #ifdef SRS_DEBUG
   LOG_I(NR_PHY,"Frame = %i, slot = %i\n", proc->frame_tx, proc->nr_slot_tx);

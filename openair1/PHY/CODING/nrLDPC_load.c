@@ -29,7 +29,7 @@
  * \note
  * \warning
  */
-#define _GNU_SOURCE 
+#define _GNU_SOURCE
 #include <sys/types.h>
 #include <stdlib.h>
 #include <malloc.h>
@@ -41,7 +41,7 @@
 
 /* arguments used when called from phy simulators exec's which do not use the config module */
 /* arg is used to initialize the config module so that the loader works as expected */
-char *arg[64]={"ldpctest",NULL};
+char *arg[64] = {"ldpctest", NULL};
 
 int load_LDPClib(char *version, ldpc_interface_t *itf)
 {

@@ -50,6 +50,7 @@ int config_setdefault_double(configmodule_interface_t *cfg, paramdef_t *cfgoptio
 int config_setdefault_ipv4addr(configmodule_interface_t *cfg, paramdef_t *cfgoptions, char *prefix);
 void *config_allocate_new(configmodule_interface_t *cfg, int sz, bool autoFree);
 void config_assign_int(configmodule_interface_t *cfg, paramdef_t *cfgoptions, char *fullname, int val);
+int config_common_getdefault(configmodule_interface_t *cfg, paramdef_t *cfgoption, char *prefix);
 
 #ifdef __cplusplus
 }

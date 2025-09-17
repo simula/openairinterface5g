@@ -47,7 +47,7 @@ ssize_t x2ap_generate_initiating_message(
   pdu.choice.initiatingMessage.criticality   = criticality;
   ANY_fromType_aper((ANY_t *)&pdu.choice.initiatingMessage.value, td, sptr);
 
-  if (asn1_xer_print) {
+  if (LOG_DEBUGFLAG(DEBUG_ASN1)) {
     xer_fprint(stdout, &asn_DEF_X2AP_X2AP_PDU, (void *)&pdu);
   }
 
@@ -79,7 +79,7 @@ ssize_t x2ap_generate_successfull_outcome(
   pdu.choice.successfulOutcome.criticality   = criticality;
   ANY_fromType_aper((ANY_t *)&pdu.choice.successfulOutcome.value, td, sptr);
 
-  if (asn1_xer_print) {
+  if (LOG_DEBUGFLAG(DEBUG_ASN1)) {
     xer_fprint(stdout, &asn_DEF_X2AP_X2AP_PDU, (void *)&pdu);
   }
 
@@ -111,7 +111,7 @@ ssize_t x2ap_generate_unsuccessfull_outcome(
   pdu.choice.successfulOutcome.criticality   = criticality;
   ANY_fromType_aper((ANY_t *)&pdu.choice.successfulOutcome.value, td, sptr);
 
-  if (asn1_xer_print) {
+  if (LOG_DEBUGFLAG(DEBUG_ASN1)) {
     xer_fprint(stdout, &asn_DEF_X2AP_X2AP_PDU, (void *)&pdu);
   }
 

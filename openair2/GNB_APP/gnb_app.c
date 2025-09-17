@@ -54,8 +54,6 @@
 #include "gnb_config.h"
 #include "openair2/LAYER2/NR_MAC_gNB/mac_proto.h"
 
-extern unsigned char NB_gNB_INST;
-
 extern RAN_CONTEXT_t RC;
 
 #define GNB_REGISTER_RETRY_DELAY 10
@@ -71,23 +69,16 @@ uint32_t gNB_app_register(uint32_t gnb_id_start, uint32_t gnb_id_end)//, const E
 
   for (gnb_id = gnb_id_start; (gnb_id < gnb_id_end) ; gnb_id++) {
     {
-      if(get_softmodem_params()->sa){
-        ngap_register_gnb_req_t *ngap_register_gNB; //Type Temporarily reuse
-          
+      if (IS_SA_MODE(get_softmodem_params())) {
+
         // note:  there is an implicit relationship between the data structure and the message name
         msg_p = itti_alloc_new_message (TASK_GNB_APP, 0, NGAP_REGISTER_GNB_REQ); //Message Temporarily reuse
 
         RCconfig_NR_NG(msg_p, gnb_id);
 
-        ngap_register_gNB = &NGAP_REGISTER_GNB_REQ(msg_p); //Message Temporarily reuse
-
-        LOG_I(GNB_APP,"default drx %d\n",ngap_register_gNB->default_drx);
-
         itti_send_msg_to_task (TASK_NGAP, GNB_MODULE_ID_TO_INSTANCE(gnb_id), msg_p);
       }
     }
-
-    LOG_I(GNB_APP,"[gNB %d] gNB_app_register for instance %d\n", gnb_id, GNB_MODULE_ID_TO_INSTANCE(gnb_id));
 
     register_gnb_pending++;
     }
@@ -105,7 +96,6 @@ uint32_t gNB_app_register_x2(uint32_t gnb_id_start, uint32_t gnb_id_end) {
   for (gnb_id = gnb_id_start; (gnb_id < gnb_id_end) ; gnb_id++) {
     {
       msg_p = itti_alloc_new_message (TASK_GNB_APP, 0, X2AP_REGISTER_ENB_REQ);
-      LOG_I(X2AP, "GNB_ID: %d \n", gnb_id);
       RCconfig_NR_X2(msg_p, gnb_id);
       itti_send_msg_to_task (TASK_X2AP, ENB_MODULE_ID_TO_INSTANCE(gnb_id), msg_p);
       register_gnb_x2_pending++;
@@ -191,43 +181,6 @@ void *gNB_app_task(void *args_p)
     case NGAP_REGISTER_GNB_CNF:
       LOG_I(GNB_APP, "[gNB %ld] Received %s: associated AMF %d\n", instance, msg_name,
             NGAP_REGISTER_GNB_CNF(msg_p).nb_amf);
-/*
-      DevAssert(register_gnb_pending > 0);
-      register_gnb_pending--;
-
-      // Check if at least gNB is registered with one AMF 
-      if (NGAP_REGISTER_GNB_CNF(msg_p).nb_amf > 0) {
-        registered_gnb++;
-      }
-
-      // Check if all register gNB requests have been processed 
-      if (register_gnb_pending == 0) {
-        if (registered_gnb == gnb_nb) {
-          // If all gNB are registered, start L2L1 task 
-          MessageDef *msg_init_p;
-
-          msg_init_p = itti_alloc_new_message (TASK_GNB_APP, 0, INITIALIZE_MESSAGE);
-          itti_send_msg_to_task (TASK_L2L1, INSTANCE_DEFAULT, msg_init_p);
-
-        } else {
-          uint32_t not_associated = gnb_nb - registered_gnb;
-
-          LOG_W(GNB_APP, " %d gNB %s not associated with a AMF, retrying registration in %d seconds ...\n",
-                not_associated, not_associated > 1 ? "are" : "is", GNB_REGISTER_RETRY_DELAY);
-
-          // Restart the gNB registration process in GNB_REGISTER_RETRY_DELAY seconds 
-          if (timer_setup (GNB_REGISTER_RETRY_DELAY, 0, TASK_GNB_APP, INSTANCE_DEFAULT, TIMER_ONE_SHOT,
-                           NULL, &gnb_register_retry_timer_id) < 0) {
-            LOG_E(GNB_APP, " Can not start gNB register retry timer, use \"sleep\" instead!\n");
-
-            sleep(GNB_REGISTER_RETRY_DELAY);
-            // Restart the registration process 
-            registered_gnb = 0;
-            register_gnb_pending = gNB_app_register (gnb_id_start, gnb_id_end);//, gnb_properties_p);
-          }
-        }
-      }
-*/
       break;
 
     case F1AP_SETUP_RESP:
@@ -248,10 +201,6 @@ void *gNB_app_task(void *args_p)
 
       break;
 
-    case F1AP_GNB_DU_CONFIGURATION_UPDATE_ACKNOWLEDGE:
-      LOG_E(GNB_APP, "[gNB %ld] Handling of %s message not implemented yet\n", instance, msg_name);
-      break;
-
     case NGAP_DEREGISTERED_GNB_IND:
       LOG_W(GNB_APP, "[gNB %ld] Received %s: associated AMF %d\n", instance, msg_name,
             NGAP_DEREGISTERED_GNB_IND(msg_p).nb_amf);
@@ -261,13 +210,11 @@ void *gNB_app_task(void *args_p)
 
     case TIMER_HAS_EXPIRED:
       LOG_I(GNB_APP, " Received %s: timer_id %ld\n", msg_name, TIMER_HAS_EXPIRED(msg_p).timer_id);
+      break;
 
-      //if (TIMER_HAS_EXPIRED (msg_p).timer_id == gnb_register_retry_timer_id) {
-        /* Restart the registration process */
-      //  registered_gnb = 0;
-      //  register_gnb_pending = gNB_app_register(gnb_id_start, gnb_id_end);//, gnb_properties_p);
-      //}
-
+    case GNB_SAT_POSITION_UPDATE:
+      LOG_I(GNB_APP, " Received GNB_SAT_POSITION_UPDATE message\n");
+      nr_update_sib19(&GNB_SAT_POSITION_UPDATE(msg_p));
       break;
 
     default:

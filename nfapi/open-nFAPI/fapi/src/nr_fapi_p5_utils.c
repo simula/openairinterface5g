@@ -18,38 +18,7 @@
  * For more information about the OpenAirInterface (OAI) Software Alliance:
  *      contact@openairinterface.org
  */
-/*! \file nfapi/open-nFAPI/fapi/src/nr_fapi_p5_utils.c
- * \brief
- * \author Ruben S. Silva
- * \date 2024
- * \version 0.1
- * \company OpenAirInterface Software Alliance
- * \email: contact@openairinterface.org, rsilva@allbesmart.pt
- * \note
- * \warning
- */
 #include "nr_fapi_p5_utils.h"
-
-void copy_vendor_extension_value(nfapi_vendor_extension_tlv_t *dst, const nfapi_vendor_extension_tlv_t *src)
-{
-  nfapi_tl_t *dst_tlv = (nfapi_tl_t *)dst;
-  nfapi_tl_t *src_tlv = (nfapi_tl_t *)src;
-
-  switch (dst_tlv->tag) {
-    case VENDOR_EXT_TLV_2_TAG: {
-      vendor_ext_tlv_2 *dst_ve = (vendor_ext_tlv_2 *)dst_tlv;
-      vendor_ext_tlv_2 *src_ve = (vendor_ext_tlv_2 *)src_tlv;
-
-      dst_ve->dummy = src_ve->dummy;
-    } break;
-    case VENDOR_EXT_TLV_1_TAG: {
-      vendor_ext_tlv_1 *dst_ve = (vendor_ext_tlv_1 *)dst_tlv;
-      vendor_ext_tlv_1 *src_ve = (vendor_ext_tlv_1 *)src_tlv;
-
-      dst_ve->dummy = src_ve->dummy;
-    } break;
-  }
-}
 
 bool eq_param_request(const nfapi_nr_param_request_scf_t *unpacked_req, const nfapi_nr_param_request_scf_t *req)
 {
@@ -271,23 +240,58 @@ bool eq_config_request(const nfapi_nr_config_request_scf_t *unpacked_req, const 
     EQ_TLV(unpacked_req->ssb_table.ssb_beam_id_list[i].beam_id, req->ssb_table.ssb_beam_id_list[i].beam_id);
   }
 
-  EQ_TLV(unpacked_req->tdd_table.tdd_period, req->tdd_table.tdd_period);
+  if (req->cell_config.frame_duplex_type.value == 1 /* TDD */) {
+    EQ_TLV(unpacked_req->tdd_table.tdd_period, req->tdd_table.tdd_period);
 
-  const uint8_t slotsperframe[5] = {10, 20, 40, 80, 160};
-  // Assuming always CP_Normal, because Cyclic prefix is not included in CONFIG.request 10.02, but is present in 10.04
-  uint8_t cyclicprefix = 1;
-  bool normal_CP = cyclicprefix ? false : true;
-  // 3GPP 38.211 Table 4.3.2.1 & Table 4.3.2.2
-  uint8_t number_of_symbols_per_slot = normal_CP ? 14 : 12;
+    const uint8_t slotsperframe[5] = {10, 20, 40, 80, 160};
+    // Assuming always CP_Normal, because Cyclic prefix is not included in CONFIG.request 10.02, but is present in 10.04
+    uint8_t cyclicprefix = 1;
+    // 3GPP 38.211 Table 4.3.2.1 & Table 4.3.2.2
+    uint8_t number_of_symbols_per_slot = cyclicprefix ? 14 : 12;
 
-  for (int i = 0; i < slotsperframe[unpacked_req->ssb_config.scs_common.value]; i++) {
-    for (int k = 0; k < number_of_symbols_per_slot; k++) {
-      EQ_TLV(unpacked_req->tdd_table.max_tdd_periodicity_list[i].max_num_of_symbol_per_slot_list[k].slot_config,
-             req->tdd_table.max_tdd_periodicity_list[i].max_num_of_symbol_per_slot_list[k].slot_config);
+    for (int i = 0; i < slotsperframe[unpacked_req->ssb_config.scs_common.value]; i++) {
+      for (int k = 0; k < number_of_symbols_per_slot; k++) {
+        EQ_TLV(unpacked_req->tdd_table.max_tdd_periodicity_list[i].max_num_of_symbol_per_slot_list[k].slot_config,
+               req->tdd_table.max_tdd_periodicity_list[i].max_num_of_symbol_per_slot_list[k].slot_config);
+      }
     }
   }
 
   EQ_TLV(unpacked_req->measurement_config.rssi_measurement, req->measurement_config.rssi_measurement);
+
+  EQ(unpacked_req->dbt_config.num_dig_beams, req->dbt_config.num_dig_beams);
+
+  EQ(unpacked_req->dbt_config.num_txrus, req->dbt_config.num_txrus);
+
+  for (int i = 0; i < req->dbt_config.num_dig_beams; i++) {
+    const nfapi_nr_dig_beam_t *unpacked_dig_beam = &unpacked_req->dbt_config.dig_beam_list[i];
+    const nfapi_nr_dig_beam_t *req_dig_beam = &req->dbt_config.dig_beam_list[i];
+    EQ(unpacked_dig_beam->beam_idx, req_dig_beam->beam_idx);
+    for (int k = 0; k < req->dbt_config.num_txrus; ++k) {
+      const nfapi_nr_txru_t *unpacked_tx_ru = &unpacked_dig_beam->txru_list[k];
+      const nfapi_nr_txru_t *req_tx_ru = &req_dig_beam->txru_list[k];
+      EQ(unpacked_tx_ru->dig_beam_weight_Re, req_tx_ru->dig_beam_weight_Re);
+      EQ(unpacked_tx_ru->dig_beam_weight_Im, req_tx_ru->dig_beam_weight_Im);
+    }
+  }
+
+  EQ(unpacked_req->pmi_list.num_pm_idx, req->pmi_list.num_pm_idx);
+
+  for (int i = 0; i < req->pmi_list.num_pm_idx; i++) {
+    const nfapi_nr_pm_pdu_t *req_pmi_pdu = &req->pmi_list.pmi_pdu[i];
+    const nfapi_nr_pm_pdu_t *unpacked_pmi_pdu = &unpacked_req->pmi_list.pmi_pdu[i];
+    EQ(unpacked_pmi_pdu->pm_idx, req_pmi_pdu->pm_idx);
+    EQ(unpacked_pmi_pdu->numLayers, req_pmi_pdu->numLayers);
+    EQ(unpacked_pmi_pdu->num_ant_ports, req_pmi_pdu->num_ant_ports);
+    for (int j = 0; j < req_pmi_pdu->num_ant_ports; ++j) {
+      for (int k = 0; k < req_pmi_pdu->num_ant_ports; ++k) {
+        const nfapi_nr_pm_weights_t* req_pm_weight = &req_pmi_pdu->weights[j][k];
+        const nfapi_nr_pm_weights_t* unpacked_pm_weight = &unpacked_pmi_pdu->weights[j][k];
+        EQ(unpacked_pm_weight->precoder_weight_Re, req_pm_weight->precoder_weight_Re);
+        EQ(unpacked_pm_weight->precoder_weight_Im, req_pm_weight->precoder_weight_Im);
+      }
+    }
+  }
 
   EQ(unpacked_req->nfapi_config.p7_vnf_address_ipv4.tl.tag, req->nfapi_config.p7_vnf_address_ipv4.tl.tag);
   for (int i = 0; i < NFAPI_IPV4_ADDRESS_LENGTH; ++i) {
@@ -306,6 +310,17 @@ bool eq_config_request(const nfapi_nr_config_request_scf_t *unpacked_req, const 
   EQ_TLV(unpacked_req->nfapi_config.timing_info_mode, req->nfapi_config.timing_info_mode);
 
   EQ_TLV(unpacked_req->nfapi_config.timing_info_period, req->nfapi_config.timing_info_period);
+
+  EQ_TLV(unpacked_req->analog_beamforming_ve.num_beams_period_vendor_ext, req->analog_beamforming_ve.num_beams_period_vendor_ext);
+
+  EQ_TLV(unpacked_req->analog_beamforming_ve.analog_bf_vendor_ext, req->analog_beamforming_ve.analog_bf_vendor_ext);
+
+  EQ_TLV(unpacked_req->analog_beamforming_ve.total_num_beams_vendor_ext, req->analog_beamforming_ve.total_num_beams_vendor_ext);
+
+  for (int i = 0; i < unpacked_req->analog_beamforming_ve.total_num_beams_vendor_ext.value; ++i) {
+    EQ_TLV(unpacked_req->analog_beamforming_ve.analog_beam_list[i], req->analog_beamforming_ve.analog_beam_list[i]);
+  }
+
   return true;
 }
 
@@ -410,27 +425,20 @@ bool eq_error_indication(const nfapi_nr_error_indication_scf_t *unpacked_req, co
 
 void free_param_request(nfapi_nr_param_request_scf_t *msg)
 {
-  if (msg->vendor_extension) {
-    free(msg->vendor_extension);
-  }
+  free(msg->vendor_extension);
 }
 
 void free_param_response(nfapi_nr_param_response_scf_t *msg)
 {
-  if (msg->vendor_extension) {
-    free(msg->vendor_extension);
-  }
+  free(msg->vendor_extension);
 
-  if (msg->cell_param.config_tlvs_to_report_list) {
-    free(msg->cell_param.config_tlvs_to_report_list);
-  }
+  free(msg->cell_param.config_tlvs_to_report_list);
+
 }
 
 void free_config_request(nfapi_nr_config_request_scf_t *msg)
 {
-  if (msg->vendor_extension) {
-    free(msg->vendor_extension);
-  }
+  free(msg->vendor_extension);
 
   if (msg->prach_config.num_prach_fd_occasions_list) {
     for (int i = 0; i < msg->prach_config.num_prach_fd_occasions.value; i++) {
@@ -449,67 +457,55 @@ void free_config_request(nfapi_nr_config_request_scf_t *msg)
     free(msg->tdd_table.max_tdd_periodicity_list);
   }
 
-  if (msg->pmi_list.pmi_pdu) {
-    free(msg->pmi_list.pmi_pdu);
+  for (int i = 0; i < msg->dbt_config.num_dig_beams; i++) {
+    free(msg->dbt_config.dig_beam_list[i].txru_list);
+  }
+
+  free(msg->dbt_config.dig_beam_list);
+
+  free(msg->pmi_list.pmi_pdu);
+
+  if (msg->analog_beamforming_ve.analog_beam_list) {
+    free(msg->analog_beamforming_ve.analog_beam_list);
   }
 }
 
 void free_config_response(nfapi_nr_config_response_scf_t *msg)
 {
-  if (msg->vendor_extension) {
-    free(msg->vendor_extension);
-  }
+  free(msg->vendor_extension);
 
-  if (msg->invalid_tlvs_list) {
-    free(msg->invalid_tlvs_list);
-  }
+  free(msg->invalid_tlvs_list);
 
-  if (msg->invalid_tlvs_configured_in_idle_list) {
-    free(msg->invalid_tlvs_configured_in_idle_list);
-  }
+  free(msg->invalid_tlvs_configured_in_idle_list);
 
-  if (msg->invalid_tlvs_configured_in_running_list) {
-    free(msg->invalid_tlvs_configured_in_running_list);
-  }
+  free(msg->invalid_tlvs_configured_in_running_list);
 
-  if (msg->missing_tlvs_list) {
-    free(msg->missing_tlvs_list);
-  }
+  free(msg->missing_tlvs_list);
 }
 
 void free_start_request(nfapi_nr_start_request_scf_t *msg)
 {
-  if (msg->vendor_extension) {
-    free(msg->vendor_extension);
-  }
+  free(msg->vendor_extension);
 }
 
 void free_start_response(nfapi_nr_start_response_scf_t *msg)
 {
-  if (msg->vendor_extension) {
-    free(msg->vendor_extension);
-  }
+  free(msg->vendor_extension);
 }
 
 void free_stop_request(nfapi_nr_stop_request_scf_t *msg)
 {
-  if (msg->vendor_extension) {
-    free(msg->vendor_extension);
-  }
+  free(msg->vendor_extension);
 }
 
 void free_stop_indication(nfapi_nr_stop_indication_scf_t *msg)
 {
-  if (msg->vendor_extension) {
-    free(msg->vendor_extension);
-  }
+  free(msg->vendor_extension);
 }
 
 void free_error_indication(nfapi_nr_error_indication_scf_t *msg)
 {
-  if (msg->vendor_extension) {
-    free(msg->vendor_extension);
-  }
+  free(msg->vendor_extension);
 }
 
 void copy_param_request(const nfapi_nr_param_request_scf_t *src, nfapi_nr_param_request_scf_t *dst)
@@ -800,29 +796,66 @@ void copy_config_request(const nfapi_nr_config_request_scf_t *src, nfapi_nr_conf
     COPY_TLV(dst->ssb_table.ssb_beam_id_list[i].beam_id, src->ssb_table.ssb_beam_id_list[i].beam_id);
   }
 
-  COPY_TLV(dst->tdd_table.tdd_period, src->tdd_table.tdd_period);
+  if (src->cell_config.frame_duplex_type.value == 1 /* TDD */) {
+    COPY_TLV(dst->tdd_table.tdd_period, src->tdd_table.tdd_period);
 
-  const uint8_t slotsperframe[5] = {10, 20, 40, 80, 160};
-  // Assuming always CP_Normal, because Cyclic prefix is not included in CONFIG.request 10.02, but is present in 10.04
-  uint8_t cyclicprefix = 1;
-  bool normal_CP = cyclicprefix ? false : true;
-  // 3GPP 38.211 Table 4.3.2.1 & Table 4.3.2.2
-  uint8_t number_of_symbols_per_slot = normal_CP ? 14 : 12;
-  dst->tdd_table.max_tdd_periodicity_list = (nfapi_nr_max_tdd_periodicity_t *)malloc(slotsperframe[dst->ssb_config.scs_common.value]
-                                                                                     * sizeof(nfapi_nr_max_tdd_periodicity_t));
+    const uint8_t slotsperframe[5] = {10, 20, 40, 80, 160};
+    // Assuming always CP_Normal, because Cyclic prefix is not included in CONFIG.request 10.02, but is present in 10.04
+    uint8_t cyclicprefix = 1;
+    // 3GPP 38.211 Table 4.3.2.1 & Table 4.3.2.2
+    uint8_t number_of_symbols_per_slot = cyclicprefix ? 14 : 12;
+    dst->tdd_table.max_tdd_periodicity_list = (nfapi_nr_max_tdd_periodicity_t *)malloc(slotsperframe[dst->ssb_config.scs_common.value]
+                                                                                       * sizeof(nfapi_nr_max_tdd_periodicity_t));
 
-  for (int i = 0; i < slotsperframe[dst->ssb_config.scs_common.value]; i++) {
-    dst->tdd_table.max_tdd_periodicity_list[i].max_num_of_symbol_per_slot_list =
-        (nfapi_nr_max_num_of_symbol_per_slot_t *)malloc(number_of_symbols_per_slot * sizeof(nfapi_nr_max_num_of_symbol_per_slot_t));
-  }
-  for (int i = 0; i < slotsperframe[dst->ssb_config.scs_common.value]; i++) { // TODO check right number of slots
-    for (int k = 0; k < number_of_symbols_per_slot; k++) { // TODO can change?
-      COPY_TLV(dst->tdd_table.max_tdd_periodicity_list[i].max_num_of_symbol_per_slot_list[k].slot_config,
-               src->tdd_table.max_tdd_periodicity_list[i].max_num_of_symbol_per_slot_list[k].slot_config);
+    for (int i = 0; i < slotsperframe[dst->ssb_config.scs_common.value]; i++) {
+      dst->tdd_table.max_tdd_periodicity_list[i].max_num_of_symbol_per_slot_list =
+          (nfapi_nr_max_num_of_symbol_per_slot_t *)malloc(number_of_symbols_per_slot * sizeof(nfapi_nr_max_num_of_symbol_per_slot_t));
+    }
+    for (int i = 0; i < slotsperframe[dst->ssb_config.scs_common.value]; i++) { // TODO check right number of slots
+      for (int k = 0; k < number_of_symbols_per_slot; k++) { // TODO can change?
+        COPY_TLV(dst->tdd_table.max_tdd_periodicity_list[i].max_num_of_symbol_per_slot_list[k].slot_config,
+                 src->tdd_table.max_tdd_periodicity_list[i].max_num_of_symbol_per_slot_list[k].slot_config);
+      }
     }
   }
 
   COPY_TLV(dst->measurement_config.rssi_measurement, src->measurement_config.rssi_measurement);
+
+  dst->dbt_config.num_dig_beams = src->dbt_config.num_dig_beams;
+  dst->dbt_config.num_txrus = src->dbt_config.num_txrus;
+  dst->dbt_config.dig_beam_list = calloc(dst->dbt_config.num_dig_beams, sizeof(*dst->dbt_config.dig_beam_list));
+  for (int i = 0; i < dst->dbt_config.num_dig_beams; i++) {
+    nfapi_nr_dig_beam_t *dst_dig_beam = &dst->dbt_config.dig_beam_list[i];
+    const nfapi_nr_dig_beam_t *src_dig_beam = &src->dbt_config.dig_beam_list[i];
+    dst_dig_beam->beam_idx = src_dig_beam->beam_idx;
+    dst_dig_beam->txru_list = calloc(dst->dbt_config.num_txrus , sizeof(*dst_dig_beam->txru_list ));
+    for (int k = 0; k < dst->dbt_config.num_txrus; ++k) {
+      nfapi_nr_txru_t *dst_tx_ru = &dst_dig_beam->txru_list[k];
+      const nfapi_nr_txru_t *src_tx_ru = &src_dig_beam->txru_list[k];
+      dst_tx_ru->dig_beam_weight_Re = src_tx_ru->dig_beam_weight_Re;
+      dst_tx_ru->dig_beam_weight_Im = src_tx_ru->dig_beam_weight_Im;
+    }
+  }
+
+  dst->pmi_list.num_pm_idx = src->pmi_list.num_pm_idx;
+  if (dst->pmi_list.num_pm_idx > 0) {
+    dst->pmi_list.pmi_pdu = calloc(dst->pmi_list.num_pm_idx , sizeof(*dst->pmi_list.pmi_pdu));
+    for (int i = 0; i < dst->pmi_list.num_pm_idx; i++) {
+      nfapi_nr_pm_pdu_t * dst_pmi_pdu = &dst->pmi_list.pmi_pdu[i];
+      const nfapi_nr_pm_pdu_t * src_pmi_pdu = &src->pmi_list.pmi_pdu[i];
+      dst_pmi_pdu->pm_idx = src_pmi_pdu->pm_idx;
+      dst_pmi_pdu->numLayers = src_pmi_pdu->numLayers;
+      dst_pmi_pdu->num_ant_ports = src_pmi_pdu->num_ant_ports;
+      for (int j = 0; j < dst_pmi_pdu->numLayers; ++j) {
+        for (int k = 0; k < dst_pmi_pdu->num_ant_ports; ++k) {
+         nfapi_nr_pm_weights_t* dst_pm_weight = &dst_pmi_pdu->weights[j][k];
+         const nfapi_nr_pm_weights_t* src_pm_weight = &src_pmi_pdu->weights[j][k];
+          dst_pm_weight->precoder_weight_Re = src_pm_weight->precoder_weight_Re;
+          dst_pm_weight->precoder_weight_Im = src_pm_weight->precoder_weight_Im;
+        }
+      }
+    }
+  }
 
   COPY_TL(dst->nfapi_config.p7_vnf_address_ipv4.tl, src->nfapi_config.p7_vnf_address_ipv4.tl);
   memcpy(dst->nfapi_config.p7_vnf_address_ipv4.address,
@@ -861,6 +894,21 @@ void copy_config_request(const nfapi_nr_config_request_scf_t *src, nfapi_nr_conf
   COPY_TLV(dst->nfapi_config.ul_dci_timing_offset, src->nfapi_config.ul_dci_timing_offset);
 
   COPY_TLV(dst->nfapi_config.tx_data_timing_offset, src->nfapi_config.tx_data_timing_offset);
+
+  COPY_TLV(dst->analog_beamforming_ve.num_beams_period_vendor_ext, src->analog_beamforming_ve.num_beams_period_vendor_ext);
+
+  COPY_TLV(dst->analog_beamforming_ve.analog_bf_vendor_ext, src->analog_beamforming_ve.analog_bf_vendor_ext);
+
+  COPY_TLV(dst->analog_beamforming_ve.total_num_beams_vendor_ext, src->analog_beamforming_ve.total_num_beams_vendor_ext);
+
+  if (dst->analog_beamforming_ve.total_num_beams_vendor_ext.value > 0) {
+    dst->analog_beamforming_ve.analog_beam_list = (nfapi_uint8_tlv_t *)malloc(
+                  dst->analog_beamforming_ve.total_num_beams_vendor_ext.value * sizeof(nfapi_uint8_tlv_t));
+    for (int i = 0; i < src->analog_beamforming_ve.total_num_beams_vendor_ext.value; ++i) {
+      COPY_TLV(dst->analog_beamforming_ve.analog_beam_list[i], src->analog_beamforming_ve.analog_beam_list[i]);
+    }
+  }
+
 }
 
 void copy_config_response(const nfapi_nr_config_response_scf_t *src, nfapi_nr_config_response_scf_t *dst)
@@ -968,4 +1016,477 @@ void copy_error_indication(const nfapi_nr_error_indication_scf_t *src, nfapi_nr_
   dst->slot = src->slot;
   dst->message_id = src->message_id;
   dst->error_code = src->error_code;
+}
+
+static void dump_p5_message_header(const nfapi_nr_p4_p5_message_header_t *hdr, int depth)
+{
+  INDENTED_PRINTF("Message ID = 0x%02x\n", hdr->message_id);
+  INDENTED_PRINTF("Message Length = 0x%02x\n", hdr->message_length);
+}
+
+void dump_param_request(const nfapi_nr_param_request_scf_t *msg)
+{
+  int depth = 0;
+  dump_p5_message_header(&msg->header,depth);
+}
+
+void dump_param_response(const nfapi_nr_param_response_scf_t *msg)
+{
+  int depth = 0;
+  dump_p5_message_header(&msg->header, depth);
+  depth++;
+  INDENTED_PRINTF("Error Code = 0x%02x\n", msg->error_code);
+  INDENTED_PRINTF("Number of TLVs = 0x%02x\n", msg->num_tlv);
+  /* dump all TLVs from each table */
+  /* Cell Param */
+  const nfapi_nr_cell_param_t *cell_param = &msg->cell_param;
+  depth++;
+  INDENTED_TLV_PRINT("Release Capability", cell_param->release_capability);
+  INDENTED_TLV_PRINT("PHY State", cell_param->phy_state);
+  INDENTED_TLV_PRINT("Skip Blank Dl Config", cell_param->skip_blank_dl_config);
+  INDENTED_TLV_PRINT("Skip Blank UL Config", cell_param->skip_blank_ul_config);
+  INDENTED_TLV_PRINT("NumConfigTLVsToReport", cell_param->num_config_tlvs_to_report);
+  depth++;
+  for (int i = 0; i < cell_param->num_config_tlvs_to_report.value; i++) {
+    const nfapi_uint8_tlv_t *reportedTLV = &cell_param->config_tlvs_to_report_list[i];
+    INDENTED_PRINTF("(0x%04x) Reported CONFIG TLV #%d = 0x%02x\n", reportedTLV->tl.tag, i + 1, reportedTLV->value);
+  }
+  depth--;
+  /* Carrier Param */
+  const nfapi_nr_carrier_param_t *carrier_param = &msg->carrier_param;
+  INDENTED_TLV_PRINT("Cyclic Prefix", carrier_param->cyclic_prefix);
+  INDENTED_TLV_PRINT("Supported SCS DL", carrier_param->supported_subcarrier_spacings_dl);
+  INDENTED_TLV_PRINT("Supported BW DL", carrier_param->supported_bandwidth_dl);
+  INDENTED_TLV_PRINT("Supported SCS UL", carrier_param->supported_subcarrier_spacings_ul);
+  INDENTED_TLV_PRINT("Supported BW UL", carrier_param->supported_bandwidth_ul);
+  /* PDCCH Param */
+  const nfapi_nr_pdcch_param_t *pdcch_param = &msg->pdcch_param;
+  INDENTED_TLV_PRINT("CCE Mapping Type", pdcch_param->cce_mapping_type);
+  INDENTED_TLV_PRINT("CSet Outside First 3 OFDM Symbols of Slot", pdcch_param->coreset_outside_first_3_of_ofdm_syms_of_slot);
+  INDENTED_TLV_PRINT("Precoder Granularity Coreset", pdcch_param->coreset_precoder_granularity_coreset);
+  INDENTED_TLV_PRINT("PDCCH Mu MIMO", pdcch_param->pdcch_mu_mimo);
+  INDENTED_TLV_PRINT("PDCCH Precoder Cycling", pdcch_param->pdcch_precoder_cycling);
+  INDENTED_TLV_PRINT("Max PDCCH per Slot", pdcch_param->max_pdcch_per_slot);
+  /* PUCHH Params */
+  const nfapi_nr_pucch_param_t *pucch_param = &msg->pucch_param;
+  INDENTED_TLV_PRINT("PUCCH Formats", pucch_param->pucch_formats);
+  INDENTED_TLV_PRINT("Max PUCCH per Slot", pucch_param->max_pucchs_per_slot);
+  /* PDSCH Params */
+  const nfapi_nr_pdsch_param_t *pdsch_param = &msg->pdsch_param;
+  INDENTED_TLV_PRINT("PDSCH Mapping Type", pdsch_param->pdsch_mapping_type);
+  INDENTED_TLV_PRINT("PDSCH Allocation Types", pdsch_param->pdsch_allocation_types);
+  INDENTED_TLV_PRINT("PDSCH VRB to PRB Mapping", pdsch_param->pdsch_vrb_to_prb_mapping);
+  INDENTED_TLV_PRINT("PDSCH CBG", pdsch_param->pdsch_cbg);
+  INDENTED_TLV_PRINT("PDSCH DMRS Config Types", pdsch_param->pdsch_dmrs_config_types);
+  INDENTED_TLV_PRINT("PDSCH DMRS Max Length", pdsch_param->pdsch_dmrs_max_length);
+  INDENTED_TLV_PRINT("PDSCH DMRS Additional Position", pdsch_param->pdsch_dmrs_additional_pos);
+  INDENTED_TLV_PRINT("Max PDSCH TBs per Slot", pdsch_param->max_pdsch_tbs_per_slot);
+  INDENTED_TLV_PRINT("Max number MIMO Layers PDSCH", pdsch_param->max_number_mimo_layers_pdsch);
+  INDENTED_TLV_PRINT("Supported Max Modulation Order DL", pdsch_param->supported_max_modulation_order_dl);
+  INDENTED_TLV_PRINT("Max Mu MIMO Users DL", pdsch_param->max_mu_mimo_users_dl);
+  INDENTED_TLV_PRINT("PDSCH Data in DMRS Symbols", pdsch_param->pdsch_data_in_dmrs_symbols);
+  INDENTED_TLV_PRINT("Preemption Support", pdsch_param->premption_support);
+  INDENTED_TLV_PRINT("PDSCH Non Slot Support", pdsch_param->pdsch_non_slot_support);
+  /* PUSCH Params */
+  const nfapi_nr_pusch_param_t *pusch_param = &msg->pusch_param;
+  INDENTED_TLV_PRINT("UCI Mux ULSCH in PUSCH", pusch_param->uci_mux_ulsch_in_pusch);
+  INDENTED_TLV_PRINT("UCI Only PUSCH", pusch_param->uci_only_pusch);
+  INDENTED_TLV_PRINT("PUSCH Frequency Hopping", pusch_param->pusch_frequency_hopping);
+  INDENTED_TLV_PRINT("PUSCH DMRS Config Types", pusch_param->pusch_dmrs_config_types);
+  INDENTED_TLV_PRINT("PUSCH DMRS Max Len", pusch_param->pusch_dmrs_max_len);
+  INDENTED_TLV_PRINT("PUSCH DMRS Additional Pos", pusch_param->pusch_dmrs_additional_pos);
+  INDENTED_TLV_PRINT("PUSCH CBG", pusch_param->pusch_cbg);
+  INDENTED_TLV_PRINT("PUSCH Mapping Type", pusch_param->pusch_mapping_type);
+  INDENTED_TLV_PRINT("PUSCH Allocation Types", pusch_param->pusch_allocation_types);
+  INDENTED_TLV_PRINT("PUSCH VRB to PRB Mapping", pusch_param->pusch_vrb_to_prb_mapping);
+  INDENTED_TLV_PRINT("PUSCH Max PTRS Ports", pusch_param->pusch_max_ptrs_ports);
+  INDENTED_TLV_PRINT("Max PUSCH TBs per Slot", pusch_param->max_pduschs_tbs_per_slot);
+  INDENTED_TLV_PRINT("Max Number MIMO Layers non CB PUSCH", pusch_param->max_number_mimo_layers_non_cb_pusch);
+  INDENTED_TLV_PRINT("Supported Modulation Order UL", pusch_param->supported_modulation_order_ul);
+  INDENTED_TLV_PRINT("Max MU MIMO Users UL", pusch_param->max_mu_mimo_users_ul);
+  INDENTED_TLV_PRINT("DTFS OFDM Support", pusch_param->dfts_ofdm_support);
+  INDENTED_TLV_PRINT("PUSCH Aggregation Factor", pusch_param->pusch_aggregation_factor);
+  /* PRACH Params */
+  const nfapi_nr_prach_param_t *prach_param = &msg->prach_param;
+  INDENTED_TLV_PRINT("PRACH Long Formats", prach_param->prach_long_formats);
+  INDENTED_TLV_PRINT("PRACH Short Formats", prach_param->prach_short_formats);
+  INDENTED_TLV_PRINT("PRACH Restricted Sets", prach_param->prach_restricted_sets);
+  INDENTED_TLV_PRINT("Max PRACH Occasions in a Slot", prach_param->max_prach_fd_occasions_in_a_slot);
+  /* Measurement Params */
+  const nfapi_nr_measurement_param_t *measurement_param = &msg->measurement_param;
+  INDENTED_TLV_PRINT("RSSI Measurement Support", measurement_param->rssi_measurement_support);
+  /* nFAPI Config */
+  const nfapi_nr_nfapi_t *nfapi_config = &msg->nfapi_config;
+  if (nfapi_config->p7_vnf_address_ipv4.tl.tag) {
+    char ip_str[INET_ADDRSTRLEN];
+    INDENTED_GENERIC_PRINT("(0x%04x) P7 VNF Address IPv4",
+                           "%s",
+                           nfapi_config->p7_vnf_address_ipv4.tl.tag,
+                           inet_ntop(AF_INET, nfapi_config->p7_vnf_address_ipv4.address, ip_str, sizeof(ip_str)));
+  }
+  if (nfapi_config->p7_vnf_address_ipv6.tl.tag) {
+    char addr6[INET6_ADDRSTRLEN];
+    INDENTED_GENERIC_PRINT("(0x%04x) P7 VNF Address IPv6",
+                           "%s",
+                           nfapi_config->p7_vnf_address_ipv6.tl.tag,
+                           inet_ntop(AF_INET6, nfapi_config->p7_vnf_address_ipv6.address, addr6, sizeof(addr6)));
+  }
+  INDENTED_TLV_FORMAT_PRINT("P7 VNF Port", "%d", nfapi_config->p7_vnf_port);
+
+  if (nfapi_config->p7_pnf_address_ipv4.tl.tag) {
+    char ip_str[INET_ADDRSTRLEN];
+    INDENTED_GENERIC_PRINT("(0x%04x) P7 PNF Address IPv4",
+                           "%s",
+                           nfapi_config->p7_pnf_address_ipv4.tl.tag,
+                           inet_ntop(AF_INET, nfapi_config->p7_pnf_address_ipv4.address, ip_str, sizeof(ip_str)));
+  }
+  if (nfapi_config->p7_pnf_address_ipv6.tl.tag) {
+    char addr6[INET6_ADDRSTRLEN];
+    INDENTED_GENERIC_PRINT("(0x%04x) P7 PNF Address IPv6",
+                           "%s",
+                           nfapi_config->p7_pnf_address_ipv6.tl.tag,
+                           inet_ntop(AF_INET6, nfapi_config->p7_pnf_address_ipv6.address, addr6, sizeof(addr6)));
+  }
+  INDENTED_TLV_FORMAT_PRINT("P7 PNF Port", "%d", nfapi_config->p7_pnf_port);
+  INDENTED_TLV_FORMAT_PRINT("Timing Window", "%d", nfapi_config->timing_window);
+  INDENTED_TLV_FORMAT_PRINT("Timing Info Mode", "%d", nfapi_config->timing_info_mode);
+  INDENTED_TLV_FORMAT_PRINT("Timing Info Period", "%d", nfapi_config->timing_info_period);
+  INDENTED_TLV_FORMAT_PRINT("DL_TTI Timing Offset", "%d", nfapi_config->dl_tti_timing_offset);
+  INDENTED_TLV_FORMAT_PRINT("UL_TTI Timing Offset", "%d", nfapi_config->ul_tti_timing_offset);
+  INDENTED_TLV_FORMAT_PRINT("UL_DCI Timing Offset", "%d", nfapi_config->ul_dci_timing_offset);
+  INDENTED_TLV_FORMAT_PRINT("TX_DATA Timing Offset", "%d", nfapi_config->tx_data_timing_offset);
+  depth--;
+}
+
+void dump_config_request(const nfapi_nr_config_request_scf_t *msg)
+{
+  int depth = 0;
+  dump_p5_message_header(&msg->header, depth);
+  depth++;
+  INDENTED_PRINTF("Number of TLVs = 0x%02x\n", msg->num_tlv);
+  /* dump all TLVs from each table */
+  /* Carrier Config */
+  const nfapi_nr_carrier_config_t *carrier_config = &msg->carrier_config;
+  INDENTED_TLV_PRINT("DL Bandwidth", carrier_config->dl_bandwidth);
+  INDENTED_TLV_PRINT("DL Frequency", carrier_config->dl_frequency);
+  INDENTED_PRINTF("(0x%04x) DL K0 = ", NFAPI_NR_CONFIG_DL_K0_TAG);
+  for (int i = 0; i < 5; i++) {
+    printf("%d ", carrier_config->dl_k0[i].value);
+  }
+  printf("\n");
+  INDENTED_PRINTF("(0x%04x) DL Grid Size = ", NFAPI_NR_CONFIG_DL_GRID_SIZE_TAG);
+  for (int i = 0; i < 5; i++) {
+    printf("%d ", carrier_config->dl_grid_size[i].value);
+  }
+  printf("\n");
+  INDENTED_TLV_PRINT("Num TX Antennas", carrier_config->num_tx_ant);
+  INDENTED_TLV_PRINT("UL Bandwidth", carrier_config->uplink_bandwidth);
+  INDENTED_TLV_PRINT("UL Frequency", carrier_config->uplink_frequency);
+  INDENTED_PRINTF("(0x%04x) UL K0 = ", NFAPI_NR_CONFIG_UL_K0_TAG);
+  for (int i = 0; i < 5; i++) {
+    printf("%d ", carrier_config->ul_k0[i].value);
+  }
+  printf("\n");
+  INDENTED_PRINTF("(0x%04x) UL Grid Size = ", NFAPI_NR_CONFIG_UL_GRID_SIZE_TAG);
+  for (int i = 0; i < 5; i++) {
+    printf("%d ", carrier_config->ul_grid_size[i].value);
+  }
+  printf("\n");
+  INDENTED_TLV_PRINT("Num RX Antennas", carrier_config->num_rx_ant);
+  INDENTED_TLV_PRINT("Frequency Shift 7p5KHz", carrier_config->frequency_shift_7p5khz);
+  /* Cell Config */
+  const nfapi_nr_cell_config_t *cell_config = &msg->cell_config;
+  INDENTED_TLV_PRINT("Physical Cell ID", cell_config->phy_cell_id);
+  INDENTED_TLV_PRINT("Frame Duplex Type", cell_config->frame_duplex_type);
+  /* SSB Config */
+  const nfapi_nr_ssb_config_t *ssb_config = &msg->ssb_config;
+  INDENTED_TLV_PRINT("SSB Block Power", ssb_config->ss_pbch_power);
+  INDENTED_TLV_PRINT("BCH Payload", ssb_config->bch_payload);
+  INDENTED_TLV_PRINT("SCS Common", ssb_config->scs_common);
+  /* PRACH Config */
+  const nfapi_nr_prach_config_t *prach_config = &msg->prach_config;
+  INDENTED_TLV_PRINT("PRACH Sequence Length", prach_config->prach_sequence_length);
+  INDENTED_TLV_PRINT("PRACH Subcarrier Spacing", prach_config->prach_sub_c_spacing);
+  INDENTED_TLV_PRINT("Restricted Set Config", prach_config->restricted_set_config);
+  INDENTED_TLV_PRINT("Num PRACH FD Occasions", prach_config->num_prach_fd_occasions);
+  INDENTED_TLV_PRINT("PRACH Config Index", prach_config->prach_ConfigurationIndex);
+  depth++;
+  for (int i = 0; i < prach_config->num_prach_fd_occasions.value; i++) {
+    const nfapi_nr_num_prach_fd_occasions_t *prach_fd_occasion = &(prach_config->num_prach_fd_occasions_list[i]);
+    INDENTED_TLV_PRINT("PRACH Root Sequence Index", prach_fd_occasion->prach_root_sequence_index);
+    INDENTED_TLV_PRINT("Num Root Sequences", prach_fd_occasion->num_root_sequences);
+    INDENTED_TLV_PRINT("K1", prach_fd_occasion->k1);
+    INDENTED_TLV_PRINT("PRACH Zero CorrelationZone Config", prach_fd_occasion->prach_zero_corr_conf);
+    INDENTED_TLV_PRINT("Num Unused Root Sequences", prach_fd_occasion->num_unused_root_sequences);
+    depth++;
+    for (int k = 0; k < prach_fd_occasion->num_unused_root_sequences.value; k++) {
+      INDENTED_TLV_PRINT("Unused Root Sequence", prach_fd_occasion->unused_root_sequences_list[k]);
+    }
+    depth--;
+  }
+  depth--;
+  INDENTED_TLV_PRINT("SSB Per RACH", prach_config->ssb_per_rach);
+  INDENTED_TLV_PRINT("PRACH Multiple Carriers in a Band", prach_config->prach_multiple_carriers_in_a_band);
+  /* SSB Table */
+  const nfapi_nr_ssb_table_t *ssb_table = &msg->ssb_table;
+  INDENTED_TLV_PRINT("SSB Offset PointA", ssb_table->ssb_offset_point_a);
+  INDENTED_TLV_PRINT("Beta PSS", ssb_table->beta_pss);
+  INDENTED_TLV_PRINT("SSB Period", ssb_table->ssb_period);
+  INDENTED_TLV_PRINT("SSB Subcarrier Offset", ssb_table->ssb_subcarrier_offset);
+  INDENTED_TLV_PRINT("MIB", ssb_table->MIB);
+
+  INDENTED_PRINTF("SSB Mask:\n");
+  depth++;
+  for (int i = 0; i < 2; i++) {
+    INDENTED_TLV_PRINT("SSB Mask", ssb_table->ssb_mask_list[i].ssb_mask);
+  }
+  depth--;
+  INDENTED_PRINTF("Beam ID:\n");
+  depth++;
+  for (int i = 0; i < 64; i++) {
+    INDENTED_TLV_PRINT("Beam ID", ssb_table->ssb_beam_id_list[i].beam_id);
+  }
+  depth--;
+  INDENTED_TLV_PRINT("ssPBCH Multiple Carriers in a Band", ssb_table->ss_pbch_multiple_carriers_in_a_band);
+  INDENTED_TLV_PRINT("Multiple Cells ssPBCH in a Carrier", ssb_table->multiple_cells_ss_pbch_in_a_carrier);
+  /* TDD Table */
+  const nfapi_nr_tdd_table_t *tdd_table = &msg->tdd_table;
+  if (cell_config->frame_duplex_type.value == 1 /* TDD */) {
+    INDENTED_TLV_PRINT("TDD Period", tdd_table->tdd_period);
+    const uint8_t slotsperframe[5] = {10, 20, 40, 80, 160};
+    // Assuming always CP_Normal, because Cyclic prefix is not included in CONFIG.request 10.02, but is present in 10.04
+    uint8_t cyclicprefix = 1;
+    // 3GPP 38.211 Table 4.3.2.1 & Table 4.3.2.2
+    uint8_t number_of_symbols_per_slot = cyclicprefix ? 14 : 12;
+    INDENTED_PRINTF("Slot Config:\n");
+    depth++;
+    for (int i = 0; i < slotsperframe[ssb_config->scs_common.value]; i++) {
+      for (int k = 0; k < number_of_symbols_per_slot; k++) {
+        const uint8_t slot_type = tdd_table->max_tdd_periodicity_list[i].max_num_of_symbol_per_slot_list[k].slot_config.value;
+        const char *slot_dir = slot_type == 0 ? "DL" : slot_type == 1 ? "UL" : "S";
+        INDENTED_GENERIC_PRINT("(0x%04x) Slot Config",
+                               "%d (%s)",
+                               tdd_table->max_tdd_periodicity_list[i].max_num_of_symbol_per_slot_list[k].slot_config.tl.tag,
+                               slot_type,
+                               slot_dir);
+      }
+    }
+    depth--;
+  }
+  /* Measurement Config */
+  const nfapi_nr_measurement_config_t *measurement_config = &msg->measurement_config;
+  INDENTED_TLV_PRINT("RSSI Measurement", measurement_config->rssi_measurement);
+  /* Beamforming Table */
+  const nfapi_nr_dbt_pdu_t *dbt_config = &msg->dbt_config;
+  INDENTED_PRINTF("Digital Beam Table\n");
+  depth++;
+  INDENTED_GENERIC_PRINT("Num Digital Beams", "%d", dbt_config->num_dig_beams);
+  INDENTED_GENERIC_PRINT("Num TX RUs", "%d", dbt_config->num_txrus);
+  depth++;
+  for (int i = 0; i < dbt_config->num_dig_beams; i++) {
+    const nfapi_nr_dig_beam_t *dig_beam = &dbt_config->dig_beam_list[i];
+    INDENTED_GENERIC_PRINT("Beam IDX", "%d", dig_beam->beam_idx);
+    depth++;
+    for (int k = 0; k < dbt_config->num_txrus; k++) {
+      const nfapi_nr_txru_t *tx_ru = &dig_beam->txru_list[k];
+      INDENTED_GENERIC_PRINT("Dig Beam Weight Real", "0x%02x", tx_ru->dig_beam_weight_Re);
+      INDENTED_GENERIC_PRINT("Dig Beam Weight Imaginary", "0x%02x", tx_ru->dig_beam_weight_Im);
+    }
+    depth--;
+  }
+  depth--;
+  depth--;
+
+  /* Precoding Table */
+  const nfapi_nr_pm_list_t *pmi_list = &msg->pmi_list;
+  INDENTED_PRINTF("Precoding Matrix Table\n");
+  depth++;
+  INDENTED_GENERIC_PRINT("Num Precoding Tables", "%d", pmi_list->num_pm_idx);
+  depth++;
+  for (int i = 0; i < pmi_list->num_pm_idx; i++) {
+    const nfapi_nr_pm_pdu_t *pm_pdu = &pmi_list->pmi_pdu[i];
+
+    INDENTED_GENERIC_PRINT("Precoding Matrix IDX", "0x%02x", pm_pdu->pm_idx);
+    INDENTED_GENERIC_PRINT("Number of Layers", "%d", pm_pdu->numLayers);
+    INDENTED_GENERIC_PRINT("Number of Antenna Ports", "%d", pm_pdu->num_ant_ports);
+    depth++;
+    for (int k = 0; k < pm_pdu->numLayers; k++) {
+      for (int l = 0; l < pm_pdu->num_ant_ports; l++) {
+        const nfapi_nr_pm_weights_t *pm_weights = &pm_pdu->weights[k][l];
+        INDENTED_GENERIC_PRINT("Dig Beam Weight Real", "0x%02x", pm_weights->precoder_weight_Re);
+        INDENTED_GENERIC_PRINT("Dig Beam Weight Imaginary", "0x%02x", pm_weights->precoder_weight_Im);
+      }
+    }
+    depth--;
+  }
+  depth--;
+  depth--;
+  /* nFAPI Config */
+  const nfapi_nr_nfapi_t *nfapi_config = &msg->nfapi_config;
+  if (nfapi_config->p7_vnf_address_ipv4.tl.tag) {
+    char ip_str[INET_ADDRSTRLEN];
+    INDENTED_GENERIC_PRINT("(0x%04x) P7 VNF Address IPv4",
+                           "%s",
+                           nfapi_config->p7_vnf_address_ipv4.tl.tag,
+                           inet_ntop(AF_INET, nfapi_config->p7_vnf_address_ipv4.address, ip_str, sizeof(ip_str)));
+  }
+  if (nfapi_config->p7_vnf_address_ipv6.tl.tag) {
+    char addr6[INET6_ADDRSTRLEN];
+    INDENTED_GENERIC_PRINT("(0x%04x) P7 VNF Address IPv6",
+                           "%s",
+                           nfapi_config->p7_vnf_address_ipv6.tl.tag,
+                           inet_ntop(AF_INET6, nfapi_config->p7_vnf_address_ipv6.address, addr6, sizeof(addr6)));
+  }
+  INDENTED_TLV_FORMAT_PRINT("P7 VNF Port", "%d", nfapi_config->p7_vnf_port);
+
+  if (nfapi_config->p7_pnf_address_ipv4.tl.tag) {
+    char ip_str[INET_ADDRSTRLEN];
+    INDENTED_GENERIC_PRINT("(0x%04x) P7 PNF Address IPv4",
+                           "%s",
+                           nfapi_config->p7_pnf_address_ipv4.tl.tag,
+                           inet_ntop(AF_INET, nfapi_config->p7_pnf_address_ipv4.address, ip_str, sizeof(ip_str)));
+  }
+  if (nfapi_config->p7_pnf_address_ipv6.tl.tag) {
+    char addr6[INET6_ADDRSTRLEN];
+    INDENTED_GENERIC_PRINT("(0x%04x) P7 PNF Address IPv6",
+                           "%s",
+                           nfapi_config->p7_pnf_address_ipv6.tl.tag,
+                           inet_ntop(AF_INET6, nfapi_config->p7_pnf_address_ipv6.address, addr6, sizeof(addr6)));
+  }
+  INDENTED_TLV_FORMAT_PRINT("P7 PNF Port", "%d", nfapi_config->p7_pnf_port);
+  INDENTED_TLV_FORMAT_PRINT("Timing Window", "%d", nfapi_config->timing_window);
+  INDENTED_TLV_FORMAT_PRINT("Timing Info Mode", "%d", nfapi_config->timing_info_mode);
+  INDENTED_TLV_FORMAT_PRINT("Timing Info Period", "%d", nfapi_config->timing_info_period);
+  INDENTED_TLV_FORMAT_PRINT("DL_TTI Timing Offset", "%d", nfapi_config->dl_tti_timing_offset);
+  INDENTED_TLV_FORMAT_PRINT("UL_TTI Timing Offset", "%d", nfapi_config->ul_tti_timing_offset);
+  INDENTED_TLV_FORMAT_PRINT("UL_DCI Timing Offset", "%d", nfapi_config->ul_dci_timing_offset);
+  INDENTED_TLV_FORMAT_PRINT("TX_DATA Timing Offset", "%d", nfapi_config->tx_data_timing_offset);
+  /* Beamforming VE */
+  const nfapi_nr_analog_beamforming_ve_t *analog_beamforming_ve = &msg->analog_beamforming_ve;
+  INDENTED_TLV_FORMAT_PRINT("Num Beams per Period", "%d", analog_beamforming_ve->num_beams_period_vendor_ext);
+  INDENTED_TLV_PRINT("Analog Beamforming VE", analog_beamforming_ve->analog_bf_vendor_ext);
+  /* Vendor Extension */
+  if (msg->vendor_extension) {
+    const nfapi_tl_t *vendor_extension = (nfapi_tl_t *)&msg->vendor_extension;
+    switch (vendor_extension->tag) {
+      case VENDOR_EXT_TLV_1_TAG: {
+        vendor_ext_tlv_1 *ve = (vendor_ext_tlv_1 *)vendor_extension;
+        INDENTED_PRINTF("(0x%04x) Vendor extension = %d 0x%02x\n", ve->tl.tag, ve->tl.length, ve->dummy);
+      } break;
+      case VENDOR_EXT_TLV_2_TAG: {
+        vendor_ext_tlv_2 *ve = (vendor_ext_tlv_2 *)vendor_extension;
+        INDENTED_PRINTF("(0x%04x) Vendor extension = %d 0x%02x\n", ve->tl.tag, ve->tl.length, ve->dummy);
+      } break;
+      default:
+        break;
+    }
+  }
+
+  depth--;
+}
+
+static void dump_generic_tlv(const nfapi_nr_generic_tlv_scf_t* tlv, int depth)
+{
+  INDENTED_PRINTF("TLV tag 0x%02x , Length 0x%02x , Value ", tlv->tl.tag, tlv->tl.length);
+  switch (tlv->tl.length) {
+    case UINT_8:
+      printf("0x%x\n", tlv->value.u8);
+      break;
+    case UINT_16:
+      printf("0x%02x\n", tlv->value.u16);
+      break;
+    case UINT_32:
+      printf("0x%04x\n", tlv->value.u32);
+      break;
+    case ARRAY_UINT_16:
+      for (int i = 0; i< 5 ; i++) {
+        printf("0x%04x ", tlv->value.array_u16[i]);
+      }
+      printf("\n");
+      break;
+    default:
+      printf("unknown length %d\n", tlv->tl.length);
+      DevAssert(1 == 0);
+      break;
+  }
+}
+
+void dump_config_response(const nfapi_nr_config_response_scf_t *msg)
+{
+  int depth = 0;
+  dump_p5_message_header(&msg->header,depth);
+  depth++;
+  INDENTED_PRINTF("Error Code = 0x%02x\n", msg->error_code);
+  INDENTED_PRINTF("Number of Invalid or Unsupported TLVs = 0x%02x\n", msg->num_invalid_tlvs);
+  INDENTED_PRINTF("Number of Invalid TLVs that can be configured in IDLE = 0x%02x\n", msg->num_invalid_tlvs_configured_in_idle);
+  INDENTED_PRINTF("Number of Invalid TLVs that can be configured in RUNNING = 0x%02x\n",
+                  msg->num_invalid_tlvs_configured_in_running);
+  INDENTED_PRINTF("Number of Missing TLVs = 0x%02x\n", msg->num_missing_tlvs);
+  /* dump all TLVs from each table */
+  INDENTED_PRINTF("Invalid or Unsupported TLVs (%d) :\n",msg->num_invalid_tlvs);
+  for (int i = 0; i < msg->num_invalid_tlvs; ++i) {
+    dump_generic_tlv(&msg->invalid_tlvs_list[i], depth+1);
+  }
+
+  INDENTED_PRINTF("TLVs that can only be configured in IDLE (%d):\n", msg->num_invalid_tlvs_configured_in_idle);
+  for (int i = 0; i < msg->num_invalid_tlvs; ++i) {
+    dump_generic_tlv(&msg->invalid_tlvs_list[i], depth+1);
+  }
+
+  INDENTED_PRINTF("TLVs that can only be configured in RUNNING (%d):\n",msg->num_invalid_tlvs_configured_in_running);
+  for (int i = 0; i < msg->num_invalid_tlvs; ++i) {
+    dump_generic_tlv(&msg->invalid_tlvs_list[i], depth+1);
+  }
+
+  INDENTED_PRINTF("Missing TLVs (%d):\n",msg->num_missing_tlvs);
+  for (int i = 0; i < msg->num_invalid_tlvs; ++i) {
+    dump_generic_tlv(&msg->invalid_tlvs_list[i], depth+1);
+  }
+  depth--;
+}
+
+void dump_start_request(const nfapi_nr_start_request_scf_t *msg)
+{
+  int depth = 0;
+  dump_p5_message_header(&msg->header,depth);
+}
+
+void dump_start_response(const nfapi_nr_start_response_scf_t *msg)
+{
+  int depth = 0;
+  dump_p5_message_header(&msg->header,depth);
+}
+
+void dump_stop_request(const nfapi_nr_stop_request_scf_t *msg)
+{
+  int depth = 0;
+  dump_p5_message_header(&msg->header,depth);
+}
+
+void dump_stop_indication(const nfapi_nr_stop_indication_scf_t *msg)
+{
+  int depth = 0;
+  dump_p5_message_header(&msg->header,depth);
+}
+
+char* error_ind_code_to_str(nfapi_nr_phy_notifications_errors_e error_code)
+{
+  switch (error_code) {
+#define X(name, value) case name: return #name;
+    NFAPI_PHY_ERROR_LIST
+#undef X
+    default: return "UNKNOWN_ERROR";
+  }
+}
+
+void dump_error_indication(const nfapi_nr_error_indication_scf_t *msg)
+{
+  int depth = 0;
+  dump_p5_message_header(&msg->header,depth);
+  depth++;
+  INDENTED_PRINTF("SFN = 0x%02x (%d)\n", msg->sfn, msg->sfn);
+  INDENTED_PRINTF("Slot = 0x%02x (%d)\n", msg->slot, msg->slot);
+  INDENTED_PRINTF("Message ID = 0x%02x\n", msg->message_id);
+  INDENTED_PRINTF("Error Code = 0x%02x (%s) \n", msg->error_code, error_ind_code_to_str(msg->error_code));
+  depth--;
 }

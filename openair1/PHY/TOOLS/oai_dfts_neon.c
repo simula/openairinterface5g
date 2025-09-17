@@ -909,9 +909,6 @@ const static int16_t tw64c[96] __attribute__((aligned(32))) = {
 #ifdef simd_q15_t
 #undef simd_q15_t
 #endif
-#ifdef simdshort_q15_t 
-#undef simdshort_q15_t
-#endif
 #ifdef shiftright_int16
 #undef shiftright_int16
 #endif
@@ -3029,19 +3026,6 @@ void dft6144(int16_t *input, int16_t *output,unsigned char scale)
   }
 }
 
-int16_t twa9216[6144] __attribute__((aligned(32)));
-int16_t twb9216[6144] __attribute__((aligned(32)));
-// 3072 x 3
-void dft9216(int16_t *input, int16_t *output,uint8_t scale) {
-
-  AssertFatal(1==0,"Need to do this ..\n");
-}
-
-void idft9216(int16_t *input, int16_t *output,uint8_t scale) {
-
-  AssertFatal(1==0,"Need to do this ..\n");
-}
-
 int16_t twa12288[8192] __attribute__((aligned(32)));
 int16_t twb12288[8192] __attribute__((aligned(32)));
 // 4096 x 3
@@ -3646,22 +3630,7 @@ void idft65536(int16_t *x,int16_t *y,unsigned char scale)
 
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 }
-int16_t twa73728[49152] __attribute__((aligned(32)));
-int16_t twb73728[49152] __attribute__((aligned(32)));
-// 24576 x 3
-void dft73728(int16_t *input, int16_t *output,uint8_t scale) {
-
-  AssertFatal(1==0,"Need to do this ..\n");
-}
-
-void idft73728(int16_t *input, int16_t *output,uint8_t scale) {
-
-  AssertFatal(1==0,"Need to do this ..\n");
-}
-
 
 int16_t twa98304[65536] __attribute__((aligned(32)));
 int16_t twb98304[65536] __attribute__((aligned(32)));
@@ -7125,8 +7094,9 @@ int dfts_autoinit(void)
 
 #ifndef MR_MAIN
 
-void dft(uint8_t sizeidx, int16_t *input,int16_t *output,unsigned char scale_flag){
-	AssertFatal((sizeidx >= 0 && sizeidx<DFT_SIZE_IDXTABLESIZE),"Invalid dft size index %i\n",sizeidx);
+void dft_implementation(uint8_t sizeidx, int16_t *input, int16_t *output, unsigned char scale_flag)
+{
+  AssertFatal((sizeidx >= 0 && sizeidx<DFT_SIZE_IDXTABLESIZE),"Invalid dft size index %i\n",sizeidx);
         int algn=0xF;
         AssertFatal(((intptr_t)output&algn)==0,"Buffers should be aligned %p",output);
         if (((intptr_t)input)&algn) {
@@ -7141,8 +7111,9 @@ void dft(uint8_t sizeidx, int16_t *input,int16_t *output,unsigned char scale_fla
           dft_ftab[sizeidx].func(input,output,scale_flag);
 };
 
-void idft(uint8_t sizeidx, int16_t *input,int16_t *output,unsigned char scale_flag){
-	AssertFatal((sizeidx>=0 && sizeidx<DFT_SIZE_IDXTABLESIZE),"Invalid idft size index %i\n",sizeidx);
+void idft_implementation(uint8_t sizeidx, int16_t *input, int16_t *output, unsigned char scale_flag)
+{
+  AssertFatal((sizeidx>=0 && sizeidx<DFT_SIZE_IDXTABLESIZE),"Invalid idft size index %i\n",sizeidx);
         int algn=0xF;
         AssertFatal( ((intptr_t)output&algn)==0,"Buffers should be 16 bytes aligned %p",output);
         if (((intptr_t)input)&algn ) {  

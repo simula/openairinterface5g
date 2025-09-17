@@ -78,8 +78,9 @@ TEST(yaml_config, yaml_get_existing_values) {
     uint16_t value;
     p.type = TYPE_UINT16;
     p.u16ptr = &value;
+    p.paramflags = PARAMFLAG_MANDATORY;
     char prefix[] = "test";
-    config_yaml_get(cfg, &p, 1, prefix);
+    EXPECT_EQ(config_yaml_get(cfg, &p, 1, prefix), 1);
     EXPECT_EQ(value, i);
   }
 
@@ -94,7 +95,7 @@ TEST(yaml_config, yaml_get_non_existing_values) {
   cfg->cfgP[0] = strdup("test1.yaml");
   EXPECT_EQ(config_yaml_init(cfg), 0);
 
-  // Testing paremters present in the test node
+  // Testing parameters not present in the test node
   paramdef_t p = {0};
   for (auto i = 4; i <= 5; i++) {
     sprintf(p.optname, "%s%d", "value", i);
@@ -125,7 +126,7 @@ TEST(yaml_config, test_high_recusion) {
     p.type = TYPE_UINT16;
     p.u16ptr = &value;
     char prefix[] = "test.test1.test2.test3.test4";
-    EXPECT_EQ(config_yaml_get(cfg, &p, 1, prefix), 0);
+    EXPECT_EQ(config_yaml_get(cfg, &p, 1, prefix), 1);
     EXPECT_EQ(value, i);
   }
 
@@ -175,7 +176,7 @@ TEST(yaml_config, test_string_auto_alloc) {
 
   // Test automatic allocation of strings
   char prefix[] = "test";
-  EXPECT_EQ(config_yaml_get(cfg, &param, 1, prefix), 0);
+  EXPECT_EQ(config_yaml_get(cfg, &param, 1, prefix), 1);
   EXPECT_NE(param.strptr, nullptr);
   EXPECT_EQ(strcmp(*param.strptr, "testvalue"), 0);
   EXPECT_EQ(cfg->numptrs, 2);
@@ -200,7 +201,7 @@ TEST(yaml_config, test_string_no_realloc) {
   char prefix[] = "test";
   char* non_null_pointer_to_pointer = nullptr;
   param.strptr = &non_null_pointer_to_pointer;
-  EXPECT_EQ(config_yaml_get(cfg, &param, 1, prefix), 0);
+  EXPECT_EQ(config_yaml_get(cfg, &param, 1, prefix), 1);
   EXPECT_EQ(param.strptr, &non_null_pointer_to_pointer);
   EXPECT_EQ(strcmp(*param.strptr, "testvalue"), 0);
   EXPECT_EQ(cfg->numptrs, 1);
@@ -225,7 +226,7 @@ TEST(yaml_config, test_string_pointer_available) {
   char prefix[] = "test";
   char *container = (char *)malloc(sizeof(char) * 30);
   param.strptr = &container;
-  EXPECT_EQ(config_yaml_get(cfg, &param, 1, prefix), 0);
+  EXPECT_EQ(config_yaml_get(cfg, &param, 1, prefix), 1);
   EXPECT_EQ(param.strptr, &container);
   EXPECT_EQ(strcmp(*param.strptr, "testvalue"), 0);
   EXPECT_EQ(cfg->numptrs, 0);
@@ -253,7 +254,7 @@ TEST(yaml_config, test_string_default_value) {
   param.defstrval = default_value;
   param.strptr = nullptr;
   sprintf(param.optname, "%s", "stringvalue_missing");
-  EXPECT_EQ(config_yaml_get(cfg, &param, 1, prefix), 0);
+  EXPECT_EQ(config_yaml_get(cfg, &param, 1, prefix), 1);
   EXPECT_NE(param.strptr, nullptr);
   EXPECT_EQ(strcmp(*param.strptr, "default"), 0);
   EXPECT_EQ(cfg->numptrs, 2) << " 2 pointers required, 1 for the string, one for the pointer-to string";
@@ -276,7 +277,7 @@ TEST(yaml_config, test_stringlist) {
 
   // Test automatic allocation of string lists
   char prefix[] = "test";
-  EXPECT_EQ(config_yaml_get(cfg, &param, 1, prefix), 0);
+  EXPECT_EQ(config_yaml_get(cfg, &param, 1, prefix), 1);
   EXPECT_NE(param.strptr, nullptr);
   for (auto i = 0; i < param.numelt; i++) {
     std::cout << (param.strlistptr)[i] << std::endl;
@@ -302,7 +303,7 @@ TEST(yaml_config, test_list_of_mappings) {
 
   // Test automatic allocation of string lists
   char prefix1[] = "test.list.[0]";
-  EXPECT_EQ(config_yaml_get(cfg, &param, 1, prefix1), 0);
+  EXPECT_EQ(config_yaml_get(cfg, &param, 1, prefix1), 1);
   EXPECT_NE(param.strptr, nullptr);
   EXPECT_STREQ("value1", param.strlistptr[0]);
   EXPECT_STREQ("value2", param.strlistptr[1]);
@@ -310,7 +311,7 @@ TEST(yaml_config, test_list_of_mappings) {
 
   char prefix2[] = "test.list.[1]";
   param.strlistptr = nullptr;
-  EXPECT_EQ(config_yaml_get(cfg, &param, 1, prefix2), 0);
+  EXPECT_EQ(config_yaml_get(cfg, &param, 1, prefix2), 1);
   EXPECT_NE(param.strptr, nullptr);
   EXPECT_STREQ("value4", param.strlistptr[0]);
   EXPECT_STREQ("value5", param.strlistptr[1]);
@@ -334,7 +335,7 @@ TEST(yaml_config, test_int_array) {
 
   // Test automatic allocation of int arrays
   char prefix[] = "test";
-  EXPECT_EQ(config_yaml_get(cfg, &param, 1, prefix), 0);
+  EXPECT_EQ(config_yaml_get(cfg, &param, 1, prefix), 1);
   EXPECT_NE(param.iptr, nullptr);
   ASSERT_EQ(param.numelt, 4);
   EXPECT_EQ(1, param.iptr[0]);
@@ -345,7 +346,7 @@ TEST(yaml_config, test_int_array) {
   param.uptr = nullptr;
   param.numelt = 0;
   sprintf(param.optname, "%s", "array2");
-  EXPECT_EQ(config_yaml_get(cfg, &param, 1, prefix), 0);
+  EXPECT_EQ(config_yaml_get(cfg, &param, 1, prefix), 1);
   EXPECT_NE(param.uptr, nullptr);
   ASSERT_EQ(param.numelt, 3);
   EXPECT_EQ(1U, param.uptr[0]);
@@ -355,11 +356,105 @@ TEST(yaml_config, test_int_array) {
   param.uptr = nullptr;
   param.numelt = 0;
   sprintf(param.optname, "%s", "non-existent-array");
-  EXPECT_EQ(config_yaml_get(cfg, &param, 1, prefix), 0);
+  EXPECT_EQ(config_yaml_get(cfg, &param, 1, prefix), 1);
   EXPECT_EQ(param.uptr, nullptr);
   ASSERT_EQ(param.numelt, 0);
 
   config_yaml_end(cfg);
+  free(cfg->cfgP[0]);
+  end_configmodule(cfg);
+}
+
+TEST(yaml_config, test_read_mapping_as_list) {
+  configmodule_interface_t *cfg = static_cast<configmodule_interface_t*>(calloc(1, sizeof(*cfg)));
+  cfg->cfgP[0] = strdup("test_read_mapping_as_list.yaml");
+  EXPECT_EQ(config_yaml_init(cfg), 0);
+  char cfgstring[] = "fhi_72";
+
+  paramlist_def_t pl = {0};
+  strncpy(pl.listname, cfgstring, sizeof(pl.listname) - 1);
+  config_yaml_getlist(cfg, &pl, NULL, 0, /* prefix */ NULL);
+  EXPECT_NE(pl.numelt, 0);
+  EXPECT_EQ(pl.numelt, 3);
+
+  paramdef_t params[4] = {0};
+  for (auto i = 0U; i < sizeofArray(params); i++) {
+    sprintf(params[i].optname, "%s%d", "element_", i+1);
+    params[i].type = TYPE_STRING;
+    params[i].paramflags = PARAMFLAG_MANDATORY;
+  }
+  params[sizeofArray(params) - 1].paramflags = 0;
+  int ret = config_yaml_get(cfg, params, sizeofArray(params), cfgstring);
+  EXPECT_EQ(ret, 4);
+
+  config_yaml_end(cfg);
+  free(cfg->cfgP[0]);
+  end_configmodule(cfg);
+}
+
+TEST(yaml_config, test_read_ipv4) {
+  configmodule_interface_t *cfg = static_cast<configmodule_interface_t*>(calloc(1, sizeof(*cfg)));
+  cfg->cfgP[0] = strdup("test_ipv4.yaml");
+  EXPECT_EQ(config_yaml_init(cfg), 0);
+
+  paramdef_t p = {};
+  p.type = TYPE_IPV4ADDR;
+  strncpy(p.optname, "ipv4_1", sizeof(p.optname) - 1);
+  uint32_t addr = 0;
+  p.uptr = &addr;
+  p.defstrval = nullptr;
+  char prefix[] = "test";
+  config_yaml_get(cfg, &p, 1, prefix);
+  printf("%x\n", addr);
+
+  strncpy(p.optname, "ipv4_2", sizeof(p.optname) - 1);
+  config_yaml_get(cfg, &p, 1, prefix);
+  printf("%x\n", addr);
+
+  p.defstrval = strdup("10.0.0.1");
+  strncpy(p.optname, "ipv4_3", sizeof(p.optname) - 1);
+  config_yaml_get(cfg, &p, 1, prefix);
+  printf("%x\n", addr);
+
+  config_yaml_end(cfg);
+  free(cfg->cfgP[0]);
+  end_configmodule(cfg);
+  free(p.defstrval);
+}
+
+TEST(yaml_config, yaml_read_str_as_int) {
+  configmodule_interface_t *cfg = static_cast<configmodule_interface_t*>(calloc(1, sizeof(*cfg)));
+  cfg->cfgP[0] = strdup("test_read_str_as_int.yaml");
+  EXPECT_EQ(config_yaml_init(cfg), 0);
+
+  // Testing paremters present in the test node
+  paramdef_t p = {0};
+  uint16_t value;
+  p.type = TYPE_UINT16;
+  p.u16ptr = &value;
+  p.paramflags = PARAMFLAG_MANDATORY;
+  char prefix[] = "test";
+  sprintf(p.optname, "%s", "var");
+  EXPECT_EQ(config_yaml_get(cfg, &p, 1, prefix), -1);
+
+
+  config_yaml_end(cfg);
+  free(cfg->cfgP[0]);
+  end_configmodule(cfg);
+}
+
+TEST(yaml_config, yaml_open_non_existing_file) {
+  configmodule_interface_t *cfg = static_cast<configmodule_interface_t*>(calloc(1, sizeof(*cfg)));
+  cfg->cfgP[0] = strdup("non_existing_file.yaml");
+  EXPECT_EQ(config_yaml_init(cfg), -1);
+  free(cfg->cfgP[0]);
+  end_configmodule(cfg);
+}
+
+TEST(yaml_config, malformed_file) {
+  configmodule_interface_t *cfg = static_cast<configmodule_interface_t*>(calloc(1, sizeof(*cfg)));
+  cfg->cfgP[0] = strdup("malformed.yaml");
+  EXPECT_EQ(config_yaml_init(cfg), -1);
   free(cfg->cfgP[0]);
   end_configmodule(cfg);
 }

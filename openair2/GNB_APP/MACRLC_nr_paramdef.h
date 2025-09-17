@@ -63,34 +63,41 @@
 #define CONFIG_STRING_MACRLC_PUSCHFAILURETHRES             "pusch_FailureThres"
 #define CONFIG_STRING_MACRLC_DL_BLER_TARGET_UPPER          "dl_bler_target_upper"
 #define CONFIG_STRING_MACRLC_DL_BLER_TARGET_LOWER          "dl_bler_target_lower"
+#define CONFIG_STRING_MACRLC_DL_MIN_MCS                    "dl_min_mcs"
 #define CONFIG_STRING_MACRLC_DL_MAX_MCS                    "dl_max_mcs"
 #define CONFIG_STRING_MACRLC_UL_BLER_TARGET_UPPER          "ul_bler_target_upper"
 #define CONFIG_STRING_MACRLC_UL_BLER_TARGET_LOWER          "ul_bler_target_lower"
+#define CONFIG_STRING_MACRLC_UL_MIN_MCS                    "ul_min_mcs"
 #define CONFIG_STRING_MACRLC_UL_MAX_MCS                    "ul_max_mcs"
 #define CONFIG_STRING_MACRLC_DL_HARQ_ROUND_MAX             "dl_harq_round_max"
 #define CONFIG_STRING_MACRLC_UL_HARQ_ROUND_MAX             "ul_harq_round_max"
 #define CONFIG_STRING_MACRLC_MIN_GRANT_PRB                 "min_grant_prb"
-#define CONFIG_STRING_MACRLC_MIN_GRANT_MCS                 "min_grant_mcs"
 #define CONFIG_STRING_MACRLC_IDENTITY_PM                   "identity_precoding_matrix"
 #define CONFIG_STRING_MACRLC_ANALOG_BEAMFORMING            "set_analog_beamforming"
 #define CONFIG_STRING_MACRLC_BEAM_DURATION                 "beam_duration"
 #define CONFIG_STRING_MACRLC_BEAMS_PERIOD                  "beams_per_period"
+#define CONFIG_STRING_MACRLC_BEAM_WEIGHTS_LIST             "beam_weights"
+#define CONFIG_STRING_MACRLC_PUSCH_RSSI_THRESHOLD          "pusch_RSSI_Threshold"
+#define CONFIG_STRING_MACRLC_PUCCH_RSSI_THRESHOLD          "pucch_RSSI_Threshold"
 
 #define HLP_MACRLC_UL_PRBBLACK "SNR threshold to decide whether a PRB will be blacklisted or not"
 #define HLP_MACRLC_DL_BLER_UP "Upper threshold of BLER to decrease DL MCS"
 #define HLP_MACRLC_DL_BLER_LO "Lower threshold of BLER to increase DL MCS"
+#define HLP_MACRLC_DL_MIN_MCS "Minimum DL MCS that should be used"
 #define HLP_MACRLC_DL_MAX_MCS "Maximum DL MCS that should be used"
 #define HLP_MACRLC_UL_BLER_UP "Upper threshold of BLER to decrease UL MCS"
 #define HLP_MACRLC_UL_BLER_LO "Lower threshold of BLER to increase UL MCS"
+#define HLP_MACRLC_UL_MIN_MCS "Minimum UL MCS that should be used"
 #define HLP_MACRLC_UL_MAX_MCS "Maximum UL MCS that should be used"
 #define HLP_MACRLC_DL_HARQ_MAX "Maximum number of DL HARQ rounds"
 #define HLP_MACRLC_UL_HARQ_MAX "Maximum number of UL HARQ rounds"
 #define HLP_MACRLC_MIN_GRANT_PRB "Minimal Periodic ULSCH Grant PRBs"
-#define HLP_MACRLC_MIN_GRANT_MCS "Minimal Periodic ULSCH Grant MCS"
 #define HLP_MACRLC_IDENTITY_PM "Flag to use only identity matrix in DL precoding"
 #define HLP_MACRLC_AB "Flag to enable analog beamforming"
 #define HLP_MACRLC_BEAM_DURATION "number of consecutive slots for a given set of beams"
 #define HLP_MACRLC_BEAMS_PERIOD "set of beams that can be simultaneously allocated in a period"
+#define HLP_MACRLC_PUSCH_RSSI_THRESHOLD "Limits PUSCH TPC commands based on RSSI to prevent ADC railing. Value range [-1280, 0], unit 0.1 dBm/dBFS"
+#define HLP_MACRLC_PUCCH_RSSI_THRESHOLD "Limits PUCCH TPC commands based on RSSI to prevent ADC railing. Value range [-1280, 0], unit 0.1 dBm/dBFS"
 
 /*-------------------------------------------------------------------------------------------------------------------------------------------------------*/
 /*                                            MacRLC  configuration parameters                                                                           */
@@ -121,21 +128,27 @@
   {CONFIG_STRING_MACRLC_PUSCHFAILURETHRES,           NULL,                     0, .iptr=NULL,   .defintval=10,              TYPE_INT,     0}, \
   {CONFIG_STRING_MACRLC_DL_BLER_TARGET_UPPER,        HLP_MACRLC_DL_BLER_UP,    0, .dblptr=NULL, .defdblval=0.15,            TYPE_DOUBLE,  0}, \
   {CONFIG_STRING_MACRLC_DL_BLER_TARGET_LOWER,        HLP_MACRLC_DL_BLER_LO,    0, .dblptr=NULL, .defdblval=0.05,            TYPE_DOUBLE,  0}, \
+  {CONFIG_STRING_MACRLC_DL_MIN_MCS,                  HLP_MACRLC_DL_MIN_MCS,    0, .u8ptr=NULL,  .defintval=0,               TYPE_UINT8,   0}, \
   {CONFIG_STRING_MACRLC_DL_MAX_MCS,                  HLP_MACRLC_DL_MAX_MCS,    0, .u8ptr=NULL,  .defintval=28,              TYPE_UINT8,   0}, \
   {CONFIG_STRING_MACRLC_UL_BLER_TARGET_UPPER,        HLP_MACRLC_UL_BLER_UP,    0, .dblptr=NULL, .defdblval=0.15,            TYPE_DOUBLE,  0}, \
   {CONFIG_STRING_MACRLC_UL_BLER_TARGET_LOWER,        HLP_MACRLC_UL_BLER_LO,    0, .dblptr=NULL, .defdblval=0.05,            TYPE_DOUBLE,  0}, \
+  {CONFIG_STRING_MACRLC_UL_MIN_MCS,                  HLP_MACRLC_UL_MIN_MCS,    0, .u8ptr=NULL,  .defintval=0,               TYPE_UINT8,   0}, \
   {CONFIG_STRING_MACRLC_UL_MAX_MCS,                  HLP_MACRLC_UL_MAX_MCS,    0, .u8ptr=NULL,  .defintval=28,              TYPE_UINT8,   0}, \
   {CONFIG_STRING_MACRLC_DL_HARQ_ROUND_MAX,           HLP_MACRLC_DL_HARQ_MAX,   0, .u8ptr=NULL,  .defintval=4,               TYPE_UINT8,   0}, \
   {CONFIG_STRING_MACRLC_UL_HARQ_ROUND_MAX,           HLP_MACRLC_UL_HARQ_MAX,   0, .u8ptr=NULL,  .defintval=4,               TYPE_UINT8,   0}, \
-  {CONFIG_STRING_MACRLC_MIN_GRANT_PRB,               HLP_MACRLC_MIN_GRANT_PRB, 0, .u8ptr=NULL,  .defintval=5,               TYPE_UINT8,   0}, \
-  {CONFIG_STRING_MACRLC_MIN_GRANT_MCS,               HLP_MACRLC_MIN_GRANT_MCS, 0, .u8ptr=NULL,  .defintval=9,               TYPE_UINT8,   0}, \
+  {CONFIG_STRING_MACRLC_MIN_GRANT_PRB,               HLP_MACRLC_MIN_GRANT_PRB, 0, .u16ptr=NULL, .defintval=5,               TYPE_UINT16,  0}, \
   {CONFIG_STRING_MACRLC_IDENTITY_PM,                 HLP_MACRLC_IDENTITY_PM,   PARAMFLAG_BOOL, .u8ptr=NULL, .defintval=0,   TYPE_UINT8,   0}, \
   {CONFIG_STRING_MACRLC_LOCAL_N_ADDRESS_F1U,         NULL,                     0, .strptr=NULL, .defstrval=NULL,            TYPE_STRING,  0}, \
   {CONFIG_STRING_MACRLC_TRANSPORT_S_SHM_PREFIX,      NULL,                     0, .strptr=NULL, .defstrval="nvipc",         TYPE_STRING,  0}, \
   {CONFIG_STRING_MACRLC_TRANSPORT_S_POLL_CORE,       NULL,                     0, .i8ptr=NULL,  .defintval=-1,              TYPE_INT8,    0}, \
-  {CONFIG_STRING_MACRLC_ANALOG_BEAMFORMING,          HLP_MACRLC_AB,            PARAMFLAG_BOOL, .u8ptr=NULL, .defintval=0,   TYPE_UINT8,   0}, \
+  {CONFIG_STRING_MACRLC_ANALOG_BEAMFORMING,          HLP_MACRLC_AB,            0, .u8ptr=NULL,  .defintval=0,               TYPE_UINT8,   0}, \
   {CONFIG_STRING_MACRLC_BEAM_DURATION,               HLP_MACRLC_BEAM_DURATION, 0, .u8ptr=NULL,  .defintval=1,               TYPE_UINT8,   0}, \
   {CONFIG_STRING_MACRLC_BEAMS_PERIOD,                HLP_MACRLC_BEAMS_PERIOD,  0, .u8ptr=NULL,  .defintval=1,               TYPE_UINT8,   0}, \
+  {CONFIG_STRING_MACRLC_BEAM_WEIGHTS_LIST,           NULL,                     0, .iptr=NULL,   .defintarrayval=0,          TYPE_INTARRAY,0}, \
+  {CONFIG_STRING_MACRLC_PUSCH_RSSI_THRESHOLD,        HLP_MACRLC_PUSCH_RSSI_THRESHOLD, \
+                                                                               0, .iptr=NULL,   .defintval=0,               TYPE_INT,     0}, \
+  {CONFIG_STRING_MACRLC_PUCCH_RSSI_THRESHOLD,        HLP_MACRLC_PUCCH_RSSI_THRESHOLD, \
+                                                                               0, .iptr=NULL,   .defintval=0,               TYPE_INT,     0}, \
 }
 // clang-format off
 
@@ -162,21 +175,25 @@
 #define MACRLC_PUSCHFAILURETHRES_IDX                           20
 #define MACRLC_DL_BLER_TARGET_UPPER_IDX                        21
 #define MACRLC_DL_BLER_TARGET_LOWER_IDX                        22
-#define MACRLC_DL_MAX_MCS_IDX                                  23
-#define MACRLC_UL_BLER_TARGET_UPPER_IDX                        24
-#define MACRLC_UL_BLER_TARGET_LOWER_IDX                        25
-#define MACRLC_UL_MAX_MCS_IDX                                  26
-#define MACRLC_DL_HARQ_ROUND_MAX_IDX                           27
-#define MACRLC_UL_HARQ_ROUND_MAX_IDX                           28
-#define MACRLC_MIN_GRANT_PRB_IDX                               29
-#define MACRLC_MIN_GRANT_MCS_IDX                               30
-#define MACRLC_IDENTITY_PM_IDX                                 31
-#define MACRLC_LOCAL_N_ADDRESS_F1U_IDX                         32
-#define MACRLC_TRANSPORT_S_SHM_PREFIX                          33
-#define MACRLC_TRANSPORT_S_POLL_CORE                           34
-#define MACRLC_ANALOG_BEAMFORMING_IDX                          35
-#define MACRLC_ANALOG_BEAM_DURATION_IDX                        36
-#define MACRLC_ANALOG_BEAMS_PERIOD_IDX                         37
+#define MACRLC_DL_MIN_MCS_IDX                                  23
+#define MACRLC_DL_MAX_MCS_IDX                                  24
+#define MACRLC_UL_BLER_TARGET_UPPER_IDX                        25
+#define MACRLC_UL_BLER_TARGET_LOWER_IDX                        26
+#define MACRLC_UL_MIN_MCS_IDX                                  27
+#define MACRLC_UL_MAX_MCS_IDX                                  28
+#define MACRLC_DL_HARQ_ROUND_MAX_IDX                           29
+#define MACRLC_UL_HARQ_ROUND_MAX_IDX                           30
+#define MACRLC_MIN_GRANT_PRB_IDX                               31
+#define MACRLC_IDENTITY_PM_IDX                                 32
+#define MACRLC_LOCAL_N_ADDRESS_F1U_IDX                         33
+#define MACRLC_TRANSPORT_S_SHM_PREFIX                          34
+#define MACRLC_TRANSPORT_S_POLL_CORE                           35
+#define MACRLC_ANALOG_BEAMFORMING_IDX                          36
+#define MACRLC_ANALOG_BEAM_DURATION_IDX                        37
+#define MACRLC_ANALOG_BEAMS_PERIOD_IDX                         38
+#define MACRLC_BEAMWEIGHTS_IDX                                 39
+#define MACRLC_PUSCH_RSSI_THRES_IDX                            40
+#define MACRLC_PUCCH_RSSI_THRES_IDX                            41
 
 #define MACRLCPARAMS_CHECK { \
   { .s5 = { NULL } }, \
@@ -202,14 +219,15 @@
   { .s5 = { NULL } }, \
   { .s5 = { NULL } }, \
   { .s5 = { NULL } }, \
+  { .s2 = { config_check_intrange, {0, 31} } }, /* DL min MCS */ \
+  { .s2 = { config_check_intrange, {0, 31} } }, /* DL max MCS */ \
   { .s5 = { NULL } }, \
   { .s5 = { NULL } }, \
-  { .s5 = { NULL } }, \
-  { .s5 = { NULL } }, \
+  { .s2 = { config_check_intrange, {0, 31} } }, /* UL min MCS */ \
+  { .s2 = { config_check_intrange, {0, 31} } }, /* UL max MCS */ \
   { .s2 = { config_check_intrange, {1, 8} } }, /* DL max HARQ rounds */ \
   { .s2 = { config_check_intrange, {1, 8} } }, /* UL max HARQ rounds */ \
   { .s5 = { NULL } }, \
-  { .s5 = { NULL } }, \
   { .s2 = { NULL } }, \
   { .s5 = { NULL } }, \
   { .s5 = { NULL } }, \
@@ -217,6 +235,9 @@
   { .s5 = { NULL } }, \
   { .s5 = { NULL } }, \
   { .s5 = { NULL } }, \
+  { .s5 = { NULL } }, \
+  { .s2 =  { config_check_intrange, {-1280, 0}} }, /* PUSCH RSSI threshold range */ \
+  { .s2 =  { config_check_intrange, {-1280, 0}} }, /* PUCCH RSSI threshold range */ \
 }
 
 /*---------------------------------------------------------------------------------------------------------------------------------------------------------*/

@@ -62,13 +62,17 @@ typedef struct {
   int64_t       nbBytes;
   int64_t       tv_sec;  // nb of secs since EPOCH
   int64_t       tv_usec; // nb of µsecs since EPOCH
-  int64_t       rfu2;    // pad for 256 bits alignement required by AVX2
+  // pad for 512 bits alignement required by AVX512
+  int64_t       rfu2;
+  int64_t       rfu3;
+  int64_t       rfu4;
 } iqrec_t;
 #define DEF_NB_SF           120000               // default nb of sf or ms to capture (2 minutes at 5MHz)
 #define DEF_SF_FILE         "/tmp/iqfile"        // default subframes file name
 #define DEF_SF_DELAY_READ   700                  // default read delay  µs (860=real)
 #define DEF_SF_DELAY_WRITE  15                   // default write delay µs (15=real)
 #define DEF_SF_NB_LOOP      5                    // default nb loops
+#define DEF_F_SYNC          28                   // default frames to sync in (280ms)
 
 
 /* help strings definition for config options, used in CMDLINE_XXX_DESC macros and printed when -h option is used */
@@ -80,6 +84,9 @@ typedef struct {
 #define CONFIG_HLP_SF_RDELAY    "Delay in microseconds to read a subframe in replay mode"
 #define CONFIG_HLP_SF_WDELAY    "Delay in microseconds to write a subframe in replay mode"
 #define CONFIG_HLP_USE_MMAP     "In replay mode, map iq file in memory before replaying"
+#define CONFIG_HLP_F_SYNC       "Number of frames the synchronization is forced to complete. Some b200 with worser \
+                                 internal clock drift will not be able to stay synchronized and will require value \
+                                 lesser than 28. Lesser values will require faster machine."
 /* keyword strings for config options, used in CMDLINE_XXX_DESC macros and printed when -h option is used */
 #define CONFIG_OPT_SF_FILE      "subframes-file"
 #define CONFIG_OPT_SF_REC       "subframes-record"
@@ -90,6 +97,7 @@ typedef struct {
 #define CONFIG_OPT_SF_WDELAY    "subframes-write-delay"
 #define CONFIG_OPT_USE_MMAP     "use-mmap"
 #define DEVICE_RECPLAY_SECTION "device.recplay"
+#define CONFIG_OPT_F_SYNC       "sync-in-frames"
 /* For information only - the macro is not usable in C++ */
 /*---------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/
 /*                                            command line parameters for USRP record/playback                                                                               */
@@ -104,6 +112,7 @@ typedef struct {
     {CONFIG_OPT_SF_RDELAY,    CONFIG_HLP_SF_RDELAY, 0,                .uptr=&((*recplay_conf)->u_sf_read_delay),   .defintval=DEF_SF_DELAY_READ,     TYPE_UINT,   0}, \
     {CONFIG_OPT_SF_WDELAY,    CONFIG_HLP_SF_WDELAY, 0,                .uptr=&((*recplay_conf)->u_sf_write_delay),  .defintval=DEF_SF_DELAY_WRITE,    TYPE_UINT,   0}, \
     {CONFIG_OPT_USE_MMAP,     CONFIG_HLP_USE_MMAP,  PARAMFLAG_BOOL,   .uptr=&((*recplay_conf)->use_mmap),          .defuintval=1,                    TYPE_UINT,   0}, \
+    {CONFIG_OPT_F_SYNC,       CONFIG_HLP_F_SYNC,    0,                .uptr=&((*recplay_conf)->u_f_sync),          .defuintval=DEF_F_SYNC,           TYPE_UINT,   0}, \
   }/*! \brief Record Player Configuration and state */
 typedef struct {
   char            *u_sf_filename;    // subframes file path
@@ -114,6 +123,7 @@ typedef struct {
   unsigned int    use_mmap;          // default is to use mmap
   unsigned int    u_sf_replay;       // replay mode (if 1)
   unsigned int    u_sf_record;       // record mode (if 1)
+  unsigned int    u_f_sync;          // number of frames sync will complete
 } recplay_conf_t;
 
 typedef struct {

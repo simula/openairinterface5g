@@ -375,7 +375,7 @@ bool dlsch_procedures(PHY_VARS_eNB *eNB,
     stop_meas(&eNB->dlsch_encoding_stats);
 
     if (eNB->dlsch_encoding_stats.p_time > 500 * 3000 && cpu_meas_enabled) {
-      print_meas_now(&eNB->dlsch_encoding_stats,"total coding",stderr);
+      print_meas_now(&eNB->dlsch_encoding_stats, "total coding", stdout);
     }
 
 #ifdef PHY_TX_THREAD
@@ -1232,10 +1232,8 @@ uci_procedures(PHY_VARS_eNB *eNB,
   } // end loop for (int i = 0; i < NUMBER_OF_UCI_MAX; i++) {
 }
 
-void postDecode(L1_rxtx_proc_t *proc, notifiedFIFO_elt_t *req)
+void postDecode(L1_rxtx_proc_t *proc, turboDecode_t *rdata)
 {
-  turboDecode_t * rdata=(turboDecode_t *) NotifiedFifoData(req);
-
   LTE_eNB_ULSCH_t *ulsch = rdata->eNB->ulsch[rdata->UEid];
   LTE_UL_eNB_HARQ_t *ulsch_harq = rdata->ulsch_harq;
   PHY_VARS_eNB *eNB=rdata->eNB;
@@ -1330,6 +1328,11 @@ void pusch_procedures(PHY_VARS_eNB *eNB,L1_rxtx_proc_t *proc) {
   const int frame    = proc->frame_rx;
   uint32_t harq_pid0 = subframe2harq_pid(&eNB->frame_parms,frame,subframe);
 
+  turboDecode_t arr[64] = {0};
+  task_ans_t ans;
+  init_task_ans(&ans, 64);
+  thread_info_tm_t t_info = {.ans = &ans, .cap = 64, .len = 0, .buf = (uint8_t *)arr};
+
   for (i = 0; i < NUMBER_OF_ULSCH_MAX; i++) {
     ulsch = eNB->ulsch[i];
     if (!ulsch) continue; 
@@ -1339,9 +1342,20 @@ void pusch_procedures(PHY_VARS_eNB *eNB,L1_rxtx_proc_t *proc) {
 
     ulsch_harq = ulsch->harq_processes[harq_pid];
 
-    if (ulsch->rnti>0) LOG_D(PHY,"eNB->ulsch[%d]->harq_processes[harq_pid:%d] SFN/SF:%04d%d: PUSCH procedures, UE %d/%x ulsch_harq[status:%d SFN/SF:%04d%d handled:%d]\n",
-                               i, harq_pid, frame,subframe,i,ulsch->rnti,
-                              ulsch_harq->status, ulsch_harq->frame, ulsch_harq->subframe, ulsch_harq->handled);
+    if (ulsch->rnti > 0)
+      LOG_D(PHY,
+            "eNB->ulsch[%d]->harq_processes[harq_pid:%d] SFN/SF:%04d%d: PUSCH procedures, UE %d/%x ulsch_harq[status:%d "
+            "SFN/SF:%04d%d handled:%d]\n",
+            i,
+            harq_pid,
+            frame,
+            subframe,
+            i,
+            ulsch->rnti,
+            ulsch_harq->status,
+            ulsch_harq->frame,
+            ulsch_harq->subframe,
+            ulsch_harq->handled);
 
     if ((ulsch->rnti>0) &&
         (ulsch_harq->status == ACTIVE) &&
@@ -1387,7 +1401,8 @@ void pusch_procedures(PHY_VARS_eNB *eNB,L1_rxtx_proc_t *proc) {
                      i,
                      0, // control_only_flag
                      ulsch_harq->V_UL_DAI,
-                     ulsch_harq->nb_rb > 20 ? 1 : 0);
+                     ulsch_harq->nb_rb > 20 ? 1 : 0,
+                     &t_info);
     }
     else if ((ulsch) &&
              (ulsch->rnti>0) &&
@@ -1404,20 +1419,19 @@ void pusch_procedures(PHY_VARS_eNB *eNB,L1_rxtx_proc_t *proc) {
   }   //   for (i=0; i<NUMBER_OF_ULSCH_MAX; i++)
 
   const bool decode = proc->nbDecode;
-  while (proc->nbDecode > 0) {
-    notifiedFIFO_elt_t *req=pullTpool(proc->respDecode, proc->threadPool);
-    if (req == NULL)
-      break; // Tpool has been stopped
-    postDecode(proc, req);
-    const time_stats_t ts = exec_time_stats_NotifiedFIFO(req);
-    merge_meas(&eNB->ulsch_turbo_decoding_stats, &ts);
-    delNotifiedFIFO_elt(req);
+  DevAssert(t_info.len == proc->nbDecode);
+  if (proc->nbDecode > 0) {
+    if (t_info.len != t_info.cap) {
+      completed_many_task_ans(t_info.ans, t_info.cap - t_info.len);
+    }
+    join_task_ans(t_info.ans);
+    for (size_t i = 0; i < t_info.len; ++i) {
+      postDecode(proc, &arr[i]);
+    }
   }
   if (decode)
     stop_meas(&eNB->ulsch_decoding_stats);
 }
-
-extern int oai_exit;
 
 void fill_rx_indication(PHY_VARS_eNB *eNB,
                         int ULSCH_id,
@@ -1451,7 +1465,7 @@ void fill_rx_indication(PHY_VARS_eNB *eNB,
          pdu->rx_indication_rel8.length);
 
   // estimate timing advance for MAC
-  sync_pos                               = lte_est_timing_advance_pusch(&eNB->frame_parms, eNB->pusch_vars[ULSCH_id]->drs_ch_estimates_time);
+  sync_pos = lte_est_timing_advance_pusch(&eNB->frame_parms, (c16_t **)eNB->pusch_vars[ULSCH_id]->drs_ch_estimates_time);
   timing_advance_update                  = sync_pos; 
 
   for (int i=0;i<NUMBER_OF_SCH_STATS_MAX;i++) 

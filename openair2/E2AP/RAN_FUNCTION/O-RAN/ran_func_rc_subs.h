@@ -22,35 +22,22 @@
 #ifndef RAN_FUNC_SM_RAN_CTRL_SUBSCRIPTION_AGENT_H
 #define RAN_FUNC_SM_RAN_CTRL_SUBSCRIPTION_AGENT_H
 
-#include "common/utils/hashtable/hashtable.h"
-#include "common/utils/collection/tree.h"
+#include "openair2/E2AP/flexric/src/sm/rc_sm/ie/rc_data_ie.h"
+#include "common/utils/ds/seq_arr.h"
 
-typedef enum {
-  RRC_STATE_CHANGED_TO_E2SM_RC_RAN_PARAM_ID = 202,   // 8.2.4  RAN Parameters for Report Service Style 4
-
-  END_E2SM_RC_RAN_PARAM_ID
-} ran_param_id_e;
-
-typedef struct{
-  size_t len;
-  ran_param_id_e* ran_param_id;
-} arr_ran_param_id_t;
-
-typedef struct ric_req_id_s {
-  RB_ENTRY(ric_req_id_s) entries;
+typedef struct ran_param_data {
   uint32_t ric_req_id;
-} rb_ric_req_id_t;
+  e2sm_rc_event_trigger_t ev_tr;
+} ran_param_data_t;
 
 typedef struct {
-  RB_HEAD(ric_id_2_param_id_trees, ric_req_id_s) rb[END_E2SM_RC_RAN_PARAM_ID];  //  1 RB tree = (1 RAN Parameter ID) : (n RIC Request ID) => m RB tree = (m RAN Parameter ID) : (n RIC Request ID)
-  hash_table_t* htable;    // 1 Hash table = (n RIC Request ID) : (m RAN Parameter ID)
+  seq_arr_t rs1_param3;   // E2SM_RC_RS1_RRC_MESSAGE
+  seq_arr_t rs1_param4;   // E2SM_RC_RS1_UE_ID
+  seq_arr_t rs4_param202; // E2SM_RC_RS4_RRC_STATE_CHANGED_TO
 } rc_subs_data_t;
 
-
-int cmp_ric_req_id(struct ric_req_id_s *c1, struct ric_req_id_s *c2);
-
-void init_rc_subs_data(rc_subs_data_t* rc_subs_data);
-void insert_rc_subs_data(rc_subs_data_t* rc_subs_data, uint32_t ric_req_id, arr_ran_param_id_t* arr_ran_param_id);
-void remove_rc_subs_data(rc_subs_data_t* rc_subs_data, uint32_t ric_req_id);
+void init_rc_subs_data(rc_subs_data_t *rc_subs_data);
+void insert_rc_subs_data(seq_arr_t *seq_arr, ran_param_data_t *data);
+void remove_rc_subs_data(rc_subs_data_t *rc_subs_data, uint32_t ric_req_id);
 
 #endif

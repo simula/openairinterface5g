@@ -28,7 +28,6 @@
  * @ingroup _ngap
  */
 
-#include <stdio.h>
 #include <stdint.h>
 
 /** @defgroup _ngap_impl_ NGAP Layer Reference Implementation

@@ -21,20 +21,20 @@
 
 #include "PHY/nr_phy_common/inc/nr_phy_common.h"
 
-void csi_rs_resource_mapping(int32_t **dataF,
-                             int csi_rs_length,
-                             int16_t mod_csi[][csi_rs_length >> 1],
-                             int ofdm_symbol_size,
-                             int dataF_offset,
-                             int start_sc,
-                             const csi_mapping_parms_t *mapping_parms,
-                             int start_rb,
-                             int nb_rbs,
-                             double alpha,
-                             int beta,
-                             double rho,
-                             int gs,
-                             int freq_density)
+static void csi_rs_resource_mapping(c16_t **dataF,
+                                    int csi_rs_length,
+                                    int16_t mod_csi[][csi_rs_length >> 1],
+                                    int ofdm_symbol_size,
+                                    int dataF_offset,
+                                    int start_sc,
+                                    const csi_mapping_parms_t *mapping_parms,
+                                    int start_rb,
+                                    int nb_rbs,
+                                    double alpha,
+                                    int beta,
+                                    double rho,
+                                    int gs,
+                                    int freq_density)
 {
   // resource mapping according to 38.211 7.4.1.5.3
   for (int n = start_rb; n < (start_rb + nb_rbs); n++) {
@@ -66,17 +66,17 @@ void csi_rs_resource_mapping(int32_t **dataF,
                 else
                   wt = -1;
               }
-              int index = ((l * ofdm_symbol_size + k) << 1) + (2 * dataF_offset);
-              ((int16_t*)dataF[p])[index] = (beta * wt * wf * mod_csi[l][mprime << 1]) >> 15;
-              ((int16_t*)dataF[p])[index + 1] = (beta * wt * wf * mod_csi[l][(mprime << 1) + 1]) >> 15;
+              int index = (l * ofdm_symbol_size + k) + dataF_offset;
+              dataF[p][index].r = (beta * wt * wf * mod_csi[l][mprime << 1]) >> 15;
+              dataF[p][index].i = (beta * wt * wf * mod_csi[l][(mprime << 1) + 1]) >> 15;
               LOG_D(PHY,
                     "l,k (%d,%d)  seq. index %d \t port %d \t (%d,%d)\n",
                     l,
                     k,
                     mprime,
                     p + 3000,
-                    ((int16_t*)dataF[p])[index],
-                    ((int16_t*)dataF[p])[index + 1]);
+                    dataF[p][index].r,
+                    dataF[p][index].i);
             }
           }
         }
@@ -85,16 +85,16 @@ void csi_rs_resource_mapping(int32_t **dataF,
   }
 }
 
-void get_modulated_csi_symbols(int symbols_per_slot,
-                               int slot,
-                               int N_RB_DL,
-                               int mod_length,
-                               int16_t mod_csi[][(N_RB_DL << 4) >> 1],
-                               int lprime,
-                               int l0,
-                               int l1,
-                               int row,
-                               int scramb_id)
+static void get_modulated_csi_symbols(int symbols_per_slot,
+                                      int slot,
+                                      int N_RB_DL,
+                                      int mod_length,
+                                      int16_t mod_csi[][(N_RB_DL << 4) >> 1],
+                                      int lprime,
+                                      int l0,
+                                      int l1,
+                                      int row,
+                                      int scramb_id)
 {
   for (int lp = 0; lp <= lprime; lp++) {
     int symb = l0;
@@ -120,7 +120,7 @@ void get_modulated_csi_symbols(int symbols_per_slot,
   }
 }
 
-uint32_t get_csi_beta_amplitude(const int16_t amp, int power_control_offset_ss)
+static uint32_t get_csi_beta_amplitude(const int16_t amp, int power_control_offset_ss)
 {
   uint32_t beta = amp;
   // assuming amp is the amplitude of SSB channels
@@ -143,7 +143,7 @@ uint32_t get_csi_beta_amplitude(const int16_t amp, int power_control_offset_ss)
   return beta;
 }
 
-int get_csi_modulation_length(double rho, int freq_density, int kprime, int start_rb, int nr_rbs)
+static int get_csi_modulation_length(double rho, int freq_density, int kprime, int start_rb, int nr_rbs)
 {
   int csi_length = 0;
   if (rho < 1) {
@@ -158,7 +158,7 @@ int get_csi_modulation_length(double rho, int freq_density, int kprime, int star
   return csi_length;
 }
 
-double get_csi_rho(int freq_density)
+static double get_csi_rho(int freq_density)
 {
   // setting the frequency density from its index
   double rho = 0;
@@ -561,3 +561,81 @@ csi_mapping_parms_t get_csi_mapping_parms(int row, int b, int l0, int l1)
   return csi_parms;
 }
 
+void nr_generate_csi_rs(const NR_DL_FRAME_PARMS *frame_parms,
+                        const csi_mapping_parms_t *phy_csi_parms,
+                        const int16_t amp,
+                        const int slot,
+                        const uint8_t freq_density,
+                        const uint16_t start_rb,
+                        const uint16_t nr_of_rbs,
+                        const uint8_t symb_l0,
+                        const uint8_t symb_l1,
+                        const uint8_t row,
+                        const uint16_t scramb_id,
+                        const uint8_t power_control_offset_ss,
+                        const uint8_t cdm_type,
+                        c16_t **dataF)
+{
+#ifdef NR_CSIRS_DEBUG
+  LOG_I(NR_PHY,
+        "CSI Params: start_rb = %i, nr_of_rbs = %i, row = %i, symb_l0 = %i, symb_l1 = %i, cdm_type = %i, freq_density = %i (0: "
+        "dot5 (even RB), 1: dot5 (odd RB), 2: one, 3: three), scramb_id = %i, power_control_offset_ss = %i\n",
+        start_rb,
+        nr_of_rbs,
+        row,
+        symb_l0,
+        symb_l1,
+        cdm_type,
+        freq_density,
+        scramb_id,
+        power_control_offset_ss);
+#endif
+
+  // setting the frequency density from its index
+  const double rho = get_csi_rho(freq_density);
+  const int csi_length = get_csi_modulation_length(rho, freq_density, phy_csi_parms->kprime, start_rb, nr_of_rbs);
+
+#ifdef NR_CSIRS_DEBUG
+  printf(" start rb %d, nr of rbs %d, csi length %d\n", start_rb, nr_of_rbs, csi_length);
+#endif
+
+  //*8(max allocation per RB)*2(QPSK))
+  int16_t mod_csi[frame_parms->symbols_per_slot][(frame_parms->N_RB_DL << 4) >> 1] __attribute__((aligned(16)));
+  get_modulated_csi_symbols(frame_parms->symbols_per_slot,
+                            slot,
+                            frame_parms->N_RB_DL,
+                            csi_length,
+                            mod_csi,
+                            phy_csi_parms->lprime,
+                            symb_l0,
+                            symb_l1,
+                            row,
+                            scramb_id);
+
+  const uint32_t beta = get_csi_beta_amplitude(amp, power_control_offset_ss);
+  const double alpha = (phy_csi_parms->ports == 1) ? rho : 2 * rho;
+
+#ifdef NR_CSIRS_DEBUG
+  printf(" rho %f, alpha %f\n", rho, alpha);
+#endif
+
+  // CDM group size from CDM type index
+  const int gs = get_cdm_group_size(cdm_type);
+
+  const int dataF_offset = slot * frame_parms->samples_per_slot_wCP;
+
+  csi_rs_resource_mapping(dataF,
+                          frame_parms->N_RB_DL << 4,
+                          mod_csi,
+                          frame_parms->ofdm_symbol_size,
+                          dataF_offset,
+                          frame_parms->first_carrier_offset,
+                          phy_csi_parms,
+                          start_rb,
+                          nr_of_rbs,
+                          alpha,
+                          beta,
+                          rho,
+                          gs,
+                          freq_density);
+}

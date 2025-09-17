@@ -14,7 +14,9 @@ services:
         volumes:
           - ../../conf_files/gnb.sa.band77.273prb.usrpn310.2x2.conf:/opt/oai-gnb/etc/gnb.conf
         healthcheck:
-            test: /bin/bash -c "pgrep nr-softmodem"
-            interval: 10s
+            test: /bin/bash -c "/opt/oai-gnb/bin/check-prach-io.sh"
+            start_period: 15s
+            start_interval: 500ms
+            interval: 5s
             timeout: 5s
             retries: 5

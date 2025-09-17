@@ -93,7 +93,7 @@ int opt_enabled=0;
 //static unsigned char g_PDUBuffer[1600];
 //static unsigned int g_PDUOffset;
 
-FILE *file_fd = NULL;
+static FILE *file_fd = NULL;
 const pcap_hdr_t file_header = {
     0xa1b2c3d4, /* magic number */
     2,
@@ -120,7 +120,7 @@ typedef struct {
   struct sockaddr_in address;
 } opt_listener_t;
 
-opt_listener_t opt_listener;
+static opt_listener_t opt_listener;
 
 unsigned short checksum(unsigned short *ptr, int length) {
   int sum = 0;
@@ -529,8 +529,9 @@ void trace_pdu_implementation(ws_trace_t *t)
 int init_opt(void) { 
   paramdef_t opt_params[]          = OPT_PARAMS_DESC ;
   checkedparam_t opt_checkParams[] = OPTPARAMS_CHECK_DESC;
+  static_assert(sizeofArray(opt_params) == sizeofArray(opt_checkParams),
+                "opt_params and opt_checkParams should have the same size");
   int sz=sizeofArray(opt_params);
-  AssertFatal(sz == sizeofArray(opt_checkParams), "Error in arrays size (%d!=%lu)\n", sz, sizeofArray(opt_checkParams));
   config_set_checkfunctions(opt_params, opt_checkParams, sz);
   config_get(config_get_if(), opt_params, sz, OPT_CONFIGPREFIX);
   subframesSinceCaptureStart = 0;

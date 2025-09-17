@@ -213,7 +213,7 @@ void nr_ptrs_cpe_estimation(uint8_t K_ptrs,
   c16_t dmrs_comp_p[(1 + sc_per_symbol / 4) * 4];
 
   /* generate PTRS RE for the symbol */
-  nr_gen_ref_conj_symbols(gold_seq,sc_per_symbol*2,(int16_t*)ptrs_p, NR_MOD_TABLE_QPSK_OFFSET,2);// 2 for QPSK
+  nr_gen_ref_conj_symbols(gold_seq, sc_per_symbol * 2, (int16_t *)ptrs_p, 2); // 2 for QPSK
   uint32_t re_cnt = 0, cnt = 0;
   /* loop over all sub carriers to get compensated RE on ptrs symbols*/
   for (int re = 0; re < NR_NB_SC_PER_RB * nb_rb; re++) {
@@ -241,7 +241,7 @@ void nr_ptrs_cpe_estimation(uint8_t K_ptrs,
 
   c16_t ptrs_ch_p[(1 + sc_per_symbol / 4) * 4];
   /*Multiple compensated data with conj of PTRS */
-  mult_cpx_vector((int16_t*)dmrs_comp_p, (int16_t*)ptrs_p, (int16_t*)ptrs_ch_p, (1 + sc_per_symbol/4)*4, 15); // 2^15 shifted
+  mult_cpx_vector((c16_t *)dmrs_comp_p, (c16_t *)ptrs_p, (c16_t *)ptrs_ch_p, (1 + sc_per_symbol / 4) * 4, 15); // 2^15 shifted
 
   /* loop over all ptrs sub carriers in a symbol */
   /* sum the error vector */

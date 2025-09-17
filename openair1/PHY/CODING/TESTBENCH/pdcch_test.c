@@ -246,7 +246,6 @@ int main(int argc, char *argv[])
   set_taus_seed(0);
 
   ccodelte_init();
-  ccodelte_init_inv();
 
   phy_generate_viterbi_tables_lte();
   lte_frame_parms = &(PHY_config->lte_frame_parms);

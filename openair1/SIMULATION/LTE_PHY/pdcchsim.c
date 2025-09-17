@@ -374,7 +374,6 @@ DCI_PDU *get_dci(LTE_DL_FRAME_PARMS *lte_frame_parms,uint8_t log2L, uint8_t log2
 extern int QPSK[4],QPSK2[4];
 
 int main(int argc, char **argv) {
-  char c;
   int i,l,aa;
   double sigma2, sigma2_dB=0,SNR,snr0=-2.0,snr1;
   int **txdata;
@@ -425,6 +424,7 @@ int main(int argc, char **argv) {
   cpuf = get_cpu_freq_GHz();
   logInit();
 
+  int c;
   while ((c = getopt (argc, argv, "hapFg:R:c:n:s:x:y:z:L:M:N:I:f:i:S:P:Y")) != -1) {
     switch (c) {
       case 'a':

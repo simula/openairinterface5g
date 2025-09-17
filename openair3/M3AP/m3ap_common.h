@@ -48,8 +48,6 @@
 # define M3AP_PORT 36444
 #endif
 
-extern int asn1_xer_print;
-
 #include "common/utils/LOG/log.h"
 #include "m3ap_default_values.h"
 #define M3AP_INFO(x, args...) LOG_I(M3AP, x, ##args)

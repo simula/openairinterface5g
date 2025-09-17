@@ -1,0 +1,34 @@
+test:
+  Host: localhost
+  InitScript: ""
+  TermScript: ""
+  AttachScript: "true"
+  DetachScript: "true"
+  NetworkScript: ip a show dev lo
+  IF: lo
+  MTU: 65536
+
+test-fail:
+  Host: localhost
+  InitScript: ""
+  TermScript: ""
+  AttachScript: "false"
+  DetachScript: "true"
+  NetworkScript: ip a show dev TESTDEVICEDOESNOTEXIST
+  IF: TESTDEVICEDOESNOTEXIST
+  MTU: 123
+
+test-trace:
+  Host: localhost
+  InitScript: ""
+  TermScript: ""
+  AttachScript: "true"
+  DetachScript: "true"
+  Tracing:
+    # tttf: temp-trace-test-file
+    Start: "rm -f /tmp/tttf; for i in {1..8}; do echo $i >> /tmp/tttf; sleep 1; done &"
+    Stop: "while [[ $(wc -l /tmp/tttf) < 4 ]]; do sleep 1; done"
+    Collect: "cp /tmp/tttf %%log_dir%%"
+  NetworkScript: ip a show dev lo
+  IF: lo
+  MTU: 65536

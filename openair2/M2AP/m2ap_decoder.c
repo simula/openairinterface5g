@@ -165,7 +165,7 @@ int m2ap_decode_pdu(M2AP_M2AP_PDU_t *pdu, const uint8_t *const buffer, uint32_t 
                         length,
                         0,
                         0);
-  if (asn1_xer_print) {
+  if (LOG_DEBUGFLAG(DEBUG_ASN1)) {
     xer_fprint(stdout, &asn_DEF_M2AP_M2AP_PDU, pdu);
   }
 

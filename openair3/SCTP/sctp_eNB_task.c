@@ -464,7 +464,7 @@ static void sctp_handle_new_association_req(const instance_t instance,
     char port[12];
     snprintf(port, sizeof(port), "%d", req->port);
     int status = getaddrinfo(remote, port, &hints, &serv);
-    AssertFatal(status == 0, "getaddrinfo() failed: %s\n", gai_strerror(status));
+    AssertFatal(status == 0, "getaddrinfo(node %s service %s) failed: %s\n", remote, port, gai_strerror(status));
 
     struct addrinfo *p = NULL;
     for (p = serv; p != NULL; p = p->ai_next) {
@@ -806,8 +806,8 @@ sctp_eNB_read_from_socket(
     }
 
     if (!(flags & MSG_EOR)) {
-      SCTP_ERROR("fatal: partial SCTP messages are not handled\n");
-      exit_fun("fatal: partial SCTP messages are not handled" );
+      SCTP_ERROR("partial SCTP message received, discarding message\n");
+      return;
     }
 
     if (flags & MSG_NOTIFICATION) {

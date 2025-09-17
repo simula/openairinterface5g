@@ -34,6 +34,9 @@
 #include "f1ap_du_interface_management.h"
 #include "f1ap_du_ue_context_management.h"
 #include "f1ap_du_rrc_message_transfer.h"
+#include "lib/f1ap_rrc_message_transfer.h"
+#include "lib/f1ap_interface_management.h"
+#include "lib/f1ap_ue_context.h"
 #include "f1ap_du_task.h"
 #include <openair3/ocp-gtpu/gtp_itf.h>
 
@@ -149,6 +152,7 @@ void *F1AP_DU_task(void *arg) {
 
       case F1AP_RESET_ACK:
         DU_send_RESET_ACKNOWLEDGE(assoc_id, &F1AP_RESET_ACK(msg));
+        free_f1ap_reset_ack(&F1AP_RESET_ACK(msg));
         break;
 
       case F1AP_GNB_CU_CONFIGURATION_UPDATE_ACKNOWLEDGE:
@@ -180,10 +184,12 @@ void *F1AP_DU_task(void *arg) {
 
       case F1AP_UL_RRC_MESSAGE: // to rrc
         DU_send_UL_NR_RRC_MESSAGE_TRANSFER(assoc_id, &F1AP_UL_RRC_MESSAGE(msg));
+        free_ul_rrc_message_transfer(&F1AP_UL_RRC_MESSAGE(msg));
         break;
 
       case F1AP_UE_CONTEXT_SETUP_RESP:
         DU_send_UE_CONTEXT_SETUP_RESPONSE(assoc_id, &F1AP_UE_CONTEXT_SETUP_RESP(msg));
+        free_ue_context_setup_resp(&F1AP_UE_CONTEXT_SETUP_RESP(msg));
         break;
 
       case F1AP_UE_CONTEXT_MODIFICATION_RESP:

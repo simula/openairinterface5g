@@ -28,139 +28,139 @@
  * \email: raymond.knopp@eurecom.fr
  */
 
-#include "nr_rrc_defs.h"
-#include "NR_RRCReconfiguration.h"
-#include "NR_UE-NR-Capability.h"
-//#include "NR_UE-CapabilityRAT-ContainerList.h"
-#include "LTE_UE-CapabilityRAT-ContainerList.h"
-#include "NR_CellGroupConfig.h"
-#include "NR_CG-Config.h"
-//#include "NR_SRB-ToAddModList.h"
-#include "uper_encoder.h"
-#include "uper_decoder.h"
-#include "openair2/LAYER2/NR_MAC_gNB/mac_proto.h"
-#include "openair2/LAYER2/nr_rlc/nr_rlc_oai_api.h"
-#include "openair2/RRC/NR/rrc_gNB_GTPV1U.h"
-#include "openair2/F1AP/f1ap_ids.h"
-#include "executables/softmodem-common.h"
-#include "executables/nr-softmodem.h"
+#include <assert.h>
+#include <assertions.h>
+#include <openair2/RRC/NR/nr_rrc_proto.h>
 #include <openair2/RRC/NR/rrc_gNB_UE_context.h>
 #include <openair3/ocp-gtpu/gtp_itf.h>
-#include "openair3/SECU/secu_defs.h"
-#include "openair3/SECU/key_nas_deriver.h"
-
-#include <openair2/RRC/NR/nr_rrc_proto.h>
-#include "nr_pdcp/nr_pdcp_oai_api.h"
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include "MESSAGES/asn1_msg.h"
+#include "OCTET_STRING.h"
+#include "T.h"
+#include "asn_codecs.h"
+#include "asn_internal.h"
+#include "assertions.h"
+#include "common/ngran_types.h"
+#include "common/ran_context.h"
+#include "common/utils/T/T.h"
+#include "constr_TYPE.h"
+#include "executables/nr-softmodem.h"
+#include "executables/softmodem-common.h"
+#include "gtpv1_u_messages_types.h"
+#include "intertask_interface.h"
+#include "ngap_messages_types.h"
+#include "nr_pdcp/nr_pdcp_entity.h"
+#include "nr_pdcp/nr_pdcp_oai_api.h"
+#include "nr_rrc_defs.h"
+#include "openair2/F1AP/f1ap_ids.h"
+#include "openair2/LAYER2/NR_MAC_gNB/mac_proto.h"
+#include "openair2/LAYER2/nr_rlc/nr_rlc_oai_api.h"
+#include "openair3/SECU/key_nas_deriver.h"
+#include "openair2/SDAP/nr_sdap/nr_sdap_entity.h"
+#include "rrc_gNB_du.h"
+#include "rlc.h"
+#include "s1ap_messages_types.h"
+#include "tree.h"
+#include "uper_decoder.h"
+#include "uper_encoder.h"
+#include "x2ap_messages_types.h"
+#include "xer_decoder.h"
+#include "xer_encoder.h"
+#include "f1ap_common.h"
+#include "lib/f1ap_ue_context.h"
 
-void rrc_parse_ue_capabilities(gNB_RRC_INST *rrc, NR_UE_CapabilityRAT_ContainerList_t *UE_CapabilityRAT_ContainerList, x2ap_ENDC_sgnb_addition_req_t *m, NR_CG_ConfigInfo_IEs_t *cg_config_info)
+// In case of phy-test and do-ra mode, read UE capabilities directly from file
+// and put it into a CG-ConfigInfo field
+static int cg_config_info_from_ue_cap_file(uint32_t maxlen, uint8_t buf[maxlen])
 {
-  OCTET_STRING_t *ueCapabilityRAT_Container_nr=NULL;
-  OCTET_STRING_t *ueCapabilityRAT_Container_MRDC=NULL;
-  asn_dec_rval_t dec_rval;
-  int list_size=0;
+  OCTET_STRING_t *list_buf = NULL;
+  if (uecap_file != NULL) {
+    LOG_I(NR_RRC, "creating CG-ConfigInfo from UE capability file %s\n", uecap_file);
 
-  AssertFatal(UE_CapabilityRAT_ContainerList!=NULL,"UE_CapabilityRAT_ContainerList is null\n");
-  AssertFatal((list_size=UE_CapabilityRAT_ContainerList->list.count) >= 2, "UE_CapabilityRAT_ContainerList->list.size %d < 2\n",UE_CapabilityRAT_ContainerList->list.count);
-
-  for (int i=0; i<list_size; i++) {
-    if (UE_CapabilityRAT_ContainerList->list.array[i]->rat_Type == NR_RAT_Type_nr) ueCapabilityRAT_Container_nr = &UE_CapabilityRAT_ContainerList->list.array[i]->ue_CapabilityRAT_Container;
-    else if (UE_CapabilityRAT_ContainerList->list.array[i]->rat_Type == NR_RAT_Type_eutra_nr) ueCapabilityRAT_Container_MRDC = &UE_CapabilityRAT_ContainerList->list.array[i]->ue_CapabilityRAT_Container;
-  }
-
-  // decode and store capabilities
-  rrc_gNB_ue_context_t *ue_context_p = rrc_gNB_allocate_new_ue_context(rrc);
-  gNB_RRC_UE_t *UE = &ue_context_p->ue_context;
-
-  if (ueCapabilityRAT_Container_nr != NULL) {
-    dec_rval = uper_decode(NULL, &asn_DEF_NR_UE_NR_Capability, (void **)&UE->UE_Capability_nr, ueCapabilityRAT_Container_nr->buf, ueCapabilityRAT_Container_nr->size, 0, 0);
-
-    if ((dec_rval.code != RC_OK) && (dec_rval.consumed == 0)) {
-      LOG_E(RRC, "Failed to decode UE NR capabilities (%zu bytes) container size %lu\n", dec_rval.consumed,ueCapabilityRAT_Container_nr->size);
-      ASN_STRUCT_FREE(asn_DEF_NR_UE_NR_Capability, UE->UE_Capability_nr);
-      UE->UE_Capability_nr = 0;
-      AssertFatal(1==0,"exiting\n");
+    FILE *f = fopen(uecap_file, "r");
+    if (!f) {
+      LOG_E(NR_RRC, "cannot open file %s, cannot read UE capabilities\n", uecap_file);
+      return 0;
     }
-  }
-
-  if (ueCapabilityRAT_Container_MRDC != NULL) {
-    dec_rval = uper_decode(NULL, &asn_DEF_NR_UE_MRDC_Capability, (void **)&UE->UE_Capability_MRDC, ueCapabilityRAT_Container_MRDC->buf, ueCapabilityRAT_Container_MRDC->size, 0, 0);
-
-    if ((dec_rval.code != RC_OK) && (dec_rval.consumed == 0)) {
-      LOG_E(RRC, "Failed to decode UE MRDC capabilities (%zu bytes)\n", dec_rval.consumed);
-      ASN_STRUCT_FREE(asn_DEF_NR_UE_MRDC_Capability, UE->UE_Capability_MRDC);
-      UE->UE_Capability_MRDC = 0;
-      AssertFatal(1==0,"exiting\n");
+    char UE_NR_Capability_xer[65536];
+    size_t size = fread(UE_NR_Capability_xer, 1, sizeof UE_NR_Capability_xer, f);
+    fclose(f);
+    if (size == 0 || size == sizeof UE_NR_Capability_xer) {
+      LOG_E(NR_RRC, "UE Capabilities XER file %s could not be read (read %ld bytes)\n", uecap_file, size);
+      return 0;
     }
+    NR_UE_NR_Capability_t *cap = calloc_or_fail(1, sizeof(*cap));
+    asn_dec_rval_t dec_rval = xer_decode(0, &asn_DEF_NR_UE_NR_Capability, (void *)&cap, UE_NR_Capability_xer, size);
+    DevAssert(dec_rval.code == RC_OK);
+    //xer_fprint(stdout, &asn_DEF_NR_UE_NR_Capability, cap);
+
+    uint8_t *buf = NULL;
+    int sizebuf = uper_encode_to_new_buffer(&asn_DEF_NR_UE_NR_Capability, NULL, cap, (void **)&buf);
+    NR_UE_CapabilityRAT_Container_t *cont = calloc_or_fail(1, sizeof(*cont));
+    cont->rat_Type = NR_RAT_Type_nr;
+    cont->ue_CapabilityRAT_Container.buf = buf;
+    cont->ue_CapabilityRAT_Container.size = sizebuf;
+    NR_UE_CapabilityRAT_ContainerList_t *clist = calloc_or_fail(1, sizeof(*clist));
+    asn1cSeqAdd(&clist->list, cont);
+    list_buf = calloc_or_fail(1, sizeof(*list_buf));
+    list_buf->size = uper_encode_to_new_buffer(&asn_DEF_NR_UE_CapabilityRAT_ContainerList, NULL, clist, (void **)&list_buf->buf);
+    ASN_STRUCT_FREE(asn_DEF_NR_UE_CapabilityRAT_ContainerList, clist);
   }
 
-  // dump ue_capabilities
+  NR_CG_ConfigInfo_t *cgci = calloc_or_fail(1, sizeof(*cgci));
+  cgci->criticalExtensions.present = NR_CG_ConfigInfo__criticalExtensions_PR_c1;
+  cgci->criticalExtensions.choice.c1 = calloc_or_fail(1, sizeof(*cgci->criticalExtensions.choice.c1));
+  cgci->criticalExtensions.choice.c1->present = NR_CG_ConfigInfo__criticalExtensions__c1_PR_cg_ConfigInfo;
+  NR_CG_ConfigInfo_IEs_t *cgci_ies = calloc_or_fail(1, sizeof(*cgci_ies));
+  cgci->criticalExtensions.choice.c1->choice.cg_ConfigInfo = cgci_ies;
+  cgci_ies->ue_CapabilityInfo = list_buf;
 
-  if ( LOG_DEBUGFLAG(DEBUG_ASN1) && ueCapabilityRAT_Container_nr != NULL ) {
-    xer_fprint(stdout, &asn_DEF_NR_UE_NR_Capability, UE->UE_Capability_nr);
-  }
+  //xer_fprint(stdout, &asn_DEF_NR_CG_ConfigInfo, cgci);
+  asn_enc_rval_t rval = uper_encode_to_buffer(&asn_DEF_NR_CG_ConfigInfo, NULL, cgci, buf, maxlen);
+  DevAssert(rval.encoded > 0);
+  ASN_STRUCT_FREE(asn_DEF_NR_CG_ConfigInfo, cgci);
+  return (rval.encoded + 7) >> 3;
+}
 
-  if ( LOG_DEBUGFLAG(DEBUG_ASN1) && ueCapabilityRAT_Container_MRDC != NULL ) {
-    xer_fprint(stdout, &asn_DEF_NR_UE_MRDC_Capability, UE->UE_Capability_MRDC);
-  }
-  LOG_A(NR_RRC, "Successfully decoded UE NR capabilities (NR and MRDC)\n");
-
-  AssertFatal(NODE_IS_MONOLITHIC(rrc->node_type), "phy_test and do_ra only work in monolithic\n");
-  LOG_I(NR_RRC,"Adding new NSA user (%p)\n",ue_context_p);
-  rrc_add_nsa_user(rrc,ue_context_p, m);
+static instance_t get_f1_gtp_instance(void)
+{
+  const f1ap_cudu_inst_t *inst = getCxt(0);
+  if (!inst)
+    return -1; // means no F1
+  return inst->gtpInst;
 }
 
 /* generate prototypes for the tree management functions (RB_INSERT used in rrc_add_nsa_user) */
 RB_PROTOTYPE(rrc_nr_ue_tree_s, rrc_gNB_ue_context_s, entries,
              rrc_gNB_compare_ue_rnti_id);
 
-void rrc_add_nsa_user(gNB_RRC_INST *rrc, rrc_gNB_ue_context_t *ue_context_p, x2ap_ENDC_sgnb_addition_req_t *m)
+void rrc_add_nsa_user(gNB_RRC_INST *rrc, x2ap_ENDC_sgnb_addition_req_t *m, sctp_assoc_t assoc_id)
 {
-  AssertFatal(!get_softmodem_params()->sa, "%s() cannot be called in SA mode, it is intrinsically for NSA\n", __func__);
-  // generate nr-Config-r15 containers for LTE RRC : inside message for X2 EN-DC (CG-Config Message from 38.331)
-  const nr_mac_config_t *configuration = &RC.nrmac[0]->radio_config;
-  MessageDef *msg;
-  msg = itti_alloc_new_message(TASK_RRC_ENB, 0, X2AP_ENDC_SGNB_ADDITION_REQ_ACK);
-  gtpv1u_enb_create_tunnel_req_t  create_tunnel_req;
-  gtpv1u_enb_create_tunnel_resp_t create_tunnel_resp;
-  protocol_ctxt_t ctxt={0};
-  nr_pdcp_entity_security_keys_and_algos_t security_parameters = {0};
-  int i;
+  AssertFatal(!IS_SA_MODE(get_softmodem_params()), "%s() cannot be called in SA mode, it is intrinsically for NSA\n", __func__);
+
+  /* all the 0 are DU-related info that we will fill later, see rrc_add_nsa_user_resp() below */
+  rrc_gNB_ue_context_t *ue_context_p = rrc_gNB_create_ue_context(assoc_id, 0, rrc, 0, 0);
   gNB_RRC_UE_t *UE = &ue_context_p->ue_context;
 
-  // In case of phy-test and do-ra mode, read UE capabilities directly from file
-  if (get_softmodem_params()->phy_test == 1 || get_softmodem_params()->do_ra == 1) {
-    NR_UE_NR_Capability_t* UE_Capability_nr = NULL;
-    char UE_NR_Capability_xer[65536];
-    FILE *f = NULL;
-    if (uecap_file)
-      f = fopen(uecap_file, "r");
-    if (f) {
-      size_t size = fread(UE_NR_Capability_xer, 1, sizeof UE_NR_Capability_xer, f);
-      if (size == 0 || size == sizeof UE_NR_Capability_xer)
-        LOG_E(NR_RRC,"UE Capabilities XER file %s is too large (%ld)\n", uecap_file, size);
-      else {
-        UE_Capability_nr = CALLOC(1,sizeof(NR_UE_NR_Capability_t));
-        asn_dec_rval_t dec_rval = xer_decode(0, &asn_DEF_NR_UE_NR_Capability, (void *)&UE_Capability_nr, UE_NR_Capability_xer, size);
-        assert(dec_rval.code == RC_OK);
-        xer_fprint(stdout,&asn_DEF_NR_UE_NR_Capability,(void *)UE_Capability_nr);
-      }
-      fclose(f);
-    }
-    else
-      LOG_E(NR_RRC,"Could not open UE Capabilities input file. Not handling OAI UE Capabilities.\n");
-    UE->UE_Capability_nr = UE_Capability_nr;
-  }
+  nr_pdcp_entity_security_keys_and_algos_t security_parameters = {0};
 
-  // NR RRCReconfiguration
-  if (get_softmodem_params()->phy_test == 1 || get_softmodem_params()->do_ra == 1 || get_softmodem_params()->sa == 1){
-    UE->rb_config = get_default_rbconfig(10 /* EPS bearer ID */, 1 /* drb ID */, NR_CipheringAlgorithm_nea0, NR_SecurityConfig__keyToUse_master);
+  uint8_t tmp[1024];
+  byte_array_t cgci = {0};
+  if (get_softmodem_params()->phy_test == 1 || get_softmodem_params()->do_ra == 1) {
+    DevAssert(m == NULL);
+    UE->rb_config = get_default_rbconfig(10 /* EPS bearer ID */, 1 /* drb ID */, NR_CipheringAlgorithm_nea0, NR_SecurityConfig__keyToUse_master, &rrc->pdcp_config);
+    int len = cg_config_info_from_ue_cap_file(sizeof tmp, tmp);
+    DevAssert(len > 0);
+    cgci = create_byte_array(len, tmp);
   } else {
+    DevAssert(m != NULL);
+    cgci = create_byte_array(m->rrc_buffer_size, m->rrc_buffer);
+
     /* TODO: handle more than one bearer */
-    if (m == NULL) {
-      LOG_E(RRC, "fatal: m==NULL\n");
-      exit(1);
-    }
     if (m->nb_e_rabs_tobeadded != 1) {
       LOG_E(RRC, "fatal: m->nb_e_rabs_tobeadded = %d, should be 1\n", m->nb_e_rabs_tobeadded);
       exit(1);
@@ -178,7 +178,7 @@ void rrc_add_nsa_user(gNB_RRC_INST *rrc, rrc_gNB_ue_context_t *ue_context_p, x2a
      */
     /* preset nea0 as fallback */
     UE->ciphering_algorithm = 0;
-    for (i = 0; i < rrc->security.ciphering_algorithms_count; i++) {
+    for (int i = 0; i < rrc->security.ciphering_algorithms_count; i++) {
       int nea_mask[4] = {
         0,
         0x8000,  /* nea1 */
@@ -233,30 +233,15 @@ void rrc_add_nsa_user(gNB_RRC_INST *rrc, rrc_gNB_ue_context_t *ue_context_p, x2a
         exit(1);
     }
 
-    UE->rb_config = get_default_rbconfig(m->e_rabs_tobeadded[0].e_rab_id, m->e_rabs_tobeadded[0].drb_ID, cipher_algo, NR_SecurityConfig__keyToUse_secondary);
+    UE->rb_config = get_default_rbconfig(m->e_rabs_tobeadded[0].e_rab_id, m->e_rabs_tobeadded[0].drb_ID, cipher_algo, NR_SecurityConfig__keyToUse_secondary, &rrc->pdcp_config);
   }
 
-  NR_ServingCellConfig_t *scc = RC.nrmac[0]->common_channels[0].pre_ServingCellConfig;
-  // The MAC has the ServingCellConfigCommon; the below code is incorrect: the
-  // CU should send a UE Context Setup Request to request the creating of the
-  // MAC Context
-  NR_ServingCellConfigCommon_t *sccc = RC.nrmac[0]->common_channels[0].ServingCellConfigCommon;
-  NR_CellGroupConfig_t *secondaryCellGroup =
-      get_default_secondaryCellGroup(sccc, scc, UE->UE_Capability_nr, 1, 1, configuration, ue_context_p->ue_context.rrc_ue_id);
-  AssertFatal(secondaryCellGroup != NULL, "out of memory\n");
-
-  NR_RRCReconfiguration_t *reconfig = calloc(1, sizeof(NR_RRCReconfiguration_t));
-  reconfig->rrc_TransactionIdentifier = 0;
-  reconfig->criticalExtensions.present = NR_RRCReconfiguration__criticalExtensions_PR_rrcReconfiguration;
-  reconfig->criticalExtensions.choice.rrcReconfiguration = get_default_reconfig(secondaryCellGroup);
-  UE->rnti = secondaryCellGroup->spCellConfig->reconfigurationWithSync->newUE_Identity;
-
-  NR_CG_Config_t *CG_Config = generate_CG_Config(reconfig, UE->rb_config);
-
   if(m!=NULL) {
-    uint8_t inde_list[m->nb_e_rabs_tobeadded];
-    memset(inde_list, 0, m->nb_e_rabs_tobeadded*sizeof(uint8_t));
 
+    UE->x2_target_assoc = m->target_assoc_id;
+    UE->MeNB_ue_x2_id = m->ue_x2_id;
+    gtpv1u_enb_create_tunnel_req_t  create_tunnel_req = {0};
+    gtpv1u_enb_create_tunnel_resp_t create_tunnel_resp = {0};
     if (m->nb_e_rabs_tobeadded>0) {
       for (int i=0; i<m->nb_e_rabs_tobeadded; i++) {
         // Add the new E-RABs at the corresponding rrc ue context of the gNB
@@ -268,7 +253,6 @@ void rrc_add_nsa_user(gNB_RRC_INST *rrc, rrc_gNB_ue_context_t *ue_context_p, x2a
         create_tunnel_req.eps_bearer_id[i] = UE->e_rab[i].param.e_rab_id;
         create_tunnel_req.sgw_S1u_teid[i] = UE->e_rab[i].param.gtp_teid;
         memcpy(&create_tunnel_req.sgw_addr[i], &UE->e_rab[i].param.sgw_addr, sizeof(transport_layer_addr_t));
-        inde_list[i] = i;
         LOG_I(RRC,"S1-U tunnel: index %d target sgw ip %d.%d.%d.%d length %d gtp teid %u\n",
               i,
               create_tunnel_req.sgw_addr[i].buffer[0],
@@ -282,144 +266,222 @@ void rrc_add_nsa_user(gNB_RRC_INST *rrc, rrc_gNB_ue_context_t *ue_context_p, x2a
       create_tunnel_req.rnti = ue_context_p->ue_context.rrc_ue_id;
       create_tunnel_req.num_tunnels    = m->nb_e_rabs_tobeadded;
       RB_INSERT(rrc_nr_ue_tree_s, &RC.nrrrc[rrc->module_id]->rrc_ue_head, ue_context_p);
-      memset(&create_tunnel_resp, 0, sizeof(create_tunnel_resp));
       if (!IS_SOFTMODEM_NOS1) {
-        LOG_D(RRC, "Calling gtpv1u_create_s1u_tunnel()\n");
         gtpv1u_create_s1u_tunnel(rrc->module_id, &create_tunnel_req, &create_tunnel_resp, nr_pdcp_data_req_drb);
-        rrc_gNB_process_GTPV1U_CREATE_TUNNEL_RESP(&ue_context_p->ue_context, &create_tunnel_resp, &inde_list[0]);
+        DevAssert(create_tunnel_resp.num_tunnels == 1);
+        UE->nsa_gtp_teid[0] = create_tunnel_resp.enb_S1u_teid[0];
+        UE->nsa_gtp_addrs[0] = create_tunnel_resp.enb_addr;
+        UE->nsa_gtp_ebi[0] = create_tunnel_resp.eps_bearer_id[0];
       }
-      X2AP_ENDC_SGNB_ADDITION_REQ_ACK(msg).nb_e_rabs_admitted_tobeadded = m->nb_e_rabs_tobeadded;
-      X2AP_ENDC_SGNB_ADDITION_REQ_ACK(msg).target_assoc_id = m->target_assoc_id;
-
-      for (int i = 0; i < UE->nb_of_e_rabs; i++) {
-        X2AP_ENDC_SGNB_ADDITION_REQ_ACK(msg).e_rabs_admitted_tobeadded[i].e_rab_id = UE->e_rab[i].param.e_rab_id;
-        X2AP_ENDC_SGNB_ADDITION_REQ_ACK(msg).e_rabs_admitted_tobeadded[i].gtp_teid = create_tunnel_resp.enb_S1u_teid[i];
-        memcpy(&X2AP_ENDC_SGNB_ADDITION_REQ_ACK(msg).e_rabs_admitted_tobeadded[i].gnb_addr, &create_tunnel_resp.enb_addr, sizeof(transport_layer_addr_t));
-        //The length field in the X2AP targetting structure is expected in bits but the create_tunnel_resp returns the address length in bytes
-        X2AP_ENDC_SGNB_ADDITION_REQ_ACK(msg).e_rabs_admitted_tobeadded[i].gnb_addr.length = create_tunnel_resp.enb_addr.length*8;
-        LOG_I(RRC,"S1-U create_tunnel_resp tunnel: index %d target gNB ip %d.%d.%d.%d length %d gtp teid %u\n",
-              i,
-              create_tunnel_resp.enb_addr.buffer[0],
-              create_tunnel_resp.enb_addr.buffer[1],
-              create_tunnel_resp.enb_addr.buffer[2],
-              create_tunnel_resp.enb_addr.buffer[3],
-              create_tunnel_resp.enb_addr.length,
-              create_tunnel_resp.enb_S1u_teid[i]);
-        LOG_I(RRC,"X2AP sGNB Addition Request: index %d target gNB ip %d.%d.%d.%d length %d gtp teid %u\n",
-              i,
-              X2AP_ENDC_SGNB_ADDITION_REQ_ACK(msg).e_rabs_admitted_tobeadded[i].gnb_addr.buffer[0],
-              X2AP_ENDC_SGNB_ADDITION_REQ_ACK(msg).e_rabs_admitted_tobeadded[i].gnb_addr.buffer[1],
-              X2AP_ENDC_SGNB_ADDITION_REQ_ACK(msg).e_rabs_admitted_tobeadded[i].gnb_addr.buffer[2],
-              X2AP_ENDC_SGNB_ADDITION_REQ_ACK(msg).e_rabs_admitted_tobeadded[i].gnb_addr.buffer[3],
-              X2AP_ENDC_SGNB_ADDITION_REQ_ACK(msg).e_rabs_admitted_tobeadded[i].gnb_addr.length,
-              X2AP_ENDC_SGNB_ADDITION_REQ_ACK(msg).e_rabs_admitted_tobeadded[i].gtp_teid);
-      }
-    } else
-      LOG_W(RRC, "No E-RAB to be added received from SgNB Addition Request message \n");
-
-    X2AP_ENDC_SGNB_ADDITION_REQ_ACK(msg).MeNB_ue_x2_id = m->ue_x2_id;
-    X2AP_ENDC_SGNB_ADDITION_REQ_ACK(msg).SgNB_ue_x2_id = secondaryCellGroup->spCellConfig->reconfigurationWithSync->newUE_Identity;
-    //X2AP_ENDC_SGNB_ADDITION_REQ_ACK(msg).rrc_buffer_size = CG_Config_size; //Need to verify correct value for the buffer_size
-    // Send to X2 entity to transport to MeNB
-    asn_enc_rval_t enc_rval = uper_encode_to_buffer(&asn_DEF_NR_CG_Config,
-                              NULL,
-                              (void *)CG_Config,
-                              X2AP_ENDC_SGNB_ADDITION_REQ_ACK(msg).rrc_buffer,
-                              sizeof(X2AP_ENDC_SGNB_ADDITION_REQ_ACK(msg).rrc_buffer));
-    X2AP_ENDC_SGNB_ADDITION_REQ_ACK(msg).rrc_buffer_size = (enc_rval.encoded+7)>>3;
-    itti_send_msg_to_task(TASK_X2AP, ENB_MODULE_ID_TO_INSTANCE(0), msg); //Check right id instead of hardcoding
+    }
   }
 
-  // below we configure the stack. In SA, we fully adopted F1, meaning that
-  // layers use different IDs (MAC/RLC use RNTI as DU UE ID, above use NGAP ID
-  // as CU UE ID.
-  uint32_t du_ue_id = ue_context_p->ue_context.rnti;
-  uint32_t rrc_ue_id = ue_context_p->ue_context.rrc_ue_id;
-  f1_ue_data_t du_ue_data = {.secondary_ue = rrc_ue_id};
-  du_add_f1_ue_data(du_ue_id, &du_ue_data);
-  f1_ue_data_t cu_ue_data = {.secondary_ue = du_ue_id};
-  cu_add_f1_ue_data(rrc_ue_id, &cu_ue_data);
-  LOG_I(RRC, "Assign CU UE ID %d and DU UE ID %d to UE RNTI %04x\n", rrc_ue_id, du_ue_id, ue_context_p->ue_context.rnti);
-
-  // configure MAC and RLC
-  bool ret = false;
-  if (get_softmodem_params()->phy_test) {
-    // phytest mode: we don't set up RA, etc
-    ret = nr_mac_add_test_ue(RC.nrmac[rrc->module_id], du_ue_id, secondaryCellGroup);
-  } else {
-    DevAssert(secondaryCellGroup->spCellConfig
-              && secondaryCellGroup->spCellConfig->reconfigurationWithSync
-              && secondaryCellGroup->spCellConfig->reconfigurationWithSync->rach_ConfigDedicated
-              && secondaryCellGroup->spCellConfig->reconfigurationWithSync->rach_ConfigDedicated->choice.uplink->cfra);
-    NR_SCHED_LOCK(&RC.nrmac[rrc->module_id]->sched_lock);
-    ret = nr_mac_prepare_ra_ue(RC.nrmac[rrc->module_id], du_ue_id, secondaryCellGroup);
-    NR_SCHED_UNLOCK(&RC.nrmac[rrc->module_id]->sched_lock);
-  }
-  AssertFatal(ret, "cannot add NSA UE in MAC, aborting\n");
-
-  PROTOCOL_CTXT_SET_BY_MODULE_ID(&ctxt, rrc->module_id, GNB_FLAG_YES, rrc_ue_id, 0, 0, rrc->module_id);
-  LOG_W(RRC,
-        "Calling RRC PDCP/RLC ASN1 request functions for protocol context %p with module_id %d, rnti %lx, frame %d, subframe %d eNB_index %d \n",
-        &ctxt,
-        ctxt.module_id,
-        ctxt.rntiMaybeUEid,
-        ctxt.frame,
-        ctxt.subframe,
-        ctxt.eNB_index);
-
-  nr_pdcp_add_drbs(ctxt.enb_flag,
-                   rrc_ue_id,
-                   ue_context_p->ue_context.rb_config->drb_ToAddModList,
+  DevAssert(UE->rb_config != NULL);
+  nr_pdcp_add_drbs(GNB_FLAG_YES,
+                   UE->rrc_ue_id,
+                   UE->rb_config->drb_ToAddModList,
                    &security_parameters);
 
-  ctxt.rntiMaybeUEid = du_ue_id;
-  // assume only a single bearer
-  const NR_DRB_ToAddModList_t *drb_list = ue_context_p->ue_context.rb_config->drb_ToAddModList;
-  DevAssert(drb_list->list.count == 1);
-  const NR_DRB_ToAddMod_t *drb = drb_list->list.array[0];
-  const struct NR_CellGroupConfig__rlc_BearerToAddModList *bearer_list = secondaryCellGroup->rlc_BearerToAddModList;
-  const NR_RLC_BearerConfig_t *bearer = bearer_list->list.array[0];
-  DevAssert(bearer_list->list.count == 1);
-  DevAssert(drb->drb_Identity == bearer->servedRadioBearer->choice.drb_Identity);
-  nr_rlc_add_drb(ctxt.rntiMaybeUEid, drb->drb_Identity, bearer);
+  /* assumption: only a single bearer, see above */
+  NR_DRB_ToAddModList_t *rb_list = UE->rb_config->drb_ToAddModList;
+  AssertFatal(rb_list->list.count == 1, "can only handle one bearer for NSA/phy-test/do-ra, but has %d\n", rb_list->list.count);
+  int drb_id = rb_list->list.array[0]->drb_Identity;
+  f1ap_drb_to_setup_t *drb = calloc_or_fail(1, sizeof(*drb));
+  drb->id = drb_id;
+  // hardcoded keep it backwards compatible for now
+  // rrc->configuration.um_on_default_drb ? F1AP_RLC_MODE_UM_BIDIR : F1AP_RLC_MODE_AM,
+  drb->rlc_mode = F1AP_RLC_MODE_UM_BIDIR;
+  drb->up_ul_tnl_len = 1;
+  drb->qos_choice = F1AP_QOS_CHOICE_NR; // we don't have EUTRAN yet, "approximate" it
+  drb->nr.flows_len = 1;
+  f1ap_drb_flows_mapped_t *flow = drb->nr.flows = calloc_or_fail(drb->nr.flows_len, sizeof(*flow));
+  flow->qfi = 9;
+  flow->param.qos_type = NON_DYNAMIC;
+  flow->param.nondyn.fiveQI = 9;
+  flow->param.arp.prio = 5;
 
-  LOG_D(RRC, "%s:%d: done RRC PDCP/RLC ASN1 request for UE rnti %lx\n", __FUNCTION__, __LINE__, ctxt.rntiMaybeUEid);
+  // Note: E1 support for NSA/phy-test/do-ra not implemented yet
+  instance_t f1inst = get_f1_gtp_instance();
+  if (f1inst >= 0) {
+      gtpv1u_gnb_create_tunnel_req_t req = {
+        .ue_id = UE->rrc_ue_id,
+        .incoming_rb_id[0] = drb_id,
+        .pdusession_id[0] = drb_id,
+        .outgoing_teid[0] = 0xffff, // will be updated later
+        .dst_addr[0].length = 32,
+        .num_tunnels = 1,
+      };
+      gtpv1u_gnb_create_tunnel_resp_t resp = {0};
+      int ret = gtpv1u_create_ngu_tunnel(f1inst, &req, &resp, NULL, NULL);
+      AssertFatal(ret == 0, "gtpv1u_create_ngu_tunnel failed: ret %d\n", ret);
+      memcpy(&drb->up_ul_tnl[0].tl_address, &resp.gnb_addr.buffer, 4);
+      drb->up_ul_tnl[0].teid = resp.gnb_NGu_teid[0];
+      drb->up_ul_tnl_len = 1;
+  }
+  uint64_t *ue_agg_mbr_ul = malloc_or_fail(sizeof(*ue_agg_mbr_ul));
+  *ue_agg_mbr_ul = 1000000000;
+  byte_array_t *cg_configinfo = malloc_or_fail(sizeof(*cg_configinfo));
+  *cg_configinfo = cgci;
+  f1ap_ue_context_setup_req_t req = {
+      .gNB_CU_ue_id = UE->rrc_ue_id,
+      .plmn.mcc = rrc->configuration.plmn[0].mcc,
+      .plmn.mnc = rrc->configuration.plmn[0].mnc,
+      .plmn.mnc_digit_length = rrc->configuration.plmn[0].mnc_digit_length,
+      .nr_cellid = rrc->nr_cellid,
+      .servCellIndex = 0,
+      .drbs_len = 1,
+      .drbs = drb,
+      .cu_to_du_rrc_info.cg_configinfo = cg_configinfo,
+      .gnb_du_ue_agg_mbr_ul = ue_agg_mbr_ul,
+  };
+  f1_ue_data_t ue_data = cu_get_f1_ue_data(UE->rrc_ue_id);
+  RETURN_IF_INVALID_ASSOC_ID(ue_data.du_assoc_id);
+  rrc->mac_rrc.ue_context_setup_request(ue_data.du_assoc_id, &req);
+  free_ue_context_setup_req(&req);
 }
 
-void rrc_remove_nsa_user(gNB_RRC_INST *rrc, int rnti) {
-  protocol_ctxt_t      ctxt;
-  rrc_gNB_ue_context_t *ue_context;
-  int                  e_rab;
+static NR_RRCReconfiguration_IEs_t *get_default_reconfig(const NR_CellGroupConfig_t *secondaryCellGroup)
+{
+  NR_RRCReconfiguration_IEs_t *reconfig = calloc(1, sizeof(NR_RRCReconfiguration_IEs_t));
+  AssertFatal(reconfig != NULL, "out of memory\n");
+  AssertFatal(secondaryCellGroup != NULL, "secondaryCellGroup is null\n");
+  reconfig->radioBearerConfig = NULL;
 
-  LOG_D(RRC, "calling rrc_remove_nsa_user rnti %d\n", rnti);
-  PROTOCOL_CTXT_SET_BY_MODULE_ID(&ctxt, rrc->module_id, GNB_FLAG_YES, rnti, 0, 0, rrc->module_id);
+  char scg_buffer[1024];
+  asn_enc_rval_t enc_rval = uper_encode_to_buffer(&asn_DEF_NR_CellGroupConfig, NULL, (void *)secondaryCellGroup, scg_buffer, 1024);
+  AssertFatal(enc_rval.encoded > 0, "ASN1 message encoding failed (%s, %jd)!\n", enc_rval.failed_type->name, enc_rval.encoded);
+  reconfig->secondaryCellGroup = calloc(1, sizeof(*reconfig->secondaryCellGroup));
+  OCTET_STRING_fromBuf(reconfig->secondaryCellGroup, (const char *)scg_buffer, (enc_rval.encoded + 7) >> 3);
+  reconfig->measConfig = NULL;
+  reconfig->lateNonCriticalExtension = NULL;
+  reconfig->nonCriticalExtension = NULL;
+  return reconfig;
+}
 
-  ue_context = rrc_gNB_get_ue_context_by_rnti_any_du(rrc, rnti);
-  if (ue_context == NULL) {
-    LOG_W(RRC, "rrc_remove_nsa_user: rnti %d not found\n", rnti);
+static NR_CG_Config_t *generate_CG_Config(const NR_RRCReconfiguration_t *reconfig, const NR_RadioBearerConfig_t *rbconfig)
+{
+  NR_CG_Config_t *cg_Config = calloc_or_fail(1, sizeof(*cg_Config));
+  cg_Config->criticalExtensions.present = NR_CG_Config__criticalExtensions_PR_c1;
+  cg_Config->criticalExtensions.choice.c1 = calloc_or_fail(1, sizeof(*cg_Config->criticalExtensions.choice.c1));
+  cg_Config->criticalExtensions.choice.c1->present = NR_CG_Config__criticalExtensions__c1_PR_cg_Config;
+  NR_CG_Config_IEs_t *cgc_ie = calloc_or_fail(1, sizeof(*cgc_ie));
+  cg_Config->criticalExtensions.choice.c1->choice.cg_Config = cgc_ie;
+  cgc_ie->scg_CellGroupConfig = calloc_or_fail(1, sizeof(*cgc_ie->scg_CellGroupConfig));
+  cgc_ie->scg_CellGroupConfig->size =
+      uper_encode_to_new_buffer(&asn_DEF_NR_RRCReconfiguration, NULL, reconfig, (void **)&cgc_ie->scg_CellGroupConfig->buf);
+  AssertFatal(cgc_ie->scg_CellGroupConfig->size > 0,
+              "ASN1 message encoding of RRCReconfiguration failed (%ld)!\n",
+              cgc_ie->scg_CellGroupConfig->size);
+
+  cgc_ie->scg_RB_Config = calloc_or_fail(1, sizeof(*cgc_ie->scg_RB_Config));
+  cgc_ie->scg_RB_Config->size =
+      uper_encode_to_new_buffer(&asn_DEF_NR_RadioBearerConfig, NULL, rbconfig, (void **)&cgc_ie->scg_RB_Config->buf);
+  AssertFatal(cgc_ie->scg_RB_Config->size > 0, "ASN1 message encoding failed (%ld)!\n", cgc_ie->scg_RB_Config->size);
+
+  if (get_softmodem_params()->phy_test == 1 || get_softmodem_params()->do_ra > 0) {
+    // This is for phytest only, emulate first X2 message if uecap.raw file is present
+    LOG_I(RRC, "Dumping NR_RRCReconfiguration message (%jd bytes) to reconfig.raw\n", cgc_ie->scg_CellGroupConfig->size);
+    FILE *fd = fopen("reconfig.raw", "w");
+    AssertFatal(fd != NULL, "could not open reconig.raw for writing: %d, %s\n", errno, strerror(errno));
+    fwrite(cgc_ie->scg_CellGroupConfig->buf, cgc_ie->scg_CellGroupConfig->size, 1, fd);
+    fclose(fd);
+
+    LOG_I(RRC, "Dumping scg_RB_Config message (%jd bytes) to reconfig.raw\n", cgc_ie->scg_RB_Config->size);
+    fd = fopen("rbconfig.raw", "w");
+    AssertFatal(fd != NULL, "could not open rbconig.raw for writing: %d, %s\n", errno, strerror(errno));
+    fwrite(cgc_ie->scg_RB_Config->buf, cgc_ie->scg_RB_Config->size, 1, fd);
+    fclose(fd);
+  }
+
+  return cg_Config;
+}
+
+void rrc_add_nsa_user_resp(gNB_RRC_INST *rrc, gNB_RRC_UE_t *UE, const f1ap_ue_context_setup_resp_t *resp)
+{
+  DevAssert(resp->crnti != NULL);
+  /* we did not fill any DU-related ID info in rrc_add_nsa_user() */
+  UE->rnti = *resp->crnti;
+  DevAssert(cu_exists_f1_ue_data(UE->rrc_ue_id));
+  f1_ue_data_t ue_data = cu_get_f1_ue_data(UE->rrc_ue_id);
+  ue_data.secondary_ue = resp->gNB_DU_ue_id;
+  bool success = cu_update_f1_ue_data(UE->rrc_ue_id, &ue_data);
+  DevAssert(success);
+
+  instance_t f1inst = get_f1_gtp_instance();
+  if (f1inst >= 0) {
+    // Note: E1 support for NSA/phy-test/do-ra not implemented yet
+    // so set up GTP from here
+    for (int i = 0; i < resp->drbs_len; ++i) {
+      f1ap_drb_setup_t *drb = &resp->drbs[i];
+      DevAssert(drb->up_dl_tnl_len == 1);
+      in_addr_t addr = drb->up_dl_tnl[0].tl_address;
+      uint32_t teid = drb->up_dl_tnl[0].teid;
+      GtpuUpdateTunnelOutgoingAddressAndTeid(f1inst, UE->rrc_ue_id, drb->id, addr, teid);
+    }
+  }
+
+  NR_RRCReconfiguration_t *reconfig = calloc(1, sizeof(NR_RRCReconfiguration_t));
+  reconfig->rrc_TransactionIdentifier = 0;
+  reconfig->criticalExtensions.present = NR_RRCReconfiguration__criticalExtensions_PR_rrcReconfiguration;
+  reconfig->criticalExtensions.choice.rrcReconfiguration = get_default_reconfig(UE->masterCellGroup);
+
+  NR_CG_Config_t *CG_Config = generate_CG_Config(reconfig, UE->rb_config);
+  ASN_STRUCT_FREE(asn_DEF_NR_RRCReconfiguration, reconfig);
+
+  if (get_softmodem_params()->phy_test > 0 || get_softmodem_params()->do_ra > 0) {
+    /* we are done, no X2 answer necessary */
+    ASN_STRUCT_FREE(asn_DEF_NR_CG_Config, CG_Config);
     return;
   }
 
-  nr_pdcp_remove_UE(ue_context->ue_context.rrc_ue_id);
-  rrc_rlc_remove_ue(&ctxt);
+  MessageDef *msg = itti_alloc_new_message(TASK_RRC_ENB, 0, X2AP_ENDC_SGNB_ADDITION_REQ_ACK);
+  x2ap_ENDC_sgnb_addition_req_ACK_t *ack = &X2AP_ENDC_SGNB_ADDITION_REQ_ACK(msg);
 
-  // lock the scheduler before removing the UE. Note: mac_remove_nr_ue() checks
-  // that the scheduler is actually locked!
-  NR_SCHED_LOCK(&RC.nrmac[rrc->module_id]->sched_lock);
-  mac_remove_nr_ue(RC.nrmac[rrc->module_id], rnti);
-  NR_SCHED_UNLOCK(&RC.nrmac[rrc->module_id]->sched_lock);
-  gtpv1u_enb_delete_tunnel_req_t tmp={0};
-  tmp.rnti=rnti;
-  tmp.from_gnb=1;
-  LOG_D(RRC, "ue_context->ue_context.nb_of_e_rabs %d will be deleted for rnti %d\n", ue_context->ue_context.nb_of_e_rabs, rnti);
-  for (e_rab = 0; e_rab < ue_context->ue_context.nb_of_e_rabs; e_rab++) {
-    tmp.eps_bearer_id[tmp.num_erab++]= ue_context->ue_context.nsa_gtp_ebi[e_rab];
-    // erase data
-    ue_context->ue_context.nsa_gtp_teid[e_rab] = 0;
-    memset(&ue_context->ue_context.nsa_gtp_addrs[e_rab], 0, sizeof(ue_context->ue_context.nsa_gtp_addrs[e_rab]));
-    ue_context->ue_context.nsa_gtp_ebi[e_rab] = 0;
+  ack->nb_e_rabs_admitted_tobeadded = UE->nb_of_e_rabs;
+  DevAssert(UE->x2_target_assoc > 0);
+  ack->target_assoc_id = UE->x2_target_assoc;
+
+  for (int i = 0; i < UE->nb_of_e_rabs; i++) {
+    ack->e_rabs_admitted_tobeadded[i].e_rab_id = UE->e_rab[i].param.e_rab_id;
+    ack->e_rabs_admitted_tobeadded[i].gtp_teid = UE->nsa_gtp_teid[0];
+    memcpy(&ack->e_rabs_admitted_tobeadded[i].gnb_addr, &UE->nsa_gtp_addrs[0], sizeof(transport_layer_addr_t));
+    ack->e_rabs_admitted_tobeadded[i].gnb_addr.length = 32; // bits, IPv4 only
   }
-  gtpv1u_delete_all_s1u_tunnel(rrc->module_id, rnti);
-  /* remove context */
-  rrc_gNB_remove_ue_context(rrc, ue_context);
+
+  ack->MeNB_ue_x2_id = UE->MeNB_ue_x2_id;
+  ack->SgNB_ue_x2_id = UE->rrc_ue_id;
+
+  // Send to X2 entity to transport to MeNB
+  asn_enc_rval_t enc_rval =
+      uper_encode_to_buffer(&asn_DEF_NR_CG_Config, NULL, (void *)CG_Config, ack->rrc_buffer, sizeof(ack->rrc_buffer));
+  ack->rrc_buffer_size = (enc_rval.encoded + 7) >> 3;
+  itti_send_msg_to_task(TASK_X2AP, ENB_MODULE_ID_TO_INSTANCE(0), msg);
+  ASN_STRUCT_FREE(asn_DEF_NR_CG_Config, CG_Config);
+}
+
+void rrc_remove_nsa_user_context(gNB_RRC_INST *rrc, rrc_gNB_ue_context_t *ue_context)
+{
+  if (!IS_SOFTMODEM_NOS1)
+    gtpv1u_delete_all_s1u_tunnel(rrc->module_id, ue_context->ue_context.rrc_ue_id);
+  instance_t f1inst = get_f1_gtp_instance();
+  if (f1inst >= 0)
+    gtpv1u_delete_all_s1u_tunnel(f1inst, ue_context->ue_context.rrc_ue_id);
+  // we don't use E1 => we have to free SDAP
+  nr_sdap_delete_ue_entities(ue_context->ue_context.rrc_ue_id);
+  rrc_remove_ue(rrc, ue_context);
+}
+
+void rrc_release_nsa_user(gNB_RRC_INST *rrc, rrc_gNB_ue_context_t *ue_context)
+{
+  gNB_RRC_UE_t *UE = &ue_context->ue_context;
+  f1_ue_data_t ue_data = cu_get_f1_ue_data(UE->rrc_ue_id);
+  RETURN_IF_INVALID_ASSOC_ID(ue_data.du_assoc_id);
+  f1ap_ue_context_rel_cmd_t cmd = {
+      .gNB_CU_ue_id = UE->rrc_ue_id,
+      .gNB_DU_ue_id = ue_data.secondary_ue,
+      .cause = F1AP_CAUSE_RADIO_NETWORK,
+      .cause_value = 10, // 10 = F1AP_CauseRadioNetwork_normal_release
+  };
+  rrc->mac_rrc.ue_context_release_command(ue_data.du_assoc_id, &cmd);
+  rrc_remove_nsa_user_context(rrc, ue_context);
 }

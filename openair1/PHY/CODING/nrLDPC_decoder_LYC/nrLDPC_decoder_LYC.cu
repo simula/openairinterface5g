@@ -32,10 +32,13 @@
 #include "bgs/BG2_I6"
 #include "bgs/BG2_I7"
 #define MAX_ITERATION 2
-#define MC	1
+#define MC 1
 
 typedef void decode_abort_t;
-#define cudaCheck(ans) { cudaAssert((ans), __FILE__, __LINE__); }
+#define cudaCheck(ans)                     \
+  {                                        \
+    cudaAssert((ans), __FILE__, __LINE__); \
+  }
 inline void cudaAssert(cudaError_t code, const char *file, int line)
 {
   if (code != cudaSuccess) {
@@ -44,23 +47,23 @@ inline void cudaAssert(cudaError_t code, const char *file, int line)
   }
 }
 
-typedef struct{
+typedef struct {
   char x;
   char y;
   short value;
 } h_element;
 #include "bgs/BG1_compact_in_C.h"
 
-__device__ char dev_const_llr[68*384];
-__device__ char dev_dt [46*68*384];
-__device__ char dev_llr[68*384];
-__device__ unsigned char dev_tmp[68*384];
+__device__ char dev_const_llr[68 * 384];
+__device__ char dev_dt[46 * 68 * 384];
+__device__ char dev_llr[68 * 384];
+__device__ unsigned char dev_tmp[68 * 384];
 
-h_element h_compact1 [46*23] = {};
-h_element h_compact2 [68*30] = {};
+h_element h_compact1[46 * 23] = {};
+h_element h_compact2[68 * 30] = {};
 
-__device__  h_element dev_h_compact1[46*23];  // used in kernel 1
-__device__  h_element dev_h_compact2[68*30];  // used in kernel 2
+__device__ h_element dev_h_compact1[46 * 23]; // used in kernel 1
+__device__ h_element dev_h_compact2[68 * 30]; // used in kernel 2
 
 // __device__ __constant__ h_element dev_h_compact1[46*23];  // used in kernel 1
 // __device__ __constant__ h_element dev_h_compact2[68*30];  // used in kernel 2
@@ -82,13 +85,13 @@ __global__ void warmup()
   // warm up gpu for time measurement
 }
 
-extern "C"
-void warmup_for_GPU(){
+extern "C" void warmup_for_GPU()
+{
   warmup<<<20, 1024>>>();
 }
 
-extern "C"
-void set_compact_BG(int Zc,short BG){
+extern "C" void set_compact_BG(int Zc, short BG)
+{
   int row, col;
   if (BG == 1) {
     row = 46;
@@ -161,7 +164,6 @@ void set_compact_BG(int Zc,short BG){
 
   // return 0;
 }
-
 
 // Kernel 1
 __global__ void ldpc_cnp_kernel_1st_iter(/*char * dev_llr,*/ int BG, int row, int col, int Zc)
@@ -303,8 +305,7 @@ __global__ void ldpc_cnp_kernel(/*char * dev_llr, char * dev_dt,*/ int BG, int r
 }
 
 // Kernel 2: VNP processing
-__global__ void
-ldpc_vnp_kernel_normal(/*char * dev_llr, char * dev_dt, char * dev_const_llr,*/ int BG, int row, int col, int Zc)
+__global__ void ldpc_vnp_kernel_normal(/*char * dev_llr, char * dev_dt, char * dev_const_llr,*/ int BG, int row, int col, int Zc)
 {
   int iMCW = blockIdx.y;
   int iBlkCol = blockIdx.x;
@@ -343,7 +344,6 @@ ldpc_vnp_kernel_normal(/*char * dev_llr, char * dev_dt, char * dev_const_llr,*/ 
   // write back to device global memory
   dev_llr[iMCW * col * Zc + iCol] = APP;
 }
-
 
 __global__ void pack_decoded_bit(/*char *dev, unsigned char *host,*/ int col, int Zc)
 {
@@ -440,8 +440,8 @@ void read_BG(int BG, int *h, int row, int col)
   */
 }
 
-extern "C"
-void init_LLR_DMA(t_nrLDPC_dec_params* p_decParams, int8_t* p_llr, int8_t* p_out){
+extern "C" void init_LLR_DMA(t_nrLDPC_dec_params *p_decParams, int8_t *p_llr, int8_t *p_out)
+{
   uint16_t Zc = p_decParams->Z;
   uint8_t BG = p_decParams->BG;
   uint8_t col;
@@ -456,11 +456,11 @@ void init_LLR_DMA(t_nrLDPC_dec_params* p_decParams, int8_t* p_llr, int8_t* p_out
   cudaDeviceSynchronize();
 }
 
-using namespace std ;
+using namespace std;
 
 /* from here: entry points in decoder shared lib */
-extern "C"
-int ldpc_autoinit(void) {   // called by the library loader
+extern "C" int ldpc_autoinit(void)
+{ // called by the library loader
   /*int devices = 0;
 
     cudaError_t err = cudaGetDeviceCount(&devices);
@@ -493,7 +493,7 @@ int ldpc_autoinit(void) {   // called by the library loader
     }
   */
   warmup_for_GPU();
-  return 0;  
+  return 0;
 }
 
 extern "C" int32_t LDPCinit()
@@ -505,20 +505,17 @@ extern "C" void LDPCshutdown()
 {
 }
 
-extern "C"  int32_t LDPCdecoder(t_nrLDPC_dec_params *p_decParams,
-                                    uint8_t harq_pid,
-                                    uint8_t ulsch_id,
-                                    uint8_t C,
-                                    int8_t *p_llr,
-                                    int8_t *p_out,
-                                    t_nrLDPC_time_stats *,
-                                    decode_abort_t *ab)
+extern "C" int32_t LDPCdecoder(t_nrLDPC_dec_params *p_decParams,
+                               int8_t *p_llr,
+                               int8_t *p_out,
+                               t_nrLDPC_time_stats *,
+                               decode_abort_t *ab)
 {
   set_compact_BG(p_decParams->Z, p_decParams->BG);
   init_LLR_DMA(p_decParams, p_llr, p_out);
   uint16_t Zc = p_decParams->Z;
   uint8_t BG = p_decParams->BG;
-  int block_length = p_decParams->E;
+  int block_length = p_decParams->Kprime;
   uint8_t row, col;
   if (BG == 1) {
     row = 46;
@@ -529,7 +526,7 @@ extern "C"  int32_t LDPCdecoder(t_nrLDPC_dec_params *p_decParams,
   }
 
   //	alloc memory
-  unsigned char* hard_decision = (unsigned char*)p_out;
+  unsigned char *hard_decision = (unsigned char *)p_out;
   //	gpu
   int memorySize_llr_cuda = col * Zc * sizeof(char) * MC;
   cudaCheck(cudaMemcpyToSymbol(dev_const_llr, p_llr, memorySize_llr_cuda));
@@ -563,7 +560,7 @@ extern "C"  int32_t LDPCdecoder(t_nrLDPC_dec_params *p_decParams,
   dim3 pack_block(pack, MC, 1);
   pack_decoded_bit<<<pack_block, 128>>>(/*dev_llr,*/ /*dev_tmp,*/ col, Zc);
 
-  cudaCheck(cudaMemcpyFromSymbol((void*)hard_decision, (const void*)dev_tmp, (block_length / 8) * sizeof(unsigned char)));
+  cudaCheck(cudaMemcpyFromSymbol((void *)hard_decision, (const void *)dev_tmp, (block_length / 8) * sizeof(unsigned char)));
   cudaDeviceSynchronize();
 
   return MAX_ITERATION;

@@ -36,6 +36,13 @@ static int compar(const void* m0, const void* m1)
   return 1;
 }
 
+static int free_func_call_count = 0;
+
+static void dummy_free_func(void* it)
+{
+  ++free_func_call_count;
+}
+
 int main()
 {
   seq_arr_t arr = {0};
@@ -82,6 +89,19 @@ int main()
 
   void* it = bsearch(&key, base, nmemb, size, compar);
   assert(seq_arr_dist(&arr, seq_arr_front(&arr), it) == 4);
+
+  // Regression test: erase a partial range only
+  // Erase 92, 93, 94 (i.e., indices 1 to 3)
+  int* start = seq_arr_at(&arr, 1);
+  int* end = seq_arr_at(&arr, 4);
+  seq_arr_erase_it(&arr, start, end, dummy_free_func);
+
+  // Now values should be: [91, 95, 96, 97, 98, 99]
+  assert(free_func_call_count == 3);
+  assert(seq_arr_size(&arr) == 6);
+  assert(*(int*)seq_arr_at(&arr, 0) == 91);
+  assert(*(int*)seq_arr_at(&arr, 1) == 95);
+  assert(*(int*)seq_arr_at(&arr, 5) == 99);
 
   // Free data structure
   seq_arr_free(&arr, NULL);

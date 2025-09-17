@@ -34,8 +34,12 @@
 #include "f1ap_cu_interface_management.h"
 #include "f1ap_cu_rrc_message_transfer.h"
 #include "f1ap_cu_ue_context_management.h"
+#include "lib/f1ap_rrc_message_transfer.h"
+#include "lib/f1ap_interface_management.h"
+#include "lib/f1ap_ue_context.h"
 #include "f1ap_cu_paging.h"
 #include "f1ap_cu_task.h"
+#include "openair2/RRC/NR/nr_rrc_defs.h"
 #include <openair3/ocp-gtpu/gtp_itf.h>
 
 //Fixme: Uniq dirty DU instance, by global var, datamodel need better management
@@ -64,7 +68,7 @@ static void cu_task_handle_sctp_association_ind(instance_t instance,
 static void cu_task_handle_sctp_association_resp(instance_t instance, sctp_new_association_resp_t *sctp_new_association_resp) {
   DevAssert(sctp_new_association_resp != NULL);
 
-  enum sctp_state_e state = sctp_new_association_resp->sctp_state;
+  sctp_state_e state = sctp_new_association_resp->sctp_state;
   if (state != SCTP_STATE_ESTABLISHED) {
     f1ap_cudu_inst_t *f1ap_cu_data = getCxt(instance);
     AssertFatal(f1ap_cu_data != NULL, "illegal state: SCTP shutdown for non-existing F1AP endpoint\n");
@@ -150,6 +154,11 @@ void *F1AP_CU_task(void *arg) {
                                      &received_msg->ittiMsg.sctp_data_ind);
         break;
 
+      case F1AP_RESET:
+        CU_send_RESET(assoc_id, &F1AP_RESET(received_msg));
+        free_f1ap_reset(&F1AP_RESET(received_msg));
+        break;
+
       case F1AP_RESET_ACK:
         CU_send_RESET_ACKNOWLEDGE(assoc_id, &F1AP_RESET_ACK(received_msg));
         break;
@@ -174,22 +183,23 @@ void *F1AP_CU_task(void *arg) {
       case F1AP_DL_RRC_MESSAGE: // from rrc
         CU_send_DL_RRC_MESSAGE_TRANSFER(assoc_id,
                                         &F1AP_DL_RRC_MESSAGE(received_msg));
-        free(F1AP_DL_RRC_MESSAGE(received_msg).rrc_container);
+        free_dl_rrc_message_transfer(&F1AP_DL_RRC_MESSAGE(received_msg));
         break;
 
       case F1AP_UE_CONTEXT_SETUP_REQ: // from rrc
-        CU_send_UE_CONTEXT_SETUP_REQUEST(assoc_id,
-                                         &F1AP_UE_CONTEXT_SETUP_REQ(received_msg));
+        CU_send_UE_CONTEXT_SETUP_REQUEST(assoc_id, &F1AP_UE_CONTEXT_SETUP_REQ(received_msg));
+        free_ue_context_setup_req(&F1AP_UE_CONTEXT_SETUP_REQ(received_msg));
         break;
 
       case F1AP_UE_CONTEXT_MODIFICATION_REQ:
-        CU_send_UE_CONTEXT_MODIFICATION_REQUEST(assoc_id,
-                                                &F1AP_UE_CONTEXT_MODIFICATION_REQ(received_msg));
+        CU_send_UE_CONTEXT_MODIFICATION_REQUEST(assoc_id, &F1AP_UE_CONTEXT_MODIFICATION_REQ(received_msg));
+        free_ue_context_mod_req(&F1AP_UE_CONTEXT_MODIFICATION_REQ(received_msg));
         break;
 
       case F1AP_UE_CONTEXT_RELEASE_CMD: // from rrc
         CU_send_UE_CONTEXT_RELEASE_COMMAND(assoc_id,
                                            &F1AP_UE_CONTEXT_RELEASE_CMD(received_msg));
+        free_ue_context_rel_cmd(&F1AP_UE_CONTEXT_RELEASE_CMD(received_msg));
         break;
 
       case F1AP_PAGING_IND:

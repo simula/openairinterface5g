@@ -10,7 +10,7 @@ services:
         container_name: oai-gnb
         environment:
             TZ: Europe/Paris
-            USE_ADDITIONAL_OPTIONS: --sa --thread-pool 6,7,8,9
+            USE_ADDITIONAL_OPTIONS: --thread-pool 6,7,8,9
         devices:
             - /dev/vfio:/dev/vfio/
         volumes:
@@ -22,10 +22,12 @@ services:
             oai-net:
                 ipv4_address: 172.21.18.20
         healthcheck:
-           test: /bin/bash -c "pgrep nr-softmodem"
-           interval: 10s
+           test: /bin/bash -c "/opt/oai-gnb/bin/check-prach-io.sh"
+           start_period: 15s
+           start_interval: 500ms
+           interval: 5s
            timeout: 5s
-           retries: 5
+           retries: 10
 networks:
     oai-net:
         driver: macvlan

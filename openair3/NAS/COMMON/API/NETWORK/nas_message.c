@@ -47,7 +47,7 @@ Description Defines the layer 3 messages supported by the NAS sublayer
 #include <stdlib.h> // malloc, free
 #include <string.h> // memcpy
 
-#if ((defined(NAS_BUILT_IN_EPC) && defined(NAS_MME)) || (defined(ENABLE_NAS_UE_LOGGING) && defined(NAS_BUILT_IN_UE) && defined(NAS_UE)))
+#if defined(NAS_BUILT_IN_UE)
 # include "nas_itti_messaging.h"
 #endif
 #include "secu_defs.h"
@@ -158,15 +158,12 @@ nas_message_encrypt(
     LOG_FUNC_RETURN (TLV_ENCODE_BUFFER_TOO_SHORT);
   } else if (size > 1) {
     /* Encrypt the plain NAS message */
-    bytes = _nas_message_encrypt(outbuf + size, inbuf,
+    bytes = _nas_message_encrypt(outbuf + size,
+                                 inbuf,
                                  header->security_header_type,
                                  header->message_authentication_code,
                                  header->sequence_number,
-#ifdef NAS_MME
-                                 SECU_DIRECTION_DOWNLINK,
-#else
                                  SECU_DIRECTION_UPLINK,
-#endif
                                  length - size,
                                  emm_security_context);
 
@@ -175,15 +172,7 @@ nas_message_encrypt(
       /* Compute offset of the sequence number field */
       int offset = size - sizeof(uint8_t);
       /* Compute the NAS message authentication code */
-      uint32_t mac = _nas_message_get_mac(
-                       outbuf + offset,
-                       bytes + size - offset,
-#ifdef NAS_MME
-                       SECU_DIRECTION_DOWNLINK,
-#else
-                       SECU_DIRECTION_UPLINK,
-#endif
-                       emm_security_context);
+      uint32_t mac = _nas_message_get_mac(outbuf + offset, bytes + size - offset, SECU_DIRECTION_UPLINK, emm_security_context);
       /* Set the message authentication code of the NAS message */
       *(uint32_t*)(outbuf + sizeof(uint8_t)) = htonl(mac);
     }
@@ -191,29 +180,6 @@ nas_message_encrypt(
     /* The input buffer does not need to be encrypted */
     memcpy(outbuf, inbuf, length);
   }
-
-#ifdef NAS_MME
-  /* TS 124.301, section 4.4.3.1
-   * The NAS sequence number part of the NAS COUNT shall be
-   * exchanged between the UE and the MME as part of the
-   * NAS signalling. After each new or retransmitted outbound
-   * security protected NAS message, the sender shall increase
-   * the NAS COUNT number by one. Specifically, on the sender
-   * side, the NAS sequence number shall be increased by one,
-   * and if the result is zero (due to wrap around), the NAS
-   * overflow counter shall also be incremented by one (see
-   * subclause 4.4.3.5).
-   */
-  emm_security_context->dl_count.seq_num += 1;
-
-  if ( ! emm_security_context->dl_count.seq_num) {
-    emm_security_context->dl_count.overflow += 1;
-  }
-
-  LOG_TRACE(DEBUG,
-            "Incremented emm_security_context.dl_count.seq_num -> %u",
-            emm_security_context->dl_count.seq_num);
-#else
   emm_security_context->ul_count.seq_num += 1;
 
   if ( ! emm_security_context->ul_count.seq_num) {
@@ -223,8 +189,6 @@ nas_message_encrypt(
   LOG_TRACE(DEBUG,
             "Incremented emm_security_context.ul_count.seq_num -> %u",
             emm_security_context->ul_count.seq_num);
-#endif
-
   if (bytes < 0) {
     LOG_FUNC_RETURN (bytes);
   }
@@ -276,48 +240,30 @@ int nas_message_decrypt(
     LOG_FUNC_RETURN (TLV_DECODE_BUFFER_TOO_SHORT);
   } else if (size > 1) {
     if (security) {
-      emm_security_context   = (emm_security_context_t*)security;
-#if defined(NAS_MME)
-
-      if (emm_security_context->ul_count.seq_num > header->sequence_number) {
-        emm_security_context->ul_count.overflow += 1;
-      }
-
-      emm_security_context->ul_count.seq_num = header->sequence_number;
-#else
+      emm_security_context = (emm_security_context_t *)security;
 
       if (emm_security_context->dl_count.seq_num > header->sequence_number) {
         emm_security_context->dl_count.overflow += 1;
       }
 
       emm_security_context->dl_count.seq_num = header->sequence_number;
-#endif
     }
 
     /* Compute offset of the sequence number field */
     int offset = size - sizeof(uint8_t);
     /* Compute the NAS message authentication code */
-    uint32_t mac = _nas_message_get_mac(
-                     inbuf + offset,
-                     length - offset,
-#ifdef NAS_MME
-                     SECU_DIRECTION_UPLINK,
-#else
-                     SECU_DIRECTION_DOWNLINK,
-#endif
-                     emm_security_context);
+    uint32_t mac = _nas_message_get_mac(inbuf + offset, length - offset, SECU_DIRECTION_DOWNLINK, emm_security_context);
 
     /* Check NAS message integrity */
     if (mac != header->message_authentication_code) {
-
       LOG_TRACE(DEBUG,
                 "MAC Failure MSG:%08X(%u) <> INT ALGO:%08X(%u) Type of security context %u",
-                header->message_authentication_code,header->message_authentication_code,
-                mac,mac, (emm_security_context!=NULL)?emm_security_context->type:88);
-#if defined(NAS_MME)
-      LOG_FUNC_RETURN (TLV_DECODE_MAC_MISMATCH);
-#else
-//#warning "added test on integrity algorithm because of SECURITY_MODE_COMMAND not correctly handled in UE (check integrity)"
+                header->message_authentication_code,
+                header->message_authentication_code,
+                mac,
+                mac,
+                (emm_security_context != NULL) ? emm_security_context->type : 88);
+      // #warning "added test on integrity algorithm because of SECURITY_MODE_COMMAND not correctly handled in UE (check integrity)"
 
       if (emm_security_context->selected_algorithms.integrity !=
           NAS_SECURITY_ALGORITHMS_EIA0) {
@@ -326,8 +272,6 @@ int nas_message_decrypt(
         LOG_TRACE(WARNING,
                   "MAC failure but continue due to EIA0 selected");
       }
-
-#endif
     } else {
       LOG_TRACE(DEBUG, "Integrity: MAC Success");
     }
@@ -385,38 +329,19 @@ int nas_message_decode(
     LOG_FUNC_RETURN (TLV_DECODE_BUFFER_TOO_SHORT);
   } else if (size > 1) {
     if (security) {
-      emm_security_context   = (emm_security_context_t*)security;
-#if defined(NAS_MME)
-
-      if (emm_security_context->ul_count.seq_num > msg->header.sequence_number) {
-        emm_security_context->ul_count.overflow += 1;
-      }
-
-      emm_security_context->ul_count.seq_num = msg->header.sequence_number;
-
-#else
+      emm_security_context = (emm_security_context_t *)security;
 
       if (emm_security_context->dl_count.seq_num > msg->header.sequence_number) {
         emm_security_context->dl_count.overflow += 1;
       }
 
       emm_security_context->dl_count.seq_num = msg->header.sequence_number;
-#endif
     }
 
     /* Compute offset of the sequence number field */
     int offset = size - sizeof(uint8_t);
     /* Compute the NAS message authentication code */
-    uint32_t mac = _nas_message_get_mac(
-                     buffer + offset,
-                     length - offset,
-#ifdef NAS_MME
-                     SECU_DIRECTION_UPLINK,
-#else
-                     SECU_DIRECTION_DOWNLINK,
-#endif
-                     emm_security_context
-                   );
+    uint32_t mac = _nas_message_get_mac(buffer + offset, length - offset, SECU_DIRECTION_DOWNLINK, emm_security_context);
 
 #define NAS_CODE_TO_BE_MODIFIED 1
 #ifdef NAS_CODE_TO_BE_MODIFIED
@@ -444,10 +369,6 @@ int nas_message_decode(
                 mac);
       LOG_FUNC_RETURN (TLV_DECODE_MAC_MISMATCH);
     }
-
-#if ((defined(NAS_BUILT_IN_EPC) && defined(NAS_MME)) || (defined(ENABLE_NAS_UE_LOGGING) && defined(NAS_BUILT_IN_UE) && defined(NAS_UE)))
-    /* Log message header */
-#endif
 
     /* Decode security protected NAS message */
     bytes = _nas_message_protected_decode(buffer + size,
@@ -525,61 +446,24 @@ int nas_message_encode(
                 "offset %d = %d - %d, hdr encode = %d, length = %d bytes = %d",
                 offset, size, (int)sizeof(uint8_t),
                 size, length, bytes);
-      uint32_t mac = _nas_message_get_mac(
-                       buffer + offset,
-                       bytes + size - offset,
-#ifdef NAS_MME
-                       SECU_DIRECTION_DOWNLINK,
-#else
-                       SECU_DIRECTION_UPLINK,
-#endif
-                       emm_security_context);
+      uint32_t mac = _nas_message_get_mac(buffer + offset, bytes + size - offset, SECU_DIRECTION_UPLINK, emm_security_context);
       /* Set the message authentication code of the NAS message */
-      *(uint32_t*)(buffer + sizeof(uint8_t)) = htonl(mac);
+      uint32_t mac_nl = htonl(mac);
+      memcpy(buffer + sizeof(uint8_t), &mac_nl, sizeof(mac_nl));
 
       if (emm_security_context) {
-#ifdef NAS_MME
-        /* TS 124.301, section 4.4.3.1
-         * The NAS sequence number part of the NAS COUNT shall be
-         * exchanged between the UE and the MME as part of the
-         * NAS signalling. After each new or retransmitted outbound
-         * security protected NAS message, the sender shall increase
-         * the NAS COUNT number by one. Specifically, on the sender
-         * side, the NAS sequence number shall be increased by one,
-         * and if the result is zero (due to wrap around), the NAS
-         * overflow counter shall also be incremented by one (see
-         * subclause 4.4.3.5).
-         */
-
-        emm_security_context->dl_count.seq_num += 1;
-
-        if ( ! emm_security_context->dl_count.seq_num) {
-          emm_security_context->dl_count.overflow += 1;
-        }
-
-        LOG_TRACE(DEBUG,
-                  "Incremented emm_security_context.dl_count.seq_num -> %u",
-                  emm_security_context->dl_count.seq_num);
-#else
         emm_security_context->ul_count.seq_num += 1;
 
         if ( ! emm_security_context->ul_count.seq_num) {
           emm_security_context->ul_count.overflow += 1;
         }
 
-        LOG_TRACE(DEBUG,
-                  "Incremented emm_security_context.ul_count.seq_num -> %u",
-                  emm_security_context->ul_count.seq_num);
-#endif
+        LOG_TRACE(DEBUG, "Incremented emm_security_context.ul_count.seq_num -> %u", emm_security_context->ul_count.seq_num);
       } else {
         LOG_TRACE(DEBUG,
                   "Did not increment emm_security_context.dl_count.seq_num because no security context");
       }
     }
-
-#if ((defined(NAS_BUILT_IN_EPC) && defined(NAS_MME)) || (defined(ENABLE_NAS_UE_LOGGING) && defined(NAS_BUILT_IN_UE) && defined(NAS_UE)))
-    /* Log message header */
-#endif
   } else {
     /* Encode plain NAS message */
     bytes = _nas_message_plain_encode(buffer, &msg->header,
@@ -906,11 +790,7 @@ static int _nas_message_protected_encode(
                                    msg->header.security_header_type,
                                    msg->header.message_authentication_code,
                                    msg->header.sequence_number,
-#ifdef NAS_MME
-                                   SECU_DIRECTION_DOWNLINK,
-#else
                                    SECU_DIRECTION_UPLINK,
-#endif
                                    size,
                                    emm_security_context);
       //seq, size);
@@ -966,11 +846,7 @@ static int _nas_message_decrypt(
   int size = 0;
   nas_message_security_header_t header;
 
-#ifdef NAS_MME
-  direction = SECU_DIRECTION_UPLINK;
-#else
   direction = SECU_DIRECTION_DOWNLINK;
-#endif
   if (emm_security_context == NULL)
     LOG_FUNC_RETURN (0);
 
@@ -1286,7 +1162,7 @@ static uint32_t _nas_message_get_mac(
   if (!emm_security_context) {
     LOG_TRACE(DEBUG,
               "No security context set for integrity protection algorithm");
-#if defined(NAS_BUILT_IN_EPC) || defined(NAS_BUILT_IN_UE)
+#if defined(NAS_BUILT_IN_UE)
     LOG_FUNC_RETURN (0);
 #else
     LOG_FUNC_RETURN (0xabababab);
@@ -1414,7 +1290,7 @@ static uint32_t _nas_message_get_mac(
               (direction == SECU_DIRECTION_UPLINK) ? emm_security_context->ul_count.seq_num:emm_security_context->dl_count.seq_num
              );
 
-#if defined(NAS_BUILT_IN_EPC) || defined(NAS_BUILT_IN_UE)
+#if defined(NAS_BUILT_IN_UE)
     LOG_FUNC_RETURN (0);
 #else
     LOG_FUNC_RETURN (0xabababab);

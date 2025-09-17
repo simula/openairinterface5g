@@ -110,14 +110,7 @@ int EmmDeregisteredNormalService(nas_user_t *user, const emm_reg_t *evt)
     /*
      * Initiate the attach procedure for EPS services
      */
-    if(get_softmodem_params()->usim_test == 0)
-    {
-      rc = emm_proc_attach(user, EMM_ATTACH_TYPE_EPS);
-    }
-    else
-    {
-      rc = emm_proc_attach(user, EMM_ATTACH_TYPE_IMSI); // CMW500 IMSI initial attach expected
-    }
+    rc = emm_proc_attach(user, EMM_ATTACH_TYPE_EPS);
     break;
 
   case _EMMREG_ATTACH_REQ:

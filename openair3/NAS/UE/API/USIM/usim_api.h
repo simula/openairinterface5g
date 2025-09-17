@@ -73,7 +73,12 @@ Description Implements the API used by the NAS layer to read/write
  * USIM TLV parameter structure
  * ----------------------------
  */
-#define USIM_TLV_T(SIZE) struct {uint8_t type; uint8_t length; Byte_t value[SIZE];}
+#define USIM_TLV_T(SIZE) \
+  struct {               \
+    uint8_t type;        \
+    uint8_t length;      \
+    uint8_t value[SIZE]; \
+  }
 
 /*
  * Non Access Stratum Configuration
@@ -116,13 +121,13 @@ typedef struct {
 #define USIM_KSI_MIN    0b000
 #define USIM_KSI_MAX    0b110
 #define USIM_KSI_NOT_AVAILABLE  0b111
-  Byte_t ksi;
+  uint8_t ksi;
   /* Cyphering key  */
 #define USIM_CK_SIZE  16
-  Byte_t ck[USIM_CK_SIZE];
+  uint8_t ck[USIM_CK_SIZE];
   /* Integrity key  */
 #define USIM_IK_SIZE  16
-  Byte_t ik[USIM_IK_SIZE];
+  uint8_t ik[USIM_IK_SIZE];
   uint8_t usim_api_k[USIM_API_K_SIZE];
   uint8_t opc[16];
 } usim_keys_t;
@@ -195,10 +200,10 @@ typedef struct {
  * ----------------------------
  */
 typedef struct {
-  Byte_t length;    /* Length of BCD number/SSC contents  */
+  uint8_t length; /* Length of BCD number/SSC contents  */
   msisdn_t number;    /* Mobile subscriber dialing number */
-  Byte_t conf1_record_id; /* Configuration1 Record Identifier */
-  Byte_t ext1_record_id;  /* Extension1 Record Identifier   */
+  uint8_t conf1_record_id; /* Configuration1 Record Identifier */
+  uint8_t ext1_record_id; /* Extension1 Record Identifier   */
 } usim_msisdn_t;
 
 /*
@@ -251,12 +256,12 @@ typedef struct {
 typedef struct {
   uint32_t tmsi;  /* Temporary Mobile Subscriber Identity   */
   lai_t    lai; /* Location Area Identity     */
-  Byte_t   reserved;  /* Reserved for future use      */
+  uint8_t reserved; /* Reserved for future use      */
 #define USIM_LOCI_UPDATED     0x00
 #define USIM_LOCI_NOT_UPDATED     0x01
 #define USIM_LOCI_PLMN_NOT_ALLOWED    0x02
 #define USIM_LOCI_LA_NOT_ALLOWED    0x03
-  Byte_t   status;  /* Location update status     */
+  uint8_t status; /* Location update status     */
 } usim_loci_t;
 
 /*
@@ -265,13 +270,13 @@ typedef struct {
  */
 typedef struct {
   uint32_t p_tmsi;  /* Packet Temporary Mobile Subscriber Identity  */
-  Byte_t   signature[3];  /* P-TMSI signature value   */
+  uint8_t signature[3]; /* P-TMSI signature value   */
   RAI_t    rai; /* Routing Area Identity      */
 #define USIM_PSLOCI_UPDATED     0x00
 #define USIM_PSLOCI_NOT_UPDATED     0x01
 #define USIM_PSLOCI_PLMN_NOT_ALLOWED    0x02
 #define USIM_PSLOCI_LA_NOT_ALLOWED    0x03
-  Byte_t   status;  /* Routing Area update status     */
+  uint8_t status; /* Routing Area update status     */
 } usim_psloci_t;
 
 /*
@@ -284,7 +289,7 @@ typedef struct {
 #define USIM_EPSLOCI_UPDATED      0x00
 #define USIM_EPSLOCI_NOT_UPDATED    0x01
 #define USIM_EPSLOCI_ROAMING_NOT_ALLOWED  0x02
-  Byte_t status;  /* EPS update status        */
+  uint8_t status; /* EPS update status        */
 } usim_epsloci_t;
 
 /*
@@ -308,11 +313,11 @@ typedef struct {
 #define USIM_TYPE_APPROVAL_SPECIFIC_MODE  0x81U
 #define USIM_MAINTENANCE_MODE     0x02U
 #define USIM_CELL_TEST_MODE     0x04U
-  Byte_t UE_Operation_Mode; /* Mode of operation for the UE   */
+  uint8_t UE_Operation_Mode; /* Mode of operation for the UE   */
   uint16_t Additional_Info; /* Additional information depending on
          * the UE operation mode    */
-  Byte_t MNC_Length;    /* Number of digits used for extracting
-         * the MNC from the IMSI    */
+  uint8_t MNC_Length; /* Number of digits used for extracting
+                       * the MNC from the IMSI    */
 } usim_ad_t;
 
 /*
@@ -328,7 +333,7 @@ typedef struct {
    */
   imsi_t imsi;  /* International Mobile Subscriber Identity */
   usim_keys_t keys;   /* Ciphering and Integrity Keys   */
-  Byte_t hpplmn;    /* Higher Priority PLMN search period */
+  uint8_t hpplmn; /* Higher Priority PLMN search period */
 #define USIM_FPLMN_MAX 4
   plmn_t fplmn[USIM_FPLMN_MAX]; /* List of Forbidden PLMNs  */
   usim_loci_t loci;     /* Location Information   */

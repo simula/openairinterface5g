@@ -41,7 +41,9 @@ int decode_tracking_area_update_request(tracking_area_update_request_msg *tracki
   if ((decoded_result = decode_u8_eps_update_type(&tracking_area_update_request->epsupdatetype, 0, *(buffer + decoded) >> 4, len - decoded)) < 0)
     return decoded_result;
 
-  if ((decoded_result = decode_u8_nas_key_set_identifier(&tracking_area_update_request->naskeysetidentifier, 0, *(buffer + decoded) & 0x0f, len - decoded)) < 0)
+  if ((decoded_result =
+           decode_nas_key_set_identifier(&tracking_area_update_request->naskeysetidentifier, 0, *(buffer + decoded) & 0x0f))
+      < 0)
     return decoded_result;
 
   decoded++;
@@ -61,10 +63,10 @@ int decode_tracking_area_update_request(tracking_area_update_request_msg *tracki
 
     switch(ieiDecoded) {
     case TRACKING_AREA_UPDATE_REQUEST_NONCURRENT_NATIVE_NAS_KEY_SET_IDENTIFIER_IEI:
-      if ((decoded_result =
-             decode_nas_key_set_identifier(&tracking_area_update_request->noncurrentnativenaskeysetidentifier,
-                                           TRACKING_AREA_UPDATE_REQUEST_NONCURRENT_NATIVE_NAS_KEY_SET_IDENTIFIER_IEI,
-                                           buffer + decoded, len - decoded)) <= 0)
+      if ((decoded_result = decode_nas_key_set_identifier(&tracking_area_update_request->noncurrentnativenaskeysetidentifier,
+                                                          TRACKING_AREA_UPDATE_REQUEST_NONCURRENT_NATIVE_NAS_KEY_SET_IDENTIFIER_IEI,
+                                                          *(buffer + decoded)))
+          <= 0)
         return decoded_result;
 
       decoded += decoded_result;
@@ -293,8 +295,8 @@ int encode_tracking_area_update_request(tracking_area_update_request_msg *tracki
   /* Checking IEI and pointer */
   CHECK_PDU_POINTER_AND_LENGTH_ENCODER(buffer, TRACKING_AREA_UPDATE_REQUEST_MINIMUM_LENGTH, len);
 
-  *(buffer + encoded) = ((encode_u8_eps_update_type(&tracking_area_update_request->epsupdatetype) & 0x0f) << 4) | (encode_u8_nas_key_set_identifier(
-                          &tracking_area_update_request->naskeysetidentifier) & 0x0f);
+  *(buffer + encoded) = ((encode_u8_eps_update_type(&tracking_area_update_request->epsupdatetype) & 0x0f) << 4)
+                        | (encode_nas_key_set_identifier(&tracking_area_update_request->naskeysetidentifier, 0) & 0x0f);
   encoded++;
 
   if ((encode_result =
@@ -306,10 +308,9 @@ int encode_tracking_area_update_request(tracking_area_update_request_msg *tracki
 
   if ((tracking_area_update_request->presencemask & TRACKING_AREA_UPDATE_REQUEST_NONCURRENT_NATIVE_NAS_KEY_SET_IDENTIFIER_PRESENT)
       == TRACKING_AREA_UPDATE_REQUEST_NONCURRENT_NATIVE_NAS_KEY_SET_IDENTIFIER_PRESENT) {
-    if ((encode_result =
-           encode_nas_key_set_identifier(&tracking_area_update_request->noncurrentnativenaskeysetidentifier,
-                                         TRACKING_AREA_UPDATE_REQUEST_NONCURRENT_NATIVE_NAS_KEY_SET_IDENTIFIER_IEI,
-                                         buffer + encoded, len - encoded)) < 0)
+    if ((encode_result = encode_nas_key_set_identifier(&tracking_area_update_request->noncurrentnativenaskeysetidentifier,
+                                                       TRACKING_AREA_UPDATE_REQUEST_NONCURRENT_NATIVE_NAS_KEY_SET_IDENTIFIER_IEI))
+        < 0)
       // Return in case of error
       return encode_result;
     else

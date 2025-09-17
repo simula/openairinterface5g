@@ -59,6 +59,7 @@ WORKDIR /opt/oai-gnb/bin
 COPY --from=gnb-build \
     /oai-ran/cmake_targets/ran_build/build/nr-softmodem ./
 COPY ./docker/scripts/gnb_entrypoint.sh ./entrypoint.sh
+COPY ./docker/scripts/check-prach-io.sh ./check-prach-io.sh
 
 COPY --from=gnb-build \
     /oai-ran/cmake_targets/ran_build/build/librfsimulator.so \

@@ -259,6 +259,31 @@ uint8_t pulls16(uint8_t **in, int16_t *out, uint8_t *end)
   }
 }
 
+uint8_t pullx32(uint8_t length, uint8_t **in, uint32_t *out, uint8_t *end)
+{
+  uint8_t *pIn = *in;
+  if (length > 4) {
+    NFAPI_TRACE(NFAPI_TRACE_ERROR, "%s Can't pull more than 4 bytes (%d) into a uint32_t\n", __FUNCTION__, length);
+    on_error();
+    return 0;
+  }
+  if ((end - pIn) >= length) {
+    for (int i = 0; i < length; i++) {
+#ifdef FAPI_BYTE_ORDERING_BIG_ENDIAN
+      *out |= ((uint32_t)pIn[i] << (8 * i));
+#else
+      *out = ((uint32_t)pIn[i] << (8 * (length - 1 - i)));
+#endif
+    }
+    (*in) += length;
+    return length;
+  } else {
+    NFAPI_TRACE(NFAPI_TRACE_ERROR, "%s no space in buffer\n", __FUNCTION__);
+    on_error();
+    return 0;
+  }
+}
+
 uint8_t pull32(uint8_t **in, uint32_t *out, uint8_t *end)
 {
   uint8_t *pIn = *in;
@@ -864,8 +889,8 @@ int unpack_nr_tlv_list(unpack_tlv_t unpack_fns[],
   nfapi_tl_t generic_tl;
   uint8_t numBadTags = 0;
   uint16_t idx = 0;
-
-  while ((uint8_t *)(*ppReadPackedMsg) < end) {
+  if (size == 0) { return 1; }
+  while ((uint8_t *)(*ppReadPackedMsg) + 4 < end) {
     // unpack the tl and process the values accordingly
     if (unpack_tl(ppReadPackedMsg, &generic_tl, end) == 0)
       return 0;

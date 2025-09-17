@@ -1,0 +1,5 @@
+Req Bitrate : 2.00
+Bitrate     : 2.08
+Bitrate Perf: 104.00  %
+Jitter      : 21.383
+Packet Loss : 0.0

@@ -25,6 +25,7 @@
 #include "nr_rlc_entity.h"
 #include "nr_rlc_sdu.h"
 #include "nr_rlc_pdu.h"
+#include "nr_rlc_rx_manager.h"
 
 typedef struct {
   nr_rlc_entity_t common;
@@ -70,9 +71,9 @@ typedef struct {
   uint64_t t_status_prohibit_start;
 
   /* rx management */
-  nr_rlc_pdu_t *rx_list;
-  int          rx_size;
-  int          rx_maxsize;
+  nr_rlc_rx_manager_t *rx;
+  int                 rx_size;
+  int                 rx_maxsize;
 
   /* tx management */
   nr_rlc_sdu_segment_t *tx_list;
@@ -100,5 +101,6 @@ void nr_rlc_entity_am_discard_sdu(nr_rlc_entity_t *_entity, int sdu_id);
 void nr_rlc_entity_am_reestablishment(nr_rlc_entity_t *_entity);
 void nr_rlc_entity_am_delete(nr_rlc_entity_t *entity);
 int nr_rlc_entity_am_available_tx_space(nr_rlc_entity_t *entity);
+int nr_rlc_entity_am_tx_list_occupancy(nr_rlc_entity_t *_entity);
 
 #endif /* _NR_RLC_ENTITY_AM_H_ */

@@ -38,7 +38,8 @@ int decode_authentication_request(authentication_request_msg *authentication_req
   CHECK_PDU_POINTER_AND_LENGTH_DECODER(buffer, AUTHENTICATION_REQUEST_MINIMUM_LENGTH, len);
 
   /* Decoding mandatory fields */
-  if ((decoded_result = decode_u8_nas_key_set_identifier(&authentication_request->naskeysetidentifierasme, 0, *(buffer + decoded), len - decoded)) < 0)
+  if ((decoded_result = decode_nas_key_set_identifier(&authentication_request->naskeysetidentifierasme, 0, *(buffer + decoded)))
+      < 0)
     return decoded_result;
 
   decoded++;
@@ -64,7 +65,7 @@ int encode_authentication_request(authentication_request_msg *authentication_req
   /* Checking IEI and pointer */
   CHECK_PDU_POINTER_AND_LENGTH_ENCODER(buffer, AUTHENTICATION_REQUEST_MINIMUM_LENGTH, len);
 
-  *(buffer + encoded) = ((encode_u8_nas_key_set_identifier(&authentication_request->naskeysetidentifierasme) & 0x0f) << 4) | 0x00;
+  *(buffer + encoded) = ((encode_nas_key_set_identifier(&authentication_request->naskeysetidentifierasme, 0) & 0x0f) << 4) | 0x00;
   encoded++;
 
   if ((encode_result =

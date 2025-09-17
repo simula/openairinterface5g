@@ -43,7 +43,6 @@ Description Defines the messages supported by the Access Stratum sublayer
 
 #include "commonDef.h"
 #include "networkDef.h"
-
 /****************************************************************************/
 /*********************  G L O B A L    C O N S T A N T S  *******************/
 /****************************************************************************/
@@ -167,7 +166,7 @@ typedef struct as_stmsi_s {
 /* Dedicated NAS information */
 typedef struct as_nas_info_s {
   uint32_t length;    /* Length of the NAS information data       */
-  Byte_t* data;   /* Dedicated NAS information data container */
+  uint8_t* nas_data; /* Dedicated NAS information data container */
 } as_nas_info_t;
 
 /* Radio Access Bearer identity */
@@ -216,7 +215,7 @@ typedef struct broadcast_info_ind_s {
  * NAS request AS to refresh its KeNB key
  */
 typedef struct kenb_refresh_req_s {
-  Byte_t kenb[32];
+  uint8_t kenb[32];
 } kenb_refresh_req_t;
 
 typedef struct nsa_oai_tun_nsa_s {
@@ -230,7 +229,7 @@ typedef struct nsa_oai_tun_nsa_s {
  */
 typedef struct cell_info_req_s {
   plmn_t plmnID;  /* Selected PLMN identity           */
-  Byte_t rat;     /* Bitmap - set of radio access technologies    */
+  uint8_t rat; /* Bitmap - set of radio access technologies    */
 } cell_info_req_t;
 
 /*
@@ -405,6 +404,13 @@ typedef struct nas_detach_req_s {
   bool wait_release;
 } nas_detach_req_t;
 
+/**
+ * @brief 5GS mobility management information
+ * @ref   clause 9.11.3 of 3GPP TS 24.501
+ */
+typedef struct nas_5gmm_ind_s {
+  uint64_t fiveG_STMSI;
+} nas_5gmm_ind_t;
 /*
  * --------------------------------------------------------------------------
  *              NAS information transfer
@@ -462,6 +468,10 @@ typedef ul_info_transfer_cnf_t dl_info_transfer_cnf_t;
  * at the UE side.
  */
 typedef ul_info_transfer_ind_t dl_info_transfer_ind_t;
+
+typedef struct nas_nos1_msg_s {
+  int dummy; // This dummy element is to avoid CLANG warning: empty struct has size 0 in C, size 1 in C++
+} nas_nos1_msg_t;
 
 typedef struct nas_pdu_session_req_s {
   int pdusession_id;
@@ -579,6 +589,7 @@ typedef struct as_message_s {
     rab_establish_cnf_t rab_establish_cnf;
     rab_release_req_t rab_release_req;
     rab_release_ind_t rab_release_ind;
+    nas_5gmm_ind_t Nas5GMMInd;
   } __attribute__((__packed__)) msg;
 } as_message_t;
 

@@ -4717,18 +4717,6 @@ OAI_UECapability_t *fill_ue_capability(char *UE_EUTRA_Capability_xer_fname, bool
     // UE_EUTRA_Capability->measParameters.bandListEUTRA.list.count                         = 0;  // no measurements on other bands
     // UE_EUTRA_Capability->featureGroupIndicators  // null
 
-    if (get_softmodem_params()->usim_test == 1) {
-      // featureGroup is mandatory for CMW tests
-      // featureGroup is filled only for usim-test mode
-      BIT_STRING_t *bit_string = CALLOC(1, sizeof(*bit_string));
-      char featrG[4]           = { 0x00, 0x08, 0x00, 0x04 };
-      bit_string->buf          = CALLOC(1, 4);
-      memcpy(bit_string->buf, featrG, 4);
-      bit_string->size         = 4;
-      bit_string->bits_unused  = 0;
-      UE_EUTRA_Capability->featureGroupIndicators = bit_string;
-    }
-
     if (get_softmodem_params()->nsa && received_nr_msg)
     {
        allocate_en_DC_r15(UE_EUTRA_Capability);

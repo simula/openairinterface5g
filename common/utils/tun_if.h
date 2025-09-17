@@ -23,28 +23,44 @@
 #define TUN_IF_H_
 
 #include <stdbool.h>
+#include <net/if.h>
 
-/* TODO: doc */
-int tun_init(const char *ifprefix, int num_if, int id);
+/*!
+ * \brief This function generates the name of the interface based on the prefix and
+ * the instance id.
+ *
+ * \param[in,out] ifname name of the interface
+ * \param[in] ifprefix prefix of the interface
+ * \param[in] instance_id unique instance number
+ */
+int tun_generate_ifname(char *ifname, const char *ifprefix, int instance_id);
+int tun_generate_ue_ifname(char *ifname, int instance_id, int pdu_session_id);
 
-/* TODO: doc */
-int tun_init_mbms(char *ifsuffix, int id);
+/*!
+ * \brief This function initializes the TUN interface
+ * \param[in] ifname name of the interface
+ * \param[in] instance_id unique instance number, used to save socket file descriptor
+ */
+int tun_init(const char *ifname, int instance_id);
 
-/*! \fn int  tun_config(char*, int, int)
+/*!
+ * \brief This function initializes the TUN interface for MBMS
+ * \param[in] ifname name of the interface
+ */
+int tun_init_mbms(char *ifname);
+
+/*!
  * \brief This function initializes the nasmesh interface using the basic values,
  * basic address, network mask and broadcast address, as the default configured
  * ones
- * \param[in] interface_id number of this interface, prepended after interface
- * name
+ * \param[in] ifname name of the interface
  * \param[in] ipv4 IPv4 address of this interface as a string
  * \param[in] ipv6 IPv6 address of this interface as a string
- * \param[in] ifprefix interface name prefix to which an interface number will
- * be appended
  * \return true on success, otherwise false
  * \note
  * @ingroup  _nas
  */
-bool tun_config(int interface_id, const char *ipv4, const char *ipv6, const char *ifprefix);
+bool tun_config(const char* ifname, const char *ipv4, const char *ipv6);
 
 /*!
  * \brief Setup a IPv4 rule in table (interface_id - 1 + 10000) and route to
@@ -52,12 +68,23 @@ bool tun_config(int interface_id, const char *ipv4, const char *ipv6, const char
  * net.ipv4.conf.all.rp_filter=2 (strict source filtering would filter out
  * responses of packets going out through interface to another IP address not
  * in same subnet).
- * \param[in] interface_id number of this interface, prepended after interface
- * name
+ * \param[in] ifname name of the interface
+ * \param[in] instance_id unique instance number, used to create the table
  * \param[in] ipv4 IPv4 address of the UE
- * \param[in] ifprefix interface name prefix to which an interface number will
- * be appended
  */
-void setup_ue_ipv4_route(int interface_id, const char *ipv4, const char *ifpref);
+void setup_ue_ipv4_route(const char* ifname, int instance_id, const char *ipv4);
+
+/*!
+ * \brief This function allocates a TUN interface
+ * \param[in] dev name of the interface
+ * \return file descriptor of the allocated interface
+ */
+int tun_alloc(const char *dev);
+
+/*!
+ * \brief This function destroys the TUN interface
+ * \param[in] dev name of the interface
+ */
+void tun_destroy(const char *dev);
 
 #endif /*TUN_IF_H_*/

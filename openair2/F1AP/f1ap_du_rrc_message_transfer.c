@@ -49,7 +49,6 @@
 #include "openair2/RRC/NR/rrc_gNB_UE_context.h"
 #include "asn1_msg.h"
 #include "intertask_interface.h"
-#include "LAYER2/NR_MAC_gNB/mac_proto.h"
 
 #include "openair2/LAYER2/NR_MAC_gNB/mac_rrc_dl_handler.h"
 

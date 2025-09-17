@@ -45,46 +45,6 @@ mac_rrc_data_req(
   const uint8_t         mbsfn_sync_areaP
 );
 
-/*int8_t
-mac_rrc_data_ind(
-  const module_id_t     module_idP,
-  const int             CC_id,
-  const frame_t         frameP,
-  const sub_frame_t     sub_frameP,
-  const int             UE_id,
-  const rnti_t          rntiP,
-  const rb_id_t         srb_idP,
-  const uint8_t*        sduP,
-  const sdu_size_t      sdu_lenP,
-  const uint8_t         mbsfn_sync_areaP
-);
-
-int8_t
-mac_rrc_data_req_ue(
-  const module_id_t     module_idP,
-  const int             CC_idP,
-  const frame_t         frameP,
-  const rb_id_t         srb_idP,
-  const uint8_t         nb_tbP,
-  uint8_t* const        buffer_pP,
-  const mac_enb_index_t eNB_indexP,
-  const uint8_t         mbsfn_sync_areaP
-);
-
-int8_t
-mac_rrc_data_ind_ue(
-  const module_id_t     module_idP,
-  const int             CC_idP,
-  const frame_t         frameP,
-  const sub_frame_t     sub_frameP,
-  const rnti_t          rntiP,
-  const rb_id_t         srb_idP,
-  const uint8_t        *sduP,
-  const sdu_size_t      sdu_lenP,
-  const mac_enb_index_t eNB_indexP,
-  const uint8_t         mbsfn_sync_area
-);*/
-
 void mac_lite_sync_ind(
   const module_id_t module_idP,
   const uint8_t statusP);
@@ -128,10 +88,6 @@ void mac_out_of_sync_ind(
 char openair_rrc_eNB_init(
   const module_id_t module_idP);
 
-char openair_rrc_ue_init(
-  const module_id_t module_idP,
-  const unsigned char eNB_indexP);
-
 int
 mac_eNB_get_rrc_status(
   const module_id_t module_idP,
@@ -141,12 +97,6 @@ int
 mac_UE_get_rrc_status(
   const module_id_t module_idP,
   const uint8_t     sig_indexP
-);
-
-char
-openair_rrc_ue_init(
-  const module_id_t   module_idP,
-  const unsigned char eNB_indexP
 );
 
 void mac_in_sync_ind(

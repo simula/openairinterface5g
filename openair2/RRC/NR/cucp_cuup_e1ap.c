@@ -19,12 +19,14 @@
  *      contact@openairinterface.org
  */
 
+#include <netinet/in.h>
+#include <netinet/sctp.h>
+#include "assertions.h"
 #include "cucp_cuup_if.h"
+#include "e1ap_messages_types.h"
+#include "intertask_interface.h"
 #include "nr_rrc_defs.h"
-
-#include "nr_rrc_proto.h"
-#include "nr_rrc_extern.h"
-#include "cucp_cuup_if.h"
+#include "E1AP/lib/e1ap_bearer_context_management.h"
 
 static void cucp_cuup_bearer_context_setup_e1ap(sctp_assoc_t assoc_id, const e1ap_bearer_setup_req_t *req)
 {
@@ -32,8 +34,7 @@ static void cucp_cuup_bearer_context_setup_e1ap(sctp_assoc_t assoc_id, const e1a
   MessageDef *msg_p = itti_alloc_new_message(TASK_CUCP_E1, 0, E1AP_BEARER_CONTEXT_SETUP_REQ);
   msg_p->ittiMsgHeader.originInstance = assoc_id;
   e1ap_bearer_setup_req_t *bearer_req = &E1AP_BEARER_CONTEXT_SETUP_REQ(msg_p);
-  memcpy(bearer_req, req, sizeof(e1ap_bearer_setup_req_t));
-
+  *bearer_req = cp_bearer_context_setup_request(req);
   itti_send_msg_to_task (TASK_CUCP_E1, 0, msg_p);
 }
 
@@ -43,7 +44,7 @@ static void cucp_cuup_bearer_context_mod_e1ap(sctp_assoc_t assoc_id, const e1ap_
   MessageDef *msg = itti_alloc_new_message(TASK_CUCP_E1, 0, E1AP_BEARER_CONTEXT_MODIFICATION_REQ);
   msg->ittiMsgHeader.originInstance = assoc_id;
   e1ap_bearer_mod_req_t *req_msg = &E1AP_BEARER_CONTEXT_MODIFICATION_REQ(msg);
-  memcpy(req_msg, req, sizeof(*req));
+  *req_msg = cp_bearer_context_mod_request(req);
   itti_send_msg_to_task(TASK_CUCP_E1, 0, msg);
 }
 

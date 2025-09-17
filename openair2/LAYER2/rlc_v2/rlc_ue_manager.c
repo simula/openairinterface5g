@@ -85,7 +85,7 @@ rlc_ue_t *rlc_manager_get_ue(rlc_ue_manager_t *_m, int rnti)
     if (m->ue_list[i]->rnti == rnti)
       return m->ue_list[i];
 
-  LOG_D(RLC, "%s:%d:%s: new UE %d\n", __FILE__, __LINE__, __FUNCTION__, rnti);
+  LOG_D(RLC, "new UE %x\n", rnti);
 
   m->ue_count++;
   m->ue_list = realloc(m->ue_list, sizeof(rlc_ue_t *) * m->ue_count);

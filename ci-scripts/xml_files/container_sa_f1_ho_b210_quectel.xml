@@ -1,0 +1,251 @@
+<!--
+
+ Licensed to the OpenAirInterface (OAI) Software Alliance under one or more
+ contributor license agreements.  See the NOTICE file distributed with
+ this work for additional information regarding copyright ownership.
+ The OpenAirInterface Software Alliance licenses this file to You under
+ the OAI Public License, Version 1.1  (the "License"); you may not use this file
+ except in compliance with the License.
+ You may obtain a copy of the License at
+
+      http://www.openairinterface.org/?page_id=698
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+
+ For more information about the OpenAirInterface (OAI) Software Alliance:
+      contact@openairinterface.org
+
+-->
+<testCaseList>
+  <htmlTabRef>TEST-F1-HO-B210</htmlTabRef>
+  <htmlTabName>F1 Handover 20 MHz TDD SA</htmlTabName>
+  <htmlTabIcon>tasks</htmlTabIcon>
+  <TestCaseRequestedList>
+    000001
+    000002
+    000003
+    000004
+    000005
+    000006
+    000007
+    000008
+    000009
+    000010
+    000011
+    000012
+    000013
+    000014
+    000015
+    000016
+    000017
+    000018
+    000019
+    000020
+    000021
+    000022
+    000023
+    000024
+    000025
+    000026
+
+  </TestCaseRequestedList>
+  <TestCaseExclusionList></TestCaseExclusionList>
+	
+  <testCase id="000001">
+    <class>DeployCoreNetwork</class>
+    <desc>Initialize 5G Core</desc>
+    <cn_id>oc-cn5g-00102-ho</cn_id>
+  </testCase>
+
+  <testCase id="000002">
+    <class>Pull_Local_Registry</class>
+    <desc>Pull Images from Local Registry</desc>
+    <images>oai-gnb</images>
+    <node>groot</node>
+  </testCase>
+
+  <testCase id="000003">
+    <class>Pull_Local_Registry</class>
+    <desc>Pull Images from Local Registry</desc>
+    <images>oai-gnb</images>
+    <node>rocket</node>
+  </testCase>
+
+  <testCase id="000004">
+    <class>Create_Workspace</class>
+    <desc>Create new Workspace for groot</desc>
+    <node>groot</node>
+  </testCase>
+
+  <testCase id="000005">
+    <class>Create_Workspace</class>
+    <desc>Create new Workspace on rocket</desc>
+    <node>rocket</node>
+  </testCase>
+
+  <testCase id="000006">
+    <class>Deploy_Object</class>
+    <desc>Deploy gNB-CU in a container</desc>
+    <yaml_path>ci-scripts/yaml_files/5g_sa_f1_b210_ho</yaml_path>
+    <node>groot</node>
+    <services>oai_cu</services>
+  </testCase>
+
+  <testCase id="000007">
+    <class>Deploy_Object</class>
+    <desc>Deploy gNB-DU0 (TDD/Band77/20MHz/B210) in a container</desc>
+    <yaml_path>ci-scripts/yaml_files/5g_sa_f1_b210_ho</yaml_path>
+    <services>oai_du0</services>
+    <node>groot</node>
+  </testCase>
+
+  <testCase id="000008">
+    <class>Attach_UE</class>
+    <desc>Attach Quectel</desc>
+    <id>raspix</id>
+  </testCase>
+
+  <testCase id="000009">
+    <class>Ping</class>
+    <desc>Ping: 100pings in 20sec</desc>
+    <id>raspix</id>
+    <svr_id>oc-cn5g-00102-ho</svr_id>
+    <ping_args>-c 100 -i 0.2</ping_args>
+    <ping_packetloss_threshold>5</ping_packetloss_threshold>
+  </testCase>
+
+  <testCase id="000010">
+    <class>Deploy_Object</class>
+    <desc>Deploy gNB-DU1 (TDD/Band77/20MHz/B210) in a container</desc>
+    <yaml_path>ci-scripts/yaml_files/5g_sa_f1_b210_ho</yaml_path>
+    <node>rocket</node>
+    <services>oai_du1</services>
+  </testCase>
+
+  <testCase id="000011">
+    <class>IdleSleep</class>
+    <desc>Sleep</desc>
+    <idle_sleep_time_in_sec>5</idle_sleep_time_in_sec>
+  </testCase>
+
+  <testCase id="000012">
+    <class>Custom_Command</class>
+    <desc>Trigger Handover</desc>
+    <node>groot</node>
+    <command>echo ci trigger_f1_ho | ncat 127.0.0.1 9090</command>
+  </testCase>
+
+  <testCase id="000013">
+    <class>Ping</class>
+    <desc>Ping: 50pings in 10sec</desc>
+    <id>raspix</id>
+    <svr_id>oc-cn5g-00102-ho</svr_id>
+    <ping_args>-c 50 -i 0.2</ping_args>
+    <ping_packetloss_threshold>5</ping_packetloss_threshold>
+  </testCase>
+
+  <testCase id="000014">
+    <class>Custom_Command</class>
+    <desc>UE connected to DU1?</desc>
+    <node>groot</node>
+    <command>echo ci fetch_du_by_ue_id 1 | ncat 127.0.0.1 9090 | grep "3585"</command>
+  </testCase>
+
+  <testCase id="000015">
+    <class>Custom_Command</class>
+    <desc>Trigger Handover</desc>
+    <node>groot</node>
+    <command>echo ci trigger_f1_ho | ncat 127.0.0.1 9090</command>
+  </testCase>
+
+  <testCase id="000016">
+    <class>Ping</class>
+    <desc>Ping: 50pings in 10sec</desc>
+    <id>raspix</id>
+    <svr_id>oc-cn5g-00102-ho</svr_id>
+    <ping_args>-c 50 -i 0.2</ping_args>
+    <ping_packetloss_threshold>5</ping_packetloss_threshold>
+  </testCase>
+
+  <testCase id="000017">
+    <class>Custom_Command</class>
+    <desc>UE connected to DU0?</desc>
+    <node>groot</node>
+    <command>echo ci fetch_du_by_ue_id 1 | ncat 127.0.0.1 9090 | grep "3584"</command>
+  </testCase>
+
+  <testCase id="000018">
+    <class>Custom_Command</class>
+    <desc>Trigger Handover</desc>
+    <node>groot</node>
+    <command>echo ci trigger_f1_ho | ncat 127.0.0.1 9090</command>
+  </testCase>
+
+  <testCase id="000019">
+    <class>Ping</class>
+    <desc>Ping: 50pings in 10sec</desc>
+    <id>raspix</id>
+    <svr_id>oc-cn5g-00102-ho</svr_id>
+    <ping_args>-c 50 -i 0.2</ping_args>
+    <ping_packetloss_threshold>5</ping_packetloss_threshold>
+  </testCase>
+
+  <testCase id="000020">
+    <class>Custom_Command</class>
+    <desc>UE connected to DU1?</desc>
+    <node>groot</node>
+    <command>echo ci fetch_du_by_ue_id 1 | ncat 127.0.0.1 9090 | grep "3585"</command>
+  </testCase>
+
+  <testCase id="000021">
+    <class>Detach_UE</class>
+    <always_exec>true</always_exec>
+    <desc>Detach Quectel</desc>
+    <id>raspix</id>
+  </testCase>
+
+  <testCase id="000022">
+    <class>Undeploy_Object</class>
+    <always_exec>true</always_exec>
+    <desc>Undeploy CU-DU0</desc>
+    <node>groot</node>
+    <yaml_path>ci-scripts/yaml_files/5g_sa_f1_b210_ho</yaml_path>
+  </testCase>
+
+  <testCase id="000023">
+    <class>Undeploy_Object</class>
+    <always_exec>true</always_exec>
+    <desc>Undeploy DU1 </desc>
+    <node>rocket</node>
+    <yaml_path>ci-scripts/yaml_files/5g_sa_f1_b210_ho</yaml_path>
+  </testCase>
+
+  <testCase id="000024">
+    <class>Clean_Test_Server_Images</class>
+    <always_exec>true</always_exec>
+    <desc>Clean Test Images on Test Server</desc>
+    <node>groot</node>
+    <images>oai-gnb</images>
+  </testCase>
+
+  <testCase id="000025">
+    <class>Clean_Test_Server_Images</class>
+    <always_exec>true</always_exec>
+    <desc>Clean Test Images on Test Server</desc>
+    <node>rocket</node>
+    <images>oai-gnb</images>
+  </testCase>
+
+  <testCase id="000026">
+    <class>UndeployCoreNetwork</class>
+    <always_exec>true</always_exec>
+    <desc>Terminate 5G Core</desc>
+    <cn_id>oc-cn5g-00102-ho</cn_id>
+  </testCase>
+
+</testCaseList>
+

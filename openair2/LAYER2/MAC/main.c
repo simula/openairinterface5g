@@ -41,9 +41,9 @@
 #include "common/ran_context.h"
 #include "intertask_interface.h"
 #include <pthread.h>
+#include "common/utils/system.h"
 
 extern RAN_CONTEXT_t RC;
-extern int oai_exit;
 
 void lte_dump_mac_stats(eNB_MAC_INST *mac, FILE *fd)
 {

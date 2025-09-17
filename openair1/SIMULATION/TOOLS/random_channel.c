@@ -73,6 +73,7 @@ static telnetshell_vardef_t channelmod_vardef[] = {{"", 0, 0, NULL}};
 static unsigned int max_chan;
 static channel_desc_t **defined_channels;
 static char *modellist_name;
+static int noise_power_dBFS = INVALID_DBFS_VALUE;
 
 void fill_channel_desc(channel_desc_t *chan_desc,
                        uint8_t nb_tx,
@@ -1662,7 +1663,7 @@ channel_desc_t *new_channel_desc_scm(uint8_t nb_tx,
       maxDoppler = 0;
       chan_desc->sat_height = 600e3;
       chan_desc->enable_dynamic_delay = true;
-      chan_desc->enable_dynamic_Doppler = false; // TODO: requires UE to support continuous Doppler estimation, compensation and pre-compensation
+      chan_desc->enable_dynamic_Doppler = true;
       fill_channel_desc(chan_desc,nb_tx,
                         nb_rx,
                         nb_taps,
@@ -1759,6 +1760,11 @@ void set_channeldesc_name(channel_desc_t *cdesc,char *modelname) {
     free(cdesc->model_name);
 
   cdesc->model_name=strdup(modelname);
+}
+
+void set_channeldesc_direction(channel_desc_t *cdesc, bool is_uplink)
+{
+  cdesc->is_uplink = is_uplink;
 }
 
 #ifdef DEBUG_CH_POWER
@@ -2364,6 +2370,10 @@ int load_channellist(uint8_t nb_tx, uint8_t nb_rx, double sampling_rate, uint64_
 
   return channel_list.numelt;
 } /* load_channelist */
+
+int get_noise_power_dBFS(void) {
+  return noise_power_dBFS;
+}
 
 #ifdef RANDOM_CHANNEL_MAIN
 #define sampling_rate 5.0

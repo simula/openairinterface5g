@@ -78,19 +78,6 @@ static int sl_nr_pss_correlation(PHY_VARS_NR_UE *UE, int frame_index)
 
         const c64_t r64 = {.r = result.r, .i = result.i};
         psss_corr_value += squaredMod(r64);
-
-#ifdef SL_DEBUG
-        pss_corr_debug_values[pss_index][n] = psss_corr_value;
-        printf("frame:%d n:%d, pss_index:%d, pss_for_correlation[pss_index][0]:%x, rxdata[n]:%x\n",
-               frame_index,
-               n,
-               pss_index,
-               pss_for_correlation[pss_index][0],
-               rxdata[ar][n + frame_index * sl_fp->samples_per_frame]);
-        printf("result %lld, pss_corr_values[%d][%d]:%ld\n", result, pss_index, n, pss_corr_debug_values[pss_index][n]);
-        printf("pss_index %d: n %6u peak_value %15llu\n", pss_index, n, (unsigned long long)pss_corr_debug_values[pss_index][n]);
-        printf("peak_value:%ld, peak_position:%d, pss_source:%d\n", peak_value, peak_position, pss_source);
-#endif
       }
 
       // calculate the absolute value of sync_corr[n]
@@ -99,10 +86,6 @@ static int sl_nr_pss_correlation(PHY_VARS_NR_UE *UE, int frame_index)
         peak_value = psss_corr_value;
         peak_position = n;
         pss_source = pss_index;
-
-#ifdef SL_DEBUG
-        printf("pss_index %d: n %6u peak_value %15llu\n", pss_index, n, (unsigned long long)psss_corr_value);
-#endif
       }
     }
   }
@@ -518,7 +501,7 @@ nr_initial_sync_t sl_nr_slss_search(PHY_VARS_NR_UE *UE, UE_nr_rxtx_proc_t *proc,
                 sync_params->DFN,
                 sync_params->slot_offset);
 
-          UE->adjust_rxgain = nr_sl_psbch_rsrp_measurements(sl_ue, frame_parms, rxdataF, false);
+          UE->adjust_rxgain = nr_sl_psbch_rsrp_measurements(sl_ue, frame_parms, rxdataF, false, UE->openair0_cfg);
 
           UE->init_sync_frame = sync_params->remaining_frames;
           result.rx_offset = sync_params->rx_offset;

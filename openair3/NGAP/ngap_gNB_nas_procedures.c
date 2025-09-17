@@ -28,60 +28,147 @@
  * @ingroup _ngap
  */
 
- 
+#include "ngap_gNB_nas_procedures.h"
+#include <inttypes.h>
+#include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdint.h>
-
+#include <string.h>
+#include <arpa/inet.h>
+#include "BIT_STRING.h"
+#include "INTEGER.h"
+#include "ngap_msg_includes.h"
+#include "OCTET_STRING.h"
+#include "T.h"
+#include "aper_encoder.h"
+#include "asn_application.h"
+#include "asn_codecs.h"
 #include "assertions.h"
+#include "common/utils/T/T.h"
+#include "constr_TYPE.h"
 #include "conversions.h"
-
-#include "intertask_interface.h"
-
 #include "ngap_common.h"
 #include "ngap_gNB_defs.h"
-
-#include "ngap_gNB_itti_messaging.h"
-
 #include "ngap_gNB_encoder.h"
+#include "ngap_gNB_itti_messaging.h"
+#include "ngap_gNB_management_procedures.h"
 #include "ngap_gNB_nnsf.h"
 #include "ngap_gNB_ue_context.h"
-#include "ngap_gNB_nas_procedures.h"
-#include "ngap_gNB_management_procedures.h"
+#include "oai_asn1.h"
+#include "s1ap_messages_types.h"
+#include "xer_encoder.h"
+#include "ds/byte_array.h"
 
-static void allocCopy(OCTET_STRING_t *out, ngap_pdu_t in)
+/** @brief Selects the AMF instance for a given UE based on identity information.
+ *         It attempts to select an AMF using the following prioritized criteria:
+ *         1. GUAMI, if provided and valid (via Region ID, Set ID, Pointer).
+ *         2. 5G-S-TMSI, using AMF Set ID if GUAMI is unavailable or unusable.
+ *         3. Selected PLMN identity and local PLMN configuration.
+ *         4. Fallback to AMF with highest relative capacity, considering load balancing.
+ * @ref AMF Discovery and Selection (3GPP TS 23.501 clause 6.3.5) */
+static ngap_gNB_amf_data_t *select_amf(ngap_gNB_instance_t *instance_p, const ngap_nas_first_req_t *msg)
 {
-  if (in.length) {
-    out->buf = malloc(in.length);
-    memcpy(out->buf, in.buffer, in.length);
+  ngap_gNB_amf_data_t *amf = NULL;
+
+  // Select the AMF corresponding to the GUAMI from the RegisteredAMF IE
+  if (msg->ue_identity.presenceMask & NGAP_UE_IDENTITIES_guami) {
+    const nr_guami_t *guami = &msg->ue_identity.guami;
+    LOG_D(NGAP,
+          "GUAMI is present: MCC=%03d MNC=%0*d RegionID=%d SetID=%d Pointer=%d\n",
+          guami->mcc,
+          guami->mnc_len,
+          guami->mnc,
+          guami->amf_region_id,
+          guami->amf_set_id,
+          guami->amf_pointer);
+    amf = ngap_gNB_nnsf_select_amf_by_guami(instance_p, msg->establishment_cause, *guami);
+    if (amf) {
+      LOG_I(NGAP,
+            "UE %d: Selected AMF '%s' (assoc_id %d) through GUAMI MCC=%03d MNC=%0*d AMFRI %d AMFSI %d AMFPT %d\n",
+            msg->gNB_ue_ngap_id,
+            amf->amf_name,
+            amf->assoc_id,
+            guami->mcc,
+            guami->mnc_len,
+            guami->mnc,
+            guami->amf_region_id,
+            guami->amf_set_id,
+            guami->amf_pointer);
+      return amf;
+    }
   }
-  out->size = in.length;
+
+  // Select the AMF corresponding to the provided 5G-S-TMSI
+  if (amf == NULL) {
+    if (msg->ue_identity.presenceMask & NGAP_UE_IDENTITIES_FiveG_s_tmsi) {
+      const fiveg_s_tmsi_t *fgs_tmsi = &msg->ue_identity.s_tmsi;
+      amf = ngap_gNB_nnsf_select_amf_by_amf_setid(instance_p, msg->establishment_cause, msg->plmn, fgs_tmsi->amf_set_id);
+      if (amf) {
+        LOG_I(NGAP,
+              "UE %d: Selected AMF '%s' (assoc_id %d) through S-TMSI AMFSI %d and selected PLMN MCC=%03d MNC=%0*d\n",
+              msg->gNB_ue_ngap_id,
+              amf->amf_name,
+              amf->assoc_id,
+              fgs_tmsi->amf_set_id,
+              msg->plmn.mcc,
+              msg->plmn.mnc_digit_length,
+              msg->plmn.mnc);
+        return amf;
+      }
+    }
+  }
+
+  // No UE identity (5G-S-TMSI or GUAMI) is present
+  // Select the AMF based on the selected PLMN identity received through RRCSetupComplete
+  amf = ngap_gNB_nnsf_select_amf_by_plmn_id(instance_p, msg->establishment_cause, msg->plmn);
+  if (amf) {
+    LOG_I(NGAP,
+          "UE %d: Selected AMF '%s' (assoc_id %d) through selected PLMN MCC=%03d MNC=%0*d\n",
+          msg->gNB_ue_ngap_id,
+          amf->amf_name,
+          amf->assoc_id,
+          msg->plmn.mcc,
+          msg->plmn.mnc_digit_length,
+          msg->plmn.mnc);
+    return amf;
+  } else {
+    // Select the AMF with the highest capacity
+    amf = ngap_gNB_nnsf_select_amf(instance_p, msg->establishment_cause);
+    if (amf) {
+      NGAP_INFO("UE %d: Selected AMF '%s' (assoc_id %d) through highest relative capacity\n",
+                msg->gNB_ue_ngap_id,
+                amf->amf_name,
+                amf->assoc_id);
+      return amf;
+    }
+  }
+
+  return amf;
 }
 
-static void allocAddrCopy(BIT_STRING_t *out, transport_layer_addr_t in)
-{
-  if (in.length) {
-    out->buf = malloc(in.length);
-    memcpy(out->buf, in.buffer, in.length);
-    out->size = in.length;
-    out->bits_unused = 0;
-  }
-}
-
-//------------------------------------------------------------------------------
+/** @brief NAS Transport Messages: Initial UE Message
+ *         forward the first received (layer 3) uplink NAS message
+ *         from the radio interface to the AMF over N2
+ *         NG-RAN node -> AMF (9.2.5.1, 3GPP TS 38.413) */
 int ngap_gNB_handle_nas_first_req(instance_t instance, ngap_nas_first_req_t *UEfirstReq)
-//------------------------------------------------------------------------------
 {
-  ngap_gNB_instance_t          *instance_p = NULL;
-  struct ngap_gNB_amf_data_s *amf_desc_p = NULL;
-  NGAP_NGAP_PDU_t pdu;
-  uint8_t  *buffer = NULL;
-  uint32_t  length = 0;
+  NGAP_NGAP_PDU_t pdu = {0};
+  uint8_t *buffer = NULL;
+  uint32_t length = 0;
   DevAssert(UEfirstReq != NULL);
   /* Retrieve the NGAP gNB instance associated with Mod_id */
-  instance_p = ngap_gNB_get_instance(instance);
+  ngap_gNB_instance_t *instance_p = ngap_gNB_get_instance(instance);
   DevAssert(instance_p != NULL);
-  memset(&pdu, 0, sizeof(pdu));
+
+  // AMF selection from the Initial UE message contents
+  struct ngap_gNB_amf_data_s *amf = select_amf(instance_p, UEfirstReq);
+  if (amf == NULL) {
+    NGAP_WARN("No AMF is associated to the gNB\n");
+    return -1;
+  }
+
+  // Message Type (M)
   pdu.present = NGAP_NGAP_PDU_PR_initiatingMessage;
   asn1cCalloc(pdu.choice.initiatingMessage, head);
   head->procedureCode = NGAP_ProcedureCode_id_InitialUEMessage;
@@ -89,147 +176,59 @@ int ngap_gNB_handle_nas_first_req(instance_t instance, ngap_nas_first_req_t *UEf
   head->value.present = NGAP_InitiatingMessage__value_PR_InitialUEMessage;
   NGAP_InitialUEMessage_t *out = &head->value.choice.InitialUEMessage;
 
-  /* Select the AMF corresponding to the provided GUAMI. */
-  //TODO have not be test. it's should be test
-  if (UEfirstReq->ue_identity.presenceMask & NGAP_UE_IDENTITIES_guami) {
-    amf_desc_p = ngap_gNB_nnsf_select_amf_by_guami(instance_p, UEfirstReq->establishment_cause, UEfirstReq->ue_identity.guami);
+  /* Create and store NGAP UE context */
+  ngap_gNB_ue_context_t ue_desc_p = {
+    .amf_ref = amf,
+    .gNB_ue_ngap_id = UEfirstReq->gNB_ue_ngap_id,
+    .gNB_instance = instance_p,
+    .selected_plmn_identity = UEfirstReq->plmn,
+  };
 
-    if (amf_desc_p) {
-      NGAP_INFO("UE %d: Chose AMF '%s' (assoc_id %d) through GUAMI MCC %d MNC %d AMFRI %d AMFSI %d AMFPT %d\n",
-                UEfirstReq->gNB_ue_ngap_id,
-                amf_desc_p->amf_name,
-                amf_desc_p->assoc_id,
-                UEfirstReq->ue_identity.guami.mcc,
-                UEfirstReq->ue_identity.guami.mnc,
-                UEfirstReq->ue_identity.guami.amf_region_id,
-                UEfirstReq->ue_identity.guami.amf_set_id,
-                UEfirstReq->ue_identity.guami.amf_pointer);
-    }
-  }
-
-  if (amf_desc_p == NULL) {
-    /* Select the AMF corresponding to the provided s-TMSI. */
-    //TODO have not be test. it's should be test
-    if (UEfirstReq->ue_identity.presenceMask & NGAP_UE_IDENTITIES_FiveG_s_tmsi) {
-      amf_desc_p = ngap_gNB_nnsf_select_amf_by_amf_setid(instance_p, UEfirstReq->establishment_cause, UEfirstReq->selected_plmn_identity, UEfirstReq->ue_identity.s_tmsi.amf_set_id);
-
-      if (amf_desc_p) {
-        NGAP_INFO(
-            "UE %d: Chose AMF '%s' (assoc_id %d) through S-TMSI AMFSI %d and selected PLMN Identity index %d MCC %d MNC %d\n",
-            UEfirstReq->gNB_ue_ngap_id,
-            amf_desc_p->amf_name,
-            amf_desc_p->assoc_id,
-            UEfirstReq->ue_identity.s_tmsi.amf_set_id,
-            UEfirstReq->selected_plmn_identity,
-            instance_p->plmn[UEfirstReq->selected_plmn_identity].mcc,
-            instance_p->plmn[UEfirstReq->selected_plmn_identity].mnc);
-      }
-    }
-  }
-
-  if (amf_desc_p == NULL) {
-    /* Select AMF based on the selected PLMN identity, received through RRC
-     * Connection Setup Complete */
-    //TODO have not be test. it's should be test
-    amf_desc_p = ngap_gNB_nnsf_select_amf_by_plmn_id(instance_p, UEfirstReq->establishment_cause, UEfirstReq->selected_plmn_identity);
-
-    if (amf_desc_p) {
-      NGAP_INFO("UE %d: Chose AMF '%s' (assoc_id %d) through selected PLMN Identity index %d MCC %d MNC %d\n",
-                UEfirstReq->gNB_ue_ngap_id,
-                amf_desc_p->amf_name,
-                amf_desc_p->assoc_id,
-                UEfirstReq->selected_plmn_identity,
-                instance_p->plmn[UEfirstReq->selected_plmn_identity].mcc,
-                instance_p->plmn[UEfirstReq->selected_plmn_identity].mnc);
-    }
-  }
-
-  if (amf_desc_p == NULL) {
-    /*
-     * If no AMF corresponds to the GUAMI, the s-TMSI, or the selected PLMN
-     * identity, selects the AMF with the highest capacity.
-     */
-    //TODO have not be test. it's should be test
-    amf_desc_p = ngap_gNB_nnsf_select_amf(instance_p, UEfirstReq->establishment_cause);
-
-    if (amf_desc_p) {
-      NGAP_INFO("UE %d: Chose AMF '%s' (assoc_id %d) through highest relative capacity\n", UEfirstReq->gNB_ue_ngap_id, amf_desc_p->amf_name, amf_desc_p->assoc_id);
-    }
-  }
-
-  if (amf_desc_p == NULL) {
-    /*
-     * In case gNB has no AMF associated, the gNB should inform RRC and discard
-     * this request.
-     */
-    NGAP_WARN("No AMF is associated to the gNB\n");
-    // TODO: Inform RRC
-    return -1;
-  }
-
-  /* The gNB should allocate a unique gNB UE NGAP ID for this UE. The value
-   * will be used for the duration of the connectivity.
-   */
-  struct ngap_gNB_ue_context_s *ue_desc_p = calloc(1, sizeof(*ue_desc_p));
-  DevAssert(ue_desc_p != NULL);
-  /* Keep a reference to the selected AMF */
-  ue_desc_p->amf_ref       = amf_desc_p;
-  ue_desc_p->gNB_ue_ngap_id = UEfirstReq->gNB_ue_ngap_id;
-  ue_desc_p->gNB_instance  = instance_p;
-  ue_desc_p->selected_plmn_identity = UEfirstReq->selected_plmn_identity;
-
-  // insert in master table
-  ngap_store_ue_context(ue_desc_p);
-
-  /* mandatory */
+  // RAN UE NGAP ID (M)
   {
     asn1cSequenceAdd(out->protocolIEs.list, NGAP_InitialUEMessage_IEs_t, ie);
     ie->id = NGAP_ProtocolIE_ID_id_RAN_UE_NGAP_ID;
     ie->criticality = NGAP_Criticality_reject;
     ie->value.present = NGAP_InitialUEMessage_IEs__value_PR_RAN_UE_NGAP_ID;
-    ie->value.choice.RAN_UE_NGAP_ID = ue_desc_p->gNB_ue_ngap_id;
+    ie->value.choice.RAN_UE_NGAP_ID = ue_desc_p.gNB_ue_ngap_id;
   }
-  /* mandatory */
+
+  /* NAS-PDU (M): transferred transparently */
   {
     asn1cSequenceAdd(out->protocolIEs.list, NGAP_InitialUEMessage_IEs_t, ie);
     ie->id = NGAP_ProtocolIE_ID_id_NAS_PDU;
     ie->criticality = NGAP_Criticality_reject;
     ie->value.present = NGAP_InitialUEMessage_IEs__value_PR_NAS_PDU;
-    allocCopy(&ie->value.choice.NAS_PDU, UEfirstReq->nas_pdu);
+    OCTET_STRING_fromBuf(&ie->value.choice.NAS_PDU, (const char *)UEfirstReq->nas_pdu.buf, UEfirstReq->nas_pdu.len);
   }
 
-  /* mandatory */
+  // User Location Information (M)
   {
     asn1cSequenceAdd(out->protocolIEs.list, NGAP_InitialUEMessage_IEs_t, ie);
     ie->id = NGAP_ProtocolIE_ID_id_UserLocationInformation;
     ie->criticality = NGAP_Criticality_reject;
     ie->value.present = NGAP_InitialUEMessage_IEs__value_PR_UserLocationInformation;
-
     ie->value.choice.UserLocationInformation.present = NGAP_UserLocationInformation_PR_userLocationInformationNR;
-
     asn1cCalloc(ie->value.choice.UserLocationInformation.choice.userLocationInformationNR, userinfo_nr_p);
 
     /* Set nRCellIdentity. default userLocationInformationNR */
     MACRO_GNB_ID_TO_CELL_IDENTITY(instance_p->gNB_id,
                                   0, // Cell ID
                                   &userinfo_nr_p->nR_CGI.nRCellIdentity);
-    MCC_MNC_TO_TBCD(instance_p->plmn[ue_desc_p->selected_plmn_identity].mcc,
-                    instance_p->plmn[ue_desc_p->selected_plmn_identity].mnc,
-                    instance_p->plmn[ue_desc_p->selected_plmn_identity].mnc_digit_length,
-                    &userinfo_nr_p->nR_CGI.pLMNIdentity);
 
-    /* Set TAI */
+    plmn_id_t *plmn = &ue_desc_p.selected_plmn_identity;
+    MCC_MNC_TO_TBCD(plmn->mcc, plmn->mnc, plmn->mnc_digit_length, &userinfo_nr_p->nR_CGI.pLMNIdentity);
+
+    /* In case of network sharing,
+       the selected PLMN is indicated by the PLMN Identity IE within the TAI IE */
     INT24_TO_OCTET_STRING(instance_p->tac, &userinfo_nr_p->tAI.tAC);
-    MCC_MNC_TO_PLMNID(instance_p->plmn[ue_desc_p->selected_plmn_identity].mcc,
-                      instance_p->plmn[ue_desc_p->selected_plmn_identity].mnc,
-                      instance_p->plmn[ue_desc_p->selected_plmn_identity].mnc_digit_length,
-                      &userinfo_nr_p->tAI.pLMNIdentity);
+    MCC_MNC_TO_PLMNID(plmn->mcc, plmn->mnc, plmn->mnc_digit_length, &userinfo_nr_p->tAI.pLMNIdentity);
   }
 
   /* Set the establishment cause according to those provided by RRC */
   DevCheck(UEfirstReq->establishment_cause < NGAP_RRC_CAUSE_LAST, UEfirstReq->establishment_cause, NGAP_RRC_CAUSE_LAST, 0);
 
-  /* mandatory */
+  // RRC Establishment Cause (M)
   {
     asn1cSequenceAdd(out->protocolIEs.list, NGAP_InitialUEMessage_IEs_t, ie);
     ie->id = NGAP_ProtocolIE_ID_id_RRCEstablishmentCause;
@@ -238,7 +237,7 @@ int ngap_gNB_handle_nas_first_req(instance_t instance, ngap_nas_first_req_t *UEf
     ie->value.choice.RRCEstablishmentCause = UEfirstReq->establishment_cause;
   }
 
-  /* optional */
+  // 5G-S-TMSI (O)
   if (UEfirstReq->ue_identity.presenceMask & NGAP_UE_IDENTITIES_FiveG_s_tmsi) {
     NGAP_DEBUG("FIVEG_S_TMSI_PRESENT\n");
     asn1cSequenceAdd(out->protocolIEs.list, NGAP_InitialUEMessage_IEs_t, ie);
@@ -250,7 +249,8 @@ int ngap_gNB_handle_nas_first_req(instance_t instance, ngap_nas_first_req_t *UEf
     M_TMSI_TO_OCTET_STRING(UEfirstReq->ue_identity.s_tmsi.m_tmsi, &ie->value.choice.FiveG_S_TMSI.fiveG_TMSI);
   }
 
-  /* optional */
+  /* UE Context Request (O): instruct the AMF to trigger an
+     Initial Context Setup procedure towards the NG-RAN node. */
   {
     asn1cSequenceAdd(out->protocolIEs.list, NGAP_InitialUEMessage_IEs_t, ie);
     ie->id = NGAP_ProtocolIE_ID_id_UEContextRequest;
@@ -259,13 +259,11 @@ int ngap_gNB_handle_nas_first_req(instance_t instance, ngap_nas_first_req_t *UEf
     ie->value.choice.UEContextRequest = NGAP_UEContextRequest_requested;
   }
 
-  if (ngap_gNB_encode_pdu(&pdu, &buffer, &length) < 0) {
-      /* Failed to encode message */
-      DevMessage("Failed to encode initial UE message\n");
-  }
+  if (ngap_gNB_encode_pdu(&pdu, &buffer, &length) < 0)
+    DevMessage("Failed to encode initial UE message\n");
 
   /* Update the current NGAP UE state */
-  ue_desc_p->ue_state = NGAP_UE_WAITING_CSR;
+  ue_desc_p.ue_state = NGAP_UE_WAITING_CSR;
   /* Assign a stream for this UE :
    * From 3GPP 38.412 7)Transport layers:
    *  Within the SCTP association established between one AMF and gNB pair:
@@ -278,16 +276,17 @@ int ngap_gNB_handle_nas_first_req(instance_t instance, ngap_nas_first_req_t *UEf
    *      the stream should not be changed during the communication of the
    *      UE-associated signalling.
    */
-  amf_desc_p->nextstream = (amf_desc_p->nextstream + 1) % amf_desc_p->out_streams;
-
-  if ((amf_desc_p->nextstream == 0) && (amf_desc_p->out_streams > 1)) {
-    amf_desc_p->nextstream += 1;
+  amf->nextstream = (amf->nextstream + 1) % amf->out_streams;
+  if ((amf->nextstream == 0) && (amf->out_streams > 1)) {
+    amf->nextstream += 1;
   }
+  ue_desc_p.tx_stream = amf->nextstream;
 
-  ue_desc_p->tx_stream = amf_desc_p->nextstream;
+  /* Create and store UE context */
+  ngap_store_ue_context(&ue_desc_p);
+
   /* Send encoded message over sctp */
-  ngap_gNB_itti_send_sctp_data_req(instance_p->instance, amf_desc_p->assoc_id,
-                                   buffer, length, ue_desc_p->tx_stream);
+  ngap_gNB_itti_send_sctp_data_req(instance_p->instance, amf->assoc_id, buffer, length, ue_desc_p.tx_stream);
 
   return 0;
 }
@@ -428,8 +427,8 @@ int ngap_gNB_nas_uplink(instance_t instance, ngap_uplink_nas_t *ngap_uplink_nas_
     ie->id = NGAP_ProtocolIE_ID_id_NAS_PDU;
     ie->criticality = NGAP_Criticality_reject;
     ie->value.present = NGAP_UplinkNASTransport_IEs__value_PR_NAS_PDU;
-    ie->value.choice.NAS_PDU.buf = ngap_uplink_nas_p->nas_pdu.buffer;
-    ie->value.choice.NAS_PDU.size = ngap_uplink_nas_p->nas_pdu.length;
+    ie->value.choice.NAS_PDU.buf = ngap_uplink_nas_p->nas_pdu.buf;
+    ie->value.choice.NAS_PDU.size = ngap_uplink_nas_p->nas_pdu.len;
   }
   /* mandatory */
   {
@@ -445,17 +444,12 @@ int ngap_gNB_nas_uplink(instance_t instance, ngap_uplink_nas_t *ngap_uplink_nas_
     MACRO_GNB_ID_TO_CELL_IDENTITY(ngap_gNB_instance_p->gNB_id,
                                   0, // Cell ID
                                   &userinfo_nr_p->nR_CGI.nRCellIdentity);
-    MCC_MNC_TO_TBCD(ngap_gNB_instance_p->plmn[ue_context_p->selected_plmn_identity].mcc,
-                    ngap_gNB_instance_p->plmn[ue_context_p->selected_plmn_identity].mnc,
-                    ngap_gNB_instance_p->plmn[ue_context_p->selected_plmn_identity].mnc_digit_length,
-                    &userinfo_nr_p->nR_CGI.pLMNIdentity);
+    plmn_id_t *plmn = &ue_context_p->selected_plmn_identity;
+    MCC_MNC_TO_TBCD(plmn->mcc, plmn->mnc, plmn->mnc_digit_length, &userinfo_nr_p->nR_CGI.pLMNIdentity);
 
     /* Set TAI */
     INT24_TO_OCTET_STRING(ngap_gNB_instance_p->tac, &userinfo_nr_p->tAI.tAC);
-    MCC_MNC_TO_PLMNID(ngap_gNB_instance_p->plmn[ue_context_p->selected_plmn_identity].mcc,
-                      ngap_gNB_instance_p->plmn[ue_context_p->selected_plmn_identity].mnc,
-                      ngap_gNB_instance_p->plmn[ue_context_p->selected_plmn_identity].mnc_digit_length,
-                      &userinfo_nr_p->tAI.pLMNIdentity);
+    MCC_MNC_TO_PLMNID(plmn->mcc, plmn->mnc, plmn->mnc_digit_length, &userinfo_nr_p->tAI.pLMNIdentity);
   }
   if (ngap_gNB_encode_pdu(&pdu, &buffer, &length) < 0) {
     NGAP_ERROR("Failed to encode uplink NAS transport\n");
@@ -524,8 +518,8 @@ int ngap_gNB_nas_non_delivery_ind(instance_t instance,
     ie->id = NGAP_ProtocolIE_ID_id_NAS_PDU;
     ie->criticality = NGAP_Criticality_ignore;
     ie->value.present = NGAP_NASNonDeliveryIndication_IEs__value_PR_NAS_PDU;
-    ie->value.choice.NAS_PDU.buf = ngap_nas_non_delivery_ind->nas_pdu.buffer;
-    ie->value.choice.NAS_PDU.size = ngap_nas_non_delivery_ind->nas_pdu.length;
+    ie->value.choice.NAS_PDU.buf = ngap_nas_non_delivery_ind->nas_pdu.buf;
+    ie->value.choice.NAS_PDU.size = ngap_nas_non_delivery_ind->nas_pdu.len;
   }
   /* mandatory */
   {
@@ -550,6 +544,46 @@ int ngap_gNB_nas_non_delivery_ind(instance_t instance,
                                    length, ue_context_p->tx_stream);
 
   return 0;
+}
+
+/** @brief PDU Session Resource Setup Response Transfer encoding (9.3.4.2 3GPP TS 38.413) */
+static byte_array_t encode_ngap_pdusession_setup_response_transfer(const pdusession_setup_t *pdusession)
+{
+  NGAP_PDUSessionResourceSetupResponseTransfer_t pdusessionTransfer = {0};
+  byte_array_t out = {0};
+
+  // DL QoS Flow per TNL Information (Mandatory)
+  NGAP_QosFlowPerTNLInformation_t *dLQosFlowPerTNLInformation = &pdusessionTransfer.dLQosFlowPerTNLInformation;
+
+  // UP Transport Layer Information (Mandatory)
+  dLQosFlowPerTNLInformation->uPTransportLayerInformation.present = NGAP_UPTransportLayerInformation_PR_gTPTunnel;
+  asn1cCalloc(dLQosFlowPerTNLInformation->uPTransportLayerInformation.choice.gTPTunnel, gtp);
+  GTP_TEID_TO_ASN1(pdusession->n3_outgoing.teid, &gtp->gTP_TEID);
+  tnl_to_bitstring(&gtp->transportLayerAddress, pdusession->n3_outgoing.addr);
+  char ip_str[INET_ADDRSTRLEN] = {0};
+  inet_ntop(AF_INET, gtp->transportLayerAddress.buf, ip_str, sizeof(ip_str));
+  NGAP_DEBUG("Encoded PDU Session Transfer (%d): TEID=0x%08x, Addr=%s\n",
+             pdusession->pdusession_id,
+             pdusession->n3_outgoing.teid,
+             ip_str);
+
+  // Associated QoS Flow List (Mandatory)
+  for (int j = 0; j < pdusession->nb_of_qos_flow; j++) {
+    asn1cSequenceAdd(dLQosFlowPerTNLInformation->associatedQosFlowList.list, NGAP_AssociatedQosFlowItem_t, qos_item);
+    // QoS Flow Identifier (Mandatory)
+    qos_item->qosFlowIdentifier = pdusession->associated_qos_flows[j].qfi;
+  }
+
+  // Encode
+  asn_encode_to_new_buffer_result_t res = asn_encode_to_new_buffer(NULL,
+                                                                   ATS_ALIGNED_CANONICAL_PER,
+                                                                   &asn_DEF_NGAP_PDUSessionResourceSetupResponseTransfer,
+                                                                   &pdusessionTransfer);
+  AssertFatal(res.buffer, "ASN1 message encoding failed (%s, %lu)!\n", res.result.failed_type->name, res.result.encoded);
+  ASN_STRUCT_FREE_CONTENTS_ONLY(asn_DEF_NGAP_PDUSessionResourceSetupResponseTransfer, &pdusessionTransfer);
+  out.buf = res.buffer;
+  out.len = res.result.encoded;
+  return out;
 }
 
 //------------------------------------------------------------------------------
@@ -621,39 +655,10 @@ int ngap_gNB_initial_ctxt_resp(instance_t instance, ngap_initial_context_setup_r
       asn1cSequenceAdd(ie->value.choice.PDUSessionResourceSetupListCxtRes.list, NGAP_PDUSessionResourceSetupItemCxtRes_t, item);
       /* pDUSessionID */
       item->pDUSessionID = initial_ctxt_resp_p->pdusessions[i].pdusession_id;
-
-      /* dLQosFlowPerTNLInformation */
-      NGAP_PDUSessionResourceSetupResponseTransfer_t pdusessionTransfer = {0};
-
-      pdusessionTransfer.dLQosFlowPerTNLInformation.uPTransportLayerInformation.present = NGAP_UPTransportLayerInformation_PR_gTPTunnel;
-
-      asn1cCalloc(pdusessionTransfer.dLQosFlowPerTNLInformation.uPTransportLayerInformation.choice.gTPTunnel, tmp);
-      GTP_TEID_TO_ASN1(initial_ctxt_resp_p->pdusessions[i].gtp_teid, &tmp->gTP_TEID);
-      allocAddrCopy(&tmp->transportLayerAddress, initial_ctxt_resp_p->pdusessions[i].gNB_addr);
-
-      NGAP_DEBUG("initial_ctxt_resp_p: pdusession ID %ld, gnb_addr %d.%d.%d.%d, SIZE %ld, TEID %u\n",
-                 item->pDUSessionID,
-                 tmp->transportLayerAddress.buf[0],
-                 tmp->transportLayerAddress.buf[1],
-                 tmp->transportLayerAddress.buf[2],
-                 tmp->transportLayerAddress.buf[3],
-                 tmp->transportLayerAddress.size,
-                 initial_ctxt_resp_p->pdusessions[i].gtp_teid);
-
-      /* associatedQosFlowList. number of 1? */
-      for(int j=0; j < initial_ctxt_resp_p->pdusessions[i].nb_of_qos_flow; j++) {
-        asn1cSequenceAdd(pdusessionTransfer.dLQosFlowPerTNLInformation.associatedQosFlowList.list, NGAP_AssociatedQosFlowItem_t, ass_qos_item_p);
-        /* qosFlowIdentifier */
-        ass_qos_item_p->qosFlowIdentifier = initial_ctxt_resp_p->pdusessions[i].associated_qos_flows[j].qfi;
-      }
-
-      void *pdusessionTransfer_buffer;
-      ssize_t encoded = aper_encode_to_new_buffer(&asn_DEF_NGAP_PDUSessionResourceSetupResponseTransfer, NULL, &pdusessionTransfer, &pdusessionTransfer_buffer);
-      AssertFatal(encoded > 0, "ASN1 message encoding failed !\n");
-      item->pDUSessionResourceSetupResponseTransfer.buf = pdusessionTransfer_buffer;
-      item->pDUSessionResourceSetupResponseTransfer.size = encoded;
-
-      ASN_STRUCT_FREE_CONTENTS_ONLY(asn_DEF_NGAP_PDUSessionResourceSetupResponseTransfer, &pdusessionTransfer);
+      // PDU Session Resource Setup Response Transfer (Mandatory)
+      byte_array_t ba = encode_ngap_pdusession_setup_response_transfer(&initial_ctxt_resp_p->pdusessions[i]);
+      item->pDUSessionResourceSetupResponseTransfer.buf = ba.buf;
+      item->pDUSessionResourceSetupResponseTransfer.size = ba.len;
     }
   }
   /* optional */
@@ -671,37 +676,7 @@ int ngap_gNB_initial_ctxt_resp(instance_t instance, ngap_initial_context_setup_r
       item->pDUSessionID = initial_ctxt_resp_p->pdusessions_failed[i].pdusession_id;
 
       /* cause */
-      switch(initial_ctxt_resp_p->pdusessions_failed[i].cause) {
-        case NGAP_CAUSE_RADIO_NETWORK:
-          pdusessionUnTransfer.cause.present = NGAP_Cause_PR_radioNetwork;
-          pdusessionUnTransfer.cause.choice.radioNetwork = initial_ctxt_resp_p->pdusessions_failed[i].cause_value;
-          break;
-
-        case NGAP_CAUSE_TRANSPORT:
-          pdusessionUnTransfer.cause.present = NGAP_Cause_PR_transport;
-          pdusessionUnTransfer.cause.choice.transport = initial_ctxt_resp_p->pdusessions_failed[i].cause_value;
-          break;
-
-        case NGAP_CAUSE_NAS:
-          pdusessionUnTransfer.cause.present = NGAP_Cause_PR_nas;
-          pdusessionUnTransfer.cause.choice.nas = initial_ctxt_resp_p->pdusessions_failed[i].cause_value;
-          break;
-
-        case NGAP_CAUSE_PROTOCOL:
-          pdusessionUnTransfer.cause.present = NGAP_Cause_PR_protocol;
-          pdusessionUnTransfer.cause.choice.protocol = initial_ctxt_resp_p->pdusessions_failed[i].cause_value;
-          break;
-
-        case NGAP_CAUSE_MISC:
-          pdusessionUnTransfer.cause.present = NGAP_Cause_PR_misc;
-          pdusessionUnTransfer.cause.choice.misc = initial_ctxt_resp_p->pdusessions_failed[i].cause_value;
-          break;
-
-        case NGAP_CAUSE_NOTHING:
-        default:
-          AssertFatal(false, "Unknown PDU session failure cause %d\n", initial_ctxt_resp_p->pdusessions_failed[i].cause);
-          break;
-      }
+      encode_ngap_cause(&pdusessionUnTransfer.cause, &initial_ctxt_resp_p->pdusessions_failed[i].cause);
 
       NGAP_INFO("initial context setup response: failed pdusession ID %ld\n", item->pDUSessionID);
       asn_encode_to_new_buffer_result_t res = asn_encode_to_new_buffer(NULL, ATS_ALIGNED_CANONICAL_PER, &asn_DEF_NGAP_PDUSessionResourceSetupUnsuccessfulTransfer, &pdusessionUnTransfer);
@@ -722,7 +697,7 @@ int ngap_gNB_initial_ctxt_resp(instance_t instance, ngap_initial_context_setup_r
     // ie->value.choice.CriticalityDiagnostics =;
   }
 
-  if (asn1_xer_print) {
+  if (LOG_DEBUGFLAG(DEBUG_ASN1)) {
     xer_fprint(stdout, &asn_DEF_NGAP_NGAP_PDU, &pdu);
   }
 
@@ -737,6 +712,89 @@ int ngap_gNB_initial_ctxt_resp(instance_t instance, ngap_initial_context_setup_r
     ngap_gNB_itti_send_sctp_data_req(ngap_gNB_instance_p->instance, ue_context_p->amf_ref->assoc_id, buffer, length, ue_context_p->tx_stream);
 
     return 0;
+}
+
+//---------------------------------------------------------------------------------------------------------
+int ngap_gNB_initial_ctxt_fail(instance_t instance, ngap_initial_context_setup_fail_t *initial_ctxt_fail)
+//---------------------------------------------------------------------------------------------------------
+{
+  ngap_gNB_instance_t *ngap_gNB_instance_p = NULL;
+  struct ngap_gNB_ue_context_s *ue_context_p = NULL;
+  NGAP_NGAP_PDU_t pdu;
+  uint8_t *buffer = NULL;
+  uint32_t length;
+
+  /* Retrieve the NGAP gNB instance associated with Mod_id */
+  ngap_gNB_instance_p = ngap_gNB_get_instance(instance);
+  DevAssert(initial_ctxt_fail != NULL);
+  DevAssert(ngap_gNB_instance_p != NULL);
+
+  if ((ue_context_p = ngap_get_ue_context(initial_ctxt_fail->gNB_ue_ngap_id)) == NULL) {
+    /* The context for this gNB ue ngap id doesn't exist in the map of gNB UEs */
+    NGAP_WARN("Failed to find ue context associated with gNB ue ngap id: 0x%08x\n", initial_ctxt_fail->gNB_ue_ngap_id);
+    return -1;
+  }
+  /* Uplink NAS transport can occur either during an ngap connected state
+   * or during initial attach (for example: NAS authentication).
+   */
+  if (!(ue_context_p->ue_state == NGAP_UE_CONNECTED || ue_context_p->ue_state == NGAP_UE_WAITING_CSR)) {
+    NGAP_WARN(
+        "You are attempting to send NAS data over non-connected "
+        "gNB ue ngap id: %08x, current state: %d\n",
+        initial_ctxt_fail->gNB_ue_ngap_id,
+        ue_context_p->ue_state);
+    return -1;
+  }
+
+  /* Prepare the NGAP message to encode */
+  memset(&pdu, 0, sizeof(pdu));
+  pdu.present = NGAP_NGAP_PDU_PR_unsuccessfulOutcome;
+  asn1cCalloc(pdu.choice.unsuccessfulOutcome, out);
+  out->procedureCode = NGAP_ProcedureCode_id_InitialContextSetup;
+  out->criticality = NGAP_Criticality_reject;
+  out->value.present = NGAP_UnsuccessfulOutcome__value_PR_InitialContextSetupFailure;
+  NGAP_InitialContextSetupFailure_t *fail = &out->value.choice.InitialContextSetupFailure;
+  /* mandatory */
+  {
+    asn1cSequenceAdd(fail->protocolIEs.list, NGAP_InitialContextSetupFailureIEs_t, ie);
+    ie->id = NGAP_ProtocolIE_ID_id_AMF_UE_NGAP_ID;
+    ie->criticality = NGAP_Criticality_ignore;
+    ie->value.present = NGAP_InitialContextSetupFailureIEs__value_PR_AMF_UE_NGAP_ID;
+    // ie->value.choice.AMF_UE_NGAP_ID = ue_context_p->amf_ue_ngap_id;
+    asn_uint642INTEGER(&ie->value.choice.AMF_UE_NGAP_ID, ue_context_p->amf_ue_ngap_id);
+  }
+  /* mandatory */
+  {
+    asn1cSequenceAdd(fail->protocolIEs.list, NGAP_InitialContextSetupFailureIEs_t, ie);
+    ie->id = NGAP_ProtocolIE_ID_id_RAN_UE_NGAP_ID;
+    ie->criticality = NGAP_Criticality_ignore;
+    ie->value.present = NGAP_InitialContextSetupFailureIEs__value_PR_RAN_UE_NGAP_ID;
+    ie->value.choice.RAN_UE_NGAP_ID = initial_ctxt_fail->gNB_ue_ngap_id;
+  }
+  /* mandatory */
+  {
+    asn1cSequenceAdd(fail->protocolIEs.list, NGAP_InitialContextSetupFailureIEs_t, ie);
+    ie->id = NGAP_ProtocolIE_ID_id_Cause;
+    ie->criticality = NGAP_Criticality_ignore;
+    ie->value.present = NGAP_InitialContextSetupFailureIEs__value_PR_Cause;
+    encode_ngap_cause(&ie->value.choice.Cause, &initial_ctxt_fail->cause);
+  }
+  if (LOG_DEBUGFLAG(DEBUG_ASN1)) {
+    xer_fprint(stdout, &asn_DEF_NGAP_NGAP_PDU, &pdu);
+  }
+  if (ngap_gNB_encode_pdu(&pdu, &buffer, &length) < 0) {
+    NGAP_ERROR("Failed to encode InitialContextSetupFailure\n");
+    /* Encode procedure has failed... */
+    return -1;
+  }
+  /* UE associated signalling -> use the allocated stream */
+  LOG_I(NR_RRC, "Send message to sctp: NGAP_InitialContextSetupFailure\n");
+  ngap_gNB_itti_send_sctp_data_req(ngap_gNB_instance_p->instance,
+                                   ue_context_p->amf_ref->assoc_id,
+                                   buffer,
+                                   length,
+                                   ue_context_p->tx_stream);
+  return 0;
 }
 
 //------------------------------------------------------------------------------
@@ -800,8 +858,8 @@ int ngap_gNB_ue_capabilities(instance_t instance, ngap_ue_cap_info_ind_t *ue_cap
     ie->id = NGAP_ProtocolIE_ID_id_UERadioCapability;
     ie->criticality = NGAP_Criticality_ignore;
     ie->value.present = NGAP_UERadioCapabilityInfoIndicationIEs__value_PR_UERadioCapability;
-    ie->value.choice.UERadioCapability.buf = ue_cap_info_ind_p->ue_radio_cap.buffer;
-    ie->value.choice.UERadioCapability.size = ue_cap_info_ind_p->ue_radio_cap.length;
+    ie->value.choice.UERadioCapability.buf = ue_cap_info_ind_p->ue_radio_cap.buf;
+    ie->value.choice.UERadioCapability.size = ue_cap_info_ind_p->ue_radio_cap.len;
   }
   /* optional */
   //NGAP_UERadioCapabilityForPaging TBD
@@ -886,40 +944,10 @@ int ngap_gNB_pdusession_setup_resp(instance_t instance, ngap_pdusession_setup_re
       /* pDUSessionID */
       item->pDUSessionID = pdusession->pdusession_id;
 
-      /* dLQosFlowPerTNLInformation */
-      NGAP_PDUSessionResourceSetupResponseTransfer_t pdusessionTransfer = {0};
-      pdusessionTransfer.dLQosFlowPerTNLInformation.uPTransportLayerInformation.present = NGAP_UPTransportLayerInformation_PR_gTPTunnel;
-      asn1cCalloc(pdusessionTransfer.dLQosFlowPerTNLInformation.uPTransportLayerInformation.choice.gTPTunnel, tmp);
-      GTP_TEID_TO_ASN1(pdusession->gtp_teid, &tmp->gTP_TEID);
-      allocAddrCopy(&tmp->transportLayerAddress, pdusession->gNB_addr);
-      NGAP_DEBUG("pdusession_setup_resp_p: pdusession ID %ld, gnb_addr %d.%d.%d.%d, SIZE %ld, TEID %u\n",
-                 item->pDUSessionID,
-                 tmp->transportLayerAddress.buf[0],
-                 tmp->transportLayerAddress.buf[1],
-                 tmp->transportLayerAddress.buf[2],
-                 tmp->transportLayerAddress.buf[3],
-                 tmp->transportLayerAddress.size,
-                 pdusession->gtp_teid);
-      /* associatedQosFlowList. number of 1? */
-      for(int j=0; j < pdusession_setup_resp_p->pdusessions[i].nb_of_qos_flow; j++) {
-        asn1cSequenceAdd(pdusessionTransfer.dLQosFlowPerTNLInformation.associatedQosFlowList.list, NGAP_AssociatedQosFlowItem_t, ass_qos_item_p);
-
-        /* qosFlowIdentifier */
-        ass_qos_item_p->qosFlowIdentifier = pdusession_setup_resp_p->pdusessions[i].associated_qos_flows[j].qfi;
-
-        /* qosFlowMappingIndication */
-        // if(pdusession_setup_resp_p->pdusessions[i].associated_qos_flows[j].qos_flow_mapping_ind != QOSFLOW_MAPPING_INDICATION_NON) {
-        //   ass_qos_item_p->qosFlowMappingIndication = malloc(sizeof(*ass_qos_item_p->qosFlowMappingIndication));
-        //   *ass_qos_item_p->qosFlowMappingIndication = pdusession_setup_resp_p->pdusessions[i].associated_qos_flows[j].qos_flow_mapping_ind;
-        // }
-      }
-
-      asn_encode_to_new_buffer_result_t res = asn_encode_to_new_buffer(NULL, ATS_ALIGNED_CANONICAL_PER, &asn_DEF_NGAP_PDUSessionResourceSetupResponseTransfer, &pdusessionTransfer);
-      AssertFatal (res.buffer, "ASN1 message encoding failed (%s, %lu)!\n", res.result.failed_type->name, res.result.encoded);
-      item->pDUSessionResourceSetupResponseTransfer.buf = res.buffer;
-      item->pDUSessionResourceSetupResponseTransfer.size = res.result.encoded;
-
-      ASN_STRUCT_FREE_CONTENTS_ONLY(asn_DEF_NGAP_PDUSessionResourceSetupResponseTransfer, &pdusessionTransfer);
+      // PDU Session Resource Setup Response Transfer (Mandatory)
+      byte_array_t ba = encode_ngap_pdusession_setup_response_transfer(pdusession);
+      item->pDUSessionResourceSetupResponseTransfer.buf = ba.buf;
+      item->pDUSessionResourceSetupResponseTransfer.size = ba.len;
     }
   }
 
@@ -939,37 +967,7 @@ int ngap_gNB_pdusession_setup_resp(instance_t instance, ngap_pdusession_setup_re
       item->pDUSessionID = pdusession_failed->pdusession_id;
 
       /* cause */
-      switch(pdusession_failed->cause) {
-        case NGAP_CAUSE_RADIO_NETWORK:
-          pdusessionUnTransfer_p.cause.present = NGAP_Cause_PR_radioNetwork;
-          pdusessionUnTransfer_p.cause.choice.radioNetwork = pdusession_failed->cause_value;
-          break;
-
-        case NGAP_CAUSE_TRANSPORT:
-          pdusessionUnTransfer_p.cause.present = NGAP_Cause_PR_transport;
-          pdusessionUnTransfer_p.cause.choice.transport = pdusession_failed->cause_value;
-          break;
-
-        case NGAP_CAUSE_NAS:
-          pdusessionUnTransfer_p.cause.present = NGAP_Cause_PR_nas;
-          pdusessionUnTransfer_p.cause.choice.nas = pdusession_failed->cause_value;
-          break;
-
-        case NGAP_CAUSE_PROTOCOL:
-          pdusessionUnTransfer_p.cause.present = NGAP_Cause_PR_protocol;
-          pdusessionUnTransfer_p.cause.choice.protocol = pdusession_failed->cause_value;
-          break;
-
-        case NGAP_CAUSE_MISC:
-          pdusessionUnTransfer_p.cause.present = NGAP_Cause_PR_misc;
-          pdusessionUnTransfer_p.cause.choice.misc = pdusession_failed->cause_value;
-          break;
-
-        case NGAP_CAUSE_NOTHING:
-        default:
-          AssertFatal(false, "Unknown PDU session failure cause %d\n", pdusession_failed->cause);
-          break;
-      }
+      encode_ngap_cause(&pdusessionUnTransfer_p.cause, &pdusession_failed->cause);
       NGAP_INFO("pdusession setup response: failed pdusession ID %ld\n", item->pDUSessionID);
 
       asn_encode_to_new_buffer_result_t res = asn_encode_to_new_buffer(NULL, ATS_ALIGNED_CANONICAL_PER, &asn_DEF_NGAP_PDUSessionResourceSetupUnsuccessfulTransfer, &pdusessionUnTransfer_p);
@@ -1103,37 +1101,8 @@ int ngap_gNB_pdusession_modify_resp(instance_t instance, ngap_pdusession_modify_
 
       NGAP_PDUSessionResourceModifyUnsuccessfulTransfer_t pdusessionTransfer = {0};
 
-      switch(pdusession_modify_resp_p->pdusessions_failed[i].cause) {
-      case NGAP_CAUSE_RADIO_NETWORK:
-        pdusessionTransfer.cause.present = NGAP_Cause_PR_radioNetwork;
-        pdusessionTransfer.cause.choice.radioNetwork = pdusession_modify_resp_p->pdusessions_failed[i].cause_value;
-        break;
-
-      case NGAP_CAUSE_TRANSPORT:
-        pdusessionTransfer.cause.present = NGAP_Cause_PR_transport;
-        pdusessionTransfer.cause.choice.transport = pdusession_modify_resp_p->pdusessions_failed[i].cause_value;
-        break;
-
-      case NGAP_CAUSE_NAS:
-        pdusessionTransfer.cause.present = NGAP_Cause_PR_nas;
-        pdusessionTransfer.cause.choice.nas = pdusession_modify_resp_p->pdusessions_failed[i].cause_value;
-        break;
-
-      case NGAP_CAUSE_PROTOCOL:
-        pdusessionTransfer.cause.present = NGAP_Cause_PR_protocol;
-        pdusessionTransfer.cause.choice.protocol = pdusession_modify_resp_p->pdusessions_failed[i].cause_value;
-        break;
-
-      case NGAP_CAUSE_MISC:
-        pdusessionTransfer.cause.present = NGAP_Cause_PR_misc;
-        pdusessionTransfer.cause.choice.misc = pdusession_modify_resp_p->pdusessions_failed[i].cause_value;
-        break;
-
-      case NGAP_CAUSE_NOTHING:
-      default:
-        AssertFatal(false, "Unknown PDU session failure cause %d\n", pdusession_modify_resp_p->pdusessions_failed[i].cause);
-        break;
-      }
+      // NGAP cause
+      encode_ngap_cause(&pdusessionTransfer.cause, &pdusession_modify_resp_p->pdusessions_failed[i].cause);
 
       asn_encode_to_new_buffer_result_t res = {0};
       NGAP_PDUSessionResourceModifyUnsuccessfulTransfer_t *pdusessionTransfer_p = NULL;
@@ -1222,8 +1191,9 @@ int ngap_gNB_pdusession_release_resp(instance_t instance, ngap_pdusession_releas
     
     for (i = 0; i < pdusession_release_resp_p->nb_of_pdusessions_released; i++) {
       asn1cSequenceAdd(ie->value.choice.PDUSessionResourceReleasedListRelRes.list, NGAP_PDUSessionResourceReleasedItemRelRes_t, item);
-      item->pDUSessionID = pdusession_release_resp_p->pdusession_release[i].pdusession_id;
-      allocCopy(&item->pDUSessionResourceReleaseResponseTransfer, pdusession_release_resp_p->pdusession_release[i].data);
+      pdusession_release_t *r = &pdusession_release_resp_p->pdusession_release[i];
+      item->pDUSessionID = r->pdusession_id;
+      OCTET_STRING_fromBuf(&item->pDUSessionResourceReleaseResponseTransfer, (const char *)r->data.buf, r->data.len);
       NGAP_DEBUG("pdusession_release_resp: pdusession ID %ld\n", item->pDUSessionID);
     }
   }
@@ -1245,17 +1215,3 @@ int ngap_gNB_pdusession_release_resp(instance_t instance, ngap_pdusession_releas
   return 0;
 }
 
-int ngap_gNB_path_switch_req(instance_t instance, ngap_path_switch_req_t *path_switch_req_p)
-//------------------------------------------------------------------------------
-{
-  //TODO
-
-  return 0;
-}
-
-int ngap_gNB_generate_PDUSESSION_Modification_Indication(instance_t instance, ngap_pdusession_modification_ind_t *pdusession_modification_ind)
-//-----------------------------------------------------------------------------
-{
-  //TODO
-  return 0;
-}

@@ -41,8 +41,8 @@
     <testCase id="111110">
         <class>Pull_Local_Registry</class>
         <desc>Pull Images from Local Registry</desc>
-        <test_svr_id>0</test_svr_id>
-        <images_to_pull>oai-enb</images_to_pull>
+        <node>starsky</node>
+        <images>oai-enb</images>
     </testCase>
 
     <testCase id="100000">
@@ -68,24 +68,21 @@
     <testCase id="800813">
         <class>Create_Workspace</class>
         <desc>Create new Workspace for server 0</desc>
-        <eNB_instance>0</eNB_instance>
-        <eNB_serverId>0</eNB_serverId>
+        <node>starsky</node>
     </testCase>
     <testCase id="030134">
         <class>Deploy_Object</class>
         <desc>Deploy RRU (TDD/Band40/5MHz/B200) in a container</desc>
+        <node>starsky</node>
         <yaml_path>ci-scripts/yaml_files/lte_b200_tdd_05Mhz_if4.5</yaml_path>
         <services>rru_tdd</services>
-        <eNB_instance>0</eNB_instance>
-        <eNB_serverId>0</eNB_serverId>
     </testCase>
     <testCase id="030135">
         <class>Deploy_Object</class>
         <desc>Deploy RCC (TDD/Band40/5MHz) in a container</desc>
+        <node>starsky</node>
         <yaml_path>ci-scripts/yaml_files/lte_b200_tdd_05Mhz_if4.5</yaml_path>
         <services>rcc_tdd</services>
-        <eNB_instance>0</eNB_instance>
-        <eNB_serverId>0</eNB_serverId>
     </testCase>
 
     <testCase id="000001">
@@ -98,9 +95,8 @@
         <class>Undeploy_Object</class>
         <always_exec>true</always_exec>
         <desc>Undeploy RRU/RCC</desc>
+        <node>starsky</node>
         <yaml_path>ci-scripts/yaml_files/lte_b200_tdd_05Mhz_if4.5</yaml_path>
-        <eNB_instance>0</eNB_instance>
-        <eNB_serverId>0</eNB_serverId>
     </testCase>
 
     <testCase id="040101">
@@ -129,9 +125,10 @@
     <testCase id="040532">
         <class>Ping</class>
         <desc>ping (5MHz - 20 sec)</desc>
-        <ping_args>-c 20 %cn_ip%</ping_args>
+        <ping_args>-c 20</ping_args>
         <ping_packetloss_threshold>25</ping_packetloss_threshold>
         <id>adb_ue_1 adb_ue_2</id>
+        <svr_id>ltebox-nano</svr_id>
     </testCase>
 
     <testCase id="040631">
@@ -209,7 +206,8 @@
         <class>Clean_Test_Server_Images</class>
         <always_exec>true</always_exec>
         <desc>Clean Test Images on Test Server</desc>
-        <test_svr_id>0</test_svr_id>
+        <node>starsky</node>
+        <images>oai-enb</images>
     </testCase>
 
 </testCaseList>

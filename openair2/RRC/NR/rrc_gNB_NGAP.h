@@ -31,20 +31,26 @@
 #ifndef RRC_GNB_NGAP_H_
 #define RRC_GNB_NGAP_H_
 
-#include "rrc_gNB_UE_context.h"
-#include "nr_rrc_defs.h"
-#include "nr_rrc_extern.h"
-
+#include <assertions.h>
+#include <stdint.h>
 #include "NR_RRCSetupComplete-IEs.h"
-#include "NR_RegisteredAMF.h"
+#include "NR_UECapabilityInformation.h"
 #include "NR_UL-DCCH-Message.h"
-#include "NGAP_CauseRadioNetwork.h"
+#include "intertask_interface.h"
+#include "ngap_messages_types.h"
+#include "nr_rrc_defs.h"
+
+extern mui_t rrc_gNB_mui;
 
 void rrc_gNB_send_NGAP_NAS_FIRST_REQ(gNB_RRC_INST *rrc, gNB_RRC_UE_t *UE, NR_RRCSetupComplete_IEs_t *rrcSetupComplete);
 
 int rrc_gNB_process_NGAP_INITIAL_CONTEXT_SETUP_REQ(MessageDef *msg_p, instance_t instance);
 
 void rrc_gNB_send_NGAP_INITIAL_CONTEXT_SETUP_RESP(gNB_RRC_INST *rrc, gNB_RRC_UE_t *UE);
+
+void rrc_gNB_send_NGAP_INITIAL_CONTEXT_SETUP_FAIL(uint32_t gnb,
+                                                  const rrc_gNB_ue_context_t *const ue_context_pP,
+                                                  const ngap_cause_t causeP);
 
 int rrc_gNB_process_NGAP_DOWNLINK_NAS(MessageDef *msg_p, instance_t instance, mui_t *rrc_gNB_mui);
 
@@ -60,7 +66,9 @@ int rrc_gNB_send_NGAP_PDUSESSION_MODIFY_RESP(gNB_RRC_INST *rrc, gNB_RRC_UE_t *UE
 
 void rrc_gNB_modify_dedicatedRRCReconfiguration(gNB_RRC_INST *rrc, gNB_RRC_UE_t *ue_p);
 
-void rrc_gNB_send_NGAP_UE_CONTEXT_RELEASE_REQ(const module_id_t gnb_mod_idP, const rrc_gNB_ue_context_t *const ue_context_pP, const ngap_Cause_t causeP, const long cause_valueP);
+void rrc_gNB_send_NGAP_UE_CONTEXT_RELEASE_REQ(const module_id_t gnb_mod_idP,
+                                              const rrc_gNB_ue_context_t *const ue_context_pP,
+                                              const ngap_cause_t causeP);
 
 int rrc_gNB_process_NGAP_UE_CONTEXT_RELEASE_REQ(MessageDef *msg_p, instance_t instance);
 

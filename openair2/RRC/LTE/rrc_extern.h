@@ -38,22 +38,12 @@
 
 extern UE_RRC_INST *UE_rrc_inst;
 
-
-extern uint8_t DRB2LCHAN[8];
-
 extern LTE_LogicalChannelConfig_t SRB1_logicalChannelConfig_defaultValue;
 extern LTE_LogicalChannelConfig_t SRB2_logicalChannelConfig_defaultValue;
 
 extern int NB_UE_INST;
 extern void* bigphys_malloc(int);
-
-
-//uint8_t RACH_TIME_ALLOC;
-extern uint16_t RACH_FREQ_ALLOC;
-//uint8_t NB_RACH;
-extern LCHAN_DESC BCCH_LCHAN_DESC,CCCH_LCHAN_DESC,DCCH_LCHAN_DESC,DTCH_DL_LCHAN_DESC,DTCH_UL_LCHAN_DESC;
-extern MAC_MEAS_T BCCH_MEAS_TRIGGER,CCCH_MEAS_TRIGGER,DCCH_MEAS_TRIGGER,DTCH_MEAS_TRIGGER;
-extern MAC_AVG_T BCCH_MEAS_AVG,CCCH_MEAS_AVG,DCCH_MEAS_AVG, DTCH_MEAS_AVG;
+extern LCHAN_DESC CCCH_LCHAN_DESC, DCCH_LCHAN_DESC;
 
 extern UE_PF_PO_t UE_PF_PO[NFAPI_CC_MAX][MAX_MOBILES_PER_ENB];
 extern pthread_mutex_t ue_pf_po_mutex;

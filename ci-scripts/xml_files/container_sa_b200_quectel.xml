@@ -59,8 +59,8 @@
   <testCase id="111111">
     <class>Pull_Local_Registry</class>
     <desc>Pull Images from Local Registry</desc>
-    <test_svr_id>0</test_svr_id>
-    <images_to_pull>oai-gnb</images_to_pull>
+    <node>ofqot</node>
+    <images>oai-gnb</images>
   </testCase>
 
   <testCase id="100000">
@@ -102,15 +102,13 @@
   <testCase id="800813">
     <class>Create_Workspace</class>
     <desc>Create new Workspace for server 0</desc>
-    <eNB_instance>0</eNB_instance>
-    <eNB_serverId>0</eNB_serverId>
+    <node>ofqot</node>
   </testCase>
   <testCase id="030101">
     <class>Deploy_Object</class>
     <desc>Deploy gNB (TDD/Band78/40MHz/B200) in a container</desc>
+    <node>ofqot</node>
     <yaml_path>ci-scripts/yaml_files/sa_b200_gnb</yaml_path>
-    <eNB_instance>0</eNB_instance>
-    <eNB_serverId>0</eNB_serverId>
   </testCase>
 
   <testCase id="000001">
@@ -120,9 +118,12 @@
   </testCase>
 
   <testCase id="000002">
-    <class>IdleSleep</class>
-    <desc>Sleep</desc>
-    <idle_sleep_time_in_sec>10</idle_sleep_time_in_sec>
+    <class>Ping</class>
+    <desc>Ping: 20pings</desc>
+    <id>idefix</id>
+    <svr_id>sabox-nepes</svr_id>
+    <ping_args>-c 20 -i0.5 -w25</ping_args>
+    <ping_packetloss_threshold>80</ping_packetloss_threshold>
   </testCase>
 
 
@@ -130,7 +131,8 @@
     <class>Ping</class>
     <desc>Ping: 20pings in 20sec</desc>
     <id>idefix</id>
-    <ping_args>-c 20 %cn_ip%</ping_args>
+    <svr_id>sabox-nepes</svr_id>
+    <ping_args>-c 20</ping_args>
     <ping_packetloss_threshold>1</ping_packetloss_threshold>
     <ping_rttavg_threshold>15</ping_rttavg_threshold>
   </testCase>
@@ -139,7 +141,8 @@
     <class>Ping</class>
     <desc>Ping: 100pings in 20sec</desc>
     <id>idefix</id>
-    <ping_args>-c 100 -i 0.2 %cn_ip%</ping_args>
+    <svr_id>sabox-nepes</svr_id>
+    <ping_args>-c 100 -i 0.2</ping_args>
     <ping_packetloss_threshold>1</ping_packetloss_threshold>
     <ping_rttavg_threshold>15</ping_rttavg_threshold>
   </testCase>
@@ -195,23 +198,20 @@
     <desc>Trigger Reestablishment</desc>
     <node>ofqot</node>
     <command>echo ci force_reestab | nc -N 127.0.0.1 9090 | grep -E 'Reset RLC counters of UE RNTI [0-9a-f]{4} to trigger reestablishment'</command>
-    <command_fail>yes</command_fail>
   </testCase>
   <testCase id="060002">
     <class>Custom_Command</class>
     <desc>Verify Reestablishment</desc>
     <node>ofqot</node>
     <command>echo ci get_reestab_count | nc -N 127.0.0.1 9090 | grep -E 'UE RNTI [0-9a-f]{4} reestab 1'</command>
-    <command_fail>yes</command_fail>
   </testCase>
 
   <testCase id="030201">
     <class>Undeploy_Object</class>
     <always_exec>true</always_exec>
     <desc>Undeploy gNB</desc>
+    <node>ofqot</node>
     <yaml_path>ci-scripts/yaml_files/sa_b200_gnb</yaml_path>
-    <eNB_instance>0</eNB_instance>
-    <eNB_serverId>0</eNB_serverId>
     <d_retx_th>10,100,100,100</d_retx_th>
     <u_retx_th>10,100,100,100</u_retx_th>
   </testCase>
@@ -220,7 +220,8 @@
     <class>Clean_Test_Server_Images</class>
     <always_exec>true</always_exec>
     <desc>Clean Test Images on Test Server</desc>
-    <test_svr_id>0</test_svr_id>
+    <node>ofqot</node>
+    <images>oai-gnb</images>
   </testCase>
 
 </testCaseList>

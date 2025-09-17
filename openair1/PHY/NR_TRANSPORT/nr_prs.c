@@ -4,10 +4,9 @@
 #include "PHY/NR_REFSIG/nr_refsig.h"
 #include "PHY/sse_intrin.h"
 #include "openair1/PHY/NR_REFSIG/refsig_defs_ue.h"
+#include "openair1/PHY/NR_REFSIG/nr_mod_table.h"
 //#define DEBUG_PRS_MOD
 //#define DEBUG_PRS_MAP
-
-extern short nr_qpsk_mod_table[8];
 
 int nr_generate_prs(int slot,
                     c16_t *txdataF,
@@ -18,7 +17,7 @@ int nr_generate_prs(int slot,
 {
   
   int k_prime = 0, k = 0, idx;
-  int16_t mod_prs[NR_MAX_PRS_LENGTH<<1];
+  c16_t mod_prs[NR_MAX_PRS_LENGTH];
   int16_t k_prime_table[K_PRIME_TABLE_ROW_SIZE][K_PRIME_TABLE_COL_SIZE] = PRS_K_PRIME_TABLE;
 
   // PRS resource mapping with combsize=k which means PRS symbols exist in every k-th subcarrier in frequency domain
@@ -45,25 +44,12 @@ int nr_generate_prs(int slot,
     uint32_t *gold = nr_gold_prs(prs_cfg->NPRSID, slot, l);
     for (int m = 0; m < (12/prs_cfg->CombSize) * prs_cfg->NumRB; m++) {
       idx = (((gold[(m << 1) >> 5]) >> ((m << 1) & 0x1f)) & 3);
-      mod_prs[m<<1] = nr_qpsk_mod_table[idx<<1];
-      mod_prs[(m<<1)+1] = nr_qpsk_mod_table[(idx<<1) + 1];
-      
-#ifdef DEBUG_PRS_MOD
-      LOG_D("m %d idx %d gold seq %d mod_prs %d %d\n", m, idx, nr_gold_prs[l][(m<<1)>>5], mod_prs[m<<1], mod_prs[(m<<1)+1]);
-#endif
-      
+      mod_prs[m] = nr_qpsk_mod_table[idx];
+
 #ifdef DEBUG_PRS_MAP
       LOG_D("m %d at k %d of l %d reIdx %d\n", m, k, l, (l*frame_parms->ofdm_symbol_size + k)<<1);
 #endif
-      
-      ((int16_t *)txdataF)[(l*frame_parms->ofdm_symbol_size + k)<<1]       = (amp * mod_prs[m<<1]) >> 15;
-      ((int16_t *)txdataF)[((l*frame_parms->ofdm_symbol_size + k)<<1) + 1] = (amp * mod_prs[(m<<1) + 1]) >> 15;
-    
-#ifdef DEBUG_PRS_MAP
-      LOG_D("(%d,%d)\n",
-      ((int16_t *)txdataF)[(l*frame_parms->ofdm_symbol_size + k)<<1],
-      ((int16_t *)txdataF)[((l*frame_parms->ofdm_symbol_size + k)<<1)+1]);
-#endif
+      txdataF[l * frame_parms->ofdm_symbol_size + k] = c16mulRealShift(mod_prs[m], amp, 15);
 
       k = k +  prs_cfg->CombSize;
     

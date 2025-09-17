@@ -100,12 +100,14 @@ struct T_header;
 
 /* T macro tricks */
 extern int T_stdout;
-#define TN(...) TN_N(__VA_ARGS__,39,38,37,36,35,34,33,32,31,30,29,28,27,26, \
-                     25,24,23,22,21,20,19,18,17,16,15,14,13,12,11,10,9,8,7, \
-                     6,5,4,3,2,1,0)(__VA_ARGS__)
-#define TN_N(n0,n1,n2,n3,n4,n5,n6,n7,n8,n9,n10,n11,n12,n13,n14,n15,n16,n17, \
-             n18,n19,n20,n21,n22,n23,n24,n25,n26,n27,n28,n29,n30,n31,n32, \
-             n33,n34,n35,n36,n37,n38,n,...) T##n
+#define TN(...) TN_N(__VA_ARGS__,71,70,69,68,67,66,65,64,63,62,61,60,59,58,57,\
+                      56,55,54,53,52,51,50,49,48,47,46,45,44,43,42,41,40,39,38,\
+                      37,36,35,34,33,32,31,30,29,28,27,26,25,24,23,22,21,20,19,\
+                      18,17,16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0)(__VA_ARGS__)
+#define TN_N(n0,n1,n2,n3,n4,n5,n6,n7,n8,n9,n10,n11,n12,n13,n14,n15,n16,n17,n18,n19,n20,\
+            n21,n22,n23,n24,n25,n26,n27,n28,n29,n30,n31,n32,n33,n34,n35,n36,n37,n38,\
+            n39,n40,n41,n42,n43,n44,n45,n46,n47,n48,n49,n50,n51,n52,n53,n54,n55,n56,\
+            n57,n58,n59,n60,n61,n62,n63,n64,n65,n66,n67,n68,n69,n70,n,...) T##n
 #define T(...) do { if (T_stdout == 0 || T_stdout == 2) TN(__VA_ARGS__); } while (0)
 
 /* type used to send arbitrary buffer data */
@@ -177,6 +179,7 @@ extern int *T_active;
 #else /* #ifdef __cplusplus */
 
 /* C version of T_HEADER with time */
+#ifdef CHECK_T_TYPE
 #define T_HEADER(x) \
   do { \
     if (!__builtin_types_compatible_p(typeof(x), struct T_header *)) { \
@@ -191,6 +194,16 @@ extern int *T_active;
     T_LOCAL_size += sizeof(struct timespec); \
     T_PUT_int(1, (int)(uintptr_t)(x)); \
   } while (0)
+#else /* CHECK_T_TYPE */
+#define T_HEADER(x) \
+  do { \
+    struct timespec T_HEADER_time; \
+    if (clock_gettime(CLOCK_REALTIME, &T_HEADER_time)) abort(); \
+    memcpy(T_LOCAL_buf, &T_HEADER_time, sizeof(struct timespec)); \
+    T_LOCAL_size += sizeof(struct timespec); \
+    T_PUT_int(1, (int)(uintptr_t)(x)); \
+  } while (0)
+#endif /* CHECK_T_TYPE */
 
 #endif /* #ifdef __cplusplus */
 
@@ -207,6 +220,7 @@ extern int *T_active;
 #else /* #ifdef __cplusplus */
 
 /* C version of T_HEADER without time */
+#ifdef CHECK_T_TYPE
 #define T_HEADER(x) \
   do { \
     if (!__builtin_types_compatible_p(typeof(x), struct T_header *)) { \
@@ -217,6 +231,12 @@ extern int *T_active;
     } \
     T_PUT_int(1, (int)(uintptr_t)(x)); \
   } while (0)
+#else /* CHECK_T_TYPE */
+#define T_HEADER(x) \
+  do { \
+    T_PUT_int(1, (int)(uintptr_t)(x)); \
+  } while (0)
+#endif /* CHECK_T_TYPE */
 
 #endif /* #ifdef __cplusplus */
 
@@ -602,6 +622,633 @@ extern int *T_active;
     } \
   } while (0)
 
+
+#define T41(t,t0,x0,t1,x1,t2,x2,t3,x3,t4,x4,t5,x5,t6,x6,t7,x7,t8,x8,t9,x9,\
+            t10,x10,t11,x11,t12,x12,t13,x13,t14,x14,t15,x15,t16,x16,t17,x17,\
+            t18,x18,t19,x19) \
+  do { \
+    if (T_ACTIVE(t)) { \
+      T_LOCAL_DATA \
+      T_HEADER(t); \
+      T_PUT_##t0(2, x0); \
+      T_PUT_##t1(3, x1); \
+      T_PUT_##t2(4, x2); \
+      T_PUT_##t3(5, x3); \
+      T_PUT_##t4(6, x4); \
+      T_PUT_##t5(7, x5); \
+      T_PUT_##t6(8, x6); \
+      T_PUT_##t7(9, x7); \
+      T_PUT_##t8(10, x8); \
+      T_PUT_##t9(11, x9); \
+      T_PUT_##t10(12, x10); \
+      T_PUT_##t11(13, x11); \
+      T_PUT_##t12(14, x12); \
+      T_PUT_##t13(15, x13); \
+      T_PUT_##t14(16, x14); \
+      T_PUT_##t15(17, x15); \
+      T_PUT_##t16(18, x16); \
+      T_PUT_##t17(19, x17); \
+      T_PUT_##t18(20, x18); \
+      T_PUT_##t19(21, x19); \
+      T_COMMIT(); \
+    } \
+  } while (0)
+
+#define T43(t,t0,x0,t1,x1,t2,x2,t3,x3,t4,x4,t5,x5,t6,x6,t7,x7,t8,x8,t9,x9,\
+            t10,x10,t11,x11,t12,x12,t13,x13,t14,x14,t15,x15,t16,x16,t17,x17,\
+            t18,x18,t19,x19,t20,x20) \
+  do { \
+    if (T_ACTIVE(t)) { \
+      T_LOCAL_DATA \
+      T_HEADER(t); \
+      T_PUT_##t0(2, x0); \
+      T_PUT_##t1(3, x1); \
+      T_PUT_##t2(4, x2); \
+      T_PUT_##t3(5, x3); \
+      T_PUT_##t4(6, x4); \
+      T_PUT_##t5(7, x5); \
+      T_PUT_##t6(8, x6); \
+      T_PUT_##t7(9, x7); \
+      T_PUT_##t8(10, x8); \
+      T_PUT_##t9(11, x9); \
+      T_PUT_##t10(12, x10); \
+      T_PUT_##t11(13, x11); \
+      T_PUT_##t12(14, x12); \
+      T_PUT_##t13(15, x13); \
+      T_PUT_##t14(16, x14); \
+      T_PUT_##t15(17, x15); \
+      T_PUT_##t16(18, x16); \
+      T_PUT_##t17(19, x17); \
+      T_PUT_##t18(20, x18); \
+      T_PUT_##t19(21, x19); \
+      T_PUT_##t20(22, x20); \
+      T_COMMIT(); \
+    } \
+  } while (0)
+
+#define T45(t,t0,x0,t1,x1,t2,x2,t3,x3,t4,x4,t5,x5,t6,x6,t7,x7,t8,x8,t9,x9,\
+            t10,x10,t11,x11,t12,x12,t13,x13,t14,x14,t15,x15,t16,x16,t17,x17,\
+            t18,x18,t19,x19,t20,x20,t21,x21) \
+  do { \
+    if (T_ACTIVE(t)) { \
+      T_LOCAL_DATA \
+      T_HEADER(t); \
+      T_PUT_##t0(2, x0); \
+      T_PUT_##t1(3, x1); \
+      T_PUT_##t2(4, x2); \
+      T_PUT_##t3(5, x3); \
+      T_PUT_##t4(6, x4); \
+      T_PUT_##t5(7, x5); \
+      T_PUT_##t6(8, x6); \
+      T_PUT_##t7(9, x7); \
+      T_PUT_##t8(10, x8); \
+      T_PUT_##t9(11, x9); \
+      T_PUT_##t10(12, x10); \
+      T_PUT_##t11(13, x11); \
+      T_PUT_##t12(14, x12); \
+      T_PUT_##t13(15, x13); \
+      T_PUT_##t14(16, x14); \
+      T_PUT_##t15(17, x15); \
+      T_PUT_##t16(18, x16); \
+      T_PUT_##t17(19, x17); \
+      T_PUT_##t18(20, x18); \
+      T_PUT_##t19(21, x19); \
+      T_PUT_##t20(22, x20); \
+      T_PUT_##t21(23, x21); \
+      T_COMMIT(); \
+    } \
+  } while (0)
+
+#define T47(t,t0,x0,t1,x1,t2,x2,t3,x3,t4,x4,t5,x5,t6,x6,t7,x7,t8,x8,t9,x9,\
+            t10,x10,t11,x11,t12,x12,t13,x13,t14,x14,t15,x15,t16,x16,t17,x17,\
+            t18,x18,t19,x19,t20,x20,t21,x21,t22,x22) \
+  do { \
+    if (T_ACTIVE(t)) { \
+      T_LOCAL_DATA \
+      T_HEADER(t); \
+      T_PUT_##t0(2, x0); \
+      T_PUT_##t1(3, x1); \
+      T_PUT_##t2(4, x2); \
+      T_PUT_##t3(5, x3); \
+      T_PUT_##t4(6, x4); \
+      T_PUT_##t5(7, x5); \
+      T_PUT_##t6(8, x6); \
+      T_PUT_##t7(9, x7); \
+      T_PUT_##t8(10, x8); \
+      T_PUT_##t9(11, x9); \
+      T_PUT_##t10(12, x10); \
+      T_PUT_##t11(13, x11); \
+      T_PUT_##t12(14, x12); \
+      T_PUT_##t13(15, x13); \
+      T_PUT_##t14(16, x14); \
+      T_PUT_##t15(17, x15); \
+      T_PUT_##t16(18, x16); \
+      T_PUT_##t17(19, x17); \
+      T_PUT_##t18(20, x18); \
+      T_PUT_##t19(21, x19); \
+      T_PUT_##t20(22, x20); \
+      T_PUT_##t21(23, x21); \
+      T_PUT_##t22(24, x22); \
+      T_COMMIT(); \
+    } \
+  } while (0)
+
+#define T49(t,t0,x0,t1,x1,t2,x2,t3,x3,t4,x4,t5,x5,t6,x6,t7,x7,t8,x8,t9,x9,\
+            t10,x10,t11,x11,t12,x12,t13,x13,t14,x14,t15,x15,t16,x16,t17,x17,\
+            t18,x18,t19,x19,t20,x20,t21,x21,t22,x22,t23,x23) \
+  do { \
+    if (T_ACTIVE(t)) { \
+      T_LOCAL_DATA \
+      T_HEADER(t); \
+      T_PUT_##t0(2, x0); \
+      T_PUT_##t1(3, x1); \
+      T_PUT_##t2(4, x2); \
+      T_PUT_##t3(5, x3); \
+      T_PUT_##t4(6, x4); \
+      T_PUT_##t5(7, x5); \
+      T_PUT_##t6(8, x6); \
+      T_PUT_##t7(9, x7); \
+      T_PUT_##t8(10, x8); \
+      T_PUT_##t9(11, x9); \
+      T_PUT_##t10(12, x10); \
+      T_PUT_##t11(13, x11); \
+      T_PUT_##t12(14, x12); \
+      T_PUT_##t13(15, x13); \
+      T_PUT_##t14(16, x14); \
+      T_PUT_##t15(17, x15); \
+      T_PUT_##t16(18, x16); \
+      T_PUT_##t17(19, x17); \
+      T_PUT_##t18(20, x18); \
+      T_PUT_##t19(21, x19); \
+      T_PUT_##t20(22, x20); \
+      T_PUT_##t21(23, x21); \
+      T_PUT_##t22(24, x22); \
+      T_PUT_##t23(25, x23); \
+      T_COMMIT(); \
+    } \
+  } while (0)
+
+#define T51(t,t0,x0,t1,x1,t2,x2,t3,x3,t4,x4,t5,x5,t6,x6,t7,x7,t8,x8,t9,x9,\
+            t10,x10,t11,x11,t12,x12,t13,x13,t14,x14,t15,x15,t16,x16,t17,x17,\
+            t18,x18,t19,x19,t20,x20,t21,x21,t22,x22,t23,x23,t24,x24) \
+  do { \
+    if (T_ACTIVE(t)) { \
+      T_LOCAL_DATA \
+      T_HEADER(t); \
+      T_PUT_##t0(2, x0); \
+      T_PUT_##t1(3, x1); \
+      T_PUT_##t2(4, x2); \
+      T_PUT_##t3(5, x3); \
+      T_PUT_##t4(6, x4); \
+      T_PUT_##t5(7, x5); \
+      T_PUT_##t6(8, x6); \
+      T_PUT_##t7(9, x7); \
+      T_PUT_##t8(10, x8); \
+      T_PUT_##t9(11, x9); \
+      T_PUT_##t10(12, x10); \
+      T_PUT_##t11(13, x11); \
+      T_PUT_##t12(14, x12); \
+      T_PUT_##t13(15, x13); \
+      T_PUT_##t14(16, x14); \
+      T_PUT_##t15(17, x15); \
+      T_PUT_##t16(18, x16); \
+      T_PUT_##t17(19, x17); \
+      T_PUT_##t18(20, x18); \
+      T_PUT_##t19(21, x19); \
+      T_PUT_##t20(22, x20); \
+      T_PUT_##t21(23, x21); \
+      T_PUT_##t22(24, x22); \
+      T_PUT_##t23(25, x23); \
+      T_PUT_##t24(26, x24); \
+      T_COMMIT(); \
+    } \
+  } while (0)
+
+#define T53(t,t0,x0,t1,x1,t2,x2,t3,x3,t4,x4,t5,x5,t6,x6,t7,x7,t8,x8,t9,x9,\
+            t10,x10,t11,x11,t12,x12,t13,x13,t14,x14,t15,x15,t16,x16,t17,x17,\
+            t18,x18,t19,x19,t20,x20,t21,x21,t22,x22,t23,x23,t24,x24,t25,x25) \
+  do { \
+    if (T_ACTIVE(t)) { \
+      T_LOCAL_DATA \
+      T_HEADER(t); \
+      T_PUT_##t0(2, x0); \
+      T_PUT_##t1(3, x1); \
+      T_PUT_##t2(4, x2); \
+      T_PUT_##t3(5, x3); \
+      T_PUT_##t4(6, x4); \
+      T_PUT_##t5(7, x5); \
+      T_PUT_##t6(8, x6); \
+      T_PUT_##t7(9, x7); \
+      T_PUT_##t8(10, x8); \
+      T_PUT_##t9(11, x9); \
+      T_PUT_##t10(12, x10); \
+      T_PUT_##t11(13, x11); \
+      T_PUT_##t12(14, x12); \
+      T_PUT_##t13(15, x13); \
+      T_PUT_##t14(16, x14); \
+      T_PUT_##t15(17, x15); \
+      T_PUT_##t16(18, x16); \
+      T_PUT_##t17(19, x17); \
+      T_PUT_##t18(20, x18); \
+      T_PUT_##t19(21, x19); \
+      T_PUT_##t20(22, x20); \
+      T_PUT_##t21(23, x21); \
+      T_PUT_##t22(24, x22); \
+      T_PUT_##t23(25, x23); \
+      T_PUT_##t24(26, x24); \
+      T_PUT_##t25(27, x25); \
+      T_COMMIT(); \
+    } \
+  } while (0)
+
+#define T55(t,t0,x0,t1,x1,t2,x2,t3,x3,t4,x4,t5,x5,t6,x6,t7,x7,t8,x8,t9,x9,\
+            t10,x10,t11,x11,t12,x12,t13,x13,t14,x14,t15,x15,t16,x16,t17,x17,\
+            t18,x18,t19,x19,t20,x20,t21,x21,t22,x22,t23,x23,t24,x24,t25,x25,\
+            t26,x26) \
+  do { \
+    if (T_ACTIVE(t)) { \
+      T_LOCAL_DATA \
+      T_HEADER(t); \
+      T_PUT_##t0(2, x0); \
+      T_PUT_##t1(3, x1); \
+      T_PUT_##t2(4, x2); \
+      T_PUT_##t3(5, x3); \
+      T_PUT_##t4(6, x4); \
+      T_PUT_##t5(7, x5); \
+      T_PUT_##t6(8, x6); \
+      T_PUT_##t7(9, x7); \
+      T_PUT_##t8(10, x8); \
+      T_PUT_##t9(11, x9); \
+      T_PUT_##t10(12, x10); \
+      T_PUT_##t11(13, x11); \
+      T_PUT_##t12(14, x12); \
+      T_PUT_##t13(15, x13); \
+      T_PUT_##t14(16, x14); \
+      T_PUT_##t15(17, x15); \
+      T_PUT_##t16(18, x16); \
+      T_PUT_##t17(19, x17); \
+      T_PUT_##t18(20, x18); \
+      T_PUT_##t19(21, x19); \
+      T_PUT_##t20(22, x20); \
+      T_PUT_##t21(23, x21); \
+      T_PUT_##t22(24, x22); \
+      T_PUT_##t23(25, x23); \
+      T_PUT_##t24(26, x24); \
+      T_PUT_##t25(27, x25); \
+      T_PUT_##t26(28, x26); \
+      T_COMMIT(); \
+    } \
+  } while (0)
+
+#define T57(t,t0,x0,t1,x1,t2,x2,t3,x3,t4,x4,t5,x5,t6,x6,t7,x7,t8,x8,t9,x9,\
+            t10,x10,t11,x11,t12,x12,t13,x13,t14,x14,t15,x15,t16,x16,t17,x17,\
+            t18,x18,t19,x19,t20,x20,t21,x21,t22,x22,t23,x23,t24,x24,t25,x25,\
+            t26,x26,t27,x27) \
+  do { \
+    if (T_ACTIVE(t)) { \
+      T_LOCAL_DATA \
+      T_HEADER(t); \
+      T_PUT_##t0(2, x0); \
+      T_PUT_##t1(3, x1); \
+      T_PUT_##t2(4, x2); \
+      T_PUT_##t3(5, x3); \
+      T_PUT_##t4(6, x4); \
+      T_PUT_##t5(7, x5); \
+      T_PUT_##t6(8, x6); \
+      T_PUT_##t7(9, x7); \
+      T_PUT_##t8(10, x8); \
+      T_PUT_##t9(11, x9); \
+      T_PUT_##t10(12, x10); \
+      T_PUT_##t11(13, x11); \
+      T_PUT_##t12(14, x12); \
+      T_PUT_##t13(15, x13); \
+      T_PUT_##t14(16, x14); \
+      T_PUT_##t15(17, x15); \
+      T_PUT_##t16(18, x16); \
+      T_PUT_##t17(19, x17); \
+      T_PUT_##t18(20, x18); \
+      T_PUT_##t19(21, x19); \
+      T_PUT_##t20(22, x20); \
+      T_PUT_##t21(23, x21); \
+      T_PUT_##t22(24, x22); \
+      T_PUT_##t23(25, x23); \
+      T_PUT_##t24(26, x24); \
+      T_PUT_##t25(27, x25); \
+      T_PUT_##t26(28, x26); \
+      T_PUT_##t27(29, x27); \
+      T_COMMIT(); \
+    } \
+  } while (0)
+
+#define T59(t,t0,x0,t1,x1,t2,x2,t3,x3,t4,x4,t5,x5,t6,x6,t7,x7,t8,x8,t9,x9,\
+            t10,x10,t11,x11,t12,x12,t13,x13,t14,x14,t15,x15,t16,x16,t17,x17,\
+            t18,x18,t19,x19,t20,x20,t21,x21,t22,x22,t23,x23,t24,x24,t25,x25,\
+            t26,x26,t27,x27,t28,x28) \
+  do { \
+    if (T_ACTIVE(t)) { \
+      T_LOCAL_DATA \
+      T_HEADER(t); \
+      T_PUT_##t0(2, x0); \
+      T_PUT_##t1(3, x1); \
+      T_PUT_##t2(4, x2); \
+      T_PUT_##t3(5, x3); \
+      T_PUT_##t4(6, x4); \
+      T_PUT_##t5(7, x5); \
+      T_PUT_##t6(8, x6); \
+      T_PUT_##t7(9, x7); \
+      T_PUT_##t8(10, x8); \
+      T_PUT_##t9(11, x9); \
+      T_PUT_##t10(12, x10); \
+      T_PUT_##t11(13, x11); \
+      T_PUT_##t12(14, x12); \
+      T_PUT_##t13(15, x13); \
+      T_PUT_##t14(16, x14); \
+      T_PUT_##t15(17, x15); \
+      T_PUT_##t16(18, x16); \
+      T_PUT_##t17(19, x17); \
+      T_PUT_##t18(20, x18); \
+      T_PUT_##t19(21, x19); \
+      T_PUT_##t20(22, x20); \
+      T_PUT_##t21(23, x21); \
+      T_PUT_##t22(24, x22); \
+      T_PUT_##t23(25, x23); \
+      T_PUT_##t24(26, x24); \
+      T_PUT_##t25(27, x25); \
+      T_PUT_##t26(28, x26); \
+      T_PUT_##t27(29, x27); \
+      T_PUT_##t28(30, x28); \
+      T_COMMIT(); \
+    } \
+  } while (0)
+
+#define T61(t,t0,x0,t1,x1,t2,x2,t3,x3,t4,x4,t5,x5,t6,x6,t7,x7,t8,x8,t9,x9,\
+            t10,x10,t11,x11,t12,x12,t13,x13,t14,x14,t15,x15,t16,x16,t17,x17,\
+            t18,x18,t19,x19,t20,x20,t21,x21,t22,x22,t23,x23,t24,x24,t25,x25,\
+            t26,x26,t27,x27,t28,x28,t29,x29) \
+  do { \
+    if (T_ACTIVE(t)) { \
+      T_LOCAL_DATA \
+      T_HEADER(t); \
+      T_PUT_##t0(2, x0); \
+      T_PUT_##t1(3, x1); \
+      T_PUT_##t2(4, x2); \
+      T_PUT_##t3(5, x3); \
+      T_PUT_##t4(6, x4); \
+      T_PUT_##t5(7, x5); \
+      T_PUT_##t6(8, x6); \
+      T_PUT_##t7(9, x7); \
+      T_PUT_##t8(10, x8); \
+      T_PUT_##t9(11, x9); \
+      T_PUT_##t10(12, x10); \
+      T_PUT_##t11(13, x11); \
+      T_PUT_##t12(14, x12); \
+      T_PUT_##t13(15, x13); \
+      T_PUT_##t14(16, x14); \
+      T_PUT_##t15(17, x15); \
+      T_PUT_##t16(18, x16); \
+      T_PUT_##t17(19, x17); \
+      T_PUT_##t18(20, x18); \
+      T_PUT_##t19(21, x19); \
+      T_PUT_##t20(22, x20); \
+      T_PUT_##t21(23, x21); \
+      T_PUT_##t22(24, x22); \
+      T_PUT_##t23(25, x23); \
+      T_PUT_##t24(26, x24); \
+      T_PUT_##t25(27, x25); \
+      T_PUT_##t26(28, x26); \
+      T_PUT_##t27(29, x27); \
+      T_PUT_##t28(30, x28); \
+      T_PUT_##t29(31, x29); \
+      T_COMMIT(); \
+    } \
+  } while (0)
+
+#define T63(t,t0,x0,t1,x1,t2,x2,t3,x3,t4,x4,t5,x5,t6,x6,t7,x7,t8,x8,t9,x9,\
+            t10,x10,t11,x11,t12,x12,t13,x13,t14,x14,t15,x15,t16,x16,t17,x17,\
+            t18,x18,t19,x19,t20,x20,t21,x21,t22,x22,t23,x23,t24,x24,t25,x25,\
+            t26,x26,t27,x27,t28,x28,t29,x29,t30,x30) \
+  do { \
+    if (T_ACTIVE(t)) { \
+      T_LOCAL_DATA \
+      T_HEADER(t); \
+      T_PUT_##t0(2, x0); \
+      T_PUT_##t1(3, x1); \
+      T_PUT_##t2(4, x2); \
+      T_PUT_##t3(5, x3); \
+      T_PUT_##t4(6, x4); \
+      T_PUT_##t5(7, x5); \
+      T_PUT_##t6(8, x6); \
+      T_PUT_##t7(9, x7); \
+      T_PUT_##t8(10, x8); \
+      T_PUT_##t9(11, x9); \
+      T_PUT_##t10(12, x10); \
+      T_PUT_##t11(13, x11); \
+      T_PUT_##t12(14, x12); \
+      T_PUT_##t13(15, x13); \
+      T_PUT_##t14(16, x14); \
+      T_PUT_##t15(17, x15); \
+      T_PUT_##t16(18, x16); \
+      T_PUT_##t17(19, x17); \
+      T_PUT_##t18(20, x18); \
+      T_PUT_##t19(21, x19); \
+      T_PUT_##t20(22, x20); \
+      T_PUT_##t21(23, x21); \
+      T_PUT_##t22(24, x22); \
+      T_PUT_##t23(25, x23); \
+      T_PUT_##t24(26, x24); \
+      T_PUT_##t25(27, x25); \
+      T_PUT_##t26(28, x26); \
+      T_PUT_##t27(29, x27); \
+      T_PUT_##t28(30, x28); \
+      T_PUT_##t29(31, x29); \
+      T_PUT_##t30(32, x30); \
+      T_COMMIT(); \
+    } \
+  } while (0)
+
+#define T65(t,t0,x0,t1,x1,t2,x2,t3,x3,t4,x4,t5,x5,t6,x6,t7,x7,t8,x8,t9,x9,\
+        t10,x10,t11,x11,t12,x12,t13,x13,t14,x14,t15,x15,t16,x16,t17,x17,\
+        t18,x18,t19,x19,t20,x20,t21,x21,t22,x22,t23,x23,t24,x24,t25,x25,\
+        t26,x26,t27,x27,t28,x28,t29,x29,t30,x30,t31,x31) \
+  do { \
+    if (T_ACTIVE(t)) { \
+      T_LOCAL_DATA \
+      T_HEADER(t); \
+      T_PUT_##t0(2, x0); \
+      T_PUT_##t1(3, x1); \
+      T_PUT_##t2(4, x2); \
+      T_PUT_##t3(5, x3); \
+      T_PUT_##t4(6, x4); \
+      T_PUT_##t5(7, x5); \
+      T_PUT_##t6(8, x6); \
+      T_PUT_##t7(9, x7); \
+      T_PUT_##t8(10, x8); \
+      T_PUT_##t9(11, x9); \
+      T_PUT_##t10(12, x10); \
+      T_PUT_##t11(13, x11); \
+      T_PUT_##t12(14, x12); \
+      T_PUT_##t13(15, x13); \
+      T_PUT_##t14(16, x14); \
+      T_PUT_##t15(17, x15); \
+      T_PUT_##t16(18, x16); \
+      T_PUT_##t17(19, x17); \
+      T_PUT_##t18(20, x18); \
+      T_PUT_##t19(21, x19); \
+      T_PUT_##t20(22, x20); \
+      T_PUT_##t21(23, x21); \
+      T_PUT_##t22(24, x22); \
+      T_PUT_##t23(25, x23); \
+      T_PUT_##t24(26, x24); \
+      T_PUT_##t25(27, x25); \
+      T_PUT_##t26(28, x26); \
+      T_PUT_##t27(29, x27); \
+      T_PUT_##t28(30, x28); \
+      T_PUT_##t29(31, x29); \
+      T_PUT_##t30(32, x30); \
+      T_PUT_##t31(33, x31); \
+      T_COMMIT(); \
+    } \
+  } while (0)
+
+#define T67(t,t0,x0,t1,x1,t2,x2,t3,x3,t4,x4,t5,x5,t6,x6,t7,x7,t8,x8,t9,x9,\
+            t10,x10,t11,x11,t12,x12,t13,x13,t14,x14,t15,x15,t16,x16,t17,x17,\
+            t18,x18,t19,x19,t20,x20,t21,x21,t22,x22,t23,x23,t24,x24,t25,x25,\
+            t26,x26,t27,x27,t28,x28,t29,x29,t30,x30,t31,x31,t32,x32) \
+  do { \
+    if (T_ACTIVE(t)) { \
+      T_LOCAL_DATA \
+      T_HEADER(t); \
+      T_PUT_##t0(2, x0); \
+      T_PUT_##t1(3, x1); \
+      T_PUT_##t2(4, x2); \
+      T_PUT_##t3(5, x3); \
+      T_PUT_##t4(6, x4); \
+      T_PUT_##t5(7, x5); \
+      T_PUT_##t6(8, x6); \
+      T_PUT_##t7(9, x7); \
+      T_PUT_##t8(10, x8); \
+      T_PUT_##t9(11, x9); \
+      T_PUT_##t10(12, x10); \
+      T_PUT_##t11(13, x11); \
+      T_PUT_##t12(14, x12); \
+      T_PUT_##t13(15, x13); \
+      T_PUT_##t14(16, x14); \
+      T_PUT_##t15(17, x15); \
+      T_PUT_##t16(18, x16); \
+      T_PUT_##t17(19, x17); \
+      T_PUT_##t18(20, x18); \
+      T_PUT_##t19(21, x19); \
+      T_PUT_##t20(22, x20); \
+      T_PUT_##t21(23, x21); \
+      T_PUT_##t22(24, x22); \
+      T_PUT_##t23(25, x23); \
+      T_PUT_##t24(26, x24); \
+      T_PUT_##t25(27, x25); \
+      T_PUT_##t26(28, x26); \
+      T_PUT_##t27(29, x27); \
+      T_PUT_##t28(30, x28); \
+      T_PUT_##t29(31, x29); \
+      T_PUT_##t30(32, x30); \
+      T_PUT_##t31(33, x31); \
+      T_PUT_##t32(34, x32); \
+      T_COMMIT(); \
+    } \
+  } while (0)
+
+#define T69(t,t0,x0,t1,x1,t2,x2,t3,x3,t4,x4,t5,x5,t6,x6,t7,x7,t8,x8,t9,x9,\
+            t10,x10,t11,x11,t12,x12,t13,x13,t14,x14,t15,x15,t16,x16,t17,x17,\
+            t18,x18,t19,x19,t20,x20,t21,x21,t22,x22,t23,x23,t24,x24,t25,x25,\
+            t26,x26,t27,x27,t28,x28,t29,x29,t30,x30,t31,x31,t32,x32,t33,x33) \
+  do { \
+    if (T_ACTIVE(t)) { \
+      T_LOCAL_DATA \
+      T_HEADER(t); \
+      T_PUT_##t0(2, x0); \
+      T_PUT_##t1(3, x1); \
+      T_PUT_##t2(4, x2); \
+      T_PUT_##t3(5, x3); \
+      T_PUT_##t4(6, x4); \
+      T_PUT_##t5(7, x5); \
+      T_PUT_##t6(8, x6); \
+      T_PUT_##t7(9, x7); \
+      T_PUT_##t8(10, x8); \
+      T_PUT_##t9(11, x9); \
+      T_PUT_##t10(12, x10); \
+      T_PUT_##t11(13, x11); \
+      T_PUT_##t12(14, x12); \
+      T_PUT_##t13(15, x13); \
+      T_PUT_##t14(16, x14); \
+      T_PUT_##t15(17, x15); \
+      T_PUT_##t16(18, x16); \
+      T_PUT_##t17(19, x17); \
+      T_PUT_##t18(20, x18); \
+      T_PUT_##t19(21, x19); \
+      T_PUT_##t20(22, x20); \
+      T_PUT_##t21(23, x21); \
+      T_PUT_##t22(24, x22); \
+      T_PUT_##t23(25, x23); \
+      T_PUT_##t24(26, x24); \
+      T_PUT_##t25(27, x25); \
+      T_PUT_##t26(28, x26); \
+      T_PUT_##t27(29, x27); \
+      T_PUT_##t28(30, x28); \
+      T_PUT_##t29(31, x29); \
+      T_PUT_##t30(32, x30); \
+      T_PUT_##t31(33, x31); \
+      T_PUT_##t32(34, x32); \
+      T_PUT_##t33(35, x33); \
+      T_COMMIT(); \
+    } \
+  } while (0)
+
+#define T71(t,t0,x0,t1,x1,t2,x2,t3,x3,t4,x4,t5,x5,t6,x6,t7,x7,t8,x8,t9,x9,\
+            t10,x10,t11,x11,t12,x12,t13,x13,t14,x14,t15,x15,t16,x16,t17,x17,\
+            t18,x18,t19,x19,t20,x20,t21,x21,t22,x22,t23,x23,t24,x24,t25,x25,\
+            t26,x26,t27,x27,t28,x28,t29,x29,t30,x30,t31,x31,t32,x32,t33,x33,t34,x34) \
+  do { \
+    if (T_ACTIVE(t)) { \
+      T_LOCAL_DATA \
+      T_HEADER(t); \
+      T_PUT_##t0(2, x0); \
+      T_PUT_##t1(3, x1); \
+      T_PUT_##t2(4, x2); \
+      T_PUT_##t3(5, x3); \
+      T_PUT_##t4(6, x4); \
+      T_PUT_##t5(7, x5); \
+      T_PUT_##t6(8, x6); \
+      T_PUT_##t7(9, x7); \
+      T_PUT_##t8(10, x8); \
+      T_PUT_##t9(11, x9); \
+      T_PUT_##t10(12, x10); \
+      T_PUT_##t11(13, x11); \
+      T_PUT_##t12(14, x12); \
+      T_PUT_##t13(15, x13); \
+      T_PUT_##t14(16, x14); \
+      T_PUT_##t15(17, x15); \
+      T_PUT_##t16(18, x16); \
+      T_PUT_##t17(19, x17); \
+      T_PUT_##t18(20, x18); \
+      T_PUT_##t19(21, x19); \
+      T_PUT_##t20(22, x20); \
+      T_PUT_##t21(23, x21); \
+      T_PUT_##t22(24, x22); \
+      T_PUT_##t23(25, x23); \
+      T_PUT_##t24(26, x24); \
+      T_PUT_##t25(27, x25); \
+      T_PUT_##t26(28, x26); \
+      T_PUT_##t27(29, x27); \
+      T_PUT_##t28(30, x28); \
+      T_PUT_##t29(31, x29); \
+      T_PUT_##t30(32, x30); \
+      T_PUT_##t31(33, x31); \
+      T_PUT_##t32(34, x32); \
+      T_PUT_##t33(35, x33); \
+      T_PUT_##t34(36, x34); \
+      T_COMMIT(); \
+    } \
+  } while (0)
+
+
 #define T_CALL_ERROR \
   do { \
     printf("%s:%d:%s: error calling T, you have to use T_INT() or T_XX()\n", \
@@ -627,6 +1274,22 @@ extern int *T_active;
 #define T34(...) T_CALL_ERROR
 #define T36(...) T_CALL_ERROR
 #define T38(...) T_CALL_ERROR
+#define T40(...) T_CALL_ERROR
+#define T42(...) T_CALL_ERROR
+#define T44(...) T_CALL_ERROR
+#define T46(...) T_CALL_ERROR
+#define T48(...) T_CALL_ERROR
+#define T50(...) T_CALL_ERROR
+#define T52(...) T_CALL_ERROR
+#define T54(...) T_CALL_ERROR
+#define T56(...) T_CALL_ERROR
+#define T58(...) T_CALL_ERROR
+#define T60(...) T_CALL_ERROR
+#define T62(...) T_CALL_ERROR
+#define T64(...) T_CALL_ERROR
+#define T66(...) T_CALL_ERROR
+#define T68(...) T_CALL_ERROR
+#define T70(...) T_CALL_ERROR
 
 /* special cases for VCD logs */
 

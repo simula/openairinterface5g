@@ -9,10 +9,11 @@ else()
   message(FATAL_ERROR "unknown E1AP_RELEASE ${E1AP_RELEASE}")
 endif()
 
-add_custom_command(OUTPUT ${e1ap_source} ${e1ap_headers}
-  COMMAND ASN1C_PREFIX=E1AP_ ${ASN1C_EXEC} -gen-APER -gen-UPER -no-gen-JER -no-gen-BER -no-gen-OER -fcompound-names -no-gen-example -findirect-choice -fno-include-deps -D ${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/${E1AP_GRAMMAR}
-  DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/${E1AP_GRAMMAR}
-  COMMENT "Generating E1AP source files from ${CMAKE_CURRENT_SOURCE_DIR}/${E1AP_GRAMMAR}"
+run_asn1c(${CMAKE_CURRENT_SOURCE_DIR}/${E1AP_GRAMMAR}
+          "E1AP_"
+          OUTPUT ${e1ap_source} ${e1ap_headers}
+          OPTIONS -gen-APER -gen-UPER -no-gen-JER -no-gen-BER -no-gen-OER -fcompound-names -no-gen-example -findirect-choice -fno-include-deps
+          COMMENT "E1AP source files"
 )
 
 add_library(asn1_e1ap ${e1ap_source})

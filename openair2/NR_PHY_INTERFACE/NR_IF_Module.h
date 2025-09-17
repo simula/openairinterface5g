@@ -35,9 +35,11 @@
 
 #include <pthread.h>
 #include <stdint.h>
+#include "assertions.h"
 #include "nfapi_nr_interface_scf.h"
 #include "common/platform_constants.h"
 #include "common/platform_types.h"
+#include "common/openairinterface5g_limits.h"
 
 #define MAX_NUM_DL_PDU 100
 #define MAX_NUM_UL_PDU 100
@@ -51,6 +53,10 @@
 #define MAX_NUM_RACH_IND 100
 #define MAX_NUM_SRS_IND 100
 
+#define MAX_NUM_NR_RX_RACH_PDUS 4
+#define MAX_UL_PDUS_PER_SLOT 8
+#define MAX_NUM_NR_SRS_PDUS 8
+#define MAX_NUM_NR_UCI_PDUS MAX_MOBILES_PER_GNB
 typedef struct {
   /// Module ID
   module_id_t module_id;
@@ -65,10 +71,6 @@ typedef struct {
   nfapi_nr_crc_indication_t crc_ind;
   /// RX indication
   nfapi_nr_rx_data_indication_t rx_ind;
-  /// mutex to protect concurrent access to crc_ind and rx_ind, which the L2
-  /// needs to be pairwise
-  pthread_mutex_t crc_rx_mutex;
-
   /// RACH indication list
   nfapi_nr_rach_indication_t rach_ind;
 
@@ -77,6 +79,12 @@ typedef struct {
 
   /// UCI indication
   nfapi_nr_uci_indication_t uci_ind;
+  nfapi_nr_crc_t crc_pdu_list[MAX_UL_PDUS_PER_SLOT];
+  nfapi_nr_rx_data_pdu_t rx_pdu_list[MAX_UL_PDUS_PER_SLOT];
+  nfapi_nr_srs_indication_pdu_t srs_pdu_list[MAX_NUM_NR_SRS_PDUS];
+  nfapi_nr_uci_t uci_pdu_list[MAX_NUM_NR_UCI_PDUS];
+  /// NFAPI PRACH information
+  nfapi_nr_prach_indication_pdu_t prach_pdu_indication_list[MAX_NUM_NR_RX_RACH_PDUS];
 
 } NR_UL_IND_t;
 

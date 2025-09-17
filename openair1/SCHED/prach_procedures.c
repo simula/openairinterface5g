@@ -120,7 +120,8 @@ void prach_procedures(PHY_VARS_eNB *eNB,
     */
 
     if (eNB->frame_parms.prach_emtc_config_common.prach_ConfigInfo.prach_CElevel_enable[0] == 1) {
-      if ((eNB->prach_energy_counter == 100) && (max_preamble_energy[0] > eNB->measurements.prach_I0 + eNB->prach_DTX_threshold_emtc[0])) {
+      if ((eNB->prach_energy_counter == NUM_PRACH_RX_FOR_NOISE_ESTIMATE)
+          && (max_preamble_energy[0] > eNB->measurements.prach_I0 + eNB->prach_DTX_threshold_emtc[0])) {
         eNB->UL_INFO.rach_ind_br.rach_indication_body.number_of_preambles++;
         eNB->preamble_list_br[ind].preamble_rel8.timing_advance = max_preamble_delay[ind];      //
         eNB->preamble_list_br[ind].preamble_rel8.preamble = max_preamble[ind];
@@ -142,7 +143,7 @@ void prach_procedures(PHY_VARS_eNB *eNB,
     }
     } */// ce_level
   } else {
-    if ((eNB->prach_energy_counter == 100) &&
+    if ((eNB->prach_energy_counter == NUM_PRACH_RX_FOR_NOISE_ESTIMATE) &&
         (max_preamble_energy[0] > eNB->measurements.prach_I0+eNB->prach_DTX_threshold)) {
       LOG_D(PHY,"[eNB %d/%d][RAPROC] Frame %d, subframe %d Initiating RA procedure with preamble %d, energy %d.%d dB, delay %d\n",
             eNB->Mod_id,
@@ -186,7 +187,8 @@ void prach_procedures(PHY_VARS_eNB *eNB,
 
       if (frame==0) LOG_D(PHY,"prach_I0 = %d.%d dB\n",eNB->measurements.prach_I0/10,eNB->measurements.prach_I0%10);
 
-      if (eNB->prach_energy_counter < 100) eNB->prach_energy_counter++;
+      if (eNB->prach_energy_counter < NUM_PRACH_RX_FOR_NOISE_ESTIMATE)
+        eNB->prach_energy_counter++;
     }
   } // else br_flag
 

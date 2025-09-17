@@ -66,7 +66,7 @@
 #include "PHY/LTE_TRANSPORT/transport_eNB.h"
 #include "openair2/PHY_INTERFACE/IF_Module.h"
 #include "common/openairinterface5g_limits.h"
-
+#include "common/utils/threadPool/task_ans.h"
 
 #define PBCH_A 24
 #define MAX_NUM_RU_PER_eNB 64
@@ -255,11 +255,6 @@ typedef struct {
   tpool_t *threadPool;
   int nbDecode;
   notifiedFIFO_t *respDecode;
-  pthread_mutex_t mutex_emulateRF;
-  int instance_cnt_emulateRF;
-  pthread_t pthread_emulateRF;
-  pthread_attr_t attr_emulateRF;
-  pthread_cond_t cond_emulateRF;
   int first_rx;
 } L1_rxtx_proc_t;
 
@@ -600,8 +595,8 @@ typedef struct PHY_VARS_eNB_s {
   // PUCCH1a/b energy detection parameters for eMTC per CE-level
   int              pucch1ab_DTX_threshold_emtc[4];
 
-  uint32_t X_u[64][839];
-  uint32_t X_u_br[4][64][839];
+  c16_t X_u[64][839];
+  c16_t X_u_br[4][64][839];
   uint8_t pbch_configured;
   uint8_t pbch_pdu[4]; //PBCH_PDU_SIZE
   char eNB_generate_rar;
@@ -786,6 +781,7 @@ typedef struct TurboDecode_s {
     int offset;
     int maxIterations;
     int decodeIterations;
+    task_ans_t *ans;
 } turboDecode_t;
 
 #define TURBO_SIMD_SOFTBITS   96+12+3+3*6144
@@ -802,6 +798,7 @@ typedef struct turboEncode_s {
   time_stats_t *rm_stats;
   time_stats_t *te_stats;
   time_stats_t *i_stats;
+  task_ans_t *ans;
 } turboEncode_t;
 
 

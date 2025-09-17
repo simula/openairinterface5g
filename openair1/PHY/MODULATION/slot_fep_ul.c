@@ -43,42 +43,13 @@ int slot_fep_ul(RU_t *ru,
   //  unsigned int subframe_offset;
   unsigned int slot_offset;
 
-
-  dft_size_idx_t dftsize;
-
   int tmp_dft_in[2048] __attribute__ ((aligned (32)));  // This is for misalignment issues for 6 and 15 PRBs
   unsigned int frame_length_samples = fp->samples_per_tti * 10;
   unsigned int rx_offset;
-
-  switch (fp->ofdm_symbol_size) {
-  case 128:
-    dftsize = DFT_128;
-    break;
-
-  case 256:
-    dftsize = DFT_256;
-    break;
-
-  case 512:
-    dftsize = DFT_512;
-    break;
-
-  case 1024:
-    dftsize = DFT_1024;
-    break;
-
-  case 1536:
-    dftsize = DFT_1536;
-    break;
-
-  case 2048:
-    dftsize = DFT_2048;
-    break;
-
-  default:
-    dftsize = DFT_512;
-    break;
-  }
+  int s = fp->ofdm_symbol_size;
+  if (s != 128 && s != 256 && s != 512 && s != 1024 && s != 1536 && s != 2048)
+    s = 512;
+  const dft_size_idx_t dftsize = get_dft(s);
 
   if (no_prefix) {
     //    subframe_offset = frame_parms->ofdm_symbol_size * frame_parms->symbols_per_tti * (Ns>>1);

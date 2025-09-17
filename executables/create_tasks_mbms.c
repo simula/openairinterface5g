@@ -52,11 +52,10 @@ int create_tasks_mbms(uint32_t enb_nb) {
 
   if (enb_nb == 0) return 0;
 
-  if(!EPC_MODE_ENABLED){
+  if (IS_SOFTMODEM_NOS1) {
     rc = itti_create_task(TASK_SCTP, sctp_eNB_task, NULL);
     AssertFatal(rc >= 0, "Create task for SCTP failed\n");
   }
-
 
   LOG_I(MME_APP, "Creating MME_APP eNB Task\n");
   rc = itti_create_task (TASK_MME_APP, MME_app_task, NULL);
@@ -71,12 +70,12 @@ int create_tasks_mbms(uint32_t enb_nb) {
   rc = itti_create_task (TASK_MCE_APP, MCE_app_task, NULL);
   AssertFatal(rc >= 0, "Create task for MCE APP failed\n");
 
-    if(!EPC_MODE_ENABLED){
-   // rc = itti_create_task(TASK_SCTP, sctp_eNB_task, NULL);
-   // AssertFatal(rc >= 0, "Create task for SCTP failed\n");
+  if (IS_SOFTMODEM_NOS1) {
+    // rc = itti_create_task(TASK_SCTP, sctp_eNB_task, NULL);
+    // AssertFatal(rc >= 0, "Create task for SCTP failed\n");
     rc = itti_create_task(TASK_GTPV1_U, gtpv1uTask, NULL);
     AssertFatal(rc >= 0, "Create task for GTPV1U failed\n");
-    }
+  }
 
   if (is_m3ap_MCE_enabled()) {
      rc = itti_create_task(TASK_M3AP_MCE, m3ap_MCE_task, NULL);

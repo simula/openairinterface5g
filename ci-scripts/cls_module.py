@@ -25,17 +25,14 @@
 #---------------------------------------------------------------------
 
 #to use isfile
-import os
-import sys
 import logging
 #time.sleep
 import time
 import re
-import subprocess
-from datetime import datetime
 import yaml
 
 import cls_cmd
+from cls_ci_helper import archiveArtifact
 
 class Module_UE:
 
@@ -63,29 +60,31 @@ class Module_UE:
 			}
 			self.interface = m.get('IF')
 			self.MTU = m.get('MTU')
-			self.trace = m.get('trace') == True
-			self.logStore = m.get('LogStore')
 			self.cmd_prefix = m.get('CmdPrefix')
-			self.runIperf3Server = m.get('RunIperf3Server', True)
-			self.namespace = m.get('Namespace')
-			self.cnPath = m.get('CNPath')
-			logging.info(f'initialized {self.module_name}@{self.host} from {filename}')
+			logging.info(f'initialized UE {self} from {filename}')
+
+			t = m.get('Tracing')
+			self.trace = t is not None
+			if self.trace:
+				if t.get('Start') is None or t.get('Stop') is None or t.get('Collect')is None :
+					raise ValueError("need to have Start/Stop/Collect for tracing")
+				self.cmd_dict["traceStart"] = t.get('Start')
+				self.cmd_dict["traceStop"] = t.get('Stop')
+				self._logCollect = t.get('Collect')
+				if "%%log_dir%%" not in self._logCollect:
+					raise ValueError(f"(At least one) LogCollect expression for {module_name} must contain \"%%log_dir%%\"")
 
 	def __str__(self):
-		return f"{self.module_name}@{self.host} [IP: {self.getIP()}]"
+		return f"{self.module_name}@{self.host}"
 
 	def __repr__(self):
 		return self.__str__()
 
-	def _command(self, cmd, silent = False):
+	def _command(self, cmd, silent=False, reportNonZero=True):
 		if cmd is None:
 			raise Exception("no command provided")
-		if self.host == "" or self.host == "localhost":
-			c = cls_cmd.LocalCmd()
-		else:
-			c = cls_cmd.RemoteCmd(self.host)
-		response = c.run(cmd, silent=silent)
-		c.close()
+		with cls_cmd.getConnection(self.host) as c:
+			response = c.run(cmd, silent=silent, reportNonZero=reportNonZero)
 		return response
 
 #-----------------$
@@ -93,25 +92,23 @@ class Module_UE:
 #-----------------$
 
 	def initialize(self):
-		if self.trace:
-			raise Exception("UE tracing not implemented yet")
-			self._enableTrace()
 		# we first terminate to make sure the UE has been stopped
 		if self.cmd_dict["detach"]:
 			self._command(self.cmd_dict["detach"], silent=True)
 		self._command(self.cmd_dict["terminate"], silent=True)
 		ret = self._command(self.cmd_dict["initialize"])
 		logging.info(f'For command: {ret.args} | return output: {ret.stdout} | Code: {ret.returncode}')
+		if self.trace:
+			self._enableTrace()
 		# Here each UE returns differently for the successful initialization, requires check based on UE
 		return ret.returncode == 0
 
 
-	def terminate(self):
+	def terminate(self, ctx=None):
 		self._command(self.cmd_dict["terminate"])
-		if self.trace:
-			raise Exception("UE tracing not implemented yet")
+		if self.trace and ctx is not None:
 			self._disableTrace()
-			return self._logCollect()
+			return self._collectTrace(ctx)
 		return None
 
 	def attach(self, attach_tries = 4, attach_timeout = 60):
@@ -120,10 +117,11 @@ class Module_UE:
 			self._command(self.cmd_dict["attach"])
 			timeout = attach_timeout
 			logging.debug("Waiting for IP address to be assigned")
+			ip = self.getIP(silent=False, reportNonZero=True)
 			while timeout > 0 and not ip:
-				time.sleep(5)
-				timeout -= 5
-				ip = self.getIP()
+				time.sleep(1)
+				timeout -= 1
+				ip = self.getIP(silent=True, reportNonZero=False)
 			if ip:
 				break
 			logging.warning(f"UE did not receive IP address after {attach_timeout} s, detaching")
@@ -167,9 +165,9 @@ class Module_UE:
 			logging.error(message)
 			return False
 
-	def getIP(self):
-		output = self._command(self.cmd_dict["getNetwork"], silent=True)
-		result = re.search('inet (?P<ip>[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)', output.stdout)
+	def getIP(self, silent=True, reportNonZero=True):
+		output = self._command(self.cmd_dict["getNetwork"], silent=silent, reportNonZero=reportNonZero)
+		result = re.search(r'inet (?P<ip>[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)', output.stdout)
 		if result and result.group('ip'):
 			ip = result.group('ip')
 			return ip
@@ -177,7 +175,7 @@ class Module_UE:
 
 	def checkMTU(self):
 		output = self._command(self.cmd_dict["getNetwork"], silent=True)
-		result = re.search('mtu (?P<mtu>[0-9]+)', output.stdout)
+		result = re.search(r'mtu (?P<mtu>[0-9]+)', output.stdout)
 		if result and result.group('mtu') and int(result.group('mtu')) == self.MTU:
 			logging.debug(f'\u001B[1mUE Module {self.module_name} NIC MTU is {self.MTU} as expected\u001B[0m')
 			return True
@@ -194,30 +192,37 @@ class Module_UE:
 	def getHost(self):
 		return self.host
 
-	def getNamespace(self):
-		return self.namespace
-
-	def getCNPath(self):
-		return self.cnPath
-
-	def getRunIperf3Server(self):
-		return self.runIperf3Server
-
 	def getCmdPrefix(self):
 		return self.cmd_prefix if self.cmd_prefix else ""
 
 	def _enableTrace(self):
-		raise Exception("not implemented")
-		mySSH = sshconnection.SSHConnection()
-		mySSH.open(self.HostIPAddress, self.HostUsername, self.HostPassword)
-		#delete old artifacts
-		mySSH.command('echo ' + ' '  + ' | sudo -S rm -rf ci_qlog','\$',5)
-		#start Trace, artifact is created in home dir
-		mySSH.command('echo $USER; nohup sudo -E QLog/QLog -s ci_qlog -f NR5G.cfg > /dev/null 2>&1 &','\$', 5)
-		mySSH.close()
+		logging.info(f'UE {self}: start UE tracing')
+		self._command(self.cmd_dict["traceStart"])
 
 	def _disableTrace(self):
-		raise Exception("not implemented")
+		logging.info(f'UE {self}: stop UE tracing')
+		self._command(self.cmd_dict["traceStop"])
 
-	def _logCollect(self):
-		raise Exception("not implemented")
+	def _collectTrace(self, ctx):
+		remote_dir = "/tmp/ue-trace-logs"
+		with cls_cmd.getConnection(self.host) as c:
+			# create a directory for log collection
+			c.run(f'rm -rf {remote_dir}')
+			ret = c.run(f'mkdir {remote_dir}')
+			if ret.returncode != 0:
+				logging.error("cannot create directory for log collection")
+				return []
+			log_cmd = self._logCollect.replace('%%log_dir%%', remote_dir)
+			self._command(log_cmd)
+			# enumerate collected files
+			ret = c.run(f'ls {remote_dir}/*')
+			if ret.returncode != 0:
+				logging.error("cannot enumerate log files")
+				return []
+			log_files = []
+			# copy them to the executor one by one, and store in log_dir
+			for f in ret.stdout.split("\n"):
+				name = archiveArtifact(c, ctx, f)
+				log_files.append(name)
+			c.run(f'rm -rf {remote_dir}')
+			return log_files

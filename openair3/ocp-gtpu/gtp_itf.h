@@ -1,14 +1,39 @@
 #ifndef __GTPUNEW_ITF_H__
 #define __GTPUNEW_ITF_H__
 
+#include <stdint.h>
+#include <limits.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+
 #define GTPNOK -1
 
 # define GTPU_HEADER_OVERHEAD_MAX 64
 
-#include "common/utils/hashtable/hashtable.h"
+#include "common/platform_types.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+/* forward declaration */
+struct protocol_ctxt_s;
+typedef struct protocol_ctxt_s protocol_ctxt_t;
+struct gtpv1u_enb_create_tunnel_req_s;
+typedef struct gtpv1u_enb_create_tunnel_req_s gtpv1u_enb_create_tunnel_req_t;
+struct gtpv1u_enb_create_tunnel_resp_s;
+typedef struct gtpv1u_enb_create_tunnel_resp_s gtpv1u_enb_create_tunnel_resp_t;
+struct gtpv1u_enb_delete_tunnel_req_s;
+typedef struct gtpv1u_enb_delete_tunnel_req_s gtpv1u_enb_delete_tunnel_req_t;
+struct gtpv1u_enb_create_x2u_tunnel_req_s;
+typedef struct gtpv1u_enb_create_x2u_tunnel_req_s gtpv1u_enb_create_x2u_tunnel_req_t;
+struct gtpv1u_enb_create_x2u_tunnel_resp_s;
+typedef struct gtpv1u_enb_create_x2u_tunnel_resp_s gtpv1u_enb_create_x2u_tunnel_resp_t;
+struct gtpv1u_gnb_create_tunnel_req_s;
+typedef struct gtpv1u_gnb_create_tunnel_req_s gtpv1u_gnb_create_tunnel_req_t;
+struct gtpv1u_gnb_create_tunnel_resp_s;
+typedef struct gtpv1u_gnb_create_tunnel_resp_s gtpv1u_gnb_create_tunnel_resp_t;
+struct gtpv1u_gnb_delete_tunnel_req_s;
+typedef struct gtpv1u_gnb_delete_tunnel_req_s gtpv1u_gnb_delete_tunnel_req_t;
 
   typedef bool (*gtpCallback)(protocol_ctxt_t  *ctxt_pP,
                               const srb_flag_t     srb_flagP,
@@ -51,7 +76,6 @@ extern "C" {
 
   // the init function create a gtp instance and return the gtp instance id
   // the parameter originInstance will be sent back in each message from gtp to the creator
-  void gtpv1uReceiver(int h);
   void gtpv1uProcessTimeout(int handle,void *arg);
   int gtpv1u_create_s1u_tunnel(const instance_t instance,
                                const gtpv1u_enb_create_tunnel_req_t *create_tunnel_req,
@@ -90,7 +114,6 @@ extern "C" {
                              teid_t teid,
                              int outgoing_qfi,
                              transport_layer_addr_t remoteAddr,
-                             int port,
                              gtpCallback callBack,
                              gtpCallbackSDAP callBackSDAP);
 
@@ -102,17 +125,20 @@ extern "C" {
 
   int newGtpuDeleteOneTunnel(instance_t instance, ue_id_t ue_id, int rb_id);
   int newGtpuDeleteAllTunnels(instance_t instance, ue_id_t ue_id);
-  int newGtpuDeleteTunnels(instance_t instance, ue_id_t ue_id, int nbTunnels, pdusessionid_t *pdusession_id);
+  int newGtpuDeleteTunnels(instance_t instance, ue_id_t ue_id, int nbTunnels, int *pdusession_id);
+
+  void gtpv1uSendDirect(instance_t instance, ue_id_t ue_id, int bearer_id, uint8_t *buf, size_t len, bool seqNumFlag, bool npduNumFlag);
+  void gtpv1uSendDirectWithNRUSeqNum(instance_t instance,
+                                     ue_id_t ue_id,
+                                     int bearer_id,
+                                     uint8_t *buf,
+                                     size_t len);
+
   instance_t gtpv1Init(openAddr_t context);
   void *gtpv1uTask(void *args);
 
-  // Legacy to fix
-  typedef struct gtpv1u_data_s {
-    /* RB tree of UEs */
-    hash_table_t         *ue_mapping;
-  } gtpv1u_data_t;
 #define GTPV1U_BEARER_OFFSET 3
-#define GTPV1U_MAX_BEARERS_ID     (max_val_LTE_DRB_Identity - GTPV1U_BEARER_OFFSET)
+#define GTPV1U_MAX_BEARERS_ID     (32 - GTPV1U_BEARER_OFFSET) /* max_val_LTE_DRB_Identity */
   typedef enum {
     BEARER_DOWN = 0,
     BEARER_IN_CONFIG,

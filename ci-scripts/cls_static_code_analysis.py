@@ -36,8 +36,6 @@ import re               # reg
 import logging
 import os
 from pathlib import Path
-import time
-from multiprocessing import Process, Lock, SimpleQueue
 
 #-----------------------------------------------------------
 # OAI Testing modules
@@ -45,6 +43,7 @@ from multiprocessing import Process, Lock, SimpleQueue
 import helpreadme as HELP
 import constants as CONST
 import cls_cmd
+from cls_ci_helper import archiveArtifact
 
 #-----------------------------------------------------------
 # Class Declaration
@@ -77,25 +76,18 @@ class StaticCodeAnalysis():
 		self.ranAllowMerge = False
 		self.ranCommitID = ''
 		self.ranTargetBranch = ''
-		self.eNBIPAddress = ''
-		self.eNBUserName = ''
-		self.eNBPassword = ''
 		self.eNBSourceCodePath = ''
 
-	def CppCheckAnalysis(self, HTML):
+	def CppCheckAnalysis(self, ctx, node, HTML):
 		if self.ranRepository == '' or self.ranBranch == '' or self.ranCommitID == '':
 			HELP.GenericHelp(CONST.Version)
 			sys.exit('Insufficient Parameter')
-		lIpAddr = self.eNBIPAddress
-		lUserName = self.eNBUserName
-		lPassWord = self.eNBPassword
 		lSourcePath = self.eNBSourceCodePath
 
-		if lIpAddr == '' or lUserName == '' or lPassWord == '' or lSourcePath == '':
-			HELP.GenericHelp(CONST.Version)
-			sys.exit('Insufficient Parameter')
-		logging.debug('Building on server: ' + lIpAddr)
-		cmd = cls_cmd.getConnection(lIpAddr)
+		if not lSourcePath or not node:
+			raise ValueError(f"{lSourcePath=} {node=}")
+		logging.debug('Building on server: ' + node)
+		cmd = cls_cmd.getConnection(node)
 		self.testCase_id = HTML.testCase_id
 		# on RedHat/CentOS .git extension is mandatory
 		result = re.search('([a-zA-Z0-9\:\-\.\/])+\.git', self.ranRepository)
@@ -105,7 +97,7 @@ class StaticCodeAnalysis():
 			full_ran_repo_name = self.ranRepository + '.git'
 
 		cmd.cd(lSourcePath)
-		logDir = f'{lSourcePath}/cmake_targets/build_log_{self.testCase_id}'
+		logDir = f'{lSourcePath}/cmake_targets/log'
 		cmd.run(f'mkdir -p {logDir}')
 		cmd.run('docker image rm oai-cppcheck:bionic oai-cppcheck:focal')
 		cmd.run(f'sed -e "s@xenial@bionic@" {lSourcePath}/ci-scripts/docker/Dockerfile.cppcheck.xenial > {lSourcePath}/ci-scripts/docker/Dockerfile.cppcheck.bionic')
@@ -114,31 +106,21 @@ class StaticCodeAnalysis():
 		cmd.run(f'docker build --tag oai-cppcheck:focal --file {lSourcePath}/ci-scripts/docker/Dockerfile.cppcheck.focal . > {logDir}/cppcheck-focal.txt 2>&1')
 		cmd.run('docker image rm oai-cppcheck:bionic oai-cppcheck:focal')
 
-		# Analyzing the logs
-		cmd.copyin(f'{logDir}/cppcheck-bionic.txt', 'cppcheck-bionic.txt')
-		cmd.copyin(f'{logDir}/cppcheck-focal.txt', 'cppcheck-focal.txt')
+		bionic = archiveArtifact(cmd, ctx, f'{logDir}/cppcheck-bionic.txt')
+		focal = archiveArtifact(cmd, ctx, f'{logDir}/cppcheck-focal.txt')
 		cmd.close()
 
 		CCR = CppCheckResults()
 		CCR_ref = CppCheckResults()
 		vId = 0
 		for variant in CCR.variants:
-			refAvailable = False
-			if self.ranAllowMerge:
-				refFolder = str(Path.home()) + '/cppcheck-references'
-				if (os.path.isfile(refFolder + '/cppcheck-'+ variant + '.txt')):
-					refAvailable = True
-					with open(refFolder + '/cppcheck-'+ variant + '.txt', 'r') as refFile:
-						for line in refFile:
-							ret = re.search(' (?P<nb_errors>[0-9\.]+) errors', str(line))
-							if ret is not None:
-								CCR_ref.nbErrors[vId] = int(ret.group('nb_errors'))
-							ret = re.search(' (?P<nb_warnings>[0-9\.]+) warnings', str(line))
-							if ret is not None:
-								CCR_ref.nbWarnings[vId] = int(ret.group('nb_warnings'))
-			if (os.path.isfile('./cppcheck-'+ variant + '.txt')):
+			filename = ctx.baseFilename() + '-cppcheck-'+ variant + '.txt'
+			logging.info(f"will check file '{filename}'")
+			if not os.path.isfile(filename):
+				raise FileNotFoundError(f"{filename} is not a file")
+			else:
 				xmlStart = False
-				with open('./cppcheck-'+ variant + '.txt', 'r') as logfile:
+				with open(filename, 'r') as logfile:
 					for line in logfile:
 						ret = re.search('cppcheck version="(?P<version>[0-9\.]+)"', str(line))
 						if ret is not None:
@@ -187,26 +169,6 @@ class StaticCodeAnalysis():
 			vMsg += '   Wrong Scanf Nb Args:             ' + str(CCR.nbWrongScanfArg[vId]) + '\n'
 			for vLine in vMsg.split('\n'):
 				logging.debug(vLine)
-			if self.ranAllowMerge and refAvailable:
-				if CCR_ref.nbErrors[vId] == CCR.nbErrors[vId]:
-					logging.debug('   No change in number of errors')
-				elif CCR_ref.nbErrors[vId] > CCR.nbErrors[vId]:
-					logging.debug('   Good! Decrease in number of errors')
-				else:
-					logging.debug('   Bad! increase in number of errors')
-				if CCR_ref.nbWarnings[vId] == CCR.nbWarnings[vId]:
-					logging.debug('   No change in number of warnings')
-				elif CCR_ref.nbWarnings[vId] > CCR.nbWarnings[vId]:
-					logging.debug('   Good! Decrease in number of warnings')
-				else:
-					logging.debug('   Bad! increase in number of warnings')
-			# Create new reference file
-			if not self.ranAllowMerge:
-				refFolder = str(Path.home()) + '/cppcheck-references'
-				if not os.path.isdir(refFolder):
-					os.mkdir(refFolder)
-				with open(refFolder + '/cppcheck-'+ variant + '.txt', 'w') as refFile:
-					refFile.write(vMsg)
 			vId += 1
 
 		HTML.CreateHtmlTestRow('N/A', 'OK', CONST.ALL_PROCESSES_OK)
@@ -215,20 +177,16 @@ class StaticCodeAnalysis():
 
 		return True
 
-	def LicenceAndFormattingCheck(self, HTML):
+	def LicenceAndFormattingCheck(self, ctx, node, HTML):
 		# Workspace is no longer recreated from scratch.
 		# It implies that this method shall be called last within a build pipeline
 		# where workspace is already created
-		lIpAddr = self.eNBIPAddress
-		lUserName = self.eNBUserName
-		lPassWord = self.eNBPassword
 		lSourcePath = self.eNBSourceCodePath
 
-		if lIpAddr == '' or lUserName == '' or lPassWord == '' or lSourcePath == '':
-			HELP.GenericHelp(CONST.Version)
-			sys.exit('Insufficient Parameter')
-		logging.debug('Building on server: ' + lIpAddr)
-		cmd = cls_cmd.getConnection(lIpAddr)
+		if not node or not lSourcePath:
+			raise ValueError(f"{lSourcePath=} {node=}")
+		logging.debug('Building on server: ' + node)
+		cmd = cls_cmd.getConnection(node)
 		self.testCase_id = HTML.testCase_id
 
 		check_options = ''
@@ -240,21 +198,20 @@ class StaticCodeAnalysis():
 			else:
 				check_options += f' --build-arg TARGET_BRANCH={self.ranTargetBranch}'
 
-		logDir = f'{lSourcePath}/cmake_targets/build_log_{self.testCase_id}'
+		logDir = f'{lSourcePath}/cmake_targets/log/'
 		cmd.run(f'mkdir -p {logDir}')
 		cmd.run('docker image rm oai-formatting-check:latest')
-		cmd.run(f'docker build --target oai-formatting-check --tag oai-formatting-check:latest {check_options} --file {lSourcePath}/ci-scripts/docker/Dockerfile.formatting.bionic {lSourcePath} > {logDir}/oai-formatting-check.txt 2>&1')
+		cmd.run(f'docker build --target oai-formatting-check --tag oai-formatting-check:latest {check_options} --file {lSourcePath}/ci-scripts/docker/Dockerfile.formatting.ubuntu {lSourcePath} > {logDir}/oai-formatting-check.txt 2>&1')
 
 		cmd.run('docker image rm oai-formatting-check:latest')
 		cmd.run('docker image prune --force')
 		cmd.run('docker volume prune --force')
 
-		# Analyzing the logs
-		cmd.copyin(f'{logDir}/oai-formatting-check.txt', 'oai-formatting-check.txt')
+		file = archiveArtifact(cmd, ctx, f'{logDir}/oai-formatting-check.txt')
 		cmd.close()
 
 		finalStatus = 0
-		if (os.path.isfile('./oai-formatting-check.txt')):
+		if (os.path.isfile(file)):
 			analyzed = False
 			nbFilesNotFormatted = 0
 			listFiles = False
@@ -265,7 +222,7 @@ class StaticCodeAnalysis():
 			gnuGplLicenceFiles = []
 			suspectLicence = False
 			suspectLicenceFiles = []
-			with open('./oai-formatting-check.txt', 'r') as logfile:
+			with open(file, 'r') as logfile:
 				for line in logfile:
 					ret = re.search('./ci-scripts/checkCodingFormattingRules.sh', str(line))
 					if ret is not None:

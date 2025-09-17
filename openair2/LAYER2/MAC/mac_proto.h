@@ -1235,10 +1235,12 @@ void eNB_Config_Local_DRX(instance_t module_idP, rrc_mac_drx_config_req_t *rrc_m
 
 /* from here: prototypes to get rid of compilation warnings: doc to be written by function author */
 uint8_t ul_subframe2_k_phich(COMMON_channels_t *cc, sub_frame_t ul_subframe);
-#endif
 /** @}*/
 
 /* MAC ITTI messaging related functions */
 /* Main loop of MAC itti message handling */
 void *mac_enb_task(void *arg);
 
+uint32_t to_earfcn_DL(int eutra_bandP, long long int dl_CarrierFreq, uint32_t bw);
+uint32_t to_earfcn_UL(int eutra_bandP, long long int ul_CarrierFreq, uint32_t bw);
+#endif

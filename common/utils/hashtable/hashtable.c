@@ -305,3 +305,24 @@ hashtable_rc_t hashtable_get(const hash_table_t *const hashtblP, const hash_key_
   *dataP = NULL;
   return HASH_TABLE_KEY_NOT_EXISTS;
 }
+
+hash_table_iterator_s hashtable_get_iterator(const hash_table_t *const hashtbl)
+{
+  return (hash_table_iterator_s){.index = 0, .node = hashtbl->nodes[0], .hashtbl = hashtbl};
+}
+
+bool hashtable_iterator_getnext(hash_table_iterator_s *iterator, void **dataP)
+{
+  // Iterate over table indexes
+  while (iterator->node == NULL) {
+    iterator->index++;
+    if (iterator->index >= iterator->hashtbl->size) {
+      *dataP = NULL;
+      return false;
+    }
+    iterator->node = iterator->hashtbl->nodes[iterator->index];
+  }
+  *dataP = iterator->node->data;
+  iterator->node = iterator->node->next;
+  return true;
+}

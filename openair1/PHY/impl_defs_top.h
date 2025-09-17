@@ -268,27 +268,12 @@
 #if 1
 
 #define NB_NUMEROLOGIES_NR                       (5)
-#define TDD_CONFIG_NB_FRAMES                     (2)
 #define NR_MAX_SLOTS_PER_FRAME                   (160)                    /* number of slots per frame */
 
 /* FFS_NR_TODO it defines ue capability which is the number of slots        */
 /* - between reception of pdsch and transmission of its acknowlegment  (k1) */
 /* - between reception of un uplink grant and its related transmission (k2) */
 #define NR_UE_CAPABILITY_SLOT_RX_TO_TX (3)
-
-/* When the OAI UE receives RX slot N, it starts sending TX slot N+DURATION_RX_TO_TX.
- * Therefore DURATION_RX_TO_TX must not be larger than the minimum k1 and k2 values (NR_UE_CAPABILITY_SLOT_RX_TO_TX).
- * In case of NTN, the propagation delay is so large, that the TX slot needs to be transmitted far in advance.
- * Therefore, the NTN_UE_Koffset is added to DURATION_RX_TO_TX.
- *
- * Note: currently, the UE requires this to be a constant.
- * But in case of NTN, Koffset is only known after receiving SIB19.
- * Therefore, support should be added to allow changing DURATION_RX_TO_TX on reception of SIB19 (via FAPI-like interface).
- * E.g. no transmission before successful reception of SIB19, and re-sync with disabled transmission if Koffset changes.
- * When this has been implemented, the global variable NTN_UE_Koffset should be removed, too.
- */
-extern unsigned int NTN_UE_Koffset;
-#define DURATION_RX_TO_TX (NR_UE_CAPABILITY_SLOT_RX_TO_TX + NTN_UE_Koffset)
 
 #define NR_MAX_ULSCH_HARQ_PROCESSES              (NR_MAX_HARQ_PROCESSES)  /* cf 38.214 6.1 UE procedure for receiving the physical uplink shared channel */
 #define NR_MAX_DLSCH_HARQ_PROCESSES              (NR_MAX_HARQ_PROCESSES)  /* cf 38.214 5.1 UE procedure for receiving the physical downlink shared channel */
@@ -317,6 +302,6 @@ typedef struct {
 #include "common/openairinterface5g_limits.h"
 #include "assertions.h"
 
-#endif //__PHY_IMPLEMENTATION_DEFS_H__ 
-/**@} 
+#endif //__PHY_IMPLEMENTATION_DEFS_H__
+/**@}
 */

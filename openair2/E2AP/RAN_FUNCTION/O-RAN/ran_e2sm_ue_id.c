@@ -30,7 +30,12 @@ ue_id_e2sm_t fill_e2sm_gnb_ue_id_data(const gNB_RRC_UE_t *rrc_ue_context, __attr
   // 6.2.3.16
   // Mandatory
   // AMF UE NGAP ID
-  ue_id.gnb.amf_ue_ngap_id = rrc_ue_context->amf_ue_ngap_id;
+  // it seems that certain messages can be triggered before the ue has an AMF
+  // UE NGAP ID (e.g., RRC setup). In that case, the AMF UE NGAP ID is set to
+  // an invalid value. Below, check for this, and set 0 in that case (which
+  // historically used to be in amf_ue_ngap_id).
+  uint64_t auni = rrc_ue_context->amf_ue_ngap_id;
+  ue_id.gnb.amf_ue_ngap_id = auni < (1LL << 40) ? auni : 0;
 
   // Mandatory
   //GUAMI 6.2.3.17 

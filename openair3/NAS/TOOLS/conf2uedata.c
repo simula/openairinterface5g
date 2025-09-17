@@ -3,6 +3,7 @@
 #include <string.h> // memset, strncpy
 #include <getopt.h>
 
+#include "log.h"
 #include "conf2uedata.h"
 #include "display.h"
 #include "conf_parser.h"
@@ -42,6 +43,7 @@ int main(int argc, char**argv) {
 		exit(1);
 	}
 
+    logInit();
     if ( parse_config_file(output_dir, conf_file, OUTPUT_ALL) == false ) {
         exit(1);
     }

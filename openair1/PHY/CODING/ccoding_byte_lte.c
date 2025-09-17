@@ -32,9 +32,7 @@ static const unsigned short glte[] = {0133, 0171, 0165}; // {A,B}
 static const unsigned short glte_rev[] = {0155, 0117, 0127}; // {A,B}
 static const unsigned short gdab[] = {0133, 0171, 0145}; // {A,B}
 static const unsigned short gdab_rev[] = {0155, 0117, 0123}; // {A,B}
-unsigned char  ccodelte_table[128];      // for transmitter
-unsigned char  ccodelte_table_rev[128];  // for receiver
-
+static unsigned char ccodelte_table[128]; // for transmitter
 
 /*************************************************************************
 
@@ -44,8 +42,6 @@ unsigned char  ccodelte_table_rev[128];  // for receiver
   An optional 8-bit CRC (3GPP) can be added.
   Trellis tail-biting is included here
 *************************************************************************/
-
-
 
 void
 ccodelte_encode (int32_t numbits,
@@ -238,7 +234,8 @@ void ccodelte_init(void) {
 }
 
 /* Input in LSB, followed by state in 6 MSBs */
-void ccodelte_init_inv(void) {
+void ccodelte_init_inv(unsigned char ccodelte_table_rev[128])
+{
   unsigned int  i, j, k, sum;
 
   for (i = 0; i < 128; i++) {
@@ -279,7 +276,8 @@ void ccodedab_init(void) {
 }
 
 /* Input in LSB, followed by state in 6 MSBs */
-void ccodedab_init_inv(void) {
+void ccodedab_init_inv(unsigned char ccodelte_table_rev[128])
+{
   unsigned int  i, j, k, sum;
 
   for (i = 0; i < 128; i++) {
@@ -298,7 +296,6 @@ void ccodedab_init_inv(void) {
     }
   }
 }
-
 
 /*****************************************************************/
 /**

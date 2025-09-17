@@ -30,8 +30,8 @@ FROM ubuntu:xenial AS oai-cppcheck
 ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && \
-    DEBIAN_FRONTEND=noninteractive apt-get upgrade --yes && \
-    DEBIAN_FRONTEND=noninteractive apt-get install --yes \
+    apt-get upgrade --yes && \
+    apt-get install --yes \
        build-essential \
        vim \
        cppcheck

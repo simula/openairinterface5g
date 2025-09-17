@@ -81,6 +81,16 @@ uint16_t rand16_range(uint16_t lower, uint16_t upper)
   return (rand() % (upper - lower + 1)) + lower;
 }
 
+int16_t rands16_range(int16_t lower, int16_t upper)
+{
+  return (rand() % (upper - lower + 1)) + lower;
+}
+
+uint32_t rand32_range(uint32_t lower, uint32_t upper)
+{
+  return (rand() % (upper - lower + 1)) + lower;
+}
+
 int main(int n, char *v[]);
 
 static inline void fapi_test_init_seeded(time_t seed)

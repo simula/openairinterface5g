@@ -35,7 +35,10 @@ typedef struct AuthenticationResponseParameter_tag {
   OctetString res;
 } AuthenticationResponseParameter;
 
-int encode_authentication_response_parameter(AuthenticationResponseParameter *authenticationresponseparameter, uint8_t iei, uint8_t *buffer, uint32_t len);
+int encode_authentication_response_parameter(const AuthenticationResponseParameter *authenticationresponseparameter,
+                                             uint8_t iei,
+                                             uint8_t *buffer,
+                                             uint32_t len);
 
 int decode_authentication_response_parameter(AuthenticationResponseParameter *authenticationresponseparameter, uint8_t iei, uint8_t *buffer, uint32_t len);
 

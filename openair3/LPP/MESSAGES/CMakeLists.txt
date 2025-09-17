@@ -9,10 +9,11 @@ include(ASN1/37355-g60.cmake)
 #  message(FATAL_ERROR "unknown LPP_RELEASE ${LPP_RELEASE}")
 #endif()
 
-add_custom_command(OUTPUT ${lpp_source} ${lpp_headers}
-  COMMAND ASN1C_PREFIX=LPP_ ${ASN1C_EXEC} -gen-UPER -no-gen-BER -no-gen-JER -no-gen-OER -gen-APER -fcompound-names -no-gen-example -findirect-choice -fno-include-deps -D ${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/${LPP_GRAMMAR}
-  DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/${LPP_GRAMMAR}
-  COMMENT "Generating LPP source files from ${CMAKE_CURRENT_SOURCE_DIR}/${LPP_GRAMMAR}"
+run_asn1c(${CMAKE_CURRENT_SOURCE_DIR}/${LPP_GRAMMAR}
+          "LPP_"
+          OUTPUT ${lpp_source} ${lpp_headers}
+          OPTIONS -gen-UPER -no-gen-BER -no-gen-JER -no-gen-OER -gen-APER -fcompound-names -no-gen-example -findirect-choice -fno-include-deps
+          COMMENT "LPP source files"
 )
 
 add_library(asn1_lpp ${lpp_source})

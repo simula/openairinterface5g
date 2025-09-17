@@ -42,7 +42,7 @@ stream_security_context_t *nr_pdcp_integrity_nia1_init(unsigned char *integrity_
 void nr_pdcp_integrity_nia1_integrity(stream_security_context_t *integrity_context,
                             unsigned char *out,
                             unsigned char *buffer, int length,
-                            int bearer, int count, int direction)
+                            int bearer, uint32_t count, int direction)
 {
   nas_stream_cipher_t *ctx = (nas_stream_cipher_t *)integrity_context;
 

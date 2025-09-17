@@ -67,9 +67,7 @@ uint32_t nr_get_E(uint32_t G, uint8_t C, uint8_t Qm, uint8_t Nl, uint8_t r);
 
 void compute_nr_prach_seq(uint8_t short_sequence, uint8_t num_sequences, uint8_t rootSequenceIndex, c16_t X_u[64][839]);
 
-void nr_fill_du(uint16_t N_ZC, const uint16_t *prach_root_sequence_map);
-
-void init_nr_prach_tables(int N_ZC);
+void nr_fill_du(uint16_t N_ZC, const uint16_t *prach_root_sequence_map, uint16_t nr_du[NR_PRACH_SEQ_LEN_L - 1]);
 
 void nr_codeword_scrambling(uint8_t *in,
                             uint32_t size,
@@ -84,4 +82,5 @@ void nr_codeword_unscrambling_init(int16_t *s, uint32_t size, uint8_t q, uint32_
 /**@}*/
 
 void init_pucch2_luts(void);
+void set_prach_tables(int N_ZC, c16_t** ru, uint32_t** zc_inv);
 #endif

@@ -81,7 +81,7 @@ AlignedVector512<c16_t> generate_random_c16(size_t num)
 {
   std::random_device rd;
   std::mt19937 rng(rd());
-  std::uniform_int_distribution<int16_t> dist(INT16_MIN, INT16_MAX);
+  std::uniform_int_distribution<int16_t> dist(-INT16_MAX, INT16_MAX);
   AlignedVector512<c16_t> vec;
   vec.resize(num);
   auto gen = [&]() { return (c16_t){dist(rng), dist(rng)}; };

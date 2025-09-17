@@ -42,38 +42,10 @@ int slot_fep_mbsfn(PHY_VARS_UE *ue,
   unsigned int subframe_offset;
   //   int i;
   unsigned int frame_length_samples = frame_parms->samples_per_tti * 10;
-  dft_size_idx_t dftsizeidx;
-
-  switch (frame_parms->ofdm_symbol_size) {
-    case 128:
-      dftsizeidx = DFT_128;
-      break;       
-                   
-    case 256:      
-      dftsizeidx = DFT_256;
-      break;       
-                   
-    case 512:      
-      dftsizeidx = DFT_512;
-      break;       
-                   
-    case 1024:     
-      dftsizeidx = DFT_1024;
-      break;       
-                   
-    case 1536:     
-      dftsizeidx = DFT_1536;
-      break;       
-                   
-    case 2048:     
-      dftsizeidx = DFT_2048;
-      break;       
-                   
-    default:       
-      dftsizeidx = DFT_512;
-      break;
-  }
-
+  int s = frame_parms->ofdm_symbol_size;
+  if (s != 128 && s != 256 && s != 512 && s != 1024 && s != 1536 && s != 2048)
+    s = 512;
+  dft_size_idx_t dftsizeidx = get_dft(s);
   if (no_prefix) {
     subframe_offset = frame_parms->ofdm_symbol_size * frame_parms->symbols_per_tti * subframe;
   } else {
@@ -200,52 +172,44 @@ int slot_fep_mbsfn_khz_1dot25(PHY_VARS_UE *ue,
   int ofdm_symbol_size;
   unsigned int subframe_offset;
   unsigned int frame_length_samples = frame_parms->samples_per_tti * 10;
-  dft_size_idx_t dftsizeidx;
   AssertFatal(frame_parms->frame_type == FDD, "Frame is TDD!\n");
 
   switch (frame_parms->ofdm_symbol_size) {
     case 128:
-      dftsizeidx = DFT_1536;
       ofdm_symbol_size=1536;
       nb_prefix_samples=384;
       break;
 
     case 256:
-      AssertFatal(1==0,"FeMBMS dft3072 not implemented\n");
-      dftsizeidx = DFT_3072;
+      AssertFatal(1 == 0, "FeMBMS dft3072 not implemented\n");
       ofdm_symbol_size=3072;
       nb_prefix_samples=768;
       break;
 
     case 512:
-      dftsizeidx = DFT_6144;
-      nb_prefix_samples=1536;
       ofdm_symbol_size=6144;
+      nb_prefix_samples = 1536;
       break;
 
     case 1024:
-      dftsizeidx = DFT_12288;
-      nb_prefix_samples=3072;
       ofdm_symbol_size=12288;
+      nb_prefix_samples = 3072;
       break;
 
     case 1536:
-      dftsizeidx = DFT_18432;
-      nb_prefix_samples=4608;
       ofdm_symbol_size=18432;
+      nb_prefix_samples = 4608;
       break;
 
     case 2048:
-      dftsizeidx = DFT_24576;
-      nb_prefix_samples=6144;
       ofdm_symbol_size=24576;
+      nb_prefix_samples = 6144;
       break;
 
     default:
       AssertFatal(1==0,"Illegal ofdm symbol size %d\n",frame_parms->ofdm_symbol_size);
       break;
   }
-
   subframe_offset = frame_parms->samples_per_tti * subframe;
 #ifdef DEBUG_FEP
   LOG_D(PHY,"slot_fep_mbsfn125: subframe %d, nb_prefix_samples %d, subframe_offset %d, sample_offset %d\n", subframe, nb_prefix_samples,subframe_offset,
@@ -255,7 +219,7 @@ int slot_fep_mbsfn_khz_1dot25(PHY_VARS_UE *ue,
   for (aa=0; aa<frame_parms->nb_antennas_rx; aa++) {
     memset(&common_vars->common_vars_rx_data_per_thread[ue->current_thread_id[subframe]].rxdataF[aa][0],0,ofdm_symbol_size*sizeof(int));
     start_UE_TIMING(ue->rx_dft_stats);
-    dft(dftsizeidx,(int16_t *)&common_vars->rxdata[aa][(sample_offset +
+    dft(get_dft(ofdm_symbol_size),(int16_t *)&common_vars->rxdata[aa][(sample_offset +
                                             nb_prefix_samples +
                                             subframe_offset -
                                             SOFFSET) % frame_length_samples],

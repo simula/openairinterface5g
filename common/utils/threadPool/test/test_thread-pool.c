@@ -27,8 +27,10 @@
 #include <unistd.h>
 #include <ctype.h>
 #include <sys/sysinfo.h>
-#include <threadPool/thread-pool.h>
+#include "thread-pool.h"
 #include "log.h"
+#include "task_ans.h"
+#include "notified_fifo.h"
 
 void displayList(notifiedFIFO_t *nf)
 {
@@ -47,6 +49,7 @@ struct testData {
   int id;
   int sleepTime;
   char txt[50];
+  task_ans_t* task_ans;
 };
 
 void processing(void *arg)
@@ -57,6 +60,7 @@ void processing(void *arg)
   in->sleepTime = rand() % 1000;
   usleep(in->sleepTime);
   // printf("done: %d, %s, in thr %ld\n",in->id, in->txt,pthread_self() );
+  completed_task_ans(in->task_ans);
 }
 
 int main()
@@ -102,8 +106,6 @@ int main()
   tpool_t pool;
   char params[] = "1,2,3,4,5";
   initTpool(params, &pool, true);
-  notifiedFIFO_t worker_back;
-  initNotifiedFIFO(&worker_back);
 
   //sleep(1);
   int cumulProcessTime = 0;
@@ -112,21 +114,22 @@ int main()
   int nb_jobs = 4;
   for (int i = 0; i < 1000; i++) {
     int parall = nb_jobs;
+    task_ans_t task_ans;
+    init_task_ans(&task_ans, parall);
+    struct testData test_data[parall];
+    memset(test_data, 0, sizeof(test_data));
     for (int j = 0; j < parall; j++) {
-      notifiedFIFO_elt_t *work = newNotifiedFIFO_elt(sizeof(struct testData), i, &worker_back, processing);
-      struct testData *x = (struct testData *)NotifiedFifoData(work);
+      task_t task = {.args = &test_data[j], .func = processing};
+      struct testData *x = (struct testData *)task.args;
       x->id = i;
-      pushTpool(&pool, work);
+      x->task_ans = &task_ans;
+      pushTpool(&pool, task);
     }
+    join_task_ans(&task_ans);
     int sleepmax = 0;
-    while (parall) {
-      tmp = pullTpool(&worker_back, &pool);
-      if (tmp) {
-        parall--;
-        struct testData *dd = NotifiedFifoData(tmp);
-        if (dd->sleepTime > sleepmax)
-          sleepmax = dd->sleepTime;
-        delNotifiedFIFO_elt(tmp);
+    for (int j = 0; j < parall; j++) {
+      if (test_data[j].sleepTime > sleepmax) {
+        sleepmax = test_data[j].sleepTime;
       }
     }
     cumulProcessTime += sleepmax;

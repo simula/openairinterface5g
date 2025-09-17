@@ -31,9 +31,9 @@
  */
 
 #define _GNU_SOURCE
+#define SPEED_OF_LIGHT 299792458
 
-//#include "mac_defs.h"
-#include <NR_MAC_gNB/mac_proto.h>
+#include "mac_defs.h"
 #include "NR_MAC_UE/mac_proto.h"
 #include "NR_MAC-CellGroupConfig.h"
 #include "LAYER2/NR_MAC_COMMON/nr_mac_common.h"
@@ -41,72 +41,92 @@
 #include "executables/softmodem-common.h"
 #include "SCHED_NR/phy_frame_config_nr.h"
 #include "oai_asn1.h"
+#include "executables/position_interface.h"
 
-void set_tdd_config_nr_ue(fapi_nr_tdd_table_t *tdd_table,
-                          int mu,
-                          NR_TDD_UL_DL_Pattern_t *pattern)
+#define ASIGN_P_VAL(dst, src) \
+  do {                        \
+    if (src)                  \
+      dst = *src;             \
+    else                      \
+      dst = -1;               \
+  } while (0)
+
+// Build the list of all the valid/transmitted SSBs according to the config
+static void build_ssb_list(NR_UE_MAC_INST_t *mac)
 {
-  const int nrofDownlinkSlots = pattern->nrofDownlinkSlots;
-  const int nrofDownlinkSymbols = pattern->nrofDownlinkSymbols;
-  const int nrofUplinkSlots = pattern->nrofUplinkSlots;
-  const int nrofUplinkSymbols = pattern->nrofUplinkSymbols;
-  const int nb_periods_per_frame = get_nb_periods_per_frame(pattern->dl_UL_TransmissionPeriodicity);
-  const int nb_slots_per_period = ((1 << mu) * NR_NUMBER_OF_SUBFRAMES_PER_FRAME) / nb_periods_per_frame;
-  tdd_table->tdd_period_in_slots = nb_slots_per_period;
+  // Create the list of transmitted SSBs
+  memset(&mac->ssb_list, 0, sizeof(ssb_list_info_t));
+  ssb_list_info_t *ssb_list = &mac->ssb_list;
+  fapi_nr_config_request_t *cfg = &mac->phy_config.config_req;
+  ssb_list->nb_tx_ssb = 0;
 
-  if ((nrofDownlinkSymbols + nrofUplinkSymbols) == 0)
-    AssertFatal(nb_slots_per_period == (nrofDownlinkSlots + nrofUplinkSlots),
-                "set_tdd_configuration_nr: given period is inconsistent with current tdd configuration, nrofDownlinkSlots %d, nrofUplinkSlots %d, nb_slots_per_period %d \n",
-                nrofDownlinkSlots,nrofUplinkSlots,nb_slots_per_period);
-  else {
-    AssertFatal(nrofDownlinkSymbols + nrofUplinkSymbols < 14,"illegal symbol configuration DL %d, UL %d\n",nrofDownlinkSymbols,nrofUplinkSymbols);
-    AssertFatal(nb_slots_per_period == (nrofDownlinkSlots + nrofUplinkSlots + 1),
-                "set_tdd_configuration_nr: given period is inconsistent with current tdd configuration, nrofDownlinkSlots %d, nrofUplinkSlots %d, nrofMixed slots 1, nb_slots_per_period %d \n",
-                nrofDownlinkSlots,nrofUplinkSlots,nb_slots_per_period);
+  for (int ssb_index = 0; ssb_index < MAX_NB_SSB; ssb_index++) {
+    uint32_t curr_mask = cfg->ssb_table.ssb_mask_list[ssb_index / 32].ssb_mask;
+    // check if if current SSB is transmitted
+    if ((curr_mask >> (31 - (ssb_index % 32))) & 0x01) {
+      ssb_list->nb_ssb_per_index[ssb_index] = ssb_list->nb_tx_ssb;
+      ssb_list->nb_tx_ssb++;
+    } else
+      ssb_list->nb_ssb_per_index[ssb_index] = -1;
   }
+}
 
-  tdd_table->max_tdd_periodicity_list = (fapi_nr_max_tdd_periodicity_t *) malloc(nb_slots_per_period * sizeof(fapi_nr_max_tdd_periodicity_t));
+static int get_ta_offset(long *n_TimingAdvanceOffset)
+{
+  if (!n_TimingAdvanceOffset)
+    return -1;
 
-  for(int memory_alloc = 0 ; memory_alloc < nb_slots_per_period; memory_alloc++)
-    tdd_table->max_tdd_periodicity_list[memory_alloc].max_num_of_symbol_per_slot_list =
-      (fapi_nr_max_num_of_symbol_per_slot_t *) malloc(NR_NUMBER_OF_SYMBOLS_PER_SLOT*sizeof(fapi_nr_max_num_of_symbol_per_slot_t));
+  switch (*n_TimingAdvanceOffset) {
+    case NR_ServingCellConfigCommonSIB__n_TimingAdvanceOffset_n0 :
+      return 0;
+    case NR_ServingCellConfigCommonSIB__n_TimingAdvanceOffset_n25600 :
+      return 25600;
+    case NR_ServingCellConfigCommonSIB__n_TimingAdvanceOffset_n39936 :
+      return 39936;
+    default :
+      AssertFatal(false, "Invalid n-TimingAdvanceOffset\n");
+  }
+  return -1;
+}
 
-  int slot_number = 0;
-  while(slot_number != nb_slots_per_period) {
-    if(nrofDownlinkSlots != 0) {
-      for (int number_of_symbol = 0; number_of_symbol < nrofDownlinkSlots * NR_NUMBER_OF_SYMBOLS_PER_SLOT; number_of_symbol++) {
-        tdd_table->max_tdd_periodicity_list[slot_number].max_num_of_symbol_per_slot_list[number_of_symbol % NR_NUMBER_OF_SYMBOLS_PER_SLOT].slot_config = 0;
-        if((number_of_symbol + 1) % NR_NUMBER_OF_SYMBOLS_PER_SLOT == 0)
-          slot_number++;
+static void set_tdd_config_nr_ue(fapi_nr_tdd_table_t *tdd_table, const frame_structure_t *fs)
+{
+  tdd_table->tdd_period_in_slots = fs->numb_slots_period;
+  tdd_table->max_tdd_periodicity_list = malloc(fs->numb_slots_period * sizeof(*tdd_table->max_tdd_periodicity_list));
+
+  const tdd_period_config_t *pc = &fs->period_cfg;
+  for (int i = 0; i < fs->numb_slots_period; i++) {
+    fapi_nr_max_tdd_periodicity_t *period_list = &tdd_table->max_tdd_periodicity_list[i];
+    period_list->max_num_of_symbol_per_slot_list =
+      malloc(NR_NUMBER_OF_SYMBOLS_PER_SLOT * sizeof(*period_list->max_num_of_symbol_per_slot_list));
+    if (pc->tdd_slot_bitmap[i].slot_type == TDD_NR_DOWNLINK_SLOT) {
+      for (int s = 0; s < NR_NUMBER_OF_SYMBOLS_PER_SLOT; s++) {
+        period_list->max_num_of_symbol_per_slot_list[s].slot_config = 0;
       }
     }
-
-    if (nrofDownlinkSymbols != 0 || nrofUplinkSymbols != 0) {
-      for(int number_of_symbol = 0; number_of_symbol < nrofDownlinkSymbols; number_of_symbol++) {
-        tdd_table->max_tdd_periodicity_list[slot_number].max_num_of_symbol_per_slot_list[number_of_symbol].slot_config = 0;
+    if (pc->tdd_slot_bitmap[i].slot_type == TDD_NR_UPLINK_SLOT) {
+      for (int s = 0; s < NR_NUMBER_OF_SYMBOLS_PER_SLOT; s++) {
+        period_list->max_num_of_symbol_per_slot_list[s].slot_config = 1;
       }
-      for(int number_of_symbol = nrofDownlinkSymbols; number_of_symbol < NR_NUMBER_OF_SYMBOLS_PER_SLOT - nrofUplinkSymbols; number_of_symbol++) {
-        tdd_table->max_tdd_periodicity_list[slot_number].max_num_of_symbol_per_slot_list[number_of_symbol].slot_config = 2;
-      }
-      for(int number_of_symbol = NR_NUMBER_OF_SYMBOLS_PER_SLOT - nrofUplinkSymbols; number_of_symbol < NR_NUMBER_OF_SYMBOLS_PER_SLOT; number_of_symbol++) {
-        tdd_table->max_tdd_periodicity_list[slot_number].max_num_of_symbol_per_slot_list[number_of_symbol].slot_config = 1;
-      }
-      slot_number++;
     }
-
-    if(nrofUplinkSlots != 0) {
-      for (int number_of_symbol = 0; number_of_symbol < nrofUplinkSlots * NR_NUMBER_OF_SYMBOLS_PER_SLOT; number_of_symbol++) {
-        tdd_table->max_tdd_periodicity_list[slot_number].max_num_of_symbol_per_slot_list[number_of_symbol%NR_NUMBER_OF_SYMBOLS_PER_SLOT].slot_config = 1;
-        if((number_of_symbol + 1) % NR_NUMBER_OF_SYMBOLS_PER_SLOT == 0)
-          slot_number++;
+    if (pc->tdd_slot_bitmap[i].slot_type == TDD_NR_MIXED_SLOT) {
+      int dl_symb = pc->tdd_slot_bitmap[i].num_dl_symbols;
+      int ul_symb = pc->tdd_slot_bitmap[i].num_ul_symbols;
+      int g_symb = NR_NUMBER_OF_SYMBOLS_PER_SLOT - dl_symb - ul_symb;
+      for (int s = 0; s < dl_symb; s++) {
+        period_list->max_num_of_symbol_per_slot_list[s].slot_config = 0;
+      }
+      for (int s = dl_symb; s < dl_symb + g_symb; s++) {
+        period_list->max_num_of_symbol_per_slot_list[s].slot_config = 2;
+      }
+      for (int s = dl_symb + g_symb; s < NR_NUMBER_OF_SYMBOLS_PER_SLOT; s++) {
+        period_list->max_num_of_symbol_per_slot_list[s].slot_config = 1;
       }
     }
   }
 }
 
-static void config_common_ue_sa(NR_UE_MAC_INST_t *mac,
-                                NR_ServingCellConfigCommonSIB_t *scc,
-                                int cc_idP)
+static void config_common_ue_sa(NR_UE_MAC_INST_t *mac, NR_ServingCellConfigCommonSIB_t *scc, int cc_idP)
 {
   fapi_nr_config_request_t *cfg = &mac->phy_config.config_req;
   mac->phy_config.Mod_id = mac->ue_id;
@@ -150,8 +170,7 @@ static void config_common_ue_sa(NR_UE_MAC_INST_t *mac,
   if (frequencyInfoUL->absoluteFrequencyPointA == NULL)
     cfg->carrier_config.uplink_frequency = cfg->carrier_config.dl_frequency;
   else
-    // TODO check if corresponds to what reported in SIB1
-    cfg->carrier_config.uplink_frequency = (downlink_frequency[cc_idP][0]/1000) + uplink_frequency_offset[cc_idP][0];
+    cfg->carrier_config.uplink_frequency = cfg->carrier_config.dl_frequency + (uplink_frequency_offset[cc_idP][0] / 1000);
 
   for (int i = 0; i < 5; i++) {
     if (i == frequencyInfoUL->scs_SpecificCarrierList.list.array[0]->subcarrierSpacing) {
@@ -164,10 +183,11 @@ static void config_common_ue_sa(NR_UE_MAC_INST_t *mac,
     }
   }
 
-  mac->frame_type = get_frame_type(mac->nr_band, get_softmodem_params()->numerology);
+  frame_type_t frame_type = get_frame_type(mac->nr_band, get_softmodem_params()->numerology);
   // cell config
   cfg->cell_config.phy_cell_id = mac->physCellId;
-  cfg->cell_config.frame_duplex_type = mac->frame_type;
+  cfg->cell_config.frame_duplex_type = frame_type;
+  cfg->cell_config.N_TA_offset = get_ta_offset(scc->n_TimingAdvanceOffset);
 
   // SSB config
   cfg->ssb_config.ss_pbch_power = scc->ss_PBCH_BlockPower;
@@ -189,17 +209,18 @@ static void config_common_ue_sa(NR_UE_MAC_INST_t *mac,
     }
   }
 
+  int period_idx = mac->tdd_UL_DL_ConfigurationCommon ? get_tdd_period_idx(mac->tdd_UL_DL_ConfigurationCommon) : 0;
+  config_frame_structure(get_softmodem_params()->numerology,
+                         mac->tdd_UL_DL_ConfigurationCommon,
+                         period_idx,
+                         frame_type,
+                         &mac->frame_structure);
+
   // TDD Table Configuration
-  if (cfg->cell_config.frame_duplex_type == TDD){
-    set_tdd_config_nr_ue(&cfg->tdd_table_1, cfg->ssb_config.scs_common, &mac->tdd_UL_DL_ConfigurationCommon->pattern1);
-    if (mac->tdd_UL_DL_ConfigurationCommon->pattern2) {
-      cfg->tdd_table_2 = (fapi_nr_tdd_table_t *) malloc(sizeof(fapi_nr_tdd_table_t));
-      set_tdd_config_nr_ue(cfg->tdd_table_2, cfg->ssb_config.scs_common, mac->tdd_UL_DL_ConfigurationCommon->pattern2);
-    }
-  }
+  if (cfg->cell_config.frame_duplex_type == TDD)
+    set_tdd_config_nr_ue(&cfg->tdd_table, &mac->frame_structure);
 
   // PRACH configuration
-
   uint8_t nb_preambles = 64;
   NR_RACH_ConfigCommon_t *rach_ConfigCommon = scc->uplinkConfigCommon->initialUplinkBWP.rach_ConfigCommon->choice.setup;
   if(rach_ConfigCommon->totalNumberOfRA_Preambles != NULL)
@@ -212,9 +233,8 @@ static void config_common_ue_sa(NR_UE_MAC_INST_t *mac,
   else {
     // If absent, the UE applies the SCS as derived from the prach-ConfigurationIndex (for 839)
     int config_index = rach_ConfigCommon->rach_ConfigGeneric.prach_ConfigurationIndex;
-    const int64_t *prach_config_info_p = get_prach_config_info(mac->frequency_range, config_index, mac->frame_type);
-    int format = prach_config_info_p[0];
-    cfg->prach_config.prach_sub_c_spacing = format == 3 ? 5 : 4;
+    int format = get_format0(config_index, frame_type, mac->frequency_range);
+    cfg->prach_config.prach_sub_c_spacing = get_delta_f_RA_long(format);
   }
 
   cfg->prach_config.restricted_set_config = rach_ConfigCommon->restrictedSetConfig;
@@ -237,32 +257,146 @@ static void config_common_ue_sa(NR_UE_MAC_INST_t *mac,
                                             (get_N_RA_RB(cfg->prach_config.prach_sub_c_spacing, frequencyInfoUL->scs_SpecificCarrierList.list.array[0]->subcarrierSpacing ) * i);
     prach_fd_occasion->prach_zero_corr_conf = rach_ConfigCommon->rach_ConfigGeneric.zeroCorrelationZoneConfig;
     prach_fd_occasion->num_root_sequences = compute_nr_root_seq(rach_ConfigCommon,
-                                                                nb_preambles, mac->frame_type, mac->frequency_range);
+                                                                nb_preambles,
+                                                                frame_type,
+                                                                mac->frequency_range);
     //prach_fd_occasion->num_unused_root_sequences = ???
   }
   cfg->prach_config.ssb_per_rach = rach_ConfigCommon->ssb_perRACH_OccasionAndCB_PreamblesPerSSB->present-1;
 
 }
 
-static void config_common_ue(NR_UE_MAC_INST_t *mac,
-                             NR_ServingCellConfigCommon_t *scc,
-                             int cc_idP)
+// computes round-trip-time between ue and sat based on SIB19 ephemeris data
+static void calculate_ue_sat_ta(const position_t *position_params,
+                                const NR_PositionVelocity_r17_t *sat_pos,
+                                ntn_timing_advance_componets_t *ntn_ta)
+{
+  // get UE position coordinates
+  const position_t pos_ue = *position_params;
+
+  // get sat position coordinates
+  const position_t pos_sat = {sat_pos->positionX_r17 * 1.3, sat_pos->positionY_r17 * 1.3, sat_pos->positionZ_r17 * 1.3};
+
+  // calculate directional vector from SAT to UE
+  const position_t dir_sat_ue = {pos_ue.X - pos_sat.X, pos_ue.Y - pos_sat.Y, pos_ue.Z - pos_sat.Z};
+
+  // calculate distance between SAT and UE
+  double distance = sqrt(dir_sat_ue.X * dir_sat_ue.X + dir_sat_ue.Y * dir_sat_ue.Y + dir_sat_ue.Z * dir_sat_ue.Z);
+
+  // get sat velocity vector
+  const position_t vel_sat = {sat_pos->velocityVX_r17 * 0.06, sat_pos->velocityVY_r17 * 0.06, sat_pos->velocityVZ_r17 * 0.06};
+
+  // calculate SAT velocity towards UE
+  double velocity = (vel_sat.X * dir_sat_ue.X + vel_sat.Y * dir_sat_ue.Y + vel_sat.Z * dir_sat_ue.Z) / distance;
+
+  // calculate SAT acceleration towards UE
+  const double radius_2 = pos_sat.X * pos_sat.X + pos_sat.Y * pos_sat.Y + pos_sat.Z * pos_sat.Z;
+  const double vel_sat_2 = vel_sat.X * vel_sat.X + vel_sat.Y * vel_sat.Y + vel_sat.Z * vel_sat.Z;
+  const double acceleration =
+      -(pos_sat.X * dir_sat_ue.X + pos_sat.Y * dir_sat_ue.Y + pos_sat.Z * dir_sat_ue.Z) * vel_sat_2 / (radius_2 * distance);
+
+  LOG_D(NR_MAC, "Satellite velocity towards UE: %f m/s, acceleration towards UE: %f m/s²\n", velocity, acceleration);
+
+  ntn_ta->N_UE_TA_adj = (2 * distance / SPEED_OF_LIGHT) * 1e3; // in ms
+  ntn_ta->N_UE_TA_drift = (2 * -velocity / SPEED_OF_LIGHT) * 1e6; // in µs/s
+  ntn_ta->N_UE_TA_drift_variant = (2 * acceleration / SPEED_OF_LIGHT) * 1e6; // in µs/s²
+}
+
+// populate ntn_ta structure from mac
+static void configure_ntn_ta(module_id_t module_id,
+                             ntn_timing_advance_componets_t *ntn_ta,
+                             const NR_NTN_Config_r17_t *ntn_Config_r17)
+{
+  if (!ntn_Config_r17)
+    return;
+
+  position_t position_params = {0};
+  get_position_coordinates(module_id, &position_params);
+
+  // epochTime_r17 must be present (this is assured by function `eval_epoch_time()`)
+  const NR_EpochTime_r17_t *epoch_time_r17 = ntn_Config_r17->epochTime_r17;
+  AssertFatal(epoch_time_r17, "epoch_time_r17 should not be NULL here\n");
+  ntn_ta->epoch_sfn = epoch_time_r17->sfn_r17;
+  ntn_ta->epoch_subframe = epoch_time_r17->subFrameNR_r17;
+
+  // handle ephemerisInfo_r17
+  const NR_EphemerisInfo_r17_t *ephemeris_info = ntn_Config_r17->ephemerisInfo_r17;
+  if (ephemeris_info) {
+    if (ephemeris_info->present == NR_EphemerisInfo_r17_PR_positionVelocity_r17) {
+      const NR_PositionVelocity_r17_t *position_velocity = ephemeris_info->choice.positionVelocity_r17;
+      AssertFatal(position_velocity, "position_velocity should not be NULL here\n");
+      calculate_ue_sat_ta(&position_params, position_velocity, ntn_ta);
+    } else {
+      LOG_W(NR_MAC, "NR UE currently supports only ephemerisInfo_r17 of type positionVelocity_r17\n");
+      ntn_ta->N_UE_TA_adj = 0;
+      ntn_ta->N_UE_TA_drift = 0;
+      ntn_ta->N_UE_TA_drift_variant = 0;
+    }
+  } else { // Need R - Release if not present
+    ntn_ta->N_UE_TA_adj = 0;
+    ntn_ta->N_UE_TA_drift = 0;
+    ntn_ta->N_UE_TA_drift_variant = 0;
+  }
+
+  // handle cellSpecificKoffset_r17
+  if (ntn_Config_r17->cellSpecificKoffset_r17)
+    ntn_ta->cell_specific_k_offset = *ntn_Config_r17->cellSpecificKoffset_r17;
+  else // Need R - Release if not present
+    ntn_ta->cell_specific_k_offset = 0;
+
+  // Check if ta_Info_r17 is present and convert the time units
+  if (ntn_Config_r17->ta_Info_r17) {
+    // ta_Common_r17 (is in units of 4.072e-3 µs)
+    ntn_ta->N_common_ta_adj = ntn_Config_r17->ta_Info_r17->ta_Common_r17 * 4.072e-6;
+    // ta_CommonDrift_r17 (is in units of 0.2e-3 µs/s)
+    if (ntn_Config_r17->ta_Info_r17->ta_CommonDrift_r17)
+      ntn_ta->N_common_ta_drift = *ntn_Config_r17->ta_Info_r17->ta_CommonDrift_r17 * 0.2e-3;
+    else // Need R - Release if not present
+      ntn_ta->N_common_ta_drift = 0;
+    // ta_CommonDriftVariant_r17 (is in units of 0.2e-4 µs/s²)
+    if (ntn_Config_r17->ta_Info_r17->ta_CommonDriftVariant_r17)
+      ntn_ta->N_common_ta_drift_variant = *ntn_Config_r17->ta_Info_r17->ta_CommonDriftVariant_r17 * 0.2e-4;
+    else // Need R - Release if not present
+      ntn_ta->N_common_ta_drift_variant = 0;
+  } else { // Need R - Release if not present
+    ntn_ta->N_common_ta_adj = 0;
+    ntn_ta->N_common_ta_drift = 0;
+    ntn_ta->N_common_ta_drift_variant = 0;
+  }
+
+  ntn_ta->ntn_params_changed = true;
+
+  LOG_D(NR_MAC,
+        "SIB19 Rxd. Epoch SFN: %d, Epoch Subframe: %d, k_offset: %ldms, N_Common_Ta: %fms, drift: %fµs/s, variant %fµs/s², "
+        "N_UE_TA: %fms, drift: %fµs/s, variant %fµs/s²\n",
+        ntn_ta->epoch_sfn,
+        ntn_ta->epoch_subframe,
+        ntn_ta->cell_specific_k_offset,
+        ntn_ta->N_common_ta_adj,
+        ntn_ta->N_common_ta_drift,
+        ntn_ta->N_common_ta_drift_variant,
+        ntn_ta->N_UE_TA_adj,
+        ntn_ta->N_UE_TA_drift,
+        ntn_ta->N_UE_TA_drift_variant);
+}
+
+static void config_common_ue(NR_UE_MAC_INST_t *mac, NR_ServingCellConfigCommon_t *scc, int cc_idP)
 {
   fapi_nr_config_request_t *cfg = &mac->phy_config.config_req;
 
   mac->phy_config.Mod_id = mac->ue_id;
   mac->phy_config.CC_id = cc_idP;
-  
+  frame_type_t frame_type = mac->frame_structure.frame_type;
+
   // carrier config
   LOG_D(MAC, "[UE %d] Entering UE Config Common\n", mac->ue_id);
 
   AssertFatal(scc->downlinkConfigCommon, "Not expecting downlinkConfigCommon to be NULL here\n");
-
   NR_FrequencyInfoDL_t *frequencyInfoDL = scc->downlinkConfigCommon->frequencyInfoDL;
   if (frequencyInfoDL) { // NeedM for inter-freq handover
     mac->nr_band = *frequencyInfoDL->frequencyBandList.list.array[0];
-    mac->frame_type = get_frame_type(mac->nr_band, get_softmodem_params()->numerology);
-    mac->frequency_range = mac->nr_band < 256 ? FR1 : FR2;
+    frame_type = get_frame_type(mac->nr_band, get_softmodem_params()->numerology);
+    mac->frequency_range = get_freq_range_from_band(mac->nr_band);
 
     int bw_index = get_supported_band_index(frequencyInfoDL->scs_SpecificCarrierList.list.array[0]->subcarrierSpacing,
                                             mac->frequency_range,
@@ -319,7 +453,8 @@ static void config_common_ue(NR_UE_MAC_INST_t *mac,
 
   // cell config
   cfg->cell_config.phy_cell_id = *scc->physCellId;
-  cfg->cell_config.frame_duplex_type = mac->frame_type;
+  cfg->cell_config.frame_duplex_type = frame_type;
+  cfg->cell_config.N_TA_offset = get_ta_offset(scc->n_TimingAdvanceOffset);
 
   // SSB config
   cfg->ssb_config.ss_pbch_power = scc->ss_PBCH_BlockPower;
@@ -360,14 +495,16 @@ static void config_common_ue(NR_UE_MAC_INST_t *mac,
     AssertFatal(1==0,"SSB bitmap size value %d undefined (allowed values 1,2,3) \n", scc->ssb_PositionsInBurst->present);
   }
 
+  int period_idx = mac->tdd_UL_DL_ConfigurationCommon ? get_tdd_period_idx(mac->tdd_UL_DL_ConfigurationCommon) : 0;
+  config_frame_structure(*scc->ssbSubcarrierSpacing,
+                         mac->tdd_UL_DL_ConfigurationCommon,
+                         period_idx,
+                         frame_type,
+                         &mac->frame_structure);
+
   // TDD Table Configuration
-  if (cfg->cell_config.frame_duplex_type == TDD){
-    set_tdd_config_nr_ue(&cfg->tdd_table_1, cfg->ssb_config.scs_common, &mac->tdd_UL_DL_ConfigurationCommon->pattern1);
-    if (mac->tdd_UL_DL_ConfigurationCommon->pattern2) {
-      cfg->tdd_table_2 = (fapi_nr_tdd_table_t *) malloc(sizeof(fapi_nr_tdd_table_t));
-      set_tdd_config_nr_ue(cfg->tdd_table_2, cfg->ssb_config.scs_common, mac->tdd_UL_DL_ConfigurationCommon->pattern2);
-    }
-  }
+  if (cfg->cell_config.frame_duplex_type == TDD)
+    set_tdd_config_nr_ue(&cfg->tdd_table, &mac->frame_structure);
 
   // PRACH configuration
   uint8_t nb_preambles = 64;
@@ -385,8 +522,7 @@ static void config_common_ue(NR_UE_MAC_INST_t *mac,
     else {
       // If absent, the UE applies the SCS as derived from the prach-ConfigurationIndex (for 839)
       int config_index = rach_ConfigCommon->rach_ConfigGeneric.prach_ConfigurationIndex;
-      const int64_t *prach_config_info_p = get_prach_config_info(mac->frequency_range, config_index, mac->frame_type);
-      int format = prach_config_info_p[0];
+      int format = get_format0(config_index, frame_type, mac->frequency_range);
       cfg->prach_config.prach_sub_c_spacing = format == 3 ? 5 : 4;
     }
 
@@ -409,7 +545,7 @@ static void config_common_ue(NR_UE_MAC_INST_t *mac,
       prach_fd_occasion->k1 = rach_ConfigCommon->rach_ConfigGeneric.msg1_FrequencyStart;
       prach_fd_occasion->prach_zero_corr_conf = rach_ConfigCommon->rach_ConfigGeneric.zeroCorrelationZoneConfig;
       prach_fd_occasion->num_root_sequences =
-          compute_nr_root_seq(rach_ConfigCommon, nb_preambles, mac->frame_type, mac->frequency_range);
+          compute_nr_root_seq(rach_ConfigCommon, nb_preambles, frame_type, mac->frequency_range);
 
       cfg->prach_config.ssb_per_rach = rach_ConfigCommon->ssb_perRACH_OccasionAndCB_PreamblesPerSSB->present - 1;
       // prach_fd_occasion->num_unused_root_sequences = ???
@@ -419,16 +555,18 @@ static void config_common_ue(NR_UE_MAC_INST_t *mac,
   // NTN Config
   if (scc->ext2) {
     UPDATE_IE(mac->sc_info.ntn_Config_r17, scc->ext2->ntn_Config_r17, NR_NTN_Config_r17_t);
+    configure_ntn_ta(mac->ue_id, &mac->ntn_ta, mac->sc_info.ntn_Config_r17);
   } else {
     asn1cFreeStruc(asn_DEF_NR_NTN_Config_r17, mac->sc_info.ntn_Config_r17);
   }
 }
 
-void release_common_ss_cset(NR_BWP_PDCCH_t *pdcch)
+static void release_common_ss_cset(NR_BWP_PDCCH_t *pdcch)
 {
-  asn1cFreeStruc(asn_DEF_NR_SearchSpace, pdcch->otherSI_SS);
-  asn1cFreeStruc(asn_DEF_NR_SearchSpace, pdcch->ra_SS);
-  asn1cFreeStruc(asn_DEF_NR_SearchSpace, pdcch->paging_SS);
+  pdcch->otherSI_SS_id = -1;
+  pdcch->ra_SS_id = -1;
+  pdcch->paging_SS_id = -1;
+  asn1cFreeSeq(asn_DEF_NR_SearchSpace, pdcch->list_common_SS);
   asn1cFreeStruc(asn_DEF_NR_ControlResourceSet, pdcch->commonControlResourceSet);
 }
 
@@ -450,60 +588,64 @@ static void modlist_ss(NR_SearchSpace_t *source, NR_SearchSpace_t *target)
     UPDATE_IE(target->searchSpaceType, source->searchSpaceType, struct NR_SearchSpace__searchSpaceType);
 }
 
-static NR_SearchSpace_t *get_common_search_space(const NR_UE_MAC_INST_t *mac,
-                                                 const struct NR_PDCCH_ConfigCommon__commonSearchSpaceList *commonSearchSpaceList,
-                                                 const NR_BWP_PDCCH_t *pdcch,
-                                                 const NR_SearchSpaceId_t ss_id)
+NR_SearchSpace_t *get_common_search_space(const NR_UE_MAC_INST_t *mac, const NR_SearchSpaceId_t ss_id)
 {
   if (ss_id == 0)
     return mac->search_space_zero;
 
   NR_SearchSpace_t *css = NULL;
-  for (int i = 0; i < commonSearchSpaceList->list.count; i++) {
-    if (commonSearchSpaceList->list.array[i]->searchSpaceId == ss_id) {
-      css = calloc(1, sizeof(*css));
-      modlist_ss(commonSearchSpaceList->list.array[i], css);
-      break;
+  // if current DL BWP is not set, use first BWP
+  const int bwp_id = mac->current_DL_BWP ? mac->current_DL_BWP->bwp_id : 0;
+  for (int i = 0; i < mac->config_BWP_PDCCH[bwp_id].list_common_SS.count; i++) {
+    css = mac->config_BWP_PDCCH[bwp_id].list_common_SS.array[i];
+    if (css->searchSpaceId == ss_id) {
+      return css;
     }
   }
   AssertFatal(css, "Couldn't find CSS with Id %ld\n", ss_id);
   return css;
 }
 
+static void update_ss(void *ue_ss_in, void *nw_ss_in)
+{
+  if (!nw_ss_in || !ue_ss_in)
+    return;
+
+  asn_anonymous_sequence_ *ue_ss = _A_SEQUENCE_FROM_VOID(ue_ss_in);
+  asn_anonymous_sequence_ *nw_ss = _A_SEQUENCE_FROM_VOID(nw_ss_in);
+  for (int i = 0; i < nw_ss->count; i++) {
+    NR_SearchSpace_t *source_ss = (NR_SearchSpace_t *)nw_ss->array[i];
+    NR_SearchSpace_t *target_ss = NULL;
+    for (int j = 0; j < ue_ss->count; j++) {
+      NR_SearchSpace_t **s = (NR_SearchSpace_t **)ue_ss->array;
+      if (s[j]->searchSpaceId == source_ss->searchSpaceId) {
+        target_ss = s[j];
+        break;
+      }
+    }
+    if (!target_ss) {
+      target_ss = calloc(1, sizeof(*target_ss));
+      ASN_SEQUENCE_ADD(ue_ss, target_ss);
+    }
+    modlist_ss(source_ss, target_ss);
+  }
+}
+
 static void configure_common_ss_coreset(const NR_UE_MAC_INST_t *mac,
                                         NR_BWP_PDCCH_t *pdcch,
                                         NR_PDCCH_ConfigCommon_t *pdcch_ConfigCommon)
 {
-  if (pdcch_ConfigCommon) {
-    asn1cFreeStruc(asn_DEF_NR_SearchSpace, pdcch->otherSI_SS);
-    if (pdcch_ConfigCommon->searchSpaceOtherSystemInformation)
-      pdcch->otherSI_SS = get_common_search_space(mac,
-                                                  pdcch_ConfigCommon->commonSearchSpaceList,
-                                                  pdcch,
-                                                  *pdcch_ConfigCommon->searchSpaceOtherSystemInformation);
+  if (!pdcch_ConfigCommon)
+    return;
 
-    asn1cFreeStruc(asn_DEF_NR_SearchSpace, pdcch->ra_SS);
-    if (pdcch_ConfigCommon->ra_SearchSpace) {
-      if (pdcch->otherSI_SS && *pdcch_ConfigCommon->ra_SearchSpace == pdcch->otherSI_SS->searchSpaceId)
-        pdcch->ra_SS = pdcch->otherSI_SS;
-      else
-        pdcch->ra_SS =
-            get_common_search_space(mac, pdcch_ConfigCommon->commonSearchSpaceList, pdcch, *pdcch_ConfigCommon->ra_SearchSpace);
-    }
+  if (pdcch_ConfigCommon->commonSearchSpaceList)
+    update_ss((void *)&pdcch->list_common_SS, (void *)&pdcch_ConfigCommon->commonSearchSpaceList->list);
 
-    asn1cFreeStruc(asn_DEF_NR_SearchSpace, pdcch->paging_SS);
-    if (pdcch_ConfigCommon->pagingSearchSpace) {
-      if (pdcch->otherSI_SS && *pdcch_ConfigCommon->pagingSearchSpace == pdcch->otherSI_SS->searchSpaceId)
-        pdcch->paging_SS = pdcch->otherSI_SS;
-      else if (pdcch->ra_SS && *pdcch_ConfigCommon->pagingSearchSpace == pdcch->ra_SS->searchSpaceId)
-        pdcch->paging_SS = pdcch->ra_SS;
-      if (!pdcch->paging_SS)
-        pdcch->paging_SS =
-            get_common_search_space(mac, pdcch_ConfigCommon->commonSearchSpaceList, pdcch, *pdcch_ConfigCommon->pagingSearchSpace);
-    }
+  ASIGN_P_VAL(pdcch->otherSI_SS_id, pdcch_ConfigCommon->searchSpaceOtherSystemInformation);
+  ASIGN_P_VAL(pdcch->ra_SS_id, pdcch_ConfigCommon->ra_SearchSpace);
+  ASIGN_P_VAL(pdcch->paging_SS_id, pdcch_ConfigCommon->pagingSearchSpace);
 
-    UPDATE_IE(pdcch->commonControlResourceSet, pdcch_ConfigCommon->commonControlResourceSet, NR_ControlResourceSet_t);
-  }
+  UPDATE_IE(pdcch->commonControlResourceSet, pdcch_ConfigCommon->commonControlResourceSet, NR_ControlResourceSet_t);
 }
 
 static void modlist_coreset(NR_ControlResourceSet_t *source, NR_ControlResourceSet_t *target)
@@ -558,8 +700,11 @@ static void modlist_coreset(NR_ControlResourceSet_t *source, NR_ControlResourceS
           if (id == *target->tci_StatesPDCCH_ToAddList->list.array[j])
             break;
         }
-        if (j == target->tci_StatesPDCCH_ToAddList->list.count)
-          ASN_SEQUENCE_ADD(&target->tci_StatesPDCCH_ToAddList->list, source->tci_StatesPDCCH_ToAddList->list.array[i]);
+        if (j == target->tci_StatesPDCCH_ToAddList->list.count) {
+          long *tci_id = calloc(1, sizeof(*tci_id));
+          *tci_id = id;
+          ASN_SEQUENCE_ADD(&target->tci_StatesPDCCH_ToAddList->list, tci_id);
+        }
       }
     } else
       UPDATE_IE(target->tci_StatesPDCCH_ToAddList,
@@ -601,23 +746,10 @@ static void configure_ss_coreset(NR_BWP_PDCCH_t *pdcch, NR_PDCCH_Config_t *pdcch
       }
     }
   }
-  if (pdcch_Config->searchSpacesToAddModList) {
-    for (int i = 0; i < pdcch_Config->searchSpacesToAddModList->list.count; i++) {
-      NR_SearchSpace_t *source_ss = pdcch_Config->searchSpacesToAddModList->list.array[i];
-      NR_SearchSpace_t *target_ss = NULL;
-      for (int j = 0; j < pdcch->list_SS.count; j++) {
-        if (pdcch->list_SS.array[j]->searchSpaceId == source_ss->searchSpaceId) {
-          target_ss = pdcch->list_SS.array[j];
-          break;
-        }
-      }
-      if (!target_ss) {
-        target_ss = calloc(1, sizeof(*target_ss));
-        ASN_SEQUENCE_ADD(&pdcch->list_SS, target_ss);
-      }
-      modlist_ss(source_ss, target_ss);
-    }
-  }
+
+  if (pdcch_Config->searchSpacesToAddModList)
+    update_ss((void *)&pdcch->list_SS, (void *)&pdcch_Config->searchSpacesToAddModList->list);
+
   if (pdcch_Config->searchSpacesToReleaseList) {
     for (int i = 0; i < pdcch_Config->searchSpacesToReleaseList->list.count; i++) {
       NR_ControlResourceSetId_t id = *pdcch_Config->searchSpacesToReleaseList->list.array[i];
@@ -740,7 +872,7 @@ static uint32_t get_lc_bucket_size(long prioritisedBitRate, long bucketSizeDurat
 }
 
 // default configuration as per 38.331 section 9.2.1
-static void set_default_logicalchannelconfig(nr_lcordered_info_t *lc_info, NR_SRB_Identity_t srb_id)
+static void set_default_logicalchannelconfig(nr_lcordered_info_t *lc_info, int srb_id)
 {
   lc_info->lcid = srb_id;
   lc_info->priority = srb_id == 2 ? 3 : 1;
@@ -751,12 +883,14 @@ static void set_default_logicalchannelconfig(nr_lcordered_info_t *lc_info, NR_SR
 static void nr_configure_lc_config(NR_UE_MAC_INST_t *mac,
                                    nr_lcordered_info_t *lc_info,
                                    NR_LogicalChannelConfig_t *mac_lc_config,
-                                   NR_SRB_Identity_t srb_id)
+                                   nr_lcid_rb_t rb)
 {
   NR_LC_SCHEDULING_INFO *lc_sched_info = get_scheduling_info_from_lcid(mac, lc_info->lcid);
-  if (srb_id > 0 && !mac_lc_config->ul_SpecificParameters) {
+  lc_info->rb = rb;
+  lc_info->rb_suspended = false;
+  if (rb.type == NR_LCID_SRB && !mac_lc_config->ul_SpecificParameters) {
     // release configuration and reset to default
-    set_default_logicalchannelconfig(lc_info, srb_id);
+    set_default_logicalchannelconfig(lc_info, rb.choice.srb_id);
     // invalid LCGID to signal it is absent in the configuration
     lc_sched_info->LCGID = NR_INVALID_LCGID;
     return;
@@ -775,6 +909,25 @@ static void nr_configure_lc_config(NR_UE_MAC_INST_t *mac,
   NR_timer_t *bjt = &lc_sched_info->Bj_timer;
   nr_timer_setup(bjt, UINT_MAX, 1);  // this timer never expires in principle, counter incremented by number of slots
   nr_timer_start(bjt);
+}
+
+static nr_lcid_rb_t configure_lcid_rb(NR_RLC_BearerConfig_t *rlc_bearer)
+{
+  nr_lcid_rb_t rb;
+  if (rlc_bearer->servedRadioBearer->present == NR_RLC_BearerConfig__servedRadioBearer_PR_srb_Identity) {
+    rb.type = NR_LCID_SRB;
+    rb.choice.srb_id = rlc_bearer->servedRadioBearer->choice.srb_Identity;
+    return rb;
+  }
+
+  if (rlc_bearer->servedRadioBearer->present == NR_RLC_BearerConfig__servedRadioBearer_PR_drb_Identity) {
+    rb.type = NR_LCID_DRB;
+    rb.choice.drb_id = rlc_bearer->servedRadioBearer->choice.drb_Identity;
+    return rb;
+  }
+  LOG_E(NR_MAC, "Error. RLC should be linked to either DRB or SRB.\n");
+  rb.type = NR_LCID_NONE;
+  return rb;
 }
 
 static void configure_logicalChannelBearer(NR_UE_MAC_INST_t *mac,
@@ -799,6 +952,9 @@ static void configure_logicalChannelBearer(NR_UE_MAC_INST_t *mac,
   if (rlc_toadd_list) {
     for (int i = 0; i < rlc_toadd_list->list.count; i++) {
       NR_RLC_BearerConfig_t *rlc_bearer = rlc_toadd_list->list.array[i];
+      nr_lcid_rb_t rb = configure_lcid_rb(rlc_bearer);
+      if (rb.type == NR_LCID_NONE)
+        continue;
       int lc_identity = rlc_bearer->logicalChannelIdentity;
       NR_LogicalChannelConfig_t *mac_lc_config = rlc_bearer->mac_LogicalChannelConfig;
       int j;
@@ -808,14 +964,9 @@ static void configure_logicalChannelBearer(NR_UE_MAC_INST_t *mac,
       }
       if (j < mac->lc_ordered_list.count) {
         LOG_D(NR_MAC, "Logical channel %d is already established, Reconfiguring now\n", lc_identity);
-        if (mac_lc_config != NULL) {
-          NR_SRB_Identity_t srb_id = 0;
-          if (rlc_bearer->servedRadioBearer->present == NR_RLC_BearerConfig__servedRadioBearer_PR_srb_Identity)
-            srb_id = rlc_bearer->servedRadioBearer->choice.srb_Identity;
-          nr_configure_lc_config(mac, mac->lc_ordered_list.array[j], mac_lc_config, srb_id);
-        }
-      }
-      else {
+        if (mac_lc_config != NULL)
+          nr_configure_lc_config(mac, mac->lc_ordered_list.array[j], mac_lc_config, rb);
+      } else {
         /* setup of new LCID*/
         nr_lcordered_info_t *lc_info = calloc(1, sizeof(*lc_info));
         lc_info->lcid = lc_identity;
@@ -824,12 +975,12 @@ static void configure_logicalChannelBearer(NR_UE_MAC_INST_t *mac,
         if (rlc_bearer->servedRadioBearer->present == NR_RLC_BearerConfig__servedRadioBearer_PR_srb_Identity) { /* SRB */
           NR_SRB_Identity_t srb_id = rlc_bearer->servedRadioBearer->choice.srb_Identity;
           if (mac_lc_config != NULL)
-            nr_configure_lc_config(mac, lc_info, mac_lc_config, srb_id);
+            nr_configure_lc_config(mac, lc_info, mac_lc_config, rb);
           else
             set_default_logicalchannelconfig(lc_info, srb_id);
         } else { /* DRB */
           AssertFatal(mac_lc_config, "When establishing a DRB, LogicalChannelConfig should be mandatorily present\n");
-          nr_configure_lc_config(mac, lc_info, mac_lc_config, 0);
+          nr_configure_lc_config(mac, lc_info, mac_lc_config, rb);
         }
         ASN_SEQUENCE_ADD(&mac->lc_ordered_list, lc_info);
       }
@@ -840,9 +991,8 @@ static void configure_logicalChannelBearer(NR_UE_MAC_INST_t *mac,
   }
 }
 
-void ue_init_config_request(NR_UE_MAC_INST_t *mac, int scs)
+void ue_init_config_request(NR_UE_MAC_INST_t *mac, int slots_per_frame)
 {
-  int slots_per_frame = nr_slots_per_frame[scs];
   LOG_I(NR_MAC, "Initializing dl and ul config_request. num_slots = %d\n", slots_per_frame);
   mac->dl_config_request = calloc(slots_per_frame, sizeof(*mac->dl_config_request));
   mac->ul_config_request = calloc(slots_per_frame, sizeof(*mac->ul_config_request));
@@ -866,23 +1016,51 @@ static void update_mib_conf(NR_MIB_t *target, NR_MIB_t *source)
   target->intraFreqReselection = source->intraFreqReselection;
 }
 
-void nr_rrc_mac_config_req_mib(module_id_t module_id,
-                               int cc_idP,
-                               NR_MIB_t *mib,
-                               int sched_sib)
+static bool is_cset0_present(frequency_range_t const fr, uint8_t const kssb)
+{
+  // TS 38.213 4.1 defines if CORESET 0 is present or not based on Kssb
+  return (fr == FR1) ? (kssb < 24) : (kssb < 12);
+}
+
+void nr_rrc_mac_config_req_mib(module_id_t module_id, int cc_idP, NR_MIB_t *mib, int sched_sib, bool barred)
 {
   NR_UE_MAC_INST_t *mac = get_mac_inst(module_id);
+  int ret = pthread_mutex_lock(&mac->if_mutex);
+  AssertFatal(!ret, "mutex failed %d\n", ret);
   AssertFatal(mib, "MIB should not be NULL\n");
   if (!mac->mib)
     mac->mib = calloc(1, sizeof(*mac->mib));
+  if (barred)
+    mac->state = UE_BARRED;
+  else if (mac->state == UE_BARRED) {
+    // it is synched as we received MIB
+    // nr_ue_decode_mib is transitionining to the correct state
+    mac->state = UE_NOT_SYNC;
+  }
   update_mib_conf(mac->mib, mib);
   mac->phy_config.Mod_id = module_id;
   mac->phy_config.CC_id = cc_idP;
-  if (sched_sib == 1)
-    mac->get_sib1 = true;
-  else if (sched_sib == 2)
-    mac->get_otherSI = true;
+
   nr_ue_decode_mib(mac, cc_idP);
+
+  if (sched_sib == 1) {
+    bool const is_c0 = is_cset0_present(mac->frequency_range, mac->ssb_subcarrier_offset);
+    mac->get_sib1 = is_c0;
+    AssertFatal(is_c0, "RRC scheduling SIB1 reception but MIB indicates no SIB1 present in current cell\n");
+  } else if (sched_sib > 1)
+    mac->get_otherSI[sched_sib - 2] = true;
+
+  if (get_softmodem_params()->phy_test)
+    mac->state = UE_CONNECTED;
+  else if (mac->state == UE_NOT_SYNC) {
+    if (IS_SA_MODE(get_softmodem_params()) && mac->get_sib1)
+      mac->state = UE_RECEIVING_SIB;
+    else
+      mac->state = UE_PERFORMING_RA;
+  }
+
+  ret = pthread_mutex_unlock(&mac->if_mutex);
+  AssertFatal(!ret, "mutex failed %d\n", ret);
 }
 
 static void setup_puschpowercontrol(NR_UE_MAC_INST_t *mac, NR_PUSCH_PowerControl_t *source, NR_PUSCH_PowerControl_t *target)
@@ -1369,7 +1547,7 @@ static void setup_srsconfig(NR_UE_UL_BWP_t *bwp, NR_SRS_Config_t *source, NR_SRS
   }
 }
 
-static NR_UE_DL_BWP_t *get_dl_bwp_structure(NR_UE_MAC_INST_t *mac, int bwp_id, bool setup)
+NR_UE_DL_BWP_t *get_dl_bwp_structure(NR_UE_MAC_INST_t *mac, int bwp_id, bool setup)
 {
   NR_UE_DL_BWP_t *bwp = NULL;
   for (int i = 0; i < mac->dl_BWPs.count; i++) {
@@ -1393,7 +1571,7 @@ static NR_UE_DL_BWP_t *get_dl_bwp_structure(NR_UE_MAC_INST_t *mac, int bwp_id, b
   return bwp;
 }
 
-static NR_UE_UL_BWP_t *get_ul_bwp_structure(NR_UE_MAC_INST_t *mac, int bwp_id, bool setup)
+NR_UE_UL_BWP_t *get_ul_bwp_structure(NR_UE_MAC_INST_t *mac, int bwp_id, bool setup)
 {
   NR_UE_UL_BWP_t *bwp = NULL;
   for (int i = 0; i < mac->ul_BWPs.count; i++) {
@@ -1607,16 +1785,17 @@ static void configure_timeAlignmentTimer(NR_timer_t *time_alignment_timer, NR_Ti
     nr_timer_start(time_alignment_timer);
 }
 
-void nr_rrc_mac_config_req_reset(module_id_t module_id,
-                                 NR_UE_MAC_reset_cause_t cause)
+void nr_rrc_mac_config_req_reset(module_id_t module_id, NR_UE_MAC_reset_cause_t cause)
 {
   NR_UE_MAC_INST_t *mac = get_mac_inst(module_id);
+  int ret = pthread_mutex_lock(&mac->if_mutex);
+  AssertFatal(!ret, "mutex failed %d\n", ret);
   fapi_nr_synch_request_t sync_req = {.target_Nid_cell = -1, .ssb_bw_scan = true};
   switch (cause) {
     case GO_TO_IDLE:
       reset_ra(mac, true);
-      release_mac_configuration(mac, cause);
       nr_ue_init_mac(mac);
+      release_mac_configuration(mac, cause);
       nr_ue_mac_default_configs(mac);
       // new sync but no target cell id -> -1
       nr_ue_send_synch_request(mac, module_id, 0, &sync_req);
@@ -1632,13 +1811,25 @@ void nr_rrc_mac_config_req_reset(module_id_t module_id,
     case T300_EXPIRY:
       reset_ra(mac, false);
       reset_mac_inst(mac);
-      mac->state = UE_SYNC; // still in sync but need to restart RA
+      mac->state = UE_PERFORMING_RA; // still in sync but need to restart RA
+      break;
+    case REJECT:
+      reset_ra(mac, false);
+      reset_mac_inst(mac);
+      mac->state = UE_BARRED;
       break;
     case RE_ESTABLISHMENT:
       reset_mac_inst(mac);
       nr_ue_mac_default_configs(mac);
       nr_ue_reset_sync_state(mac);
       release_mac_configuration(mac, cause);
+      // suspend all RBs except SRB0
+      for (int j = 0; j < mac->lc_ordered_list.count; j++) {
+        nr_lcordered_info_t *lc = mac->lc_ordered_list.array[j];
+        if (lc->rb.type == NR_LCID_SRB && lc->rb.choice.srb_id == 0)
+          continue;
+        lc->rb_suspended = true;
+      }
       // apply the timeAlignmentTimerCommon included in SIB1
       configure_timeAlignmentTimer(&mac->time_alignment_timer, mac->timeAlignmentTimerCommon, mac->current_UL_BWP->scs);
       // new sync with old cell ID (re-establishment on the same cell)
@@ -1646,52 +1837,98 @@ void nr_rrc_mac_config_req_reset(module_id_t module_id,
       sync_req.ssb_bw_scan = false;
       nr_ue_send_synch_request(mac, module_id, 0, &sync_req);
       break;
+    case RRC_SETUP_REESTAB_RESUME:
+      release_mac_configuration(mac, cause);
+      nr_ue_mac_default_configs(mac);
+      break;
+    case UL_SYNC_LOST_T430_EXPIRED:
+      // TS 38.331 Section 5.2.2.6, TS 38.321 Section 5.2a
+      // Flush all HARQ buffers and Stop UL transmissions
+      handle_ulsync_loss(mac);
+      break;
     default:
       AssertFatal(false, "Invalid MAC reset cause %d\n", cause);
   }
+  ret = pthread_mutex_unlock(&mac->if_mutex);
+  AssertFatal(!ret, "mutex failed %d\n", ret);
 }
 
-static int get_ta_offset(long *n_TimingAdvanceOffset)
+bool is_lcid_suspended(NR_UE_MAC_INST_t *mac, int lcid)
 {
-  if (!n_TimingAdvanceOffset)
-    return -1;
-
-  switch (*n_TimingAdvanceOffset) {
-    case NR_ServingCellConfigCommonSIB__n_TimingAdvanceOffset_n0 :
-      return 0;
-    case NR_ServingCellConfigCommonSIB__n_TimingAdvanceOffset_n25600 :
-      return 25600;
-    case NR_ServingCellConfigCommonSIB__n_TimingAdvanceOffset_n39936 :
-      return 39936;
-    default :
-      AssertFatal(false, "Invalid n-TimingAdvanceOffset\n");
+  for (int j = 0; j < mac->lc_ordered_list.count; j++) {
+    nr_lcordered_info_t *lc = mac->lc_ordered_list.array[j];
+    if (lc->lcid == lcid)
+      return lc->rb_suspended;
   }
-  return -1;
+  LOG_E(NR_MAC, "LCID %d not found in the MAC list\n", lcid);
+  return false;
 }
 
-void nr_rrc_mac_config_req_sib1(module_id_t module_id,
-                                int cc_idP,
-                                NR_SI_SchedulingInfo_t *si_SchedulingInfo,
-                                NR_SI_SchedulingInfo_v1700_t *si_SchedulingInfo_v1700,
-                                NR_ServingCellConfigCommonSIB_t *scc)
+void nr_rrc_mac_resume_rb(module_id_t module_id, bool is_srb, int rb_id)
 {
   NR_UE_MAC_INST_t *mac = get_mac_inst(module_id);
-  AssertFatal(scc, "SIB1 SCC should not be NULL\n");
+  for (int j = 0; j < mac->lc_ordered_list.count; j++) {
+    nr_lcordered_info_t *lc = mac->lc_ordered_list.array[j];
+    if (is_srb && lc->rb.type == NR_LCID_SRB && lc->rb.choice.srb_id == rb_id)
+      lc->rb_suspended = false;
+    if (!is_srb && lc->rb.type == NR_LCID_DRB && lc->rb.choice.drb_id == rb_id)
+      lc->rb_suspended = false;
+  }
+}
 
+static void configure_si_schedulingInfo(NR_UE_MAC_INST_t *mac,
+                                        NR_SI_SchedulingInfo_t *si_SchedulingInfo,
+                                        NR_SI_SchedulingInfo_v1700_t *si_SchedulingInfo_v1700)
+{
+  asn_sequence_empty(&mac->si_SchedInfo.si_SchedInfo_list);
+  if (si_SchedulingInfo) {
+    mac->si_SchedInfo.si_WindowLength = si_SchedulingInfo->si_WindowLength;
+    for (int i = 0; i < si_SchedulingInfo->schedulingInfoList.list.count; i++) {
+      si_schedinfo_config_t *config = calloc_or_fail(1, sizeof(*config));
+      config->type = NR_SI_INFO;
+      config->si_WindowPosition = i + 1;
+      config->si_Periodicity = si_SchedulingInfo->schedulingInfoList.list.array[i]->si_Periodicity;
+      ASN_SEQUENCE_ADD(&mac->si_SchedInfo.si_SchedInfo_list, config);
+    }
+  }
+  if (si_SchedulingInfo_v1700) {
+    for (int i = 0; i < si_SchedulingInfo_v1700->schedulingInfoList2_r17.list.count; i++) {
+      si_schedinfo_config_t *config = calloc_or_fail(1, sizeof(*config));
+      config->type = NR_SI_INFO_v1700;
+      config->si_WindowPosition = si_SchedulingInfo_v1700->schedulingInfoList2_r17.list.array[i]->si_WindowPosition_r17;
+      config->si_Periodicity = si_SchedulingInfo_v1700->schedulingInfoList2_r17.list.array[i]->si_Periodicity_r17;
+      ASN_SEQUENCE_ADD(&mac->si_SchedInfo.si_SchedInfo_list, config);
+    }
+  }
+}
+
+void nr_rrc_mac_config_req_sib1(module_id_t module_id, int cc_idP, NR_SIB1_t *sib1, bool can_start_ra)
+{
+  NR_UE_MAC_INST_t *mac = get_mac_inst(module_id);
+  int ret = pthread_mutex_lock(&mac->if_mutex);
+  AssertFatal(!ret, "mutex failed %d\n", ret);
+  NR_SI_SchedulingInfo_t *si_SchedulingInfo = sib1->si_SchedulingInfo;
+  NR_SI_SchedulingInfo_v1700_t *si_SchedulingInfo_v1700 = NULL;
+  if (sib1->nonCriticalExtension && sib1->nonCriticalExtension->nonCriticalExtension
+      && sib1->nonCriticalExtension->nonCriticalExtension->nonCriticalExtension) {
+    si_SchedulingInfo_v1700 = sib1->nonCriticalExtension->nonCriticalExtension->nonCriticalExtension->si_SchedulingInfo_v1700;
+  }
+  NR_ServingCellConfigCommonSIB_t *scc = sib1->servingCellConfigCommon;
+  AssertFatal(scc, "SIB1 SCC should not be NULL\n");
   UPDATE_IE(mac->tdd_UL_DL_ConfigurationCommon, scc->tdd_UL_DL_ConfigurationCommon, NR_TDD_UL_DL_ConfigCommon_t);
-  UPDATE_IE(mac->si_SchedulingInfo, si_SchedulingInfo, NR_SI_SchedulingInfo_t);
-  UPDATE_IE(mac->si_SchedulingInfo_v1700, si_SchedulingInfo_v1700, NR_SI_SchedulingInfo_v1700_t);
-  mac->n_ta_offset = get_ta_offset(scc->n_TimingAdvanceOffset);
+  configure_si_schedulingInfo(mac, si_SchedulingInfo, si_SchedulingInfo_v1700);
 
   config_common_ue_sa(mac, scc, cc_idP);
-  configure_common_BWP_dl(mac,
-                          0, // bwp-id
-                          &scc->downlinkConfigCommon.initialDownlinkBWP);
+
+  // Build the list of all the valid/transmitted SSBs according to the config
+  LOG_D(NR_MAC, "Build SSB list\n");
+  build_ssb_list(mac);
+
+  int bwp_id = 0;
+  configure_common_BWP_dl(mac, bwp_id, &scc->downlinkConfigCommon.initialDownlinkBWP);
   if (scc->uplinkConfigCommon) {
     mac->timeAlignmentTimerCommon = scc->uplinkConfigCommon->timeAlignmentTimerCommon;
-    configure_common_BWP_ul(mac,
-                            0, // bwp-id
-                            &scc->uplinkConfigCommon->initialUplinkBWP);
+    configure_common_BWP_ul(mac, bwp_id, &scc->uplinkConfigCommon->initialUplinkBWP);
   }
   // set current BWP only if coming from non-connected state
   // otherwise it is just a periodically update of the SIB1 content
@@ -1702,56 +1939,63 @@ void nr_rrc_mac_config_req_sib1(module_id_t module_id,
     AssertFatal(mac->current_UL_BWP, "Couldn't find DL-BWP0\n");
     configure_timeAlignmentTimer(&mac->time_alignment_timer, mac->timeAlignmentTimerCommon, mac->current_UL_BWP->scs);
   }
-
-  // Setup the SSB to Rach Occasions mapping according to the config
-  build_ssb_to_ro_map(mac);
+  if (mac->state == UE_RECEIVING_SIB && can_start_ra)
+    mac->state = UE_PERFORMING_RA;
 
   if (!get_softmodem_params()->emulate_l1)
     mac->if_module->phy_config_request(&mac->phy_config);
+  ret = pthread_mutex_unlock(&mac->if_mutex);
+  AssertFatal(!ret, "mutex failed %d\n", ret);
 }
 
-void nr_rrc_mac_config_req_sib19_r17(module_id_t module_id,
-                                     NR_SIB19_r17_t *sib19_r17)
+void nr_rrc_mac_config_other_sib(module_id_t module_id, NR_SIB19_r17_t *sib19, bool can_start_ra)
 {
   NR_UE_MAC_INST_t *mac = get_mac_inst(module_id);
+  int ret = pthread_mutex_lock(&mac->if_mutex);
+  AssertFatal(!ret, "mutex failed %d\n", ret);
 
-  // ntn-Config-r17
-  UPDATE_IE(mac->sc_info.ntn_Config_r17, sib19_r17->ntn_Config_r17, NR_NTN_Config_r17_t);
-
-  // TODO handle other SIB19 elements
+  if (sib19) {
+    // update ntn_Config_r17 with received values
+    UPDATE_IE(mac->sc_info.ntn_Config_r17, sib19->ntn_Config_r17, NR_NTN_Config_r17_t);
+    configure_ntn_ta(mac->ue_id, &mac->ntn_ta, mac->sc_info.ntn_Config_r17);
+  }
+  if (mac->state == UE_RECEIVING_SIB && can_start_ra)
+    mac->state = UE_PERFORMING_RA;
+  ret = pthread_mutex_unlock(&mac->if_mutex);
+  AssertFatal(!ret, "mutex failed %d\n", ret);
 }
 
 static void handle_reconfiguration_with_sync(NR_UE_MAC_INST_t *mac,
                                              int cc_idP,
-                                             const NR_ReconfigurationWithSync_t *reconfigurationWithSync)
+                                             const NR_ReconfigurationWithSync_t *reconfWithSync)
 {
-  mac->crnti = reconfigurationWithSync->newUE_Identity;
+  reset_mac_inst(mac);
+  mac->crnti = reconfWithSync->newUE_Identity;
   LOG_I(NR_MAC, "Configuring CRNTI %x\n", mac->crnti);
 
   RA_config_t *ra = &mac->ra;
-  if (reconfigurationWithSync->rach_ConfigDedicated) {
-    AssertFatal(
-        reconfigurationWithSync->rach_ConfigDedicated->present == NR_ReconfigurationWithSync__rach_ConfigDedicated_PR_uplink,
-        "RACH on supplementaryUplink not supported\n");
-    UPDATE_IE(ra->rach_ConfigDedicated, reconfigurationWithSync->rach_ConfigDedicated->choice.uplink, NR_RACH_ConfigDedicated_t);
+  if (reconfWithSync->rach_ConfigDedicated) {
+    AssertFatal(reconfWithSync->rach_ConfigDedicated->present == NR_ReconfigurationWithSync__rach_ConfigDedicated_PR_uplink,
+                "RACH on supplementaryUplink not supported\n");
+    UPDATE_IE(ra->rach_ConfigDedicated, reconfWithSync->rach_ConfigDedicated->choice.uplink, NR_RACH_ConfigDedicated_t);
   }
 
-  if (reconfigurationWithSync->spCellConfigCommon) {
-    NR_ServingCellConfigCommon_t *scc = reconfigurationWithSync->spCellConfigCommon;
-    mac->n_ta_offset = get_ta_offset(scc->n_TimingAdvanceOffset);
+  if (reconfWithSync->spCellConfigCommon) {
+    NR_ServingCellConfigCommon_t *scc = reconfWithSync->spCellConfigCommon;
     if (scc->physCellId)
       mac->physCellId = *scc->physCellId;
     mac->dmrs_TypeA_Position = scc->dmrs_TypeA_Position;
     UPDATE_IE(mac->tdd_UL_DL_ConfigurationCommon, scc->tdd_UL_DL_ConfigurationCommon, NR_TDD_UL_DL_ConfigCommon_t);
     config_common_ue(mac, scc, cc_idP);
+    // Build the list of all the valid/transmitted SSBs according to the config
+    LOG_D(NR_MAC,"Build SSB list\n");
+    build_ssb_list(mac);
+
+    const int bwp_id = 0;
     if (scc->downlinkConfigCommon)
-      configure_common_BWP_dl(mac,
-                              0, // bwp-id
-                              scc->downlinkConfigCommon->initialDownlinkBWP);
+      configure_common_BWP_dl(mac, bwp_id, scc->downlinkConfigCommon->initialDownlinkBWP);
     if (scc->uplinkConfigCommon)
-      configure_common_BWP_ul(mac,
-                              0, // bwp-id
-                              scc->uplinkConfigCommon->initialUplinkBWP);
+      configure_common_BWP_ul(mac, bwp_id, scc->uplinkConfigCommon->initialUplinkBWP);
   }
 
   mac->state = UE_NOT_SYNC;
@@ -2013,17 +2257,17 @@ static void configure_maccellgroup(NR_UE_MAC_INST_t *mac, const NR_MAC_CellGroup
       }
     }
   }
+  int slots_per_subframe = mac->frame_structure.numb_slots_frame / 10;
   if (mcg->bsr_Config) {
-    int subframes_per_slot = nr_slots_per_frame[scs] / 10;
     uint32_t periodic_sf = nr_get_sf_periodicBSRTimer(mcg->bsr_Config->periodicBSR_Timer);
-    uint32_t target = periodic_sf < UINT_MAX ? periodic_sf * subframes_per_slot : periodic_sf;
+    uint32_t target = periodic_sf < UINT_MAX ? periodic_sf * slots_per_subframe : periodic_sf;
     nr_timer_setup(&si->periodicBSR_Timer, target, 1); // 1 slot update rate
     nr_timer_start(&si->periodicBSR_Timer);
     uint32_t retx_sf = nr_get_sf_retxBSRTimer(mcg->bsr_Config->retxBSR_Timer);
-    nr_timer_setup(&si->retxBSR_Timer, retx_sf * subframes_per_slot, 1); // 1 slot update rate
+    nr_timer_setup(&si->retxBSR_Timer, retx_sf * slots_per_subframe, 1); // 1 slot update rate
     if (mcg->bsr_Config->logicalChannelSR_DelayTimer) {
       uint32_t dt_sf = get_sr_DelayTimer(*mcg->bsr_Config->logicalChannelSR_DelayTimer);
-      nr_timer_setup(&si->sr_DelayTimer, dt_sf * subframes_per_slot, 1); // 1 slot update rate
+      nr_timer_setup(&si->sr_DelayTimer, dt_sf * slots_per_subframe, 1); // 1 slot update rate
     }
   }
   if (mcg->tag_Config) {
@@ -2057,7 +2301,6 @@ static void configure_maccellgroup(NR_UE_MAC_INST_t *mac, const NR_MAC_CellGroup
     nr_phr_info_t *phr_info = &si->phr_info;
     phr_info->is_configured = mcg->phr_Config->choice.setup != NULL;
     if (phr_info->is_configured) {
-      int slots_per_subframe = nr_slots_per_frame[scs] / 10;
       struct NR_PHR_Config *config = mcg->phr_Config->choice.setup;
       AssertFatal(config->multiplePHR == 0, "mulitplePHR not supported");
       phr_info->PathlossChange_db = config->phr_Tx_PowerFactorChange;
@@ -2437,8 +2680,8 @@ static void configure_BWPs(NR_UE_MAC_INST_t *mac, NR_ServingCellConfig_t *scd)
   if (scd->downlinkBWP_ToReleaseList) {
     for (int i = 0; i < scd->downlinkBWP_ToReleaseList->list.count; i++) {
       for (int j = 0; j < mac->dl_BWPs.count; j++) {
-        if (*scd->downlinkBWP_ToReleaseList->list.array[i] == mac->dl_BWPs.array[i]->bwp_id)
-          release_dl_BWP(mac, i);
+        if (*scd->downlinkBWP_ToReleaseList->list.array[i] == mac->dl_BWPs.array[j]->bwp_id)
+          release_dl_BWP(mac, j);
       }
     }
   }
@@ -2459,8 +2702,8 @@ static void configure_BWPs(NR_UE_MAC_INST_t *mac, NR_ServingCellConfig_t *scd)
     if (scd->uplinkConfig->uplinkBWP_ToReleaseList) {
       for (int i = 0; i < scd->uplinkConfig->uplinkBWP_ToReleaseList->list.count; i++) {
         for (int j = 0; j < mac->ul_BWPs.count; j++) {
-          if (*scd->uplinkConfig->uplinkBWP_ToReleaseList->list.array[i] == mac->ul_BWPs.array[i]->bwp_id)
-            release_ul_BWP(mac, i);
+          if (*scd->uplinkConfig->uplinkBWP_ToReleaseList->list.array[i] == mac->ul_BWPs.array[j]->bwp_id)
+            release_ul_BWP(mac, j);
         }
       }
     }
@@ -2518,8 +2761,10 @@ void nr_rrc_mac_config_req_cg(module_id_t module_id,
                               NR_UE_NR_Capability_t *ue_Capability)
 {
   LOG_I(MAC,"[UE %d] Applying CellGroupConfig from gNodeB\n", module_id);
-  AssertFatal(cell_group_config, "CellGroupConfig should not be NULL\n");
   NR_UE_MAC_INST_t *mac = get_mac_inst(module_id);
+  int ret = pthread_mutex_lock(&mac->if_mutex);
+  AssertFatal(!ret, "mutex failed %d\n", ret);
+  AssertFatal(cell_group_config, "CellGroupConfig should not be NULL\n");
 
   if (cell_group_config->physicalCellGroupConfig)
     configure_physicalcellgroup(mac, cell_group_config->physicalCellGroupConfig);
@@ -2548,18 +2793,13 @@ void nr_rrc_mac_config_req_cg(module_id_t module_id,
       configure_timeAlignmentTimer(&mac->time_alignment_timer, mac->TAG_list.array[j]->timeAlignmentTimer, mac->current_UL_BWP->scs);
   }
 
-  configure_logicalChannelBearer(mac,
-                                 cell_group_config->rlc_BearerToAddModList,
-                                 cell_group_config->rlc_BearerToReleaseList);
+  configure_logicalChannelBearer(mac, cell_group_config->rlc_BearerToAddModList, cell_group_config->rlc_BearerToReleaseList);
 
   if (ue_Capability)
     handle_mac_uecap_info(mac, ue_Capability);
 
-  // Setup the SSB to Rach Occasions mapping according to the config
-  // Only if RACH is configured for current BWP
-  if (mac->current_UL_BWP->rach_ConfigCommon)
-    build_ssb_to_ro_map(mac);
-
   if (!mac->dl_config_request || !mac->ul_config_request)
-    ue_init_config_request(mac, mac->current_DL_BWP->scs);
+    ue_init_config_request(mac, mac->frame_structure.numb_slots_frame);
+  ret = pthread_mutex_unlock(&mac->if_mutex);
+  AssertFatal(!ret, "mutex failed %d\n", ret);
 }

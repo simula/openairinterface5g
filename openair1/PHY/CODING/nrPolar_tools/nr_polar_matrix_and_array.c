@@ -28,7 +28,7 @@
  * \email turker.yilmaz@eurecom.fr
  * \note
  * \warning
-*/
+ */
 
 #include "PHY/CODING/nrPolar_tools/nr_polar_defs.h"
 
@@ -47,7 +47,8 @@ void nr_matrix_multiplication_uint8_1D_uint8_2D(const uint8_t *matrix1,
 }
 
 // Modified Bubble Sort.
-void nr_sort_asc_double_1D_array_ind(double *matrix, uint8_t *ind, uint8_t len) {
+void nr_sort_asc_double_1D_array_ind(double *matrix, uint8_t *ind, uint8_t len)
+{
   for (int i = 0; i < len; i++) {
     int swaps = 0;
     for (int j = 0; j < (len - i) - 1; j++) {

@@ -107,6 +107,7 @@ check_supported_distribution() {
         "ubuntu22.04") return 0 ;;
         "ubuntu20.04") return 0 ;;
         "debian11")    return 0 ;;
+        "fedora41")    return 0 ;;
         "fedora40")    return 0 ;;
         "rhel8.2")     return 0 ;;
         "rhel8.3")     return 0 ;;
@@ -121,6 +122,9 @@ check_supported_distribution() {
         "rhel9.2")     return 0 ;;
         "rhel9.3")     return 0 ;;
         "rhel9.4")     return 0 ;;
+        "rhel9.5")     return 0 ;;
+        "rhel9.6")     return 0 ;;
+        "rhel9.7")     return 0 ;;
         "centos9")     return 0 ;; # CentOS stream
         "rocky8.7")    return 0 ;;
         "rocky8.8")    return 0 ;;
@@ -129,6 +133,9 @@ check_supported_distribution() {
         "rocky9.2")    return 0 ;;
         "rocky9.3")    return 0 ;;
         "rocky9.4")    return 0 ;;
+        "rocky9.5")    return 0 ;;
+        "rocky9.6")    return 0 ;;
+        "rocky9.7")    return 0 ;;
     esac
     return 1
 }
@@ -170,68 +177,8 @@ clean_all_files() {
  dir=$OPENAIR_DIR/cmake_targets
  rm -rf $dir/ran_build $dir/ran_build_noLOG
  rm -rf $dir/lte-simulators/build 
- rm -rf $dir/nas_sim_tools/build 
  rm -rf $dir/oaisim_build_oai/build $dir/oaisim_build_oai/CMakeLists.txt
  rm -rf $dir/autotests/bin $dir/autotests/log $dir/autotests/*/build
-}
-
-###################################
-# Compilers
-###################################
-
-#check_warnings:
-#    print error message if the compilation had warnings
-#argument:
-#    $1: log file
-check_warnings() {
-  #we look for 'warning:' in the compilation log file
-  #this is how gcc starts a warning
-  #this is not perfect, we may get false positive
-  warning_count=`grep "warning:" "$1" | grep -E -v "jobserver unavailable|disabling jobserver mode" | wc -l`
-  if [ $warning_count -gt 0 ]; then
-    echo_error "WARNING: $warning_count warnings. See $1"
-  fi
-}
-
-#check_errors:
-#    print error message if the compilation had errors
-#argument:
-#    $1: log file
-check_errors() {
-  #we look for 'error:' in the compilation log file
-  error_count=`grep -c "error:" "$1"`
-  if [ $error_count -gt 0 ]; then
-    echo_error "ERROR: $error_count error. See $1"
-  fi
-}
-
-compilations() {
-  [[ $# -gt 2 ]] || echo_fatal "compilations needs more than three arguments"
-  local dir=$1
-  shift 1
-  local logfile=$1
-  shift 1
-  local targets=$@
-  local verbose=$([ "$VERBOSE_COMPILE" == "1" ] && echo "-v" || echo "")
-  echo cd $OPENAIR_DIR/cmake_targets/$dir/build
-  cd $OPENAIR_DIR/cmake_targets/$dir/build
-  echo_info "Running \"$CMAKE --build . $verbose --target $targets -- -j$(nproc)\"" $green
-  echo "Log file for compilation is being written to: $dlog/$logfile"
-  set +e
-  {
-    $CMAKE --build . $verbose --target $targets -- -j$(nproc)
-    ret=$?
-  } > $dlog/$logfile 2>&1
-  # Print the errors and warnings for CI purposes
-  grep -E -A3 "warning:|error:" $dlog/$logfile || true
-  check_warnings "$dlog/$logfile"
-  if [[ $ret -eq 0 ]]; then
-     echo_success "$targets compiled"
-  else
-     check_errors "$dlog/$logfile"
-     echo_error "compilation of $targets failed"
-     exit 1
-  fi
 }
 
 ############################################
@@ -239,9 +186,7 @@ compilations() {
 ############################################
 
 install_usrp_uhd_driver_from_source(){
-    uhd_install_log=$OPENAIR_DIR/cmake_targets/log/uhd_install_log.txt
-    echo_info "\nInstalling UHD driver from sources. The log file for UHD driver installation is here: $uhd_install_log "
-    (
+    echo_info "\nInstalling UHD driver from sources."
     pushd /tmp
     echo "Cloning UHD driver repository"
     rm -rf /tmp/uhd
@@ -257,7 +202,7 @@ install_usrp_uhd_driver_from_source(){
             # - 3.15.0.0
             git apply $OPENAIR_DIR/cmake_targets/tools/uhd-3.15-tdd-patch.diff
             ret=$?;[[ $ret -ne 0 ]] && echo_fatal "Could not apply the TDD patch"
-        elif [[ "$UHD_VERSION" == "4.7.0.0" || "$UHD_VERSION" == "4.6.0.0" || "$UHD_VERSION" == "4.5.0.0" ]]; then
+        elif [[ "$UHD_VERSION" == "4.8.0.0" || "$UHD_VERSION" == "4.7.0.0" || "$UHD_VERSION" == "4.6.0.0" || "$UHD_VERSION" == "4.5.0.0" ]]; then
             # Tested that patch for the following versions:
             # - 4.7.0.0
             cp $OPENAIR_DIR/cmake_targets/tools/uhd-4.x-tdd-patch.diff $OPENAIR_DIR/cmake_targets/tools/uhd-4.5plus-tdd-patch.diff
@@ -286,7 +231,7 @@ install_usrp_uhd_driver_from_source(){
     git diff
     mkdir -p host/build
     cd host/build || true
-    $CMAKE ../ -GNinja -DENABLE_TESTS=OFF -DENABLE_EXAMPLES=OFF
+    $CMAKE ../ -GNinja -DENABLE_TESTS=OFF -DENABLE_EXAMPLES=OFF -DENABLE_B100=OFF -DENABLE_DOXYGEN=OFF -DENABLE_MANUAL=OFF -DENABLE_MAN_PAGES=OFF -DENABLE_MAN_PAGE_COMPRESSION=OFF -DENABLE_OCTOCLOCK=ON -DENABLE_USRP1=OFF -DENABLE_USRP2=OFF
     echo "Compiling UHD"
     ninja
     $SUDO ninja install
@@ -301,25 +246,13 @@ install_usrp_uhd_driver_from_source(){
     fi
     popd
     rm -rf /tmp/uhd
-    ) >& $uhd_install_log
 }
 
 check_install_usrp_uhd_driver(){
     if [[ "$OS_BASEDISTRO" == "debian" ]]; then
         boost_libs_ubuntu="libboost-chrono-dev libboost-date-time-dev libboost-filesystem-dev libboost-program-options-dev libboost-thread-dev libboost-test-dev libboost-regex-dev"
         #first we remove old installation
-        $SUDO apt-get remove uhd -y || true
-        $SUDO apt-get remove uhd-host -y || true
-        $SUDO apt-get remove libuhd-dev -y || true
-        $SUDO apt-get remove libuhd003 -y || true
-        $SUDO apt-get remove libuhd3.13.1 -y || true
-        $SUDO apt-get remove libuhd3.14.0 -y || true
-        $SUDO apt-get remove libuhd3.14.1 -y || true
-        $SUDO apt-get remove libuhd3.15.0 -y || true
-        local distribution=$(get_distribution_release)
-        if [[ "$distribution" == "ubuntu20.04" || "$distribution" == "ubuntu22.04" ]]; then
-            $SUDO apt-get remove libuhd4.?.? -y || true
-        fi
+        $SUDO apt-get remove uhd* libuhd* -y || true
         v=$(lsb_release -cs)
         $SUDO apt-add-repository --remove "deb http://files.ettus.com/binaries/uhd/repo/uhd/ubuntu/$v $v main"
         if [[ -v BUILD_UHD_FROM_SOURCE ]] || [[ "$OS_DISTRO" == "debian" ]]; then
@@ -398,9 +331,7 @@ install_usrp_uhd_driver() {
 }
 
 install_bladerf_driver_from_source(){
-    bladerf_install_log=$OPENAIR_DIR/cmake_targets/log/bladerf_install_log.txt
-    echo_info "\nInstalling BladeRF driver from sources. The log file for BladeRF driver installation is here: $bladerf_install_log "
-    (
+    echo_info "\nInstalling BladeRF driver from sources."
     cd /tmp
     echo "Downloading BladeRF driver"
     rm -rf /tmp/bladeRF
@@ -423,7 +354,6 @@ install_bladerf_driver_from_source(){
     sudo mkdir -p /usr/share/Nuand/bladeRF
     sudo mv bladeRF_fw_latest.img /usr/share/Nuand/bladeRF/bladeRF_fw.img
     sudo mv hostedx40-latest.rbf /usr/share/Nuand/bladeRF/hostedx40.rbf
-    ) >& $bladerf_install_log
 }
 
 check_install_bladerf_driver(){
@@ -458,9 +388,7 @@ check_install_lmssdr_driver(){
 }
 
 install_soapy_from_source(){
-    soapy_install_log=$OPENAIR_DIR/cmake_targets/log/soapy_install_log.txt
-    echo_info "\nInstalling Soapy EcoSystem from source. The log file for Soapy installation is here: $soapy_install_log "
-    (
+    echo_info "\nInstalling Soapy EcoSystem from source."
     cd /tmp
     echo "Downloading SoapySDR"
     rm -rf /tmp/SoapySDR
@@ -487,13 +415,10 @@ install_soapy_from_source(){
     make -j`nproc`
     $SUDO make install
     $SUDO ldconfig
-    ) >& $soapy_install_log
 }
 
 install_soapy_iris_from_source(){
-    iris_install_log=$OPENAIR_DIR/cmake_targets/log/iris_install_log.txt
-    echo_info "\nInstalling Iris driver from source. The log file for Iris driver installation is here: $iris_install_log "
-    (
+    echo_info "\nInstalling Iris driver from source."
     cd /tmp
     echo "Downloading SoapyIris"
     rm -rf /tmp/sklk-soapyiris
@@ -506,7 +431,6 @@ install_soapy_iris_from_source(){
     make -j`nproc`
     $SUDO make install
     $SUDO ldconfig
-    ) >& $iris_install_log
 }
 
 check_install_soapy () {
@@ -543,7 +467,9 @@ check_install_additional_tools (){
         libforms-bin \
         libforms-dev \
         libxft-dev \
-        xmlstarlet"
+        libpcre3-dev \
+        libssh-dev \
+        libxml2-dev"
   elif [[ "$OS_DISTRO" == "rhel" ]] || [[ "$OS_DISTRO" == "centos" ]] || [[ "$OS_DISTRO" == "rocky" ]] ||  [[ "$OS_DISTRO" == "fedora" ]]; then
     PACKAGE_LIST="\
       doxygen \
@@ -553,7 +479,9 @@ check_install_additional_tools (){
       libXft-devel \
       xforms \
       xforms-devel \
-      xmlstarlet"
+      pcre-devel \
+      libssh-devel \
+      libxml2-devel"
   fi
     $SUDO $INSTALLER install -y $PACKAGE_LIST $optional_packages
 }
@@ -612,13 +540,11 @@ check_install_oai_software() {
       git \
       pkgconfig \
       libconfig-devel \
-      libffi-devel \
       lksctp-tools \
       lksctp-tools-devel \
       libtool \
       ninja-build \
       make \
-      openssl \
       openssl-devel \
       patch \
       readline-devel \
@@ -636,10 +562,7 @@ check_install_oai_software() {
 }
 
 install_asn1c_from_source(){
-    mkdir -p $OPENAIR_DIR/cmake_targets/log
-    asn1_install_log=$OPENAIR_DIR/cmake_targets/log/asn1c_install_log.txt
-    echo_info "\nInstalling ASN1. The log file for ASN1 installation is here: $asn1_install_log "
-    (
+    echo_info "\nInstalling ASN1."
     $SUDO $INSTALLER -y install bison flex
     $SUDO rm -rf /tmp/asn1c
     # GIT_SSL_NO_VERIFY=true git clone https://gitlab.eurecom.fr/oai/asn1c.git /tmp/asn1c
@@ -660,7 +583,6 @@ install_asn1c_from_source(){
     if [[ -v CI_ENV ]]; then
         $SUDO rm -rf /tmp/asn1c
     fi
-    ) > $asn1_install_log 2>&1
 }
 
 install_simde_from_source(){
@@ -673,8 +595,8 @@ install_simde_from_source(){
     if [[ -v SIMDE_VERSION ]]; then
       git checkout -f $SIMDE_VERSION
     else
-      # At time of writing, last working commit for OAI: 1a09d3bc
-      git checkout 1a09d3bc9de47c4d9a5daa23eb753d5322748201
+      # At time of writing, last working commit for OAI: c7f26b7
+      git checkout c7f26b73ba8e874b95c2cec2b497826ad2188f68
     fi
     # Showing which version is used
     git log -n1
@@ -799,44 +721,4 @@ set_openair_env(){
     export OPENAIR2_DIR=$openair_path/openair2
     export OPENAIR3_DIR=$openair_path/openair3
     export OPENAIR_TARGETS=$openair_path/targets
-}
-
-################################
-# Function to killall the subprocesses when Ctrl-C Key is hit
-###############################
-function handle_ctrl_c(){
-CURPID=$$
-ppid=$$
-arraycounter=1
-echo_info "** Trapped CTRL-C. Killing all subprocesses now..."
-echo_info "** Calling sync now..."
-sync
-while true
-do
-        FORLOOP=FALSE
-        # Get all the child process id
-        for i in `ps -ef| awk '$3 == '$ppid' { print $2 }'`
-        do
-                if [ $i -ne $CURPID ] ; then
-                        procid[$arraycounter]=$i
-                        arraycounter=`expr $arraycounter + 1`
-                        ppid=$i
-                        FORLOOP=TRUE
-                fi
-        done
-        if [ "$FORLOOP" = "FALSE" ] ; then
-           arraycounter=`expr $arraycounter - 1`
-           ## We want to kill child process id first and then parent id's
-           while [ $arraycounter -ne 0 ]
-           do
-             echo "first we send ctrl-c to program"
-             $SUDO kill -INT "${procid[$arraycounter]}"
-             sleep 5
-             echo "Now we force kill if that didn't work"
-             $SUDO kill -9 "${procid[$arraycounter]}" >/dev/null
-             arraycounter=`expr $arraycounter - 1`
-           done
-         exit
-        fi
-done
 }

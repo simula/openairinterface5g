@@ -55,8 +55,7 @@ void free_octet_string(OctetString *octetstring)
   }
 }
 
-
-int encode_octet_string(OctetString *octetstring, uint8_t *buffer, uint32_t buflen)
+int encode_octet_string(const OctetString *octetstring, uint8_t *buffer, uint32_t buflen)
 {
   if (octetstring != NULL) {
 	if ((octetstring->value != NULL) && (octetstring->length > 0)) {
@@ -71,7 +70,7 @@ int encode_octet_string(OctetString *octetstring, uint8_t *buffer, uint32_t bufl
   }
 }
 
-int decode_octet_string(OctetString *octetstring, uint16_t pdulen, uint8_t *buffer, uint32_t buflen)
+int decode_octet_string(OctetString *octetstring, uint16_t pdulen, const uint8_t *buffer, uint32_t buflen)
 {
   if (buflen < pdulen)
     return -1;

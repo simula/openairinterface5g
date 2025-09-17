@@ -22,29 +22,25 @@
 #ifndef NR_PDCP_OAI_API_H
 #define NR_PDCP_OAI_API_H
 
-#include "pdcp.h"
+#include <assertions.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include "NR_DRB-ToAddModList.h"
+#include "NR_PDCP-Config.h"
+#include "NR_SRB-ToAddModList.h"
+#include "nr_pdcp/nr_pdcp_entity.h"
+#include "nr_pdcp/nr_pdcp_integrity_data.h"
 #include "nr_pdcp_ue_manager.h"
+struct NR_DRB_ToAddMod;
+struct NR_SRB_ToAddMod;
 
 void nr_pdcp_layer_init(void);
-uint64_t nr_pdcp_module_init(uint64_t _pdcp_optmask, int id);
-
-void du_rlc_data_req(const protocol_ctxt_t *const ctxt_pP,
-                     const srb_flag_t srb_flagP,
-                     const MBMS_flag_t MBMS_flagP,
-                     const rb_id_t rb_idP,
-                     const mui_t muiP,
-                     confirm_t confirmP,
-                     sdu_size_t sdu_sizeP,
-                     uint8_t *sdu_pP);
 
 bool nr_pdcp_data_ind(const protocol_ctxt_t *const ctxt_pP,
                       const srb_flag_t srb_flagP,
-                      const MBMS_flag_t MBMS_flagP,
                       const rb_id_t rb_id,
                       const sdu_size_t sdu_buffer_size,
-                      uint8_t *const sdu_buffer,
-                      const uint32_t *const srcID,
-                      const uint32_t *const dstID);
+                      uint8_t *const sdu_buffer);
 
 void nr_pdcp_add_drbs(eNB_flag_t enb_flag,
                       ue_id_t UEid,
@@ -122,8 +118,6 @@ bool nr_pdcp_data_req_drb(protocol_ctxt_t *ctxt_pP,
                           const pdcp_transmission_mode_t mode,
                           const uint32_t *const sourceL2Id,
                           const uint32_t *const destinationL2Id);
-
-void nr_pdcp_tick(int frame, int subframe);
 
 nr_pdcp_ue_manager_t *nr_pdcp_sdap_get_ue_manager();
 

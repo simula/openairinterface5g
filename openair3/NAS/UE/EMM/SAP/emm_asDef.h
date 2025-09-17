@@ -229,7 +229,7 @@ typedef struct emm_as_cell_info_s {
 #define EMM_AS_PLMN_LIST_SIZE   6
   PLMN_LIST_T(EMM_AS_PLMN_LIST_SIZE) plmnIDs;
   /* List of identifiers of available PLMNs   */
-  Byte_t rat;     /* Bitmap of Radio Access Technologies      */
+  uint8_t rat; /* Bitmap of Radio Access Technologies      */
   tac_t tac;      /* Tracking Area Code               */
   ci_t cellID;    /* cell identity                */
 } emm_as_cell_info_t;

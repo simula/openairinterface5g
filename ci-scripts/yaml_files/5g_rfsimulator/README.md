@@ -37,9 +37,9 @@ Now pull images.
 
 ```bash
 $ docker pull mysql:8.0
-$ docker pull oaisoftwarealliance/oai-amf:v2.0.0
-$ docker pull oaisoftwarealliance/oai-smf:v2.0.0
-$ docker pull oaisoftwarealliance/oai-upf:v2.0.0
+$ docker pull oaisoftwarealliance/oai-amf:v2.1.10
+$ docker pull oaisoftwarealliance/oai-smf:v2.1.10
+$ docker pull oaisoftwarealliance/oai-upf:v2.1.10
 $ docker pull oaisoftwarealliance/trf-gen-cn5g:focal
 
 $ docker pull oaisoftwarealliance/oai-gnb:develop
@@ -52,7 +52,7 @@ $ docker logout
 
 **CAUTION: 2023/01/27 with the release `v1.5.0` of the `CN5G`, the previous version was not compatible any-more.**
 
-**This new version is working only with the `v2.0.0` of the `CN5G`.**
+**This new version is working only with `v2.1.9` or later of the `CN5G`.**
 
 # 2. Deploy containers #
 
@@ -66,6 +66,18 @@ All the following commands **SHALL** be run from the `ci-scripts/yaml_files/5g_r
 
 For a deployment with the gNB split in CU and DU components, please refer to the `../5g_f1_rfsimulator` folder.
 For a deployment with the gNB split in CU-CP, CU-UP, and DU components, please refer to the `../5g_rfsimulator_e1` folder.
+
+Note: **These instructions require `docker compose` v2.36.0 or later** due to the
+use of the `interface_name` property, which is necessary for ensuring consistent
+IP address assignment to the container interface.
+
+If you're using an older version of `docker compose`, you may encounter the following
+error:
+```
+validating docker-compose.yaml: services.oai-upf.networks.public_net Additional property interface_name is not allowed
+```
+To update to the required version, you can follow the official Docker documentation:
+https://docs.docker.com/compose/install/linux/
 
 ## 2.1. Deploy OAI 5G Core Network ##
 
@@ -244,7 +256,7 @@ Create the entry for the second UE in `docker-compose.yaml` file as follows:
             - NET_ADMIN  # for interface bringup
             - NET_RAW    # for ping
         environment:
-            USE_ADDITIONAL_OPTIONS: -E --sa --rfsim -r 106 --numerology 1 -C 3619200000 --rfsimulator.serveraddr 192.168.71.140 --log_config.global_log_options level,nocolor,time
+            USE_ADDITIONAL_OPTIONS: -E --rfsim -r 106 --numerology 1 -C 3619200000 --rfsimulator.serveraddr 192.168.71.140 --log_config.global_log_options level,nocolor,time
         depends_on:
             - oai-gnb
         devices:
@@ -546,8 +558,7 @@ section in the file for details. This includes an image build service as well as
 code compilation service. This is necessary as the executable has to be linked
 against the same libraries that are present in the executing image. This might
 take a while the first time but other that that is very fast. Here is a list of
-commands (wait between each command). Tested with `docker compose` v2.27.0
-
+commands (wait between each command). Tested with `docker compose` v2.36.2.
 
 This command deploys OAI 5G Core Network
 ```bash

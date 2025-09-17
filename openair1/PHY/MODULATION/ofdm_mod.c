@@ -40,6 +40,9 @@ This section deals with basic functions for OFDM Modulation.
 #include "PHY/LTE_TRANSPORT/transport_common_proto.h"
 //#define DEBUG_OFDM_MOD
 
+// Use 64-byte alignment for IDFT output buffer to ensure no
+// runtime error in case IDFT implementation uses AVX-512.
+#define IDFT_OUTPUT_BUFFER_ALIGNMENT 64
 
 void normal_prefix_mod(int32_t *txdataF,int32_t *txdata,uint8_t nsymb,LTE_DL_FRAME_PARMS *frame_parms)
 {
@@ -64,31 +67,55 @@ void normal_prefix_mod(int32_t *txdataF,int32_t *txdata,uint8_t nsymb,LTE_DL_FRA
   
 }
 
-void nr_normal_prefix_mod(c16_t *txdataF, c16_t *txdata, uint8_t nsymb, const NR_DL_FRAME_PARMS *frame_parms, uint32_t slot)
+void nr_normal_prefix_mod(c16_t *txdataF,
+                          c16_t *txdata,
+                          uint8_t nsymb,
+                          const NR_DL_FRAME_PARMS *frame_parms,
+                          uint32_t slot,
+                          bool was_symbol_used[NR_NUMBER_OF_SYMBOLS_PER_SLOT])
 {
   // This function works only slot wise. For more generic symbol generation refer nr_feptx0()
   if (frame_parms->numerology_index != 0) { // case where numerology != 0
     if (!(slot%(frame_parms->slots_per_subframe/2))) {
-      PHY_ofdm_mod((int *)txdataF,
-                   (int *)txdata,
-                   frame_parms->ofdm_symbol_size,
-                   1,
-                   frame_parms->nb_prefix_samples0,
-                   CYCLIC_PREFIX);
-      PHY_ofdm_mod((int *)txdataF + frame_parms->ofdm_symbol_size,
-                   (int *)txdata + frame_parms->ofdm_symbol_size + frame_parms->nb_prefix_samples0,
-                   frame_parms->ofdm_symbol_size,
-                   nsymb - 1,
-                   frame_parms->nb_prefix_samples,
-                   CYCLIC_PREFIX);
+      if (was_symbol_used[0]) {
+        PHY_ofdm_mod((int *)txdataF,
+                    (int *)txdata,
+                    frame_parms->ofdm_symbol_size,
+                    1,
+                    frame_parms->nb_prefix_samples0,
+                    CYCLIC_PREFIX);
+      } else {
+        memset(txdata, 0, (frame_parms->nb_prefix_samples0 +  frame_parms->ofdm_symbol_size) * sizeof(c16_t));
+      }
+      for (int i = 1; i < nsymb; i++) {
+        c16_t* tx_data_ptr = txdata + (i - 1) * (frame_parms->ofdm_symbol_size + frame_parms->nb_prefix_samples) +
+                            frame_parms->ofdm_symbol_size + frame_parms->nb_prefix_samples0;
+        if (was_symbol_used[i]) {
+          PHY_ofdm_mod((int *)txdataF + frame_parms->ofdm_symbol_size * i,
+                      (int *)tx_data_ptr,
+                      frame_parms->ofdm_symbol_size,
+                      1,
+                      frame_parms->nb_prefix_samples,
+                      CYCLIC_PREFIX);
+        } else {
+          memset(tx_data_ptr, 0, (frame_parms->nb_prefix_samples + frame_parms->ofdm_symbol_size) * sizeof(c16_t));
+        }
+      }
     }
     else {
-      PHY_ofdm_mod((int *)txdataF,
-                   (int *)txdata,
-                   frame_parms->ofdm_symbol_size,
-                   nsymb,
-                   frame_parms->nb_prefix_samples,
-                   CYCLIC_PREFIX);
+      for (int i = 0; i < nsymb; i++) {
+        c16_t* tx_data_ptr = txdata + i * (frame_parms->ofdm_symbol_size + frame_parms->nb_prefix_samples);
+        if (was_symbol_used[i]) {
+          PHY_ofdm_mod((int *)txdataF + frame_parms->ofdm_symbol_size * i,
+                      (int *)tx_data_ptr,
+                      frame_parms->ofdm_symbol_size,
+                      1,
+                      frame_parms->nb_prefix_samples,
+                      CYCLIC_PREFIX);
+        } else {
+          memset(tx_data_ptr, 0, (frame_parms->nb_prefix_samples + frame_parms->ofdm_symbol_size) * sizeof(c16_t));
+        }
+      }
     }
   }
   else { // numerology = 0, longer CP for every 7th symbol
@@ -122,108 +149,89 @@ void nr_normal_prefix_mod(c16_t *txdataF, c16_t *txdata, uint8_t nsymb, const NR
 
 }
 
-void PHY_ofdm_mod(int *input,                       /// pointer to complex input
-                  int *output,                      /// pointer to complex output
-                  int fftsize,            /// FFT_SIZE
-                  unsigned char nb_symbols,         /// number of OFDM symbols
-                  unsigned short nb_prefix_samples,  /// cyclic prefix length
-                  Extension_t etype                /// type of extension
-                 )
+void PHY_ofdm_mod(const int *input, /// pointer to complex input
+                  int *output, /// pointer to complex output
+                  int fftsize, /// FFT_SIZE
+                  unsigned char nb_symbols, /// number of OFDM symbols
+                  unsigned short nb_prefix_samples, /// cyclic prefix length
+                  Extension_t etype /// type of extension
+)
 {
+  if (nb_symbols == 0)
+    return;
 
-  if(nb_symbols == 0) return;
-
-  int16_t temp[2*2*6144*4] __attribute__((aligned(32)));
-  int i,j;
-
-  volatile int *output_ptr=(int*)0;
-
-  int *temp_ptr=(int*)0;
   idft_size_idx_t idft_size = get_idft(fftsize);
 
 #ifdef DEBUG_OFDM_MOD
   printf("[PHY] OFDM mod (size %d,prefix %d) Symbols %d, input %p, output %p\n",
-      fftsize,nb_prefix_samples,nb_symbols,input,output);
+         fftsize,
+         nb_prefix_samples,
+         nb_symbols,
+         input,
+         output);
 #endif
 
-
-
-  for (i=0; i<nb_symbols; i++) {
-
+  for (int i = 0; i < nb_symbols; i++) {
 #ifdef DEBUG_OFDM_MOD
-    printf("[PHY] symbol %d/%d offset %d (%p,%p -> %p)\n",i,nb_symbols,i*fftsize+(i*nb_prefix_samples),input,&input[i*fftsize],&output[(i*fftsize) + ((i)*nb_prefix_samples)]);
+    printf("[PHY] symbol %d/%d offset %d (%p,%p -> %p)\n",
+           i,
+           nb_symbols,
+           i * fftsize + (i * nb_prefix_samples),
+           input,
+           &input[i * fftsize],
+           &output[(i * fftsize) + ((i)*nb_prefix_samples)]);
 #endif
 
     // on AVX2 need 256-bit alignment
-    idft(idft_size, (int16_t *)&input[i * fftsize], (int16_t *)temp, 1);
 
     // Copy to frame buffer with Cyclic Extension
     // Note:  will have to adjust for synchronization offset!
 
     switch (etype) {
-    case CYCLIC_PREFIX:
-      output_ptr = &output[(i*fftsize) + ((1+i)*nb_prefix_samples)];
-      temp_ptr = (int *)temp;
-
-
-      //      msg("Doing cyclic prefix method\n");
-
-      {
-        memcpy((void*)output_ptr,(void*)temp_ptr,fftsize<<2);
-      }
-      memcpy((void*)&output_ptr[-nb_prefix_samples],(void*)&output_ptr[fftsize-nb_prefix_samples],nb_prefix_samples<<2);
-      break;
-
-    case CYCLIC_SUFFIX:
-
-
-      output_ptr = &output[(i*fftsize)+ (i*nb_prefix_samples)];
-
-      temp_ptr = (int *)temp;
-
-      //      msg("Doing cyclic suffix method\n");
-
-      for (j=0; j<fftsize ; j++) {
-        output_ptr[j] = temp_ptr[2*j];
+      case CYCLIC_PREFIX: {
+        int *output_ptr = &output[(i * fftsize) + ((1 + i) * nb_prefix_samples)];
+        // Current idft implementation uses AVX-256: Check if buffer is already aligned to 256 bits (32 bytes)
+        if ((uintptr_t)output_ptr % 32 == 0) {
+          // output ptr is aligned, do ifft inplace
+          idft(idft_size, (int16_t *)&input[i * fftsize], (int16_t *)output_ptr, 1);
+        } else {
+          // output ptr is not aligned, needs an extra memcpy
+          c16_t temp[fftsize] __attribute__((aligned(IDFT_OUTPUT_BUFFER_ALIGNMENT)));
+          idft(idft_size, (int16_t *)&input[i * fftsize], (int16_t *)temp, 1);
+          memcpy((void *)output_ptr, (void *)temp, sizeof(temp));
+        }
+        // perform cyclic prefix insertion
+        memcpy((void *)&output_ptr[-nb_prefix_samples], (void *)&output_ptr[fftsize - nb_prefix_samples], nb_prefix_samples * sizeof(c16_t));
+        break;
       }
 
-
-      for (j=0; j<nb_prefix_samples; j++)
-        output_ptr[fftsize+j] = output_ptr[j];
-
-      break;
-
-    case ZEROS:
-
-      break;
-
-    case NONE:
-
-      //      msg("NO EXTENSION!\n");
-      output_ptr = &output[fftsize];
-
-      temp_ptr = (int *)temp;
-
-      for (j=0; j<fftsize ; j++) {
-        output_ptr[j] = temp_ptr[2*j];
-
-
+      case CYCLIC_SUFFIX: {
+        // Use alignment of 64 bytes
+        c16_t temp[fftsize] __attribute__((aligned(IDFT_OUTPUT_BUFFER_ALIGNMENT)));
+        idft(idft_size, (int16_t *)&input[i * fftsize], (int16_t *)temp, 1);
+        int *output_ptr = &output[(i * fftsize) + (i * nb_prefix_samples)];
+        memcpy(output_ptr, temp, sizeof(temp));
+        memcpy(&output_ptr[fftsize], temp, nb_prefix_samples * sizeof(c16_t));
+        break;
       }
 
-      break;
+      case ZEROS:
 
-    default:
-      break;
+        break;
 
+      case NONE: {
+        c16_t temp[fftsize] __attribute__((aligned(IDFT_OUTPUT_BUFFER_ALIGNMENT)));
+        idft(idft_size, (int16_t *)&input[i * fftsize], (int16_t *)temp, 1);
+        int *output_ptr = &output[i * fftsize];
+        memcpy(output_ptr, temp, sizeof(temp));
+        break;
+      }
+
+      default:
+        break;
     }
-
-
-
   }
-
-
 }
-
 
 void do_OFDM_mod(c16_t **txdataF, c16_t **txdata, uint32_t frame,uint16_t next_slot, LTE_DL_FRAME_PARMS *frame_parms)
 {

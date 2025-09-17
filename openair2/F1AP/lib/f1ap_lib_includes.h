@@ -40,5 +40,12 @@
 #include "F1AP_SuccessfulOutcome.h"
 #include "F1AP_SibtypetobeupdatedListItem.h"
 #include "F1AP_UnsuccessfulOutcome.h"
+#include "F1AP_UE-associatedLogicalF1-ConnectionListRes.h"
+#include "F1AP_ULUPTNLInformation-ToBeSetup-Item.h"
+#include "F1AP_GTPTunnel.h"
+#include "F1AP_Flows-Mapped-To-DRB-Item.h"
+#include "F1AP_NonDynamic5QIDescriptor.h"
+#include "F1AP_Dynamic5QIDescriptor.h"
+#include "F1AP_DLUPTNLInformation-ToBeSetup-Item.h"
 
 #endif /* F1AP_LIB_INCLUDES_H_ */

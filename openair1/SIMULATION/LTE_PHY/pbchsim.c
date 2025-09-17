@@ -57,7 +57,6 @@ int32_t dummy3[2048*14];
 
 
 int main(int argc, char **argv) {
-  char c;
   int i,l,aa;
   double sigma2, sigma2_dB=0,SNR,snr0=-2.0,snr1;
   uint8_t snr1set=0;
@@ -104,6 +103,7 @@ int main(int argc, char **argv) {
   logInit();
   number_of_cards = 1;
 
+  int c;
   while ((c = getopt (argc, argv, "f:hA:pf:g:i:j:n:s:S:t:x:y:z:N:F:GR:O:dP:")) != -1) {
     switch (c) {
       case 'f':

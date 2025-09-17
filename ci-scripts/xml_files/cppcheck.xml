@@ -32,10 +32,12 @@
     <testCase id="000002">
         <class>Create_Workspace</class>
         <desc>Create new Workspace</desc>
+        <node>carabe</node>
     </testCase>
 	<testCase id="000001">
 		<class>Cppcheck_Analysis</class>
 		<desc>Static Code Analysis with cppcheck</desc>
+		<node>carabe</node>
 	</testCase>
 
 </testCaseList>

@@ -34,13 +34,13 @@ void nr_init_fde()
     nr_inv_ch[i] = simde_mm_set1_epi16(4096/i);
 }
 
-void nr_freq_equalization (NR_DL_FRAME_PARMS *frame_parms,
-                           int32_t *rxdataF_comp,
-                           int32_t *ul_ch_mag,
-                           int32_t *ul_ch_magb,
-                           uint8_t symbol,
-                           uint16_t Msc_RS,
-                           uint8_t Qm) 
+void nr_freq_equalization(NR_DL_FRAME_PARMS *frame_parms,
+                          c16_t *rxdataF_comp,
+                          c16_t *ul_ch_mag,
+                          c16_t *ul_ch_magb,
+                          uint8_t symbol,
+                          uint16_t Msc_RS,
+                          uint8_t Qm)
 {
   simde__m128i *rxdataF_comp128 = (simde__m128i *)rxdataF_comp;
   simde__m128i *ul_ch_mag128    = (simde__m128i *)ul_ch_mag;

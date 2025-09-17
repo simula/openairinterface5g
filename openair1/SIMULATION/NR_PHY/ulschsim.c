@@ -33,6 +33,7 @@
 #include "PHY/defs_nr_common.h"
 #include "PHY/defs_nr_UE.h"
 #include "PHY/defs_gNB.h"
+#include "PHY/CODING/nrLDPC_coding/nrLDPC_coding_interface.h"
 #include "PHY/INIT/nr_phy_init.h"
 #include "PHY/NR_REFSIG/refsig_defs_ue.h"
 #include "PHY/MODULATION/modulation_eNB.h"
@@ -45,7 +46,6 @@
 #include "openair1/SIMULATION/TOOLS/sim.h"
 #include "openair1/SIMULATION/RF/rf.h"
 #include "openair1/SIMULATION/NR_PHY/nr_unitary_defs.h"
-#include "common/utils/threadPool/thread-pool.h"
 #include "openair2/LAYER2/NR_MAC_COMMON/nr_mac_common.h"
 #include "executables/nr-uesoftmodem.h"
 #include "nfapi/oai_integration/vendor_ext.h"
@@ -59,7 +59,6 @@ RAN_CONTEXT_t RC;
 int32_t uplink_frequency_offset[MAX_NUM_CCs][4];
 uint64_t downlink_frequency[MAX_NUM_CCs][4];
 
-uint64_t get_softmodem_optmask(void) {return 0;}
 static softmodem_params_t softmodem_params;
 softmodem_params_t *get_softmodem_params(void) {
   return &softmodem_params;
@@ -69,11 +68,7 @@ NR_IF_Module_t *NR_IF_Module_init(int Mod_id) { return (NULL); }
 nfapi_mode_t nfapi_getmode(void) { return NFAPI_MODE_UNKNOWN; }
 
 uint8_t const nr_rv_round_map[4] = {0, 2, 3, 1};
-const short conjugate[8]__attribute__((aligned(16))) = {-1,1,-1,1,-1,1,-1,1};
-const short conjugate2[8]__attribute__((aligned(16))) = {1,-1,1,-1,1,-1,1,-1};
 double cpuf;
-//uint8_t nfapi_mode = 0;
-const int NB_UE_INST = 1;
 
 // needed for some functions
 PHY_VARS_NR_UE *PHY_vars_UE_g[1][1] = { { NULL } };
@@ -91,27 +86,6 @@ void deref_sched_response(int _)
   exit(1);
 }
 
-int nr_postDecode_sim(PHY_VARS_gNB *gNB, notifiedFIFO_elt_t *req, int *nb_ok)
-{
-  ldpcDecode_t *rdata = (ldpcDecode_t*) NotifiedFifoData(req);
-  NR_UL_gNB_HARQ_t *ulsch_harq = rdata->ulsch_harq;
-  int r = rdata->segment_r;
-
-  bool decodeSuccess = (rdata->decodeIterations <= rdata->decoderParms.numMaxIter);
-  ulsch_harq->processedSegments++;
-
-  if (decodeSuccess) {
-    memcpy(ulsch_harq->b+rdata->offset,
-           ulsch_harq->c[r],
-           rdata->Kr_bytes - (ulsch_harq->F>>3) -((ulsch_harq->C>1)?3:0));
-  }
-
-  // if all segments are done
-  if (rdata->nbSegments == ulsch_harq->processedSegments)
-    return *nb_ok == rdata->nbSegments;
-  return 0;
-}
-
 nrUE_params_t nrUE_params;
 
 nrUE_params_t *get_nrUE_params(void) {
@@ -121,7 +95,10 @@ nrUE_params_t *get_nrUE_params(void) {
 configmodule_interface_t *uniqCfg = NULL;
 int main(int argc, char **argv)
 {
-  char c;
+  stop = false;
+  __attribute__((unused)) struct sigaction oldaction;
+  sigaction(SIGINT, &sigint_action, &oldaction);
+
   int i;
   double SNR, snr0 = -2.0, snr1 = 2.0, SNR_lin;
   double snr_step = 0.1;
@@ -144,7 +121,6 @@ int main(int argc, char **argv)
   NR_DL_FRAME_PARMS *frame_parms;
   double sigma;
   unsigned char qbits = 8;
-  int ret=0;
   int loglvl = OAILOG_WARNING;
   uint64_t SSB_positions=0x01;
   uint16_t nb_symb_sch = 12;
@@ -165,7 +141,7 @@ int main(int argc, char **argv)
   //logInit();
   randominit(0);
 
-  //while ((c = getopt(argc, argv, "--:df:hpg:i:j:n:l:m:r:s:S:y:z:M:N:F:R:P:")) != -1) {
+  int c;
   while ((c = getopt(argc, argv, "--:O:hg:n:s:S:py:z:M:N:R:F:m:l:q:r:W:")) != -1) {
 
     /* ignore long options starting with '--', option '-O' and their arguments that are handled by configmodule */
@@ -430,8 +406,10 @@ int main(int argc, char **argv)
   gNB->frame_parms.nb_antennas_rx = n_rx;
 
   nr_phy_config_request_sim(gNB, N_RB_UL, N_RB_UL, mu, Nid_cell, SSB_positions);
+  // TDD configuration
   gNB->gNB_config.tdd_table.tdd_period.value = 6;
-  set_tdd_config_nr(&gNB->gNB_config, mu, 7, 6, 2, 4);
+  do_tdd_config_sim(gNB, mu);
+
   phy_init_nr_gNB(gNB);
 
   //configure UE
@@ -440,6 +418,7 @@ int main(int argc, char **argv)
 
   UE->frame_parms.nb_antennas_tx = n_tx;
   UE->frame_parms.nb_antennas_rx = 1;
+  UE->nrLDPC_coding_interface = gNB->nrLDPC_coding_interface;
 
   //phy_init_nr_top(frame_parms);
   if (init_nr_ue_signal(UE, 1) != 0) {
@@ -448,6 +427,8 @@ int main(int argc, char **argv)
   }
 
   nr_init_ul_harq_processes(UE->ul_harq_processes, NR_MAX_ULSCH_HARQ_PROCESSES, UE->frame_parms.N_RB_UL, UE->frame_parms.nb_antennas_tx);
+
+  initFloatingCoresTpool(1, &nrUE_params.Tpool, false, "UE-tpool");
 
   unsigned char harq_pid = 0;
   unsigned int TBS = 8424;
@@ -463,6 +444,7 @@ int main(int argc, char **argv)
   NR_gNB_ULSCH_t *ulsch_gNB = &gNB->ulsch[UE_id];
   NR_UL_gNB_HARQ_t *harq_process_gNB = ulsch_gNB->harq_process;
   nfapi_nr_pusch_pdu_t *rel15_ul = &harq_process_gNB->ulsch_pdu;
+  NR_gNB_PUSCH *pusch_vars = &gNB->pusch_vars[UE_id];
 
   nr_phy_data_tx_t phy_data = {0};
   NR_UE_ULSCH_t *ulsch_ue = &phy_data.ulsch;
@@ -490,7 +472,6 @@ int main(int argc, char **argv)
   ///////////////////////////////////////////////////
 
   double modulated_input[16 * 68 * 384]; // [hna] 16 segments, 68*Zc
-  short channel_output_fixed[16 * 68 * 384];
   short channel_output_uncoded[16 * 68 * 384];
   unsigned int errors_bit_uncoded = 0;
 
@@ -531,7 +512,8 @@ int main(int argc, char **argv)
   unsigned int G = available_bits;
 
   if (input_fd == NULL) {
-    nr_ulsch_encoding(UE, ulsch_ue, frame_parms, harq_pid, TBS>>3, G);
+    uint8_t ULSCH_ids[] = {0};
+    nr_ulsch_encoding(UE, ulsch_ue, 0, 0, &G, 1, ULSCH_ids, 0);
   }
   
   printf("\n");
@@ -539,13 +521,14 @@ int main(int argc, char **argv)
   ///////////
   ////////////////////////////////////////////////////////////////////
 
-  for (SNR = snr0; SNR < snr1; SNR += snr_step) {
+  for (SNR = snr0; SNR < snr1 && !stop; SNR += snr_step) {
+    errors_bit_uncoded = 0;
     n_errors = 0;
     n_false_positive = 0;
 
-    for (trial = 0; trial < n_trials; trial++) {
-
-      errors_bit_uncoded = 0;
+    for (trial = 0; trial < n_trials && !stop; trial++) {
+      memset(pusch_vars->llr, 0, (8 * ((3 * 8 * 6144) + 12)) * sizeof(int16_t));
+      harq_process_gNB->harq_to_be_cleared = true;
 
       for (i = 0; i < available_bits; i++) {
 
@@ -559,7 +542,7 @@ int main(int argc, char **argv)
             }
         */
 
-        if (harq_process_ul_ue->f[i] == 0)
+        if ((harq_process_ul_ue->f[i >> 3] & (1 << (i & 7))) == 0)
           modulated_input[i] = 1.0;        ///sqrt(2);  //QPSK
         else
           modulated_input[i] = -1.0;        ///sqrt(2);
@@ -569,16 +552,16 @@ int main(int argc, char **argv)
 #if 1
         SNR_lin = pow(10, SNR / 10.0);
         sigma = 1.0 / sqrt(2 * SNR_lin);
-        channel_output_fixed[i] = (short) quantize(sigma / 4.0 / 4.0,
-                                                   modulated_input[i] + sigma * gaussdouble(0.0, 1.0),
-                                                   qbits);
+        pusch_vars->llr[i] = (int16_t) quantize(sigma / 4.0 / 4.0,
+                                                modulated_input[i] + sigma * gaussdouble(0.0, 1.0),
+                                                qbits);
 #else
-        channel_output_fixed[i] = (short) quantize(0.01, modulated_input[i], qbits);
+        pusch_vars->llr[i] = (int16_t) quantize(0.01, modulated_input[i], qbits);
 #endif
-        //printf("channel_output_fixed[%d]: %d\n",i,channel_output_fixed[i]);
+        //printf("pusch_vars->llr[%d]: %d\n", i, pusch_vars->llr[i]);
 
         //Uncoded BER
-        if (channel_output_fixed[i] < 0)
+        if (pusch_vars->llr[i] < 0)
           channel_output_uncoded[i] = 1;  //QPSK demod
         else
           channel_output_uncoded[i] = 0;
@@ -594,23 +577,20 @@ int main(int argc, char **argv)
       printf("\n");
       exit(-1);
 #endif
-
-     int nbDecode = nr_ulsch_decoding(gNB, UE_id, channel_output_fixed, frame_parms, rel15_ul, frame, subframe, harq_pid, G);
-     int nb_ok = 0;
-     if (nbDecode > 0)
-       while (nbDecode > 0) {
-         notifiedFIFO_elt_t *req = pullTpool(&gNB->respDecode, &gNB->threadPool);
-         ret = nr_postDecode_sim(gNB, req, &nb_ok);
-         delNotifiedFIFO_elt(req);
-         nbDecode--;
-       }
-
-      if (ret)
+      nr_ulsch_decoding(gNB, frame_parms, frame, subframe, &G, &UE_id, 1);
+      if (harq_process_gNB->processedSegments == harq_process_gNB->C) {
+        bool crc_valid = check_crc(harq_process_gNB->b, lenWithCrc(1, (harq_process_gNB->TBS) << 3), crcType(1, (harq_process_gNB->TBS) << 3));
+        if (!crc_valid) {
+          n_false_positive++;
+        }
+      } else {
         n_errors++;
+      }
     }
-    
+
     printf("*****************************************\n");
-    printf("SNR %f, BLER %f (false positive %f)\n", SNR,
+    printf("SNR %f, uncoded BER %f, BLER %f (false positive %f)\n", SNR,
+           (float) errors_bit_uncoded / (float) available_bits / (float) n_trials,
            (float) n_errors / (float) n_trials,
            (float) n_false_positive / (float) n_trials);
     printf("*****************************************\n");
@@ -626,7 +606,7 @@ int main(int argc, char **argv)
 
   free_nr_ue_ul_harq(UE->ul_harq_processes, NR_MAX_ULSCH_HARQ_PROCESSES, UE->frame_parms.N_RB_UL, UE->frame_parms.nb_antennas_tx);
 
-  int nb_slots_to_set = TDD_CONFIG_NB_FRAMES * (1 << mu) * NR_NUMBER_OF_SUBFRAMES_PER_FRAME;
+  int nb_slots_to_set = (1 << mu) * NR_NUMBER_OF_SUBFRAMES_PER_FRAME;
   for (int i = 0; i < nb_slots_to_set; ++i)
     free(gNB->gNB_config.tdd_table.max_tdd_periodicity_list[i].max_num_of_symbol_per_slot_list);
   free(gNB->gNB_config.tdd_table.max_tdd_periodicity_list);
@@ -634,6 +614,7 @@ int main(int argc, char **argv)
   term_nr_ue_signal(UE, 1);
   free(UE);
 
+  abortTpool(&gNB->threadPool);
   phy_free_nr_gNB(gNB);
   free(RC.gNB[0]);
   free(RC.gNB);

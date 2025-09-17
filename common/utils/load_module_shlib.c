@@ -43,13 +43,15 @@
 
 #include "common/config/config_userapi.h"
 #include "load_module_shlib.h"
+loader_data_t loader_data;
+
 void loader_init(void) {
   paramdef_t LoaderParams[] = LOADER_PARAMS_DESC;
 
   loader_data.mainexec_buildversion = OAI_PACKAGE_VERSION;
   int ret = config_get(config_get_if(), LoaderParams, sizeofArray(LoaderParams), LOADER_CONFIG_PREFIX);
   if (ret <0) {
-       printf("[LOADER]  configuration couldn't be performed via config module, parameters set to default values\n");
+       fprintf(stderr, "[LOADER]  configuration couldn't be performed via config module, parameters set to default values\n");
        if (loader_data.shlibpath == NULL) {
          loader_data.shlibpath=DEFAULT_PATH;
         }
@@ -136,12 +138,9 @@ int load_module_version_shlib(char *modname, char *version, loader_shlibfunc_t *
   }
 
   shlib_path = loader_format_shlibpath(modname, version);
-  printf("shlib_path %s\n", shlib_path);
 
   for (int i = 0; i < loader_data.numshlibs; i++) {
     if (strcmp(loader_data.shlibs[i].name, modname) == 0) {
-      printf("[LOADER] library %s has been loaded previously, reloading function pointers\n",
-             shlib_path);
       lib_idx = i;
       break;
     }
@@ -165,7 +164,6 @@ int load_module_version_shlib(char *modname, char *version, loader_shlibfunc_t *
     goto load_module_shlib_exit;
   }
 
-  printf("[LOADER] library %s successfully loaded\n", shlib_path);
   afname = malloc(strlen(modname)+15);
   if (!afname) {
     fprintf(stderr, "[LOADER] unable to allocate memory for library %s\n", shlib_path);

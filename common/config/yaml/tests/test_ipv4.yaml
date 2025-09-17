@@ -1,0 +1,4 @@
+test:
+  ipv4_1: 0.0.0.0
+  ipv4_2: 192.168.0.1
+  #ipv4_3: check default

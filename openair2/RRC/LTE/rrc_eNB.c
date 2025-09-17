@@ -34,6 +34,7 @@
 #include "uper_encoder.h"
 #include "uper_decoder.h"
 #include "rrc_defs.h"
+#include "rrc_proto.h"
 #include "rrc_extern.h"
 #include "assertions.h"
 #include "common/ran_context.h"
@@ -98,30 +99,18 @@
 
 #include "SIMULATION/TOOLS/sim.h" // for taus
 
+#include "openair1/PHY/LTE_TRANSPORT/transport_proto.h"
+
 #define ASN_MAX_ENCODE_SIZE 4096
 #define NUMBEROF_DRBS_TOBE_ADDED 1
 static int encode_CG_ConfigInfo(char *buffer,int buffer_size,rrc_eNB_ue_context_t *const ue_context_pP,int *enc_size);
 
-extern RAN_CONTEXT_t RC;
-
-extern eNB_MAC_INST                *eNB_mac_inst;
-extern UE_MAC_INST                 *UE_mac_inst;
-
-
 mui_t                               rrc_eNB_mui = 0;
-
-extern uint32_t to_earfcn_DL(int eutra_bandP, uint32_t dl_CarrierFreq, uint32_t bw);
-extern int rrc_eNB_process_security(const protocol_ctxt_t *const ctxt_pP, rrc_eNB_ue_context_t *const ue_context_pP, security_capabilities_t *security_capabilities_pP);
-extern void process_eNB_security_key(const protocol_ctxt_t *const ctxt_pP,
-                                     rrc_eNB_ue_context_t *const ue_context_pP,
-                                     uint8_t *security_key_pP);
-extern int rrc_eNB_generate_RRCConnectionReconfiguration_endc(protocol_ctxt_t *ctxt, rrc_eNB_ue_context_t *ue_context, unsigned char *buffer, int buffer_size, OCTET_STRING_t *scg_group_config,
-    OCTET_STRING_t *scg_RB_config);
-extern struct rrc_eNB_ue_context_s *get_first_ue_context(eNB_RRC_INST *rrc_instance_pP);
 
 pthread_mutex_t      rrc_release_freelist;
 RRC_release_list_t   rrc_release_info;
 pthread_mutex_t      lock_ue_freelist;
+static uint8_t DRB2LCHAN[8];
 
 void
 openair_rrc_on(
@@ -844,7 +833,7 @@ rrc_eNB_free_UE(
     return;
   }
 
-  if(EPC_MODE_ENABLED) {
+  if ((!IS_SOFTMODEM_NOS1)) {
     if ((ue_context_pP->ue_context.ul_failure_timer >= 20000) && (mac_eNB_get_rrc_status(enb_mod_idP, rnti) >= RRC_CONNECTED)) {
       LOG_I(RRC, "[eNB %d] S1AP_UE_CONTEXT_RELEASE_REQ sent for RNTI %x, cause 21, radio connection with ue lost\n", enb_mod_idP, rnti);
       rrc_eNB_send_S1AP_UE_CONTEXT_RELEASE_REQ(enb_mod_idP, ue_context_pP, S1AP_CAUSE_RADIO_NETWORK,
@@ -878,7 +867,7 @@ rrc_eNB_free_UE(
 void put_UE_in_freelist(module_id_t mod_id, rnti_t rnti, bool removeFlag) {
   eNB_MAC_INST                             *eNB_MAC = RC.mac[mod_id];
   pthread_mutex_lock(&lock_ue_freelist);
-  LOG_I(PHY,"add ue %d in free list, context flag: %d\n", rnti, removeFlag);
+  LOG_I(PHY, "adding ue %x in UE to free list, context flag: %d\n", rnti, removeFlag);
   int i;
   for (i=0; i < sizeofArray(eNB_MAC->UE_free_ctrl); i++) 
     if (eNB_MAC->UE_free_ctrl[i].rnti == 0)
@@ -891,15 +880,17 @@ void put_UE_in_freelist(module_id_t mod_id, rnti_t rnti, bool removeFlag) {
   eNB_MAC->UE_free_ctrl[i].rnti = rnti;
   eNB_MAC->UE_free_ctrl[i].removeContextFlg = removeFlag;
   eNB_MAC->UE_free_ctrl[i].raFlag = 0;
-  eNB_MAC->UE_release_req.ue_release_request_body.ue_release_request_TLVs_list[eNB_MAC->UE_release_req.ue_release_request_body.number_of_TLVs].rnti = rnti;
-  eNB_MAC->UE_release_req.ue_release_request_body.number_of_TLVs++;
+  if (eNB_MAC->UE_release_req.ue_release_request_body.number_of_TLVs < NFAPI_RELEASE_MAX_RNTI) {
+    eNB_MAC->UE_release_req.ue_release_request_body
+        .ue_release_request_TLVs_list[eNB_MAC->UE_release_req.ue_release_request_body.number_of_TLVs]
+        .rnti = rnti;
+    eNB_MAC->UE_release_req.ue_release_request_body.number_of_TLVs++;
+  } else {
+    LOG_E(PHY, "fapi List of UE to release is full\n");
+  }
+
   pthread_mutex_unlock(&lock_ue_freelist);
 }
-
-extern int16_t find_dlsch(uint16_t rnti, PHY_VARS_eNB *eNB,find_type_t type);
-extern int16_t find_ulsch(uint16_t rnti, PHY_VARS_eNB *eNB,find_type_t type);
-extern void clean_eNb_ulsch(LTE_eNB_ULSCH_t *ulsch);
-extern void clean_eNb_dlsch(LTE_eNB_DLSCH_t *dlsch);
 
 void release_UE_in_freeList(module_id_t mod_id) {
   PHY_VARS_eNB                             *eNB_PHY = NULL;
@@ -918,13 +909,11 @@ void release_UE_in_freeList(module_id_t mod_id) {
       int id;
       // clean ULSCH entries for rnti
       id = find_ulsch(rnti, eNB_PHY, eNB_MAC->UE_free_ctrl[ue_num].raFlag ? SEARCH_EXIST_RA : SEARCH_EXIST);
-
       if (id >= 0)
         clean_eNb_ulsch(eNB_PHY->ulsch[id]);
 
         // clean DLSCH entries for rnti
       id = find_dlsch(rnti, eNB_PHY, eNB_MAC->UE_free_ctrl[ue_num].raFlag ? SEARCH_EXIST_RA : SEARCH_EXIST);
-
       if (id >= 0)
         clean_eNb_dlsch(eNB_PHY->dlsch[id][0]);
 
@@ -1029,7 +1018,7 @@ rrc_eNB_process_RRCConnectionSetupComplete(
   ue_context_pP->ue_context.ue_rrc_inactivity_timer = 1; // set rrc inactivity timer when UE goes into RRC_CONNECTED
   T(T_ENB_RRC_CONNECTION_SETUP_COMPLETE, T_INT(ctxt_pP->module_id), T_INT(ctxt_pP->frame), T_INT(ctxt_pP->subframe), T_INT(ctxt_pP->rntiMaybeUEid));
 
-  if (EPC_MODE_ENABLED == 1) {
+  if ((!IS_SOFTMODEM_NOS1) == 1) {
     // Forward message to S1AP layer
     rrc_eNB_send_S1AP_NAS_FIRST_REQ(ctxt_pP, ue_context_pP, rrcConnectionSetupComplete);
   } else {
@@ -1372,7 +1361,7 @@ rrc_eNB_process_RRCConnectionReestablishmentComplete(
   ue_context_pP->ue_context.Srb1.Active = 1;
   //ue_context_pP->ue_context.Srb2.Srb_info.Srb_id = 2;
 
-  if (EPC_MODE_ENABLED) {
+  if (!IS_SOFTMODEM_NOS1) {
     hashtable_rc_t    h_rc;
     int               j;
     rrc_ue_s1ap_ids_t *rrc_ue_s1ap_ids_p = NULL;
@@ -1448,13 +1437,13 @@ rrc_eNB_process_RRCConnectionReestablishmentComplete(
       put_UE_in_freelist(ctxt_pP->module_id, ctxt_pP->rntiMaybeUEid, 0);
       return;
     }
-  } /* EPC_MODE_ENABLED */
+  } /* (!IS_SOFTMODEM_NOS1) */
 
   /* Update RNTI in ue_context */
   ue_context_pP->ue_id_rnti = ctxt_pP->rntiMaybeUEid; // here ue_id_rnti is just a key, may be something else
   ue_context_pP->ue_context.rnti = ctxt_pP->rntiMaybeUEid;
 
-  if (EPC_MODE_ENABLED) {
+  if (!IS_SOFTMODEM_NOS1) {
     uint8_t send_security_mode_command = false;
     rrc_pdcp_config_security(
       ctxt_pP,
@@ -3886,7 +3875,11 @@ check_handovers(
           ue_context_p->ue_context.handover_info->buf,
           PDCP_TRANSMISSION_MODE_CONTROL);
         ue_context_p->ue_context.handover_info->state = HO_COMPLETE;
-        LOG_I(RRC, "RRC Sends RRCConnectionReconfiguration to UE %d  at frame %d and subframe %d \n", ue_context_p->ue_context.rnti, ctxt_pP->frame,ctxt_pP->subframe);
+        LOG_I(RRC,
+              "RRC Sends RRCConnectionReconfiguration to UE %x  at frame %d and subframe %d \n",
+              ue_context_p->ue_context.rnti,
+              ctxt_pP->frame,
+              ctxt_pP->subframe);
       }
 
       /* in the target, UE in HO_ACK mode */
@@ -5103,7 +5096,7 @@ rrc_eNB_configure_rbs_handover(struct rrc_eNB_ue_context_s *ue_context_p, protoc
 
   rrc_rlc_config_asn1_req(ctxt_pP, ue_context_p->ue_context.SRB_configList, (LTE_DRB_ToAddModList_t *)NULL, (LTE_DRB_ToReleaseList_t *)NULL, (LTE_PMCH_InfoList_r9_t *)NULL, 0, 0);
 
-  if (EPC_MODE_ENABLED) {
+  if (!IS_SOFTMODEM_NOS1) {
     rrc_eNB_process_security (
       ctxt_pP,
       ue_context_p,
@@ -5251,13 +5244,15 @@ rrc_eNB_process_RRCConnectionReconfigurationComplete(
           LOG_D(RRC, "[eNB %d] Frame %d: Establish RLC UM Bidirectional, DRB %d Active\n",
                 ctxt_pP->module_id, ctxt_pP->frame, (int)DRB_configList->list.array[i]->drb_Identity);
 
-          if (!EPC_MODE_ENABLED && !ENB_NAS_USE_TUN) {
+          if (IS_SOFTMODEM_NOS1 && !ENB_NAS_USE_TUN) {
             LOG_I(OIP, "[eNB %d] trying to bring up the OAI interface oai%d\n",
                   ctxt_pP->module_id,
                   ctxt_pP->module_id);
             char ip[20];
             snprintf(ip, sizeof(ip), "10.0.%d.%d", ctxt_pP->module_id + 1, ctxt_pP->module_id + 1);
-            oip_ifup = tun_config(ctxt_pP->module_id, ip, NULL, "oaitun_oai");
+            char ifname[IFNAMSIZ];
+            tun_generate_ifname(ifname, "oaitun_oai", ctxt_pP->module_id);
+            oip_ifup = tun_config(ifname, ip, NULL);
 
             if (oip_ifup == 0) { // interface is up --> send a config the DRB
               module_id_t ue_module_id;
@@ -5270,7 +5265,7 @@ rrc_eNB_process_RRCConnectionReconfigurationComplete(
               LOG_D(RRC, "[eNB %d] State = Attached (UE rnti %x module id %u)\n",
                     ctxt_pP->module_id, ue_context_pP->ue_context.rnti, ue_module_id);
             } /* oip_ifup */
-          } /* !EPC_MODE_ENABLED && ENB_NAS_USE_TUN*/
+          } /* !(!IS_SOFTMODEM_NOS1) && ENB_NAS_USE_TUN*/
 
           LOG_D(RRC,
                 PROTOCOL_RRC_CTXT_UE_FMT" RRC_eNB --- MAC_CONFIG_REQ  (DRB) ---> MAC_eNB\n",
@@ -6359,7 +6354,7 @@ rrc_eNB_decode_dcch(
           /*NN: revise the condition */
           /*FK: left the condition as is for the case MME is used (S1 mode) but setting  dedicated_DRB = 1 otherwise (noS1 mode) so that no second RRCReconfiguration message activationg more DRB is sent as this causes problems with the nasmesh driver.*/
 
-          if (EPC_MODE_ENABLED || get_softmodem_params()->emulate_l1) {
+          if (!IS_SOFTMODEM_NOS1 || get_softmodem_params()->emulate_l1) {
             if (ue_context_p->ue_context.StatusRrc == RRC_RECONFIGURED) {
               dedicated_DRB = 1;
               LOG_I(RRC,
@@ -6455,7 +6450,7 @@ rrc_eNB_decode_dcch(
             ul_dcch_msg->message.choice.c1.choice.rrcConnectionReconfigurationComplete.rrc_TransactionIdentifier);
         }
 
-        if (EPC_MODE_ENABLED) {
+        if (!IS_SOFTMODEM_NOS1) {
           if (dedicated_DRB == 1) {
             //    rrc_eNB_send_S1AP_E_RAB_SETUP_RESP(ctxt_pP,
             //               ue_context_p,
@@ -6532,7 +6527,7 @@ rrc_eNB_decode_dcch(
             LOG_I(RRC,"issue rrc_eNB_send_PATH_SWITCH_REQ \n");
             rrc_eNB_send_PATH_SWITCH_REQ(ctxt_pP,ue_context_p);
           }
-        } /* EPC_MODE_ENABLED */
+        } /* (!IS_SOFTMODEM_NOS1) */
 
         break;
 
@@ -6831,7 +6826,7 @@ rrc_eNB_decode_dcch(
             ue_context_p->ue_context.does_nr = 0;
         }
 
-        if (EPC_MODE_ENABLED) {
+        if (!IS_SOFTMODEM_NOS1) {
           rrc_eNB_send_S1AP_UE_CAPABILITIES_IND(ctxt_pP,
                                                 ue_context_p,
                                                 ul_dcch_msg);
@@ -6869,7 +6864,7 @@ rrc_eNB_decode_dcch(
         LOG_DUMPMSG(RRC,DEBUG_RRC,(char *)Rx_sdu,sdu_sizeP,
                     "[MSG] RRC UL Information Transfer \n");
 
-        if (EPC_MODE_ENABLED == 1) {
+        if (!IS_SOFTMODEM_NOS1) {
           rrc_eNB_send_S1AP_UPLINK_NAS(ctxt_pP,
                                        ue_context_p,
                                        ul_dcch_msg);
@@ -7258,7 +7253,7 @@ void rrc_subframe_process(protocol_ctxt_t *const ctxt_pP, const int CC_id) {
               ue_context_p->ue_context.rnti,
               ue_context_p->ue_context.ue_release_timer_thres_s1);
 
-        if (EPC_MODE_ENABLED)
+        if (!IS_SOFTMODEM_NOS1)
           rrc_eNB_generate_RRCConnectionRelease(ctxt_pP, ue_context_p);
         else
           removed_ue_count = add_ue_to_remove(ue_to_be_removed, removed_ue_count, ue_context_p);
@@ -7312,7 +7307,7 @@ void rrc_subframe_process(protocol_ctxt_t *const ctxt_pP, const int CC_id) {
           ue_context_p->ue_context.ue_release_timer_rrc = 1;
           ue_context_p->ue_context.ue_release_timer_thres_rrc = 100;
 
-          if (EPC_MODE_ENABLED) {
+          if (!IS_SOFTMODEM_NOS1) {
             if (rrc_release_info.RRC_release_ctrl[release_num].flag == 4) { // if timer_s1 == 0
               rrc_eNB_send_S1AP_UE_CONTEXT_RELEASE_CPLT(ctxt_pP->module_id,
                   ue_context_p->ue_context.eNB_ue_s1ap_id);
@@ -7337,7 +7332,7 @@ void rrc_subframe_process(protocol_ctxt_t *const ctxt_pP, const int CC_id) {
             if (rrc_ue_s1ap_ids != NULL) {
               rrc_eNB_S1AP_remove_ue_ids(RC.rrc[ctxt_pP->module_id], rrc_ue_s1ap_ids);
             }
-          } /* EPC_MODE_ENABLED */
+          } /* (!IS_SOFTMODEM_NOS1) */
 
           rrc_release_info.RRC_release_ctrl[release_num].flag = 0;
           rrc_release_info.num_UEs--;
@@ -7568,16 +7563,16 @@ void rrc_eNB_process_ENDC_DC_prep_timeout(module_id_t module_id, x2ap_ENDC_dc_pr
 
   ue_context = rrc_eNB_get_ue_context(RC.rrc[module_id], m->rnti);
   if (ue_context == NULL) {
-    LOG_E(RRC, "receiving DC prep timeout for unknown UE rnti %d\n", m->rnti);
+    LOG_E(RRC, "receiving DC prep timeout for unknown UE rnti %x\n", m->rnti);
     return;
   }
 
   if (ue_context->ue_context.StatusRrc != RRC_NR_NSA) {
-    LOG_E(RRC, "receiving DC prep timeout for UE rnti %d not in state RRC_NR_NSA\n", m->rnti);
+    LOG_E(RRC, "receiving DC prep timeout for UE rnti %x not in state RRC_NR_NSA\n", m->rnti);
     return;
   }
 
-  LOG_I(RRC, "DC prep timeout for UE rnti %d, put back to RRC_RECONFIGURED mode\n", m->rnti);
+  LOG_I(RRC, "DC prep timeout for UE rnti %x, put back to RRC_RECONFIGURED mode\n", m->rnti);
   ue_context->ue_context.StatusRrc = RRC_RECONFIGURED;
 }
 
@@ -7588,7 +7583,7 @@ void rrc_eNB_process_ENDC_sgNB_release_required(module_id_t module_id, x2ap_ENDC
 
   ue_context = rrc_eNB_find_ue_context_from_gnb_rnti(RC.rrc[module_id], m->gnb_rnti);
   if (ue_context == NULL) {
-    LOG_E(RRC, "receiving ENDC SgNB Release Required for unknown UE (with gNB's rnti %d)\n", m->gnb_rnti);
+    LOG_E(RRC, "receiving ENDC SgNB Release Required for unknown UE (with gNB's rnti %x)\n", m->gnb_rnti);
     return;
   }
 
@@ -7726,9 +7721,6 @@ void *rrc_enb_process_itti_msg(void *notUsed) {
 
     case X2AP_HANDOVER_REQ_ACK: {
       struct rrc_eNB_ue_context_s        *ue_context_p = NULL;
-      x2ap_handover_req_ack_t         *x2ap_handover_req_ack = NULL;
-      hashtable_rc_t                    hash_rc      = HASH_TABLE_KEY_NOT_EXISTS;
-      gtpv1u_ue_data_t                  *gtpv1u_ue_data_p = NULL;
       ue_context_p = rrc_eNB_get_ue_context(RC.rrc[instance], X2AP_HANDOVER_REQ_ACK(msg_p).rnti);
 
       if (ue_context_p == NULL) {
@@ -7742,40 +7734,6 @@ void *rrc_enb_process_itti_msg(void *notUsed) {
 
         if (ue_context_p->ue_context.handover_info->state != HO_REQUEST)
           abort();
-
-      hash_rc = hashtable_get(RC.gtpv1u_data_g->ue_mapping, ue_context_p->ue_context.rnti, (void **)&gtpv1u_ue_data_p);
-
-      /* set target enb gtp teid */
-      if (hash_rc == HASH_TABLE_KEY_NOT_EXISTS) {
-        LOG_E(RRC, "X2AP_HANDOVER_REQ_ACK func(), hashtable_get failed: while getting ue rnti %x in hashtable ue_mapping\n", ue_context_p->ue_context.rnti);
-      } else {
-        uint8_t nb_e_rabs_tobesetup = 0;
-        ebi_t   eps_bearer_id       = 0;
-        int     ip_offset           = 0;
-        in_addr_t  in_addr;
-        x2ap_handover_req_ack = &X2AP_HANDOVER_REQ_ACK(msg_p);
-        nb_e_rabs_tobesetup = x2ap_handover_req_ack->nb_e_rabs_tobesetup;
-        ue_context_p->ue_context.nb_x2u_e_rabs = nb_e_rabs_tobesetup;
-
-          for (int i = 0; i < nb_e_rabs_tobesetup; i++) {
-          ip_offset               = 0;
-          eps_bearer_id = x2ap_handover_req_ack->e_rabs_tobesetup[i].e_rab_id;
-          ue_context_p->ue_context.enb_gtp_x2u_ebi[i] = eps_bearer_id;
-          ue_context_p->ue_context.enb_gtp_x2u_teid[i] = x2ap_handover_req_ack->e_rabs_tobesetup[i].gtp_teid;
-          gtpv1u_ue_data_p->bearers[eps_bearer_id - GTPV1U_BEARER_OFFSET].teid_teNB = x2ap_handover_req_ack->e_rabs_tobesetup[i].gtp_teid;
-
-            if ((x2ap_handover_req_ack->e_rabs_tobesetup[i].eNB_addr.length == 4) || (x2ap_handover_req_ack->e_rabs_tobesetup[i].eNB_addr.length == 20)) {
-            in_addr = *((in_addr_t *)x2ap_handover_req_ack->e_rabs_tobesetup[i].eNB_addr.buffer);
-            ip_offset = 4;
-            gtpv1u_ue_data_p->bearers[eps_bearer_id - GTPV1U_BEARER_OFFSET].tenb_ip_addr = in_addr;
-            ue_context_p->ue_context.enb_gtp_x2u_addrs[i] = x2ap_handover_req_ack->e_rabs_tobesetup[i].eNB_addr;
-          }
-
-            if ((x2ap_handover_req_ack->e_rabs_tobesetup[i].eNB_addr.length == 16) || (x2ap_handover_req_ack->e_rabs_tobesetup[i].eNB_addr.length == 20)) {
-              memcpy(gtpv1u_ue_data_p->bearers[eps_bearer_id - GTPV1U_BEARER_OFFSET].tenb_ip6_addr.s6_addr, &x2ap_handover_req_ack->e_rabs_tobesetup[i].eNB_addr.buffer[ip_offset], 16);
-          }
-        }
-      }
 
       rrc_eNB_process_handoverCommand(instance, ue_context_p, &X2AP_HANDOVER_REQ_ACK(msg_p));
       ue_context_p->ue_context.handover_info->state = HO_PREPARE;

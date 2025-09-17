@@ -28,7 +28,7 @@ stream_security_context_t *nr_pdcp_security_nea2_init(unsigned char *ciphering_k
 
 void nr_pdcp_security_nea2_cipher(stream_security_context_t *security_context,
                                   unsigned char *buffer, int length,
-                                  int bearer, int count, int direction);
+                                  int bearer, uint32_t count, int direction);
 
 void nr_pdcp_security_nea2_free_security(stream_security_context_t *security_context);
 

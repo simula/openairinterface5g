@@ -30,7 +30,7 @@ static const uint32_t nr_subcarrier_spacing[MAX_NUM_SUBCARRIER_SPACING] = {15e3,
 static const uint16_t nr_slots_per_subframe[MAX_NUM_SUBCARRIER_SPACING] = {1, 2, 4, 8, 16};
 
 // Table 5.4.3.3-1 38-101
-static const int nr_ssb_table[54][3] = {
+static const int nr_ssb_table[][3] = {
     {1, 15, nr_ssb_type_A},
     {2, 15, nr_ssb_type_A},
     {3, 15, nr_ssb_type_A},
@@ -84,7 +84,17 @@ static const int nr_ssb_table[54][3] = {
     {92, 15, nr_ssb_type_A},
     {93, 15, nr_ssb_type_A},
     {94, 15, nr_ssb_type_A},
-    {96, 30, nr_ssb_type_C}};
+    {96, 30, nr_ssb_type_C},
+    {100, 15, nr_ssb_type_A},
+    {101, 15, nr_ssb_type_A},
+    {101, 30, nr_ssb_type_C},
+    {102, 30, nr_ssb_type_C},
+    {104, 30, nr_ssb_type_C},
+    {254, 15, nr_ssb_type_A},
+    {254, 30, nr_ssb_type_C},
+    {255, 15, nr_ssb_type_A},
+    {255, 30, nr_ssb_type_B},
+    {256, 15, nr_ssb_type_A}};
 
 void set_Lmax(NR_DL_FRAME_PARMS *fp) {
   // definition of Lmax according to ts 38.213 section 4.1
@@ -270,7 +280,7 @@ uint32_t get_samples_slot_timestamp(int slot, const NR_DL_FRAME_PARMS *fp, unsig
     for(unsigned int idx_slot = 0; idx_slot < slot; idx_slot++)
       samp_count += fp->get_samples_per_slot(idx_slot, fp);
   } else {
-    for(unsigned int idx_slot = slot; idx_slot < slot+sl_ahead; idx_slot++)
+    for (unsigned int idx_slot = slot; idx_slot < slot + sl_ahead; idx_slot++)
       samp_count += fp->get_samples_per_slot(idx_slot, fp);
   }
   return samp_count;
@@ -316,7 +326,7 @@ void nr_init_frame_parms(nfapi_nr_config_request_scf_t* cfg, NR_DL_FRAME_PARMS *
   fp->get_samples_slot_timestamp = &get_samples_slot_timestamp;
   fp->get_slot_from_timestamp = &get_slot_from_timestamp;
   fp->samples_per_frame = 10 * fp->samples_per_subframe;
-  fp->freq_range = (fp->dl_CarrierFreq < 6e9) ? FR1 : FR2;
+  fp->freq_range = get_freq_range_from_freq(fp->dl_CarrierFreq);
 
   fp->Ncp = Ncp;
 
@@ -400,7 +410,7 @@ int nr_init_frame_parms_ue(NR_DL_FRAME_PARMS *fp,
   fp->get_samples_per_slot = &get_samples_per_slot;
   fp->get_samples_slot_timestamp = &get_samples_slot_timestamp;
   fp->samples_per_frame = 10 * fp->samples_per_subframe;
-  fp->freq_range = (fp->dl_CarrierFreq < 6e9) ? FR1 : FR2;
+  fp->freq_range = get_freq_range_from_freq(fp->dl_CarrierFreq);
 
   uint8_t sco = 0;
   if (((fp->freq_range == FR1) && (config->ssb_table.ssb_subcarrier_offset < 24)) ||
@@ -434,7 +444,9 @@ void nr_init_frame_parms_ue_sa(NR_DL_FRAME_PARMS *frame_parms, uint64_t downlink
   frame_parms->numerology_index = mu;
   frame_parms->dl_CarrierFreq = downlink_frequency;
   frame_parms->ul_CarrierFreq = downlink_frequency + delta_duplex;
-  frame_parms->freq_range = (frame_parms->dl_CarrierFreq < 6e9)? FR1 : FR2;
+  if (get_softmodem_params()->sl_mode == 0) {
+    frame_parms->freq_range = get_freq_range_from_freq(frame_parms->dl_CarrierFreq);
+  }
   frame_parms->N_RB_UL = frame_parms->N_RB_DL;
 
   frame_parms->nr_band = nr_band;
@@ -565,7 +577,7 @@ int nr_init_frame_parms_ue_sl(NR_DL_FRAME_PARMS *fp,
   fp->get_samples_per_slot = &get_samples_per_slot;
   fp->get_samples_slot_timestamp = &get_samples_slot_timestamp;
   fp->samples_per_frame = 10 * fp->samples_per_subframe;
-  fp->freq_range = (fp->sl_CarrierFreq < 6e9) ? FR1 : FR2;
+  fp->freq_range = get_freq_range_from_freq(fp->sl_CarrierFreq);
 
   // ssb_offset_pointa points to the first RE where Sidelink-PSBCH starts
   fp->ssb_start_subcarrier = config->sl_bwp_config.sl_ssb_offset_point_a;

@@ -1,0 +1,48 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Chart.Name }}
+spec:
+  template:
+    metadata:
+      labels:
+        app: physim
+    spec:
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+    {{- if .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+      containers:
+      - name: physim
+        image: "{{ .Values.global.image.repository }}:{{ .Values.global.image.version }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        {{- if .Values.global.resources.define}}
+        resources:
+          requests:
+            cpu: {{ .Values.global.resources.requests.cpu | quote }}
+        {{- end}}
+        securityContext:
+          {{- toYaml .Values.securityContext | nindent 12 }}
+        env:
+        - name: OPENAIR_DIR
+          value: /opt/oai-physim
+        command: ["/bin/sh", "-c"]
+        args:
+        - >
+          ctest -R 4g --show-only=json-v1 >> physims-4g-tests.json &&
+          ctest -R 4g -j$(nproc) --output-junit physims-4g-run.xml --test-output-size-passed 100000 --test-output-size-failed 100000 ;
+          echo "FINISHED" && sleep 15
+      dnsPolicy: ClusterFirst
+      restartPolicy: Never
+      schedulerName: default-scheduler
+      serviceAccountName: {{ .Values.global.serviceAccountName }}
+      terminationGracePeriodSeconds: 30
+      {{- if .Values.global.nodeSelector}}
+      nodeSelector:
+         {{- toYaml .Values.global.nodeSelector | nindent 12 }}
+      {{- end }}
+      {{- if .Values.global.nodeName}}
+      nodeName: {{ .Values.global.nodeName.physims5g }}
+      {{- end }}

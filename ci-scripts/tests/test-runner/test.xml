@@ -27,6 +27,8 @@
         <htmlTabIcon>wrench</htmlTabIcon>
         <TestCaseRequestedList>
  000001
+ 000011
+ 000012
  000002
  000003
  000004
@@ -38,7 +40,21 @@
                 <desc>This should succeed</desc>
                 <node>localhost</node>
                 <command>true</command>
-                <command_fail>yes</command_fail>
+        </testCase>
+
+        <testCase id="000011">
+                <class>Custom_Command</class>
+                <desc>This may fail</desc>
+                <may_fail>true</may_fail>
+                <node>localhost</node>
+                <command>false</command>
+        </testCase>
+
+        <testCase id="000012">
+                <class>Custom_Command</class>
+                <desc>This is still executed</desc>
+                <node>localhost</node>
+                <command>true</command>
         </testCase>
 
         <testCase id="000002">
@@ -46,7 +62,6 @@
                 <desc>This should fail</desc>
                 <node>localhost</node>
                 <command>false</command>
-                <command_fail>yes</command_fail>
         </testCase>
 
         <testCase id="000003">
@@ -54,7 +69,6 @@
                 <desc>This should be skipped</desc>
                 <node>localhost</node>
                 <command>true</command>
-                <command_fail>yes</command_fail>
         </testCase>
 
         <testCase id="000004">
@@ -63,6 +77,5 @@
                 <always_exec>true</always_exec>
                 <node>localhost</node>
                 <command>true</command>
-                <command_fail>yes</command_fail>
         </testCase>
 </testCaseList>

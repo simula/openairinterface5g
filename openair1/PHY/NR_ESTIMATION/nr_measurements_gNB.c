@@ -36,10 +36,9 @@
 
 #define I0_SKIP_DC 1
 
-extern openair0_config_t openair0_cfg[MAX_CARDS];
-
-int nr_est_timing_advance_srs(const NR_DL_FRAME_PARMS *frame_parms, 
-                              const int32_t srs_estimated_channel_time[][frame_parms->ofdm_symbol_size]) {
+int nr_est_timing_advance_srs(const NR_DL_FRAME_PARMS *frame_parms,
+                              const c16_t srs_estimated_channel_time[][frame_parms->ofdm_symbol_size])
+{
   int timing_advance = 0;
   int max_val = 0;
 

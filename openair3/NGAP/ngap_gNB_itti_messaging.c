@@ -26,10 +26,12 @@
  * \date 2020
  * \version 0.1
  */
- 
-#include "intertask_interface.h"
 
-#include "ngap_gNB_itti_messaging.h"
+#include <stdlib.h>
+#include <string.h>
+#include "intertask_interface.h"
+#include "ngap_messages_types.h"
+#include "sctp_messages_types.h"
 
 void ngap_gNB_itti_send_sctp_data_req(instance_t instance,
                                       sctp_assoc_t assoc_id,
@@ -62,9 +64,7 @@ void ngap_gNB_itti_send_nas_downlink_ind(instance_t instance, uint32_t gNB_ue_ng
   ngap_downlink_nas = &message_p->ittiMsg.ngap_downlink_nas;
 
   ngap_downlink_nas->gNB_ue_ngap_id = gNB_ue_ngap_id;
-  ngap_downlink_nas->nas_pdu.buffer = malloc(sizeof(uint8_t) * nas_pdu_length);
-  memcpy(ngap_downlink_nas->nas_pdu.buffer, nas_pdu, nas_pdu_length);
-  ngap_downlink_nas->nas_pdu.length = nas_pdu_length;
+  ngap_downlink_nas->nas_pdu = create_byte_array(nas_pdu_length, nas_pdu);
 
   itti_send_msg_to_task(TASK_RRC_GNB, instance, message_p);
 }

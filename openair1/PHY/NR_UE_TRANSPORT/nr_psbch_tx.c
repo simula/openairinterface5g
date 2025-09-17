@@ -41,11 +41,6 @@ void sl_psbch_scrambling(uint32_t *output, uint32_t id, uint16_t length)
   x2 = id; // C_INIT
 
 #ifdef SL_DEBUG
-  printf("SIDELINK: Function %s\n", __func__);
-  printf("Scrambling params: length %d id %d \n", length, id);
-#endif
-
-#ifdef SL_DEBUG
   for (int i = 0; i < 56; i++) {
     printf("\nBEFORE SCRAMBLING output[%d]:0x%x\n", i, output[i]);
   }
@@ -333,10 +328,6 @@ void nr_tx_psbch(PHY_VARS_NR_UE *UE, uint32_t frame_tx, uint32_t slot_tx, sl_nr_
   psbch_payload |= ((frame_tx % 1024) << 17) & 0xFE0000;
   psbch_payload |= (slot_tx << 10) & 0x10000;
   psbch_payload |= (slot_tx << 26) & 0xFC000000;
-
-#ifdef SL_DEBUG
-  printf("DEBUG PSBCH TX: DFN, SLOT included. psbch_a :0x%08x, frame:%d, slot:%d\n", psbch_payload, frame_tx, slot_tx);
-#endif
 
   LOG_D(PHY, "PSBCH TX: Frame.Slot %d.%d. Payload::0x%08x, slssid:%d\n", frame_tx, slot_tx, psbch_payload, slss_id);
 

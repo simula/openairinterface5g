@@ -330,9 +330,9 @@ void *MCE_app_task(void *args_p) {
   itti_mark_task_ready (TASK_MCE_APP);
 
   /* Try to register each MCE */
-  if ( EPC_MODE_ENABLED && RC.rrc == NULL )
-	  LOG_E(RRC, "inconsistent global variables\n");
-  if (EPC_MODE_ENABLED && RC.rrc ) {
+  if (!IS_SOFTMODEM_NOS1 && RC.rrc == NULL)
+    LOG_E(RRC, "inconsistent global variables\n");
+  if (!IS_SOFTMODEM_NOS1 && RC.rrc) {
     register_mce_pending = MCE_app_register(mce_id_start, mce_id_end);
   }
 
@@ -478,10 +478,13 @@ void *MCE_app_task(void *args_p) {
       break;
 
     case M3AP_DEREGISTERED_MCE_IND:
-      if (EPC_MODE_ENABLED) {
-  	LOG_W(MCE_APP, "[MCE %ld] Received %s: associated MME %d\n", instance, ITTI_MSG_NAME (msg_p),
-  	      M3AP_DEREGISTERED_MCE_IND(msg_p).nb_mme);
-  	/* TODO handle recovering of registration */
+      if ((!IS_SOFTMODEM_NOS1)) {
+        LOG_W(MCE_APP,
+              "[MCE %ld] Received %s: associated MME %d\n",
+              instance,
+              ITTI_MSG_NAME(msg_p),
+              M3AP_DEREGISTERED_MCE_IND(msg_p).nb_mme);
+        /* TODO handle recovering of registration */
       }
 
       break;

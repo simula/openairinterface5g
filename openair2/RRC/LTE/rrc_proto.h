@@ -93,21 +93,6 @@ rrc_rx_tx_ue(
     \param eNB_index Index of corresponding eNB/CH*/
 int rrc_ue_decode_ccch( const protocol_ctxt_t *const ctxt_pP, const SRB_INFO *const Srb_info, const uint8_t eNB_index );
 
-/** \brief Decodes a DL-DCCH message and invokes appropriate routine to handle the message
-    \param ctxt_pP Running context
-    \param Srb_id Index of Srb (1,2)
-    \param Buffer Pointer to received SDU
-    \param Buffer_size
-    \param eNB_indexP Index of corresponding eNB/CH*/
-void
-rrc_ue_decode_dcch(
-  const protocol_ctxt_t *const ctxt_pP,
-  const rb_id_t                Srb_id,
-  const uint8_t         *const Buffer,
-  const uint32_t               Buffer_size,
-  const uint8_t                eNB_indexP
-);
-
 int decode_SL_Discovery_Message(
   const protocol_ctxt_t *const ctxt_pP,
   const uint8_t                eNB_index,
@@ -121,17 +106,6 @@ void
 rrc_ue_generate_RRCConnectionRequest(
   const protocol_ctxt_t *const ctxt_pP,
   const uint8_t                eNB_index
-);
-
-/** \brief process the received rrcConnectionReconfiguration message at UE
-    \param ctxt_pP Running context
-    \param *rrcConnectionReconfiguration pointer to the sturcture
-    \param eNB_index Index of corresponding eNB/CH*/
-void
-rrc_ue_process_rrcConnectionReconfiguration(
-  const protocol_ctxt_t *const       ctxt_pP,
-  LTE_RRCConnectionReconfiguration_t *rrcConnectionReconfiguration,
-  uint8_t eNB_index
 );
 
 /** \brief Establish SRB1 based on configuration in SRB_ToAddMod structure.  Configures RLC/PDCP accordingly
@@ -680,5 +654,16 @@ extern pthread_mutex_t      lock_ue_freelist;
 void remove_UE_from_freelist(module_id_t mod_id, rnti_t rnti);
 void put_UE_in_freelist(module_id_t mod_id, rnti_t rnti, bool removeFlag);
 void release_UE_in_freeList(module_id_t mod_id);
-
+int rrc_eNB_process_security(const protocol_ctxt_t *const ctxt_pP,
+                             rrc_eNB_ue_context_t *const ue_context_pP,
+                             security_capabilities_t *security_capabilities_pP);
+void process_eNB_security_key(const protocol_ctxt_t *const ctxt_pP,
+                              rrc_eNB_ue_context_t *const ue_context_pP,
+                              uint8_t *security_key_pP);
+int rrc_eNB_generate_RRCConnectionReconfiguration_endc(protocol_ctxt_t *ctxt,
+                                                       rrc_eNB_ue_context_t *ue_context,
+                                                       unsigned char *buffer,
+                                                       int buffer_size,
+                                                       OCTET_STRING_t *scg_group_config,
+                                                       OCTET_STRING_t *scg_RB_config);
 /** @}*/

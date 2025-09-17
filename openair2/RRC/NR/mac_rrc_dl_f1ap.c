@@ -19,17 +19,28 @@
  *      contact@openairinterface.org
  */
 
+#include <netinet/in.h>
+#include <netinet/sctp.h>
+#include <stdbool.h>
+#include <stdint.h>
 #include <stdlib.h>
-
+#include <string.h>
+#include "assertions.h"
+#include "f1ap_messages_types.h"
+#include "intertask_interface.h"
 #include "mac_rrc_dl.h"
 #include "nr_rrc_defs.h"
-#include "openair2/F1AP/lib/f1ap_rrc_message_transfer.h"
-#include "openair2/F1AP/lib/f1ap_interface_management.h"
+#include "lib/f1ap_rrc_message_transfer.h"
+#include "lib/f1ap_interface_management.h"
+#include "lib/f1ap_ue_context.h"
 
 static void f1_reset_cu_initiated_f1ap(sctp_assoc_t assoc_id, const f1ap_reset_t *reset)
 {
-  (void)reset;
-  AssertFatal(false, "%s() not implemented yet\n", __func__);
+  MessageDef *msg = itti_alloc_new_message(TASK_RRC_GNB, 0, F1AP_RESET);
+  msg->ittiMsgHeader.originInstance = assoc_id;
+  f1ap_reset_t *f1ap_msg = &F1AP_RESET(msg);
+  *f1ap_msg = cp_f1ap_reset(reset);
+  itti_send_msg_to_task(TASK_CU_F1, 0, msg);
 }
 
 static void f1_reset_acknowledge_du_initiated_f1ap(sctp_assoc_t assoc_id, const f1ap_reset_ack_t *ack)
@@ -43,10 +54,7 @@ static void f1_setup_response_f1ap(sctp_assoc_t assoc_id, const f1ap_setup_resp_
   MessageDef *msg = itti_alloc_new_message(TASK_RRC_GNB, 0, F1AP_SETUP_RESP);
   msg->ittiMsgHeader.originInstance = assoc_id;
   f1ap_setup_resp_t *f1ap_msg = &F1AP_SETUP_RESP(msg);
-  *f1ap_msg = *resp;
-  if (resp->gNB_CU_name != NULL)
-    f1ap_msg->gNB_CU_name = strdup(resp->gNB_CU_name);
-  free_f1ap_setup_response(resp);
+  *f1ap_msg = cp_f1ap_setup_response(resp);
   itti_send_msg_to_task(TASK_CU_F1, 0, msg);
 }
 
@@ -55,7 +63,7 @@ static void f1_setup_failure_f1ap(sctp_assoc_t assoc_id, const f1ap_setup_failur
   MessageDef *msg = itti_alloc_new_message(TASK_RRC_GNB, 0, F1AP_SETUP_FAILURE);
   msg->ittiMsgHeader.originInstance = assoc_id;
   f1ap_setup_failure_t *f1ap_msg = &F1AP_SETUP_FAILURE(msg);
-  *f1ap_msg = *fail;
+  *f1ap_msg = cp_f1ap_setup_failure(fail);
   itti_send_msg_to_task(TASK_CU_F1, 0, msg);
 }
 
@@ -64,103 +72,23 @@ static void gnb_du_configuration_update_ack_f1ap(sctp_assoc_t assoc_id, const f1
   MessageDef *msg = itti_alloc_new_message(TASK_RRC_GNB, 0, F1AP_GNB_DU_CONFIGURATION_UPDATE_ACKNOWLEDGE);
   msg->ittiMsgHeader.originInstance = assoc_id;
   f1ap_gnb_du_configuration_update_acknowledge_t *f1ap_msg = &F1AP_GNB_DU_CONFIGURATION_UPDATE_ACKNOWLEDGE(msg);
-  *f1ap_msg = *ack;
+  *f1ap_msg = cp_f1ap_du_configuration_update_acknowledge(ack);
   itti_send_msg_to_task(TASK_CU_F1, 0, msg);
 }
 
-static void ue_context_setup_request_f1ap(sctp_assoc_t assoc_id, const f1ap_ue_context_setup_t *req)
+static void ue_context_setup_request_f1ap(sctp_assoc_t assoc_id, const f1ap_ue_context_setup_req_t *req)
 {
   MessageDef *msg = itti_alloc_new_message(TASK_RRC_GNB, 0, F1AP_UE_CONTEXT_SETUP_REQ);
   msg->ittiMsgHeader.originInstance = assoc_id;
-  f1ap_ue_context_setup_t *f1ap_msg = &F1AP_UE_CONTEXT_SETUP_REQ(msg);
-  *f1ap_msg = *req;
-  if (req->cu_to_du_rrc_information != NULL) {
-    f1ap_msg->cu_to_du_rrc_information = calloc(1, sizeof(*f1ap_msg->cu_to_du_rrc_information));
-    AssertFatal(f1ap_msg->cu_to_du_rrc_information != NULL, "out of memory\n");
-    AssertFatal(req->cu_to_du_rrc_information->cG_ConfigInfo == NULL && req->cu_to_du_rrc_information->cG_ConfigInfo_length == 0, "cg_ConfigInfo not implemented\n");
-    AssertFatal(req->cu_to_du_rrc_information->measConfig == NULL && req->cu_to_du_rrc_information->measConfig_length == 0, "cg_ConfigInfo not implemented\n");
-    if (req->cu_to_du_rrc_information->uE_CapabilityRAT_ContainerList != NULL) {
-      const cu_to_du_rrc_information_t *du2cu_req = req->cu_to_du_rrc_information;
-      cu_to_du_rrc_information_t* du2cu_new = f1ap_msg->cu_to_du_rrc_information;
-      DevAssert(du2cu_req->uE_CapabilityRAT_ContainerList_length > 0);
-      du2cu_new->uE_CapabilityRAT_ContainerList_length = du2cu_req->uE_CapabilityRAT_ContainerList_length;
-      du2cu_new->uE_CapabilityRAT_ContainerList = malloc(du2cu_new->uE_CapabilityRAT_ContainerList_length);
-      AssertFatal(du2cu_new->uE_CapabilityRAT_ContainerList != NULL, "out of memory\n");
-      memcpy(du2cu_new->uE_CapabilityRAT_ContainerList, du2cu_req->uE_CapabilityRAT_ContainerList, du2cu_new->uE_CapabilityRAT_ContainerList_length);
-    }
-  }
-  if (req->drbs_to_be_setup_length > 0) {
-    int n = req->drbs_to_be_setup_length;
-    f1ap_msg->drbs_to_be_setup_length = n;
-    f1ap_msg->drbs_to_be_setup = calloc(n, sizeof(*f1ap_msg->drbs_to_be_setup));
-    AssertFatal(f1ap_msg->drbs_to_be_setup != NULL, "out of memory\n");
-    memcpy(f1ap_msg->drbs_to_be_setup, req->drbs_to_be_setup, n * sizeof(*f1ap_msg->drbs_to_be_setup));
-  }
-  if (req->srbs_to_be_setup_length > 0) {
-    int n = req->srbs_to_be_setup_length;
-    f1ap_msg->srbs_to_be_setup_length = n;
-    f1ap_msg->srbs_to_be_setup = calloc(n, sizeof(*f1ap_msg->srbs_to_be_setup));
-    AssertFatal(f1ap_msg->srbs_to_be_setup != NULL, "out of memory\n");
-    memcpy(f1ap_msg->srbs_to_be_setup, req->srbs_to_be_setup, n * sizeof(*f1ap_msg->srbs_to_be_setup));
-  }
-  if (req->rrc_container_length > 0) {
-    f1ap_msg->rrc_container = calloc(req->rrc_container_length, sizeof(*f1ap_msg->rrc_container));
-    AssertFatal(f1ap_msg->rrc_container != NULL, "out of memory\n");
-    f1ap_msg->rrc_container_length = req->rrc_container_length;
-    memcpy(f1ap_msg->rrc_container, req->rrc_container, req->rrc_container_length);
-  }
+  F1AP_UE_CONTEXT_SETUP_REQ(msg) = cp_ue_context_setup_req(req);
   itti_send_msg_to_task(TASK_CU_F1, 0, msg);
 }
 
-static void ue_context_modification_request_f1ap(sctp_assoc_t assoc_id, const f1ap_ue_context_modif_req_t *req)
+static void ue_context_modification_request_f1ap(sctp_assoc_t assoc_id, const f1ap_ue_context_mod_req_t *req)
 {
   MessageDef *msg = itti_alloc_new_message(TASK_RRC_GNB, 0, F1AP_UE_CONTEXT_MODIFICATION_REQ);
   msg->ittiMsgHeader.originInstance = assoc_id;
-  f1ap_ue_context_modif_req_t *f1ap_msg = &F1AP_UE_CONTEXT_MODIFICATION_REQ(msg);
-  *f1ap_msg = *req;
-  if (req->cu_to_du_rrc_information != NULL) {
-    f1ap_msg->cu_to_du_rrc_information = calloc(1, sizeof(*f1ap_msg->cu_to_du_rrc_information));
-    AssertFatal(f1ap_msg->cu_to_du_rrc_information != NULL, "out of memory\n");
-    AssertFatal(req->cu_to_du_rrc_information->cG_ConfigInfo == NULL && req->cu_to_du_rrc_information->cG_ConfigInfo_length == 0, "cg_ConfigInfo not implemented\n");
-    AssertFatal(req->cu_to_du_rrc_information->measConfig == NULL && req->cu_to_du_rrc_information->measConfig_length == 0, "cg_ConfigInfo not implemented\n");
-    if (req->cu_to_du_rrc_information->uE_CapabilityRAT_ContainerList != NULL) {
-      const cu_to_du_rrc_information_t *du2cu_req = req->cu_to_du_rrc_information;
-      cu_to_du_rrc_information_t* du2cu_new = f1ap_msg->cu_to_du_rrc_information;
-      DevAssert(du2cu_req->uE_CapabilityRAT_ContainerList_length > 0);
-      du2cu_new->uE_CapabilityRAT_ContainerList_length = du2cu_req->uE_CapabilityRAT_ContainerList_length;
-      du2cu_new->uE_CapabilityRAT_ContainerList = malloc(du2cu_new->uE_CapabilityRAT_ContainerList_length);
-      AssertFatal(du2cu_new->uE_CapabilityRAT_ContainerList != NULL, "out of memory\n");
-      memcpy(du2cu_new->uE_CapabilityRAT_ContainerList, du2cu_req->uE_CapabilityRAT_ContainerList, du2cu_new->uE_CapabilityRAT_ContainerList_length);
-    }
-  }
-  AssertFatal(req->drbs_to_be_modified_length == 0, "drbs_to_be_modified not supported yet\n");
-  if (req->drbs_to_be_setup_length > 0) {
-    int n = req->drbs_to_be_setup_length;
-    f1ap_msg->drbs_to_be_setup_length = n;
-    f1ap_msg->drbs_to_be_setup = calloc(n, sizeof(*f1ap_msg->drbs_to_be_setup));
-    AssertFatal(f1ap_msg->drbs_to_be_setup != NULL, "out of memory\n");
-    memcpy(f1ap_msg->drbs_to_be_setup, req->drbs_to_be_setup, n * sizeof(*f1ap_msg->drbs_to_be_setup));
-  }
-  if (req->srbs_to_be_setup_length > 0) {
-    int n = req->srbs_to_be_setup_length;
-    f1ap_msg->srbs_to_be_setup_length = n;
-    f1ap_msg->srbs_to_be_setup = calloc(n, sizeof(*f1ap_msg->srbs_to_be_setup));
-    AssertFatal(f1ap_msg->srbs_to_be_setup != NULL, "out of memory\n");
-    memcpy(f1ap_msg->srbs_to_be_setup, req->srbs_to_be_setup, n * sizeof(*f1ap_msg->srbs_to_be_setup));
-  }
-  if (req->drbs_to_be_released_length > 0) {
-    int n = req->drbs_to_be_released_length;
-    f1ap_msg->drbs_to_be_released_length = n;
-    f1ap_msg->drbs_to_be_released = calloc(n, sizeof(*f1ap_msg->drbs_to_be_released));
-    AssertFatal(f1ap_msg->drbs_to_be_released != NULL, "out of memory\n");
-    memcpy(f1ap_msg->drbs_to_be_released, req->drbs_to_be_released, n * sizeof(*f1ap_msg->drbs_to_be_released));
-  }
-  if (req->rrc_container_length > 0) {
-    f1ap_msg->rrc_container = calloc(req->rrc_container_length, sizeof(*f1ap_msg->rrc_container));
-    AssertFatal(f1ap_msg->rrc_container != NULL, "out of memory\n");
-    f1ap_msg->rrc_container_length = req->rrc_container_length;
-    memcpy(f1ap_msg->rrc_container, req->rrc_container, req->rrc_container_length);
-  }
+  F1AP_UE_CONTEXT_MODIFICATION_REQ(msg) = cp_ue_context_mod_req(req);
   itti_send_msg_to_task(TASK_CU_F1, 0, msg);
 }
 
@@ -191,18 +119,11 @@ static void ue_context_modification_refuse_f1ap(sctp_assoc_t assoc_id, const f1a
   itti_send_msg_to_task(TASK_CU_F1, 0, msg);
 }
 
-static void ue_context_release_command_f1ap(sctp_assoc_t assoc_id, const f1ap_ue_context_release_cmd_t *cmd)
+static void ue_context_release_command_f1ap(sctp_assoc_t assoc_id, const f1ap_ue_context_rel_cmd_t *cmd)
 {
   MessageDef *message_p = itti_alloc_new_message (TASK_RRC_GNB, 0, F1AP_UE_CONTEXT_RELEASE_CMD);
   message_p->ittiMsgHeader.originInstance = assoc_id;
-  f1ap_ue_context_release_cmd_t *msg = &F1AP_UE_CONTEXT_RELEASE_CMD(message_p);
-  *msg = *cmd;
-  if (cmd->rrc_container_length > 0) {
-    msg->rrc_container = calloc(cmd->rrc_container_length, sizeof(*msg->rrc_container));
-    AssertFatal(msg->rrc_container != NULL, "out of memory\n");
-    msg->rrc_container_length = cmd->rrc_container_length;
-    memcpy(msg->rrc_container, cmd->rrc_container, cmd->rrc_container_length);
-  }
+  F1AP_UE_CONTEXT_RELEASE_CMD(message_p) = cp_ue_context_rel_cmd(cmd);
   itti_send_msg_to_task (TASK_CU_F1, 0, message_p);
 }
 

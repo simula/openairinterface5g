@@ -86,14 +86,17 @@ int find_ulsch(uint16_t rnti, PHY_VARS_eNB *eNB,find_type_t type) {
   AssertFatal(eNB!=NULL,"eNB is null\n");
 
   for (int i=0; i<NUMBER_OF_ULSCH_MAX; i++) {
-    if (eNB->ulsch[i]==NULL) continue;
+    if (eNB->ulsch[i] == NULL)
+      continue;
 
     if (type == SEARCH_EXIST_RA) {
-      if (eNB->ulsch[i]->rnti == rnti) return i;
+      if (eNB->ulsch[i]->rnti == rnti)
+        return i;
     } else {
-      if ((eNB->ulsch[i]->harq_mask >0) &&
-          (eNB->ulsch[i]->rnti==rnti))       return i;
-      else if ((eNB->ulsch[i]->harq_mask == 0) && (first_free_index==-1)) first_free_index=i;
+      if (eNB->ulsch[i]->harq_mask > 0 && eNB->ulsch[i]->rnti == rnti)
+        return i;
+      else if (eNB->ulsch[i]->harq_mask == 0 && first_free_index == -1)
+        first_free_index = i;
     }
   }
 
@@ -1963,7 +1966,7 @@ void fill_dci0(PHY_VARS_eNB *eNB,int frame,int subframe,L1_rxtx_proc_t *proc,
   if(frame_parms->frame_type == TDD) {
     UE_id = find_ulsch(pdu->dci_pdu_rel8.rnti, eNB,SEARCH_EXIST_OR_FREE);
 
-    if(UE_id >=0 || UE_id < NUMBER_OF_ULSCH_MAX) {
+    if (UE_id >= 0) {
       eNB->ulsch[UE_id]->harq_processes[pdu->dci_pdu_rel8.harq_pid]->V_UL_DAI = dai +1;
     }
   }
@@ -1990,6 +1993,7 @@ int get_narrowband_index(int N_RB_UL,int rb) {
 
     default:
       AssertFatal(1==0,"Impossible N_RB_UL %d\n",N_RB_UL);
+      return 0;
       break;
   }
 }
@@ -2125,6 +2129,7 @@ int get_first_rb_in_narrowband(int N_RB_UL,
 
     default:
       AssertFatal(1==0,"Impossible N_RB_UL %d\n",N_RB_UL);
+      return 0;
       break;
   }
 }

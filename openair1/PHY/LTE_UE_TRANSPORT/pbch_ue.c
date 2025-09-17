@@ -104,9 +104,9 @@ uint16_t pbch_extract(int **rxdataF,
 
     for (aatx=0; aatx<4; aatx++) { //frame_parms->nb_antenna_ports_eNB;aatx++) {
       if (high_speed_flag == 1)
-        dl_ch0     = &dl_ch_estimates[(aatx<<1)+aarx][LTE_CE_OFFSET+ch_offset+(symbol*(frame_parms->ofdm_symbol_size))];
+        dl_ch0   = &dl_ch_estimates[(aatx<<1)+aarx][LTE_CE_OFFSET+ch_offset+(symbol*(frame_parms->ofdm_symbol_size))];
       else
-        dl_ch0     = &dl_ch_estimates[(aatx<<1)+aarx][LTE_CE_OFFSET+ch_offset];
+        dl_ch0   = &dl_ch_estimates[(aatx<<1)+aarx][LTE_CE_OFFSET+ch_offset];
 
       dl_ch0_ext = &dl_ch_estimates_ext[(aatx<<1)+aarx][symbol_mod*(6*12)];
 
@@ -185,19 +185,16 @@ int pbch_channel_level(int **dl_ch_estimates_ext,
       //msg("Channel level : %d, %d\n",avg1, avg2);
     }
 
-  simde_mm_empty();
-  simde_m_empty();
   return(avg2);
 }
 
-simde__m128i mmtmpP0, mmtmpP1, mmtmpP2, mmtmpP3;
 void pbch_channel_compensation(int **rxdataF_ext,
                                int **dl_ch_estimates_ext,
                                int **rxdataF_comp,
                                LTE_DL_FRAME_PARMS *frame_parms,
                                uint8_t symbol,
                                uint8_t output_shift) {
-  uint16_t rb,nb_rb=6;
+  uint16_t nb_rb=6;
   uint8_t aatx, aarx, symbol_mod;
   simde__m128i *dl_ch128, *rxdataF128, *rxdataF_comp128;
   symbol_mod = (symbol>=(7-frame_parms->Ncp)) ? symbol-(7-frame_parms->Ncp) : symbol;
@@ -208,77 +205,13 @@ void pbch_channel_compensation(int **rxdataF_ext,
       rxdataF128 = (simde__m128i *)&rxdataF_ext[aarx][symbol_mod * 6 * 12];
       rxdataF_comp128 = (simde__m128i *)&rxdataF_comp[(aatx << 1) + aarx][symbol_mod * 6 * 12];
 
-      for (rb=0; rb<nb_rb; rb++) {
-        // printf("rb %d\n",rb);
+      int len_rb = (symbol_mod > 1) ? 3 : 2;
+      for (uint16_t rb=0; rb<nb_rb*len_rb; rb++) {
         //  multiply by conjugated channel
-        mmtmpP0 = simde_mm_madd_epi16(dl_ch128[0], rxdataF128[0]);
-        //  print_ints("re",&mmtmpP0);
-        // mmtmpP0 contains real part of 4 consecutive outputs (32-bit)
-        mmtmpP1 = simde_mm_shufflelo_epi16(dl_ch128[0], SIMDE_MM_SHUFFLE(2, 3, 0, 1));
-        mmtmpP1 = simde_mm_shufflehi_epi16(mmtmpP1, SIMDE_MM_SHUFFLE(2, 3, 0, 1));
-        mmtmpP1 = simde_mm_sign_epi16(mmtmpP1, *(simde__m128i *)&conjugate[0]);
-        //  print_ints("im",&mmtmpP1);
-        mmtmpP1 = simde_mm_madd_epi16(mmtmpP1, rxdataF128[0]);
-        // mmtmpP1 contains imag part of 4 consecutive outputs (32-bit)
-        mmtmpP0 = simde_mm_srai_epi32(mmtmpP0, output_shift);
-        //  print_ints("re(shift)",&mmtmpP0);
-        mmtmpP1 = simde_mm_srai_epi32(mmtmpP1, output_shift);
-        //  print_ints("im(shift)",&mmtmpP1);
-        mmtmpP2 = simde_mm_unpacklo_epi32(mmtmpP0, mmtmpP1);
-        mmtmpP3 = simde_mm_unpackhi_epi32(mmtmpP0, mmtmpP1);
-        //      print_ints("c0",&mmtmpP2);
-        //  print_ints("c1",&mmtmpP3);
-        rxdataF_comp128[0] = simde_mm_packs_epi32(mmtmpP2, mmtmpP3);
-        //  print_shorts("rx:",rxdataF128);
-        //  print_shorts("ch:",dl_ch128);
-        //  print_shorts("pack:",rxdataF_comp128);
-        // multiply by conjugated channel
-        mmtmpP0 = simde_mm_madd_epi16(dl_ch128[1], rxdataF128[1]);
-        // mmtmpP0 contains real part of 4 consecutive outputs (32-bit)
-        mmtmpP1 = simde_mm_shufflelo_epi16(dl_ch128[1], SIMDE_MM_SHUFFLE(2, 3, 0, 1));
-        mmtmpP1 = simde_mm_shufflehi_epi16(mmtmpP1, SIMDE_MM_SHUFFLE(2, 3, 0, 1));
-        mmtmpP1 = simde_mm_sign_epi16(mmtmpP1, *(simde__m128i *)&conjugate[0]);
-        mmtmpP1 = simde_mm_madd_epi16(mmtmpP1, rxdataF128[1]);
-        // mmtmpP1 contains imag part of 4 consecutive outputs (32-bit)
-        mmtmpP0 = simde_mm_srai_epi32(mmtmpP0, output_shift);
-        mmtmpP1 = simde_mm_srai_epi32(mmtmpP1, output_shift);
-        mmtmpP2 = simde_mm_unpacklo_epi32(mmtmpP0, mmtmpP1);
-        mmtmpP3 = simde_mm_unpackhi_epi32(mmtmpP0, mmtmpP1);
-        rxdataF_comp128[1] = simde_mm_packs_epi32(mmtmpP2, mmtmpP3);
-        //  print_shorts("rx:",rxdataF128+1);
-        //  print_shorts("ch:",dl_ch128+1);
-        //  print_shorts("pack:",rxdataF_comp128+1);
-
-        if (symbol_mod>1) {
-          // multiply by conjugated channel
-          mmtmpP0 = simde_mm_madd_epi16(dl_ch128[2], rxdataF128[2]);
-          // mmtmpP0 contains real part of 4 consecutive outputs (32-bit)
-          mmtmpP1 = simde_mm_shufflelo_epi16(dl_ch128[2], SIMDE_MM_SHUFFLE(2, 3, 0, 1));
-          mmtmpP1 = simde_mm_shufflehi_epi16(mmtmpP1, SIMDE_MM_SHUFFLE(2, 3, 0, 1));
-          mmtmpP1 = simde_mm_sign_epi16(mmtmpP1, *(simde__m128i *)&conjugate[0]);
-          mmtmpP1 = simde_mm_madd_epi16(mmtmpP1, rxdataF128[2]);
-          // mmtmpP1 contains imag part of 4 consecutive outputs (32-bit)
-          mmtmpP0 = simde_mm_srai_epi32(mmtmpP0, output_shift);
-          mmtmpP1 = simde_mm_srai_epi32(mmtmpP1, output_shift);
-          mmtmpP2 = simde_mm_unpacklo_epi32(mmtmpP0, mmtmpP1);
-          mmtmpP3 = simde_mm_unpackhi_epi32(mmtmpP0, mmtmpP1);
-          rxdataF_comp128[2] = simde_mm_packs_epi32(mmtmpP2, mmtmpP3);
-          //  print_shorts("rx:",rxdataF128+2);
-          //  print_shorts("ch:",dl_ch128+2);
-          //      print_shorts("pack:",rxdataF_comp128+2);
-          dl_ch128+=3;
-          rxdataF128+=3;
-          rxdataF_comp128+=3;
-        } else {
-          dl_ch128+=2;
-          rxdataF128+=2;
-          rxdataF_comp128+=2;
-        }
+        rxdataF_comp128[rb] = oai_mm_cpx_mult_conj(dl_ch128[rb], rxdataF128[rb], output_shift);
       }
     }
 
-  simde_mm_empty();
-  simde_m_empty();
 }
 
 void pbch_detection_mrc(LTE_DL_FRAME_PARMS *frame_parms,
@@ -302,8 +235,6 @@ void pbch_detection_mrc(LTE_DL_FRAME_PARMS *frame_parms,
     }
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 }
 
 void pbch_unscrambling(LTE_DL_FRAME_PARMS *frame_parms,
@@ -349,10 +280,10 @@ void pbch_alamouti(LTE_DL_FRAME_PARMS *frame_parms,
   for (rb=0; rb<6; rb++) {
     for (re=0; re<12; re+=2) {
       // Alamouti RX combining
-      rxF0[0] = rxF0[0] + rxF1[2];
-      rxF0[1] = rxF0[1] - rxF1[3];
-      rxF0[2] = rxF0[2] - rxF1[0];
-      rxF0[3] = rxF0[3] + rxF1[1];
+      rxF0[0] += rxF1[2];
+      rxF0[1] -= rxF1[3];
+      rxF0[2] -= rxF1[0];
+      rxF0[3] += rxF1[1];
       rxF0+=4;
       rxF1+=4;
     }

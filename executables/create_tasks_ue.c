@@ -39,7 +39,7 @@ int create_tasks_ue(uint32_t ue_nb)
   LOG_D(ENB_APP, "%s(ue_nb:%d)\n", __FUNCTION__, ue_nb);
   itti_wait_ready(1);
 
-  if (EPC_MODE_ENABLED) {
+  if (!IS_SOFTMODEM_NOS1) {
 #      if defined(NAS_BUILT_IN_UE)
 
     if (ue_nb > 0) {
@@ -57,7 +57,7 @@ int create_tasks_ue(uint32_t ue_nb)
     }
 
 #      endif
-  } /* EPC_MODE_ENABLED */
+  }
 
   if (ue_nb > 0) {
     if (itti_create_task (TASK_RRC_UE, rrc_ue_task, NULL) < 0) {

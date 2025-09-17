@@ -32,11 +32,11 @@ void f1_setup_response(const f1ap_setup_resp_t *resp);
 void f1_setup_failure(const f1ap_setup_failure_t *failure);
 void gnb_du_configuration_update_acknowledge(const f1ap_gnb_du_configuration_update_acknowledge_t *ack);
 NR_CellGroupConfig_t *clone_CellGroupConfig(const NR_CellGroupConfig_t *orig);
-void ue_context_setup_request(const f1ap_ue_context_setup_t *req);
-void ue_context_modification_request(const f1ap_ue_context_modif_req_t *req);
+void ue_context_setup_request(const f1ap_ue_context_setup_req_t *req);
+void ue_context_modification_request(const f1ap_ue_context_mod_req_t *req);
 void ue_context_modification_confirm(const f1ap_ue_context_modif_confirm_t *confirm);
 void ue_context_modification_refuse(const f1ap_ue_context_modif_refuse_t *refuse);
-void ue_context_release_command(const f1ap_ue_context_release_cmd_t *cmd);
+void ue_context_release_command(const f1ap_ue_context_rel_cmd_t *cmd);
 
 void dl_rrc_message_transfer(const f1ap_dl_rrc_message_t *dl_rrc);
 

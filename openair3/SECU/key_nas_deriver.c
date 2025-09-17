@@ -41,7 +41,7 @@
 #include <string.h>
 
 #define FC_KENB (0x11)
-#define FC_NH (0x12)
+#define FC_NH (0x6F) // A.10 3GPP TS 33.501
 #define FC_KENB_STAR (0x13)
 /* 33401 #A.7 Algorithm for key derivation function.
  * This FC should be used for:
@@ -57,14 +57,32 @@
 #define NR_FC_ALG_KEY_DER (0x69)
 #define NR_FC_ALG_KEY_NG_RAN_STAR_DER (0x70)
 
-// #define SECU_DEBUG 1
+void log_hex_buffer(const char *label, const uint8_t *buf, const int len)
+{
+  char hex_str[len * 2 + 1];
+  for (int i = 0; i < len; i++) {
+    snprintf(&hex_str[i * 2], 3, "%02x", buf[i]);
+  }
+  hex_str[len * 2] = '\0';
+  LOG_D(UTIL, "%s: %s\n", label, hex_str);
+}
+
+static const char* alg_type_to_str(algorithm_type_dist_t alg_type)
+{
+  switch (alg_type) {
+    case NAS_ENC_ALG: return "NAS_ENC_ALG";
+    case NAS_INT_ALG: return "NAS_INT_ALG";
+    case RRC_ENC_ALG: return "RRC_ENC_ALG";
+    case RRC_INT_ALG: return "RRC_INT_ALG";
+    case UP_ENC_ALG:  return "UP_ENC_ALG";
+    case UP_INT_ALG:  return "UP_INT_ALG";
+    default:          return "UNKNOWN_ALG_TYPE";
+  }
+}
 
 static void derive_key_common(algorithm_type_dist_t alg_type, uint8_t alg_id, const uint8_t kasme[32], uint8_t FC, uint8_t out[32])
 {
   uint8_t s[7];
-#if defined(SECU_DEBUG)
-  int i;
-#endif
 
   /* FC */
   s[0] = FC;
@@ -83,18 +101,11 @@ static void derive_key_common(algorithm_type_dist_t alg_type, uint8_t alg_id, co
   s[5] = 0x00;
   s[6] = 0x01;
 
-#if defined(SECU_DEBUG)
-  printf("%s FC %d nas_alg_type distinguisher %d nas_enc_alg_identity %d\n", __FUNCTION__, FC_ALG_KEY_DER, alg_type, alg_id);
-
-  for (i = 0; i < 7; i ++) {
-    printf("0x%02x ", s[i]);
-  }
-
-  printf("\n");
-#endif
-
   byte_array_t data = {.len = 7, .buf = s};
   kdf(kasme, data, 32, out);
+  log_hex_buffer("Input key (kgnb)", kasme, 32);
+  log_hex_buffer("Derivation string (s)", s, 7);
+  log_hex_buffer(alg_type_to_str(alg_type), out, 32);
 }
 
 /*!
@@ -139,7 +150,37 @@ void nr_derive_key(algorithm_type_dist_t alg_type, uint8_t alg_id, const uint8_t
  * NOTE: knas is dynamically allocated by the KDF function
  */
 
-#ifndef NAS_UE
+/** @brief KgNB derivation (A.9 3GPP TS 33.501) */
+void derive_kgnb(uint8_t kamf[32], uint32_t count, uint8_t *kgnb)
+{
+  /* Compute the KDF input parameter
+   * S = FC(0x6E) || UL NAS Count || 0x00 0x04 || 0x01 || 0x00 0x01
+   */
+  uint8_t input[32] = {0};
+
+  input[0] = 0x6E;
+  // P0
+  input[1] = count >> 24;
+  input[2] = (uint8_t)(count >> 16);
+  input[3] = (uint8_t)(count >> 8);
+  input[4] = (uint8_t)count;
+  // L0
+  input[5] = 0;
+  input[6] = 4;
+  // P1
+  input[7] = 0x01;
+  // L1
+  input[8] = 0;
+  input[9] = 1;
+
+  byte_array_t data = {.buf = input, .len = 10};
+  kdf(kamf, data, 32, kgnb);
+
+  log_hex_buffer("KAMF", kamf, 32);
+  log_hex_buffer("KDF input for kgnb", input, 10);
+  log_hex_buffer("Derived kgnb", kgnb, 32);
+}
+
 void derive_keNB(const uint8_t kasme[32], const uint32_t nas_count, uint8_t *keNB)
 {
   uint8_t s[7] = {0};
@@ -159,7 +200,6 @@ void derive_keNB(const uint8_t kasme[32], const uint32_t nas_count, uint8_t *keN
   byte_array_t data = {.buf = s, .len = 7};
   kdf(kasme, data, 32, keNB);
 }
-#endif
 
 void derive_keNB_star(const uint8_t *kenb_32,
                       const uint16_t pci,
@@ -230,6 +270,9 @@ void nr_derive_key_ng_ran_star(uint16_t pci, uint64_t nr_arfcn_dl, const uint8_t
   byte_array_t data = {.buf = s, .len = 10};
   const uint32_t len_key = 32;
   kdf(key, data, len_key, key_ng_ran_star);
+  log_hex_buffer("Input key", key, 32);
+  log_hex_buffer("KDF input for ng_ran*", s, 10);
+  log_hex_buffer("Derived key_ng_ran*", key_ng_ran_star, 32);
 }
 
 void derive_skgNB(const uint8_t *keNB, const uint16_t sk_counter, uint8_t *skgNB)
@@ -249,4 +292,28 @@ void derive_skgNB(const uint8_t *keNB, const uint16_t sk_counter, uint8_t *skgNB
 
   byte_array_t data = {.buf = s, .len = 5};
   kdf(keNB, data, 32, skgNB);
+}
+
+/** @brief NH derivation function (A.10 3GPP TS 33.501)
+ *  @param k_amf: input key
+ *  @param sync_input: pointer to the newly derived KgNB for the initial NH derivation,
+ *                     and the previous NH for all subsequent derivations
+ *  @param nh: pointer to the derivated NH output */
+void nr_derive_nh(const uint8_t k_amf[SECURITY_KEY_LEN], const uint8_t *sync_input, uint8_t *nh)
+{
+  uint8_t s[SECURITY_KEY_LEN + 3] = {0};
+  // FC
+  s[0] = FC_NH;
+  // P0 = SYNC-input
+  memcpy(&s[1], sync_input, SECURITY_KEY_LEN);
+  // L0 = length of SYNC-input (i.e. 0x00 0x20)
+  s[SECURITY_KEY_LEN + 1] = 0x00;
+  s[SECURITY_KEY_LEN + 2] = 0x20;
+
+  byte_array_t data = {.buf = s, .len = sizeof(s)};
+  kdf(k_amf, data, SECURITY_KEY_LEN, nh);
+
+  log_hex_buffer("KDF input (SYNC string)", s, SECURITY_KEY_LEN + 3);
+  log_hex_buffer("Derived NH", nh, SECURITY_KEY_LEN);
+
 }

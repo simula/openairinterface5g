@@ -15,7 +15,7 @@ ref=$3
 merge=$4
 
 rm -rf ${dir}
-git clone --filter=blob:none -n -b develop ${repo} ${dir}
+git clone --filter=blob:none -n ${repo} ${dir}
 cd ${dir}
 git config user.email "jenkins@openairinterface.org"
 git config user.name "OAI Jenkins"

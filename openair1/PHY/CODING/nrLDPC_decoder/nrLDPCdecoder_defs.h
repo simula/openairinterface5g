@@ -99,7 +99,8 @@
 /** Maximum number of possible input LLR = NR_LDPC_NCOL_BG1*NR_LDPC_ZMAX */
 #define NR_LDPC_MAX_NUM_LLR 27000
 
-#define NR_LDPC_MAX_NUM_CB 72
+/** Maximum number of segments per TB = MAX_NUM_NR_DLSCH_SEGMENTS_PER_LAYER*NR_MAX_NB_LAYERS */
+#define NR_LDPC_MAX_NUM_CB 144
 
 // ==============================================================================
 // GLOBAL CONSTANT VARIABLES

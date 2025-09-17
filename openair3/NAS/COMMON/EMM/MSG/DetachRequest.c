@@ -41,7 +41,7 @@ int decode_detach_request(detach_request_msg *detach_request, uint8_t *buffer, u
   if ((decoded_result = decode_u8_detach_type(&detach_request->detachtype, 0, *(buffer + decoded) & 0x0f, len - decoded)) < 0)
     return decoded_result;
 
-  if ((decoded_result = decode_u8_nas_key_set_identifier(&detach_request->naskeysetidentifier, 0, *(buffer + decoded) >> 4, len - decoded)) < 0)
+  if ((decoded_result = decode_nas_key_set_identifier(&detach_request->naskeysetidentifier, 0, *(buffer + decoded) >> 4)) < 0)
     return decoded_result;
 
   decoded++;
@@ -62,7 +62,8 @@ int encode_detach_request(detach_request_msg *detach_request, uint8_t *buffer, u
   /* Checking IEI and pointer */
   CHECK_PDU_POINTER_AND_LENGTH_ENCODER(buffer, DETACH_REQUEST_MINIMUM_LENGTH, len);
 
-  *(buffer + encoded) = ((encode_u8_nas_key_set_identifier(&detach_request->naskeysetidentifier) << 4) | (encode_u8_detach_type(&detach_request->detachtype) & 0x0f));
+  *(buffer + encoded) = ((encode_nas_key_set_identifier(&detach_request->naskeysetidentifier, 0) << 4)
+                         | (encode_u8_detach_type(&detach_request->detachtype) & 0x0f));
   encoded++;
 
   if ((encode_result = encode_eps_mobile_identity(&detach_request->gutiorimsi,

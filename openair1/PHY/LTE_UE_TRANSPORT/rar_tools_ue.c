@@ -35,22 +35,11 @@
 #include "LAYER2/MAC/mac.h"
 #include "common/utils/LOG/vcd_signal_dumper.h"
 #include "transport_proto_ue.h"
+#include "openair1/PHY/LTE_TRANSPORT/dci_tools_common_extern.h"
 #include "PHY/LTE_TRANSPORT/transport_vars.h"
 
 #include "assertions.h"
-
-extern uint16_t RIV2nb_rb_LUT6[32];
-extern uint16_t RIV2first_rb_LUT6[32];
-extern uint16_t RIV2nb_rb_LUT25[512];
-extern uint16_t RIV2first_rb_LUT25[512];
-extern uint16_t RIV2nb_rb_LUT50[1600];
-extern uint16_t RIV2first_rb_LUT50[1600];
-extern uint16_t RIV2nb_rb_LUT100[6000];
-extern uint16_t RIV2first_rb_LUT100[600];
-
-extern uint16_t RIV_max6,RIV_max25,RIV_max50,RIV_max100;
-
-int8_t delta_PUSCH_msg2[8] = {-6,-4,-2,0,2,4,6,8};
+static const int8_t delta_PUSCH_msg2[8] = {-6, -4, -2, 0, 2, 4, 6, 8};
 
 int generate_ue_ulsch_params_from_rar(PHY_VARS_UE *ue,
 				      UE_rxtx_proc_t *proc,
@@ -116,7 +105,7 @@ int generate_ue_ulsch_params_from_rar(PHY_VARS_UE *ue,
   cqireq=rar[3]&1;
 
   if (rballoc>RIV_max) {
-    LOG_D(PHY,"rar_tools.c: ERROR: rb_alloc (%x) > RIV_max\n",rballoc);
+    LOG_W(PHY,"rar_tools.c: ERROR: rb_alloc (%x) > RIV_max\n",rballoc);
     return(-1);
   }
 

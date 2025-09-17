@@ -74,7 +74,7 @@ extern nfapi_tx_request_pdu_t* tx_request_pdu[1023][NUM_NFAPI_SUBFRAME][10]; //T
 //extern int timer_frame;
 
 extern UE_RRC_INST *UE_rrc_inst;
-extern uint16_t sf_ahead;
+extern int sf_ahead;
 
 static eth_params_t         stub_eth_params;
 void Msg1_transmitted(module_id_t module_idP,uint8_t CC_id,frame_t frameP, uint8_t eNB_id);

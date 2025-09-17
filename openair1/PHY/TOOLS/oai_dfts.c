@@ -1268,17 +1268,16 @@ __attribute__((always_inline)) static inline void dft16_simd256(int16_t *x, int1
 
   x02t    = simde_mm256_adds_epi16(xtmp0,xtmp2);
   x13t    = simde_mm256_adds_epi16(xtmp1,xtmp3);
-  ytmp0   = simde_mm256_adds_epi16(x02t,x13t);
-  ytmp2   = simde_mm256_subs_epi16(x02t,x13t);
+  ytmp0 = simde_mm256_srai_epi16(simde_mm256_adds_epi16(x02t, x13t), 2);
+  ytmp2 = simde_mm256_srai_epi16(simde_mm256_subs_epi16(x02t, x13t), 2);
   x1_flip = simde_mm256_sign_epi16(xtmp1, *(simde__m256i *)conjugatedft);
   x1_flip = simde_mm256_shuffle_epi8(x1_flip,complex_shuffle);
   x3_flip = simde_mm256_sign_epi16(xtmp3, *(simde__m256i *)conjugatedft);
   x3_flip = simde_mm256_shuffle_epi8(x3_flip,complex_shuffle);
   x02t    = simde_mm256_subs_epi16(xtmp0,xtmp2);
   x13t    = simde_mm256_subs_epi16(x1_flip,x3_flip);
-  ytmp1   = simde_mm256_adds_epi16(x02t,x13t);  // x0 + x1f - x2 - x3f
-  ytmp3   = simde_mm256_subs_epi16(x02t,x13t);  // x0 - x1f - x2 + x3f
- 
+  ytmp1 = simde_mm256_srai_epi16(simde_mm256_adds_epi16(x02t, x13t), 2); // x0 + x1f - x2 - x3f
+  ytmp3 = simde_mm256_srai_epi16(simde_mm256_subs_epi16(x02t, x13t), 2); // x0 - x1f - x2 + x3f
 
   // [y0  y1  y2  y3  y16 y17 y18 y19]
   // [y4  y5  y6  y7  y20 y21 y22 y23]
@@ -1513,10 +1512,7 @@ const static int16_t tw64c[96] __attribute__((aligned(32))) = {
 23170,-23170,15447,-28898,6393,-32138,-3211,-32610,
 -12539,-30273,-20787,-25330,-27244,-18205,-31356,-9512
                                                  };
-#define simd_q15_t simde__m128i
-#define simdshort_q15_t simde__m64
-#define shiftright_int16(a,shift) simde_mm_srai_epi16(a,shift)
-#define mulhi_int16(a,b) simde_mm_mulhrs_epi16 (a,b)
+
 #define simd256_q15_t simde__m256i
 #define shiftright_int16_simd256(a,shift) simde_mm256_srai_epi16(a,shift)
 #define set1_int16_simd256(a) simde_mm256_set1_epi16(a);
@@ -1652,18 +1648,16 @@ void dft64(int16_t *x,int16_t *y,unsigned char scale)
 
 
   if (scale>0) {
-    y256[0]  = shiftright_int16_simd256(y256[0],3);
-    y256[1]  = shiftright_int16_simd256(y256[1],3);
-    y256[2]  = shiftright_int16_simd256(y256[2],3);
-    y256[3]  = shiftright_int16_simd256(y256[3],3);
-    y256[4]  = shiftright_int16_simd256(y256[4],3);
-    y256[5]  = shiftright_int16_simd256(y256[5],3);
-    y256[6]  = shiftright_int16_simd256(y256[6],3);
-    y256[7]  = shiftright_int16_simd256(y256[7],3);
+    y256[0] = shiftright_int16_simd256(y256[0], 1);
+    y256[1] = shiftright_int16_simd256(y256[1], 1);
+    y256[2] = shiftright_int16_simd256(y256[2], 1);
+    y256[3] = shiftright_int16_simd256(y256[3], 1);
+    y256[4] = shiftright_int16_simd256(y256[4], 1);
+    y256[5] = shiftright_int16_simd256(y256[5], 1);
+    y256[6] = shiftright_int16_simd256(y256[6], 1);
+    y256[7] = shiftright_int16_simd256(y256[7], 1);
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 }
 
 void idft64(int16_t *x,int16_t *y,unsigned char scale)
@@ -1761,8 +1755,6 @@ void idft64(int16_t *x,int16_t *y,unsigned char scale)
     y256[7]  = shiftright_int16_simd256(y256[7],3);
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 }
 
 static const int16_t tw128[128] __attribute__((aligned(32))) = {  32767,0,32727,-1608,32609,-3212,32412,-4808,32137,-6393,31785,-7962,31356,-9512,30851,-11039,30272,-12540,29621,-14010,28897,-15447,28105,-16846,27244,-18205,26318,-19520,25329,-20788,24278,-22005,23169,-23170,22004,-24279,20787,-25330,19519,-26319,18204,-27245,16845,-28106,15446,-28898,14009,-29622,12539,-30273,11038,-30852,9511,-31357,7961,-31786,6392,-32138,4807,-32413,3211,-32610,1607,-32728,0,-32767,-1608,-32728,-3212,-32610,-4808,-32413,-6393,-32138,-7962,-31786,-9512,-31357,-11039,-30852,-12540,-30273,-14010,-29622,-15447,-28898,-16846,-28106,-18205,-27245,-19520,-26319,-20788,-25330,-22005,-24279,-23170,-23170,-24279,-22005,-25330,-20788,-26319,-19520,-27245,-18205,-28106,-16846,-28898,-15447,-29622,-14010,-30273,-12540,-30852,-11039,-31357,-9512,-31786,-7962,-32138,-6393,-32413,-4808,-32610,-3212,-32728,-1608};
@@ -1999,8 +1991,6 @@ void dft256(int16_t *x,int16_t *y,unsigned char scale)
 
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 }
 
 void idft256(int16_t *x,int16_t *y,unsigned char scale)
@@ -2083,8 +2073,6 @@ void idft256(int16_t *x,int16_t *y,unsigned char scale)
 
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 }
 
 static const int16_t tw512[512] __attribute__((aligned(32))) = {
@@ -2308,8 +2296,6 @@ void dft1024(int16_t *x,int16_t *y,unsigned char scale)
 
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 }
 
 void idft1024(int16_t *x,int16_t *y,unsigned char scale)
@@ -2363,8 +2349,6 @@ void idft1024(int16_t *x,int16_t *y,unsigned char scale)
 
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 }
 
 int16_t tw2048[2048] __attribute__((aligned(32)));
@@ -2455,8 +2439,6 @@ void dft2048(int16_t *x,int16_t *y,unsigned char scale)
     }
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 }
 
 void idft2048(int16_t *x,int16_t *y,unsigned char scale)
@@ -2544,8 +2526,6 @@ void idft2048(int16_t *x,int16_t *y,unsigned char scale)
     }
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 }
 
 int16_t tw4096[3*2*1024];
@@ -2601,8 +2581,6 @@ void dft4096(int16_t *x,int16_t *y,unsigned char scale)
 
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 }
 
 void idft4096(int16_t *x,int16_t *y,unsigned char scale)
@@ -2656,8 +2634,6 @@ void idft4096(int16_t *x,int16_t *y,unsigned char scale)
 
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 }
 
 int16_t tw8192[2*4096] __attribute__((aligned(32)));
@@ -2748,8 +2724,6 @@ void dft8192(int16_t *x,int16_t *y,unsigned char scale)
     }
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 }
 
 void idft8192(int16_t *x,int16_t *y,unsigned char scale)
@@ -2837,8 +2811,6 @@ void idft8192(int16_t *x,int16_t *y,unsigned char scale)
     }
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 }
 
 int16_t tw16384[3*2*4096] __attribute__((aligned(32)));
@@ -2894,8 +2866,6 @@ void dft16384(int16_t *x,int16_t *y,unsigned char scale)
 
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 }
 
 void idft16384(int16_t *x,int16_t *y,unsigned char scale)
@@ -2949,8 +2919,6 @@ void idft16384(int16_t *x,int16_t *y,unsigned char scale)
 
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 }
 
 int16_t tw32768[2*16384] __attribute__((aligned(32)));
@@ -3041,8 +3009,6 @@ void dft32768(int16_t *x,int16_t *y,unsigned char scale)
     }
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 }
 
 void idft32768(int16_t *x,int16_t *y,unsigned char scale)
@@ -3130,8 +3096,6 @@ void idft32768(int16_t *x,int16_t *y,unsigned char scale)
     }
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 }
 
 int16_t twa768[512],twb768[512];
@@ -3184,8 +3148,6 @@ void idft768(int16_t *input, int16_t *output, unsigned char scale)
     }
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 }
 
 void dft768(int16_t *input, int16_t *output, unsigned char scale)
@@ -3247,8 +3209,6 @@ void dft768(int16_t *input, int16_t *output, unsigned char scale)
     }
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 }
 int16_t twa1536[1024],twb1536[1024];
 
@@ -3300,8 +3260,6 @@ void idft1536(int16_t *input, int16_t *output, unsigned char scale)
     }
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 }
 
 void dft1536(int16_t *input, int16_t *output, unsigned char scale)
@@ -3363,8 +3321,6 @@ void dft1536(int16_t *input, int16_t *output, unsigned char scale)
     }
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 }
 
 int16_t twa3072[2048] __attribute__((aligned(32)));
@@ -3416,8 +3372,6 @@ void dft3072(int16_t *input, int16_t *output,unsigned char scale)
     }
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 }
 
 void idft3072(int16_t *input, int16_t *output,unsigned char scale)
@@ -3466,8 +3420,6 @@ void idft3072(int16_t *input, int16_t *output,unsigned char scale)
     }
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 }
 
 
@@ -3528,8 +3480,6 @@ void idft6144(int16_t *input, int16_t *output,unsigned char scale)
     }
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 }
 
 
@@ -3591,21 +3541,6 @@ void dft6144(int16_t *input, int16_t *output,unsigned char scale)
       y128p+=16;
     }
   }
-  simde_mm_empty();
-  simde_m_empty();
-}
-
-int16_t twa9216[6144] __attribute__((aligned(32)));
-int16_t twb9216[6144] __attribute__((aligned(32)));
-// 3072 x 3
-void dft9216(int16_t *input, int16_t *output,uint8_t scale) {
-
-  AssertFatal(1==0,"Need to do this ..\n");
-}
-
-void idft9216(int16_t *input, int16_t *output,uint8_t scale) {
-
-  AssertFatal(1==0,"Need to do this ..\n");
 }
 
 int16_t twa12288[8192] __attribute__((aligned(32)));
@@ -3668,8 +3603,6 @@ void dft12288(int16_t *input, int16_t *output,unsigned char scale)
       y128p+=16;
     }
   }
-  simde_mm_empty();
-  simde_m_empty();
 }
 
 void idft12288(int16_t *input, int16_t *output,unsigned char scale)
@@ -3726,8 +3659,6 @@ void idft12288(int16_t *input, int16_t *output,unsigned char scale)
       y128p+=16;
     }
   }
-  simde_mm_empty();
-  simde_m_empty();
 #ifndef MR_MAIN
   if (LOG_DUMPFLAG(DEBUG_DFT)) {
      LOG_M("idft12288out.m","out",output,6144,1,1);
@@ -3782,8 +3713,6 @@ void dft18432(int16_t *input, int16_t *output,unsigned char scale) {
       y128p+=16;
     }
   }
-  simde_mm_empty();
-  simde_m_empty();
 }
 
 void idft18432(int16_t *input, int16_t *output,unsigned char scale) {
@@ -3830,8 +3759,6 @@ void idft18432(int16_t *input, int16_t *output,unsigned char scale) {
       y128p+=16;
     }
   }
-  simde_mm_empty();
-  simde_m_empty();
 }
 
 
@@ -3896,8 +3823,6 @@ void dft24576(int16_t *input, int16_t *output,unsigned char scale)
       y128p+=16;
     }
   }
-  simde_mm_empty();
-  simde_m_empty();
 #ifndef MR_MAIN
   if (LOG_DUMPFLAG(DEBUG_DFT)) {
      LOG_M("out.m","out",output,24576,1,1);
@@ -3956,8 +3881,6 @@ void idft24576(int16_t *input, int16_t *output,unsigned char scale)
       y128p+=16;
     }
   }
-  simde_mm_empty();
-  simde_m_empty();
 #ifndef MR_MAIN
   if (LOG_DUMPFLAG(DEBUG_DFT)) {
     LOG_M("idft24576out.m","out",output,24576,1,1);
@@ -4020,8 +3943,6 @@ void dft36864(int16_t *input, int16_t *output,uint8_t scale) {
       y128p+=16;
     }
   }
-  simde_mm_empty();
-  simde_m_empty();
 #ifndef MR_MAIN
   if (LOG_DUMPFLAG(DEBUG_DFT)) {
      LOG_M("out.m","out",output,36864,1,1);
@@ -4073,8 +3994,6 @@ void idft36864(int16_t *input, int16_t *output,uint8_t scale) {
       y128p+=16;
     }
   }
-  simde_mm_empty();
-  simde_m_empty();
 }
 
 int16_t twa49152[32768] __attribute__((aligned(32)));
@@ -4125,8 +4044,6 @@ void dft49152(int16_t *input, int16_t *output,uint8_t scale) {
       y128p+=16;
     }
   }
-  simde_mm_empty();
-  simde_m_empty();
 }
 
 void idft49152(int16_t *input, int16_t *output,uint8_t scale) {
@@ -4173,8 +4090,6 @@ void idft49152(int16_t *input, int16_t *output,uint8_t scale) {
       y128p+=16;
     }
   }
-  simde_mm_empty();
-  simde_m_empty();
 }
 
 int16_t tw65536[3*2*16384] __attribute__((aligned(32)));
@@ -4230,23 +4145,7 @@ void idft65536(int16_t *x,int16_t *y,unsigned char scale)
 
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 }
-
-int16_t twa73728[49152] __attribute__((aligned(32)));
-int16_t twb73728[49152] __attribute__((aligned(32)));
-// 24576 x 3
-void dft73728(int16_t *input, int16_t *output,uint8_t scale) {
-
-  AssertFatal(1==0,"Need to do this ..\n");
-}
-
-void idft73728(int16_t *input, int16_t *output,uint8_t scale) {
-
-  AssertFatal(1==0,"Need to do this ..\n");
-}
-
 
 int16_t twa98304[65536] __attribute__((aligned(32)));
 int16_t twb98304[65536] __attribute__((aligned(32)));
@@ -4295,8 +4194,6 @@ void dft98304(int16_t *input, int16_t *output,uint8_t scale) {
       y128p+=16;
     }
   }
-  simde_mm_empty();
-  simde_m_empty();
 }
 
 void idft98304(int16_t *input, int16_t *output,uint8_t scale) {
@@ -4343,8 +4240,6 @@ void idft98304(int16_t *input, int16_t *output,uint8_t scale) {
       y128p+=16;
     }
   }
-  simde_mm_empty();
-  simde_m_empty();
 }
 
  
@@ -4498,8 +4393,6 @@ void dft12(int16_t *x,int16_t *y ,unsigned char scale_flag)
          &y128[10],
          &y128[11]);
 
-  simde_mm_empty();
-  simde_m_empty();
 }
 
 static const int16_t W1_12s_256[16] __attribute__((aligned(32))) =
@@ -4562,43 +4455,41 @@ __attribute__((always_inline)) static inline void dft12f_simd256(simd256_q15_t *
 
   simd256_q15_t tmp_dft12[12];
 
-  simd256_q15_t *tmp_dft12_ptr = &tmp_dft12[0];
-
   // msg("dft12\n");
 
   bfly4_tw1_256(x0,
 		x3,
 		x6,
 		x9,
-		tmp_dft12_ptr,
-		tmp_dft12_ptr+3,
-		tmp_dft12_ptr+6,
-		tmp_dft12_ptr+9);
+		tmp_dft12,
+		tmp_dft12+3,
+		tmp_dft12+6,
+		tmp_dft12+9);
 
 
   bfly4_tw1_256(x1,
 		x4,
 		x7,
 		x10,
-		tmp_dft12_ptr+1,
-		tmp_dft12_ptr+4,
-		tmp_dft12_ptr+7,
-		tmp_dft12_ptr+10);
+		tmp_dft12+1,
+		tmp_dft12+4,
+		tmp_dft12+7,
+		tmp_dft12+10);
   
 
   bfly4_tw1_256(x2,
 		x5,
 		x8,
 		x11,
-		tmp_dft12_ptr+2,
-		tmp_dft12_ptr+5,
-		tmp_dft12_ptr+8,
-		tmp_dft12_ptr+11);
+		tmp_dft12+2,
+		tmp_dft12+5,
+		tmp_dft12+8,
+		tmp_dft12+11);
   
   //  k2=0;
-  bfly3_tw1_256(tmp_dft12_ptr,
-		tmp_dft12_ptr+1,
-		tmp_dft12_ptr+2,
+  bfly3_tw1_256(tmp_dft12,
+		tmp_dft12+1,
+		tmp_dft12+2,
 		y0,
 		y4,
 		y8);
@@ -4606,9 +4497,9 @@ __attribute__((always_inline)) static inline void dft12f_simd256(simd256_q15_t *
   
   
   //  k2=1;
-  bfly3_256(tmp_dft12_ptr+3,
-	    tmp_dft12_ptr+4,
-	    tmp_dft12_ptr+5,
+  bfly3_256(tmp_dft12+3,
+	    tmp_dft12+4,
+	    tmp_dft12+5,
 	    y1,
 	    y5,
 	    y9,
@@ -4618,9 +4509,9 @@ __attribute__((always_inline)) static inline void dft12f_simd256(simd256_q15_t *
   
   
   //  k2=2;
-  bfly3_256(tmp_dft12_ptr+6,
-	    tmp_dft12_ptr+7,
-	    tmp_dft12_ptr+8,
+  bfly3_256(tmp_dft12+6,
+	    tmp_dft12+7,
+	    tmp_dft12+8,
 	    y2,
 	    y6,
 	    y10,
@@ -4628,9 +4519,9 @@ __attribute__((always_inline)) static inline void dft12f_simd256(simd256_q15_t *
 	    W4_12_256);
   
   //  k2=3;
-  bfly3_256(tmp_dft12_ptr+9,
-	    tmp_dft12_ptr+10,
-	    tmp_dft12_ptr+11,
+  bfly3_256(tmp_dft12+9,
+	    tmp_dft12+10,
+	    tmp_dft12+11,
 	    y3,
 	    y7,
 	    y11,
@@ -4671,8 +4562,6 @@ void dft12_simd256(int16_t *x,int16_t *y)
                  &y256[10],
                  &y256[11]);
 
-  simde_mm_empty();
-  simde_m_empty();
 }
 
 static int16_t tw24[88]__attribute__((aligned(32)));
@@ -4765,8 +4654,6 @@ void dft24(int16_t *x,int16_t *y,unsigned char scale_flag)
     }
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 }
 
 static int16_t twa36[88]__attribute__((aligned(32)));
@@ -4887,8 +4774,6 @@ void dft36(int16_t *x,int16_t *y,unsigned char scale_flag)
     }
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 }
 
 static int16_t twa48[88]__attribute__((aligned(32)));
@@ -5047,8 +4932,6 @@ void dft48(int16_t *x, int16_t *y,unsigned char scale_flag)
     }
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 }
 
 static int16_t twa60[88]__attribute__((aligned(32)));
@@ -5231,8 +5114,6 @@ void dft60(int16_t *x,int16_t *y,unsigned char scale)
     }
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 }
 
 static int16_t tw72[280]__attribute__((aligned(32)));
@@ -5274,8 +5155,6 @@ void dft72(int16_t *x,int16_t *y,unsigned char scale_flag)
     }
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 }
 
 static int16_t tw96[376]__attribute__((aligned(32)));
@@ -5319,8 +5198,6 @@ void dft96(int16_t *x,int16_t *y,unsigned char scale_flag)
     }
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 }
 
 static int16_t twa108[280]__attribute__((aligned(32)));
@@ -5369,8 +5246,6 @@ void dft108(int16_t *x,int16_t *y,unsigned char scale_flag)
     }
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 }
 
 static int16_t tw120[472]__attribute__((aligned(32)));
@@ -5410,8 +5285,6 @@ void dft120(int16_t *x,int16_t *y, unsigned char scale_flag)
     }
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 }
 
 static int16_t twa144[376]__attribute__((aligned(32)));
@@ -5460,8 +5333,6 @@ void dft144(int16_t *x,int16_t *y,unsigned char scale_flag)
     }
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 }
 
 static int16_t twa180[472]__attribute__((aligned(32)));
@@ -5511,8 +5382,6 @@ void dft180(int16_t *x,int16_t *y,unsigned char scale_flag)
     }
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 }
 
 static int16_t twa192[376]__attribute__((aligned(32)));
@@ -5569,8 +5438,6 @@ void dft192(int16_t *x,int16_t *y,unsigned char scale_flag)
     }
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 }
 
 static int16_t twa216[568]__attribute__((aligned(32)));
@@ -5620,8 +5487,6 @@ void dft216(int16_t *x,int16_t *y,unsigned char scale_flag)
     }
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 }
 
 static int16_t twa240[472]__attribute__((aligned(32)));
@@ -5678,8 +5543,6 @@ void dft240(int16_t *x,int16_t *y,unsigned char scale_flag)
     }
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 }
 
 static int16_t twa288[760]__attribute__((aligned(32)));
@@ -5729,8 +5592,6 @@ void dft288(int16_t *x,int16_t *y,unsigned char scale_flag)
     }
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 }
 
 static int16_t twa300[472]__attribute__((aligned(32)));
@@ -5794,8 +5655,6 @@ void dft300(int16_t *x,int16_t *y,unsigned char scale_flag)
     }
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 }
 
 static int16_t twa324[107*2*4];
@@ -5844,8 +5703,6 @@ void dft324(int16_t *x,int16_t *y,unsigned char scale_flag)  // 108 x 3
     }
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 };
 
 static int16_t twa360[119*2*4];
@@ -5894,8 +5751,6 @@ void dft360(int16_t *x,int16_t *y,unsigned char scale_flag)  // 120 x 3
     }
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 };
 
 static int16_t twa384[95*2*4];
@@ -5951,8 +5806,6 @@ void dft384(int16_t *x,int16_t *y,unsigned char scale_flag)  // 96 x 4
     }
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 };
 
 static int16_t twa432[107*2*4];
@@ -6007,8 +5860,6 @@ void dft432(int16_t *x,int16_t *y,unsigned char scale_flag)  // 108 x 4
     }
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 };
 static int16_t twa480[119*2*4];
 static int16_t twb480[119*2*4];
@@ -6063,8 +5914,6 @@ void dft480(int16_t *x,int16_t *y,unsigned char scale_flag)  // 120 x 4
     }
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 };
 
 
@@ -6114,8 +5963,6 @@ void dft540(int16_t *x,int16_t *y,unsigned char scale_flag)  // 180 x 3
     }
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 };
 
 static int16_t twa576[191*2*4];
@@ -6165,8 +6012,6 @@ void dft576(int16_t *x,int16_t *y,unsigned char scale_flag)  // 192 x 3
     }
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 };
 
 
@@ -6209,8 +6054,6 @@ void dft600(int16_t *x,int16_t *y,unsigned char scale_flag)  // 300 x 2
     }
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 };
 
 
@@ -6260,8 +6103,6 @@ void dft648(int16_t *x,int16_t *y,unsigned char scale_flag)  // 216 x 3
     }
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 };
 
 
@@ -6319,8 +6160,6 @@ void dft720(int16_t *x,int16_t *y,unsigned char scale_flag)  // 180 x 4
     }
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 };
 
 static int16_t twa768p[191*2*4];
@@ -6376,8 +6215,6 @@ void dft768p(int16_t *x,int16_t *y,unsigned char scale_flag) { // 192x 4;
     }
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 }
 
 static int16_t twa384i[256];
@@ -6430,8 +6267,6 @@ void idft384(int16_t *input, int16_t *output, unsigned char scale)
     }
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 }
 
 
@@ -6481,8 +6316,6 @@ void dft864(int16_t *x,int16_t *y,unsigned char scale_flag)  // 288 x 3
     }
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 };
 
 static int16_t twa900[299*2*4];
@@ -6531,8 +6364,6 @@ void dft900(int16_t *x,int16_t *y,unsigned char scale_flag)  // 300 x 3
     }
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 };
 
 
@@ -6590,8 +6421,6 @@ void dft960(int16_t *x,int16_t *y,unsigned char scale_flag)  // 240 x 4
     }
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 };
 
 
@@ -6641,8 +6470,6 @@ void dft972(int16_t *x,int16_t *y,unsigned char scale_flag)  // 324 x 3
     }
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 };
 
 static int16_t twa1080[359*2*4];
@@ -6691,8 +6518,6 @@ void dft1080(int16_t *x,int16_t *y,unsigned char scale_flag)  // 360 x 3
     }
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 };
 
 static int16_t twa1152[287*2*4];
@@ -6749,8 +6574,6 @@ void dft1152(int16_t *x,int16_t *y,unsigned char scale_flag)  // 288 x 4
     }
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 };
 
 int16_t twa1200[4784];
@@ -6806,8 +6629,6 @@ void dft1200(int16_t *x,int16_t *y,unsigned char scale_flag)
     }
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 }
 
 
@@ -6858,8 +6679,6 @@ void dft1296(int16_t *x,int16_t *y,unsigned char scale_flag) //432 * 3
     }
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 };
 
 
@@ -6909,8 +6728,6 @@ void dft1440(int16_t *x,int16_t *y,unsigned char scale_flag)  // 480 x 3
     }
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 };
 
 static int16_t twa1500[2392]__attribute__((aligned(32)));
@@ -6974,8 +6791,6 @@ void dft1500(int16_t *x,int16_t *y,unsigned char scale_flag)
     }
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 }
 
 static int16_t twa1620[539*2*4];
@@ -7024,8 +6839,6 @@ void dft1620(int16_t *x,int16_t *y,unsigned char scale_flag)  // 540 x 3
     }
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 };
 
 static int16_t twa1728[575*2*4];
@@ -7074,8 +6887,6 @@ void dft1728(int16_t *x,int16_t *y,unsigned char scale_flag)  // 576 x 3
     }
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 };
 
 static int16_t twa1800[599*2*4];
@@ -7124,8 +6935,6 @@ void dft1800(int16_t *x,int16_t *y,unsigned char scale_flag)  // 600 x 3
     }
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 };
 
 static int16_t twa1920[479*2*4];
@@ -7180,8 +6989,6 @@ void dft1920(int16_t *x,int16_t *y,unsigned char scale_flag)  // 480 x 4
     }
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 };
 
 static int16_t twa1944[647*2*4];
@@ -7230,8 +7037,6 @@ void dft1944(int16_t *x,int16_t *y,unsigned char scale_flag)  // 648 x 3
     }
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 };
 
 static int16_t twa2160[719*2*4];
@@ -7280,8 +7085,6 @@ void dft2160(int16_t *x,int16_t *y,unsigned char scale_flag)  // 720 x 3
     }
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 };
 
 static int16_t twa2304[767*2*4];
@@ -7330,8 +7133,6 @@ void dft2304(int16_t *x,int16_t *y,unsigned char scale_flag)  // 768 x 3
     }
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 };
 
 static int16_t twa2400[599*2*4];
@@ -7387,8 +7188,6 @@ void dft2400(int16_t *x,int16_t *y,unsigned char scale_flag)  // 600 x 4
     }
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 };
 
 static int16_t twa2592[863*2*4];
@@ -7437,8 +7236,6 @@ void dft2592(int16_t *x,int16_t *y,unsigned char scale_flag)  // 864 x 3
     }
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 };
 
 static int16_t twa2700[899*2*4];
@@ -7487,8 +7284,6 @@ void dft2700(int16_t *x,int16_t *y,unsigned char scale_flag)  // 900 x 3
     }
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 };
 
 static int16_t twa2880[959*2*4];
@@ -7537,8 +7332,6 @@ void dft2880(int16_t *x,int16_t *y,unsigned char scale_flag)  // 960 x 3
     }
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 };
 
 static int16_t twa2916[971*2*4];
@@ -7587,8 +7380,6 @@ void dft2916(int16_t *x,int16_t *y,unsigned char scale_flag)  // 972 x 3
     }
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 };
 
 static int16_t twa3000[599*8]__attribute__((aligned(32)));
@@ -7652,8 +7443,6 @@ void dft3000(int16_t *x,int16_t *y,unsigned char scale_flag) // 600 * 5
     }
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 }
 
 static int16_t twa3240[1079*2*4];
@@ -7702,8 +7491,6 @@ void dft3240(int16_t *x,int16_t *y,unsigned char scale_flag)  // 1080 x 3
     }
   }
 
-  simde_mm_empty();
-  simde_m_empty();
 };
 
 void init_rad4(int N,int16_t *tw) {
@@ -7908,8 +7695,9 @@ int dfts_autoinit(void)
 
 #ifndef MR_MAIN
 
-void dft(uint8_t sizeidx, int16_t *input,int16_t *output,unsigned char scale_flag){
-	AssertFatal((sizeidx >= 0 && sizeidx<DFT_SIZE_IDXTABLESIZE),"Invalid dft size index %i\n",sizeidx);
+void dft_implementation(uint8_t sizeidx, int16_t *input, int16_t *output, unsigned char scale_flag)
+{
+  AssertFatal((sizeidx >= 0 && sizeidx<DFT_SIZE_IDXTABLESIZE),"Invalid dft size index %i\n",sizeidx);
         int algn=0xF;
         if ( (dft_ftab[sizeidx].size%3) != 0 ) // there is no AVX2 implementation for multiples of 3 DFTs
           algn=0x1F;
@@ -7926,8 +7714,9 @@ void dft(uint8_t sizeidx, int16_t *input,int16_t *output,unsigned char scale_fla
           dft_ftab[sizeidx].func(input,output,scale_flag);
 };
 
-void idft(uint8_t sizeidx, int16_t *input,int16_t *output,unsigned char scale_flag){
-	AssertFatal((sizeidx>=0 && sizeidx<DFT_SIZE_IDXTABLESIZE),"Invalid idft size index %i\n",sizeidx);
+void idft_implementation(uint8_t sizeidx, int16_t *input, int16_t *output, unsigned char scale_flag)
+{
+  AssertFatal((sizeidx>=0 && sizeidx<DFT_SIZE_IDXTABLESIZE),"Invalid idft size index %i\n",sizeidx);
         int algn=0xF;
 	algn=0x1F;
         AssertFatal( ((intptr_t)output&algn)==0,"Buffers should be 16 bytes aligned %p",output);

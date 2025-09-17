@@ -30,6 +30,11 @@
 #ifndef NGAP_GNB_OVERLOAD_H_
 #define NGAP_GNB_OVERLOAD_H_
 
+#include <netinet/in.h>
+#include <netinet/sctp.h>
+#include <stdint.h>
+#include "NGAP_NGAP-PDU.h"
+
 /**
  * \brief Handle an overload start message
  **/

@@ -19,15 +19,19 @@
  *      contact@openairinterface.org
  */
 
-#include "nr_rrc_defs.h"
-
+#include <netinet/in.h>
+#include <netinet/sctp.h>
+#include <stdbool.h>
+#include "assertions.h"
+#include "f1ap_messages_types.h"
 #include "mac_rrc_dl.h"
+#include "nr_rrc_defs.h"
 #include "openair2/LAYER2/NR_MAC_gNB/mac_rrc_dl_handler.h"
 
 static void f1_reset_cu_initiated_direct(sctp_assoc_t assoc_id, const f1ap_reset_t *reset)
 {
-  (void)reset;
-  AssertFatal(false, "%s() not implemented yet\n", __func__);
+  AssertFatal(assoc_id == -1, "illegal assoc_id %d\n", assoc_id);
+  f1_reset_cu_initiated(reset);
 }
 
 static void f1_reset_acknowledge_du_initiated_direct(sctp_assoc_t assoc_id, const f1ap_reset_ack_t *ack)
@@ -54,13 +58,13 @@ static void gnb_du_configuration_update_ack_direct(sctp_assoc_t assoc_id, const 
   gnb_du_configuration_update_acknowledge(ack);
 }
 
-static void ue_context_setup_request_direct(sctp_assoc_t assoc_id, const f1ap_ue_context_setup_t *req)
+static void ue_context_setup_request_direct(sctp_assoc_t assoc_id, const f1ap_ue_context_setup_req_t *req)
 {
   AssertFatal(assoc_id == -1, "illegal assoc_id %d\n", assoc_id);
   ue_context_setup_request(req);
 }
 
-static void ue_context_modification_request_direct(sctp_assoc_t assoc_id, const f1ap_ue_context_modif_req_t *req)
+static void ue_context_modification_request_direct(sctp_assoc_t assoc_id, const f1ap_ue_context_mod_req_t *req)
 {
   AssertFatal(assoc_id == -1, "illegal assoc_id %d\n", assoc_id);
   ue_context_modification_request(req);
@@ -78,7 +82,7 @@ static void ue_context_modification_refuse_direct(sctp_assoc_t assoc_id, const f
   ue_context_modification_refuse(refuse);
 }
 
-static void ue_context_release_command_direct(sctp_assoc_t assoc_id, const f1ap_ue_context_release_cmd_t *cmd)
+static void ue_context_release_command_direct(sctp_assoc_t assoc_id, const f1ap_ue_context_rel_cmd_t *cmd)
 {
   AssertFatal(assoc_id == -1, "illegal assoc_id %d\n", assoc_id);
   ue_context_release_command(cmd);

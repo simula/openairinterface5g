@@ -28,6 +28,9 @@
  * @ingroup _ngap
  */
 
+#include "assertions.h"
+#include "ngap_messages_types.h"
+
 #ifndef NGAP_GNB_CONTEXT_MANAGEMENT_PROCEDURES_H_
 #define NGAP_GNB_CONTEXT_MANAGEMENT_PROCEDURES_H_
 

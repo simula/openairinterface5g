@@ -50,7 +50,6 @@
 #include "common_lib.h"
 #include "ethernet_lib.h"
 #include "openair1/PHY/sse_intrin.h"
-#include "common/utils/threadPool/thread-pool.h"
 
 //#define DEBUG 1
 
@@ -405,8 +404,6 @@ int trx_eth_write_udp(openair0_device *device, openair0_timestamp timestamp, voi
           (unsigned long long)timestamp,nsamps,nant,udptxelem->buff[0],udptxelem->buff[1]);
     return(0);
 }
-extern int oai_exit;
-
 void *udp_write_thread(void *arg) {
 
    udp_ctx_t *utx = (udp_ctx_t *)arg;

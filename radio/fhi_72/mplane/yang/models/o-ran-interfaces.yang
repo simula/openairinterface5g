@@ -1,0 +1,414 @@
+module o-ran-interfaces {
+  yang-version 1.1;
+  namespace "urn:o-ran:interfaces:1.0";
+  prefix "o-ran-int";
+
+
+  import ietf-inet-types {
+    prefix "inet";
+  }
+
+  import iana-if-type {
+    prefix "ianaift";
+  }
+
+  import ietf-interfaces {
+    prefix "if";
+  }
+
+  import ietf-ip {
+    prefix "ip";
+  }
+
+  import ietf-hardware {
+    prefix "hw";
+  }
+
+  import ietf-yang-types {
+    prefix "yang";
+  }
+
+  import iana-hardware {
+    prefix "ianahw";
+  }
+
+  organization "O-RAN Alliance";
+
+  contact
+    "www.o-ran.org";
+
+  description
+    "This module defines the YANG definitions for managng the O-RAN
+     interfaces.
+
+    Copyright 2020 the O-RAN Alliance.
+
+    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS 'AS IS'
+    AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+    IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+    ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+    LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+    CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+    SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+    INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+    CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+    ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+    POSSIBILITY OF SUCH DAMAGE.
+
+    Redistribution and use in source and binary forms, with or without
+    modification, are permitted provided that the following conditions are met:
+
+    * Redistributions of source code must retain the above copyright notice,
+    this list of conditions and the above disclaimer.
+    * Redistributions in binary form must reproduce the above copyright notice,
+    this list of conditions and the above disclaimer in the documentation
+    and/or other materials provided with the distribution.
+    * Neither the Members of the O-RAN Alliance nor the names of its
+    contributors may be used to endorse or promote products derived from
+    this software without specific prior written permission.";
+
+  revision "2020-04-17" {
+    description
+      "version 1.2.0
+
+      1) updated descriptions to clarify operation when vlan-tagging is false";
+
+    reference "ORAN-WG4.M.0-v03.00";
+  }
+  revision "2019-07-03" {
+    description
+      "version 1.1.0
+
+      1) increasing max elements for user plane DSCP markings to 64
+      2) re-organizing layout to facilitate cross-WG adoption, whilst ensuring
+      nodes are syntactically and semantically equivalent";
+
+    reference "ORAN-WG4.M.0-v01.00";
+  }
+
+  revision "2019-02-04" {
+    description
+      "version 1.0.0
+
+      1) imported model from xRAN
+      2) changed namespace and reference from xran to o-ran";
+
+    reference "ORAN-WG4.M.0-v01.00";
+  }
+
+  feature UDPIP-BASED-CU-PLANE {
+    description
+      "This feature indicates that the RU supports the UDP/IP based transport
+      for the CU plane.";
+  }
+
+  feature ALIASMAC-BASED-CU-PLANE {
+    description
+      "This feature indicates that the RU supports the alias MAC address
+       based transport for the CU plane.";
+  }
+
+
+  typedef pcp {
+    type uint8 {
+      range "0..7";
+    }
+    description
+      "Priority Code Point. PCP is a 3-bit field that refers to the
+      class of service applied to a VLAN tagged frame.  The
+      field specifies a priority value between 0 and 7, these values
+      can be used by quality of service (QoS) to prioritize
+      different classes of traffic.";
+    reference
+     "IEEE 802.1Q-2014: Virtual Bridged Local Area Networks";
+  }
+
+  grouping cos-marking {
+    description
+      "Configuration data for CU Plane ethernet CoS marking.
+      This grouping is only applicable to an interface when vlan-tagging is
+      set to TRUE for that interface. In other cases, it may be ignored.";
+    container class-of-service {
+      description
+        "CoS Configuration";
+      leaf u-plane-marking {
+        type pcp;
+        default 7;
+        description
+          "Marking used for default u-plane flows.
+          7 represents highest priority for u-plane marking";
+      }
+      leaf c-plane-marking {
+        type pcp;
+        default 7;
+        description "7 represents highest priority for c-plane marking";
+      }
+      leaf m-plane-marking {
+        type pcp;
+        default 2;
+        description "2 represents highest excellent effort for m-plane marking";
+      }
+      leaf s-plane-marking {
+        type pcp;
+        default 7;
+        description "7 represents highest priority for s-plane marking";
+      }
+      leaf other-marking {
+        type pcp;
+        default 1;
+        description "1 represents best effort for other marking";
+      }
+      list enhanced-uplane-markings{
+        key "up-marking-name";
+        max-elements 4;
+        description
+          "list of mappings for enhanced (non-default) u-plane markings";
+        leaf up-marking-name {
+          type string;
+          description "The name of the marking";
+        }
+        leaf enhanced-marking {
+          type pcp;
+          description "the enhanced u-plane marking";
+        }
+      }
+    }
+  }
+
+  grouping dscp-marking {
+    description
+      "Configuration data for CU Plane DSCP marking";
+    container diffserv-markings {
+      description
+        "DSCP Configuration";
+      leaf u-plane-marking {
+        type inet:dscp;
+        default 46;
+        description
+          "Marking used for default u-plane flows.
+          46 represents expedited forwarding";
+      }
+      leaf c-plane-marking {
+        type inet:dscp;
+        default 46;
+        description "46 represents expedited forwarding";
+      }
+      leaf s-plane-marking {
+        type inet:dscp;
+        default 46;
+        description "46 represents expedited forwarding";
+      }
+      leaf other-marking {
+        type inet:dscp;
+        default 0;
+        description "0 represents best effort forwarding";
+      }
+      list enhanced-uplane-markings{
+        key up-marking-name;
+        max-elements 64;
+        description
+          "list of mappings for enhanced (non-default) u-plane markings";
+        leaf up-marking-name {
+          type string;
+          description "The name of the marking";
+        }
+        leaf enhanced-marking {
+          type inet:dscp;
+          description "the enhanced u-plane marking";
+        }
+      }
+    }
+  }
+
+// Cross Working Group Augmentations Follow
+
+// Cross Working Group augmentations for basic Ethernet leafs
+
+  augment "/if:interfaces/if:interface" {
+    when "if:type = 'ianaift:ethernetCsmacd'" {
+      description "Applies to Ethernet interfaces";
+    }
+    description
+      "Augment the interface model with parameters for
+      base Ethernet interface";
+
+    leaf l2-mtu {
+      type uint16 {
+        range "64 .. 65535";
+      }
+      units bytes;
+      default 1500;
+      description
+        "The maximum size of layer 2 frames that may be transmitted
+        or received on the interface (excluding any FCS overhead).
+        For Ethernet interfaces it also excludes the
+        4-8 byte overhead of any known (i.e. explicitly matched by
+        a child sub-interface) 801.1Q VLAN tags.";
+    }
+    leaf vlan-tagging {
+      type boolean;
+      default true;
+      description
+        "Indicates if VLAN tagging is used.
+        Default true is used to enable equipment to autonomously discover that
+        it is connected to a trunk port.
+
+        This may be set to false, for example, when the O-RU is directly
+        connected to the O-DU. In such cases, native Ethernet frames may be
+        used across the O-RAN interface, i.e., any PCP markings defined
+        in the cos-markings grouping are NOT used by the O-RU and any default
+        value or configured value using those leafs may be ignored by the O-RAN
+        equipment.";
+    }
+    uses cos-marking;
+  }
+
+// Cross Working Group augmentation for l2vlan interfaces for VLAN definition
+
+  augment "/if:interfaces/if:interface" {
+    when "if:type = 'ianaift:l2vlan'";
+    description "augments for VLAN definition";
+    leaf base-interface {
+      type if:interface-ref;
+      must "/if:interfaces/if:interface[if:name = current()]"
+            + "/o-ran-int:vlan-tagging = 'true'" {
+        description
+          "The base interface must have VLAN tagging enabled.";
+      }
+      description
+        "The base interface for the VLAN sub-interafce.";
+    }
+    leaf vlan-id {
+      type uint16 {
+        range "1..4094";
+      }
+      description
+        "The VLAN-ID.";
+    }
+  }
+
+// Cross Working Group augmention for both ethernetCsmacd and l2vlan interfaces
+
+  augment "/if:interfaces/if:interface" {
+    when "(if:type = 'ianaift:ethernetCsmacd') or
+          (if:type = 'ianaift:l2vlan')" {
+      description "Applies to ethernetCsmacd and l2vlan interfaces";
+    }
+    description
+      "Augment the interface model with parameters for all
+      both ethernetCsmacd and l2vlan interfaces.";
+    leaf last-cleared {
+      type yang:date-and-time;
+      config false;
+      description
+        "Timestamp of the last time the interface counters were
+        cleared.";
+    }
+  }
+
+// Cross Working Group augmention to ietf-ip covering DSCP for M-Plane
+
+augment "/if:interfaces/if:interface/ip:ipv4" {
+  description "augments for IPv4 based M-Plane transport";
+  leaf m-plane-marking {
+    type inet:dscp;
+    default 18;
+    description "18 represents AF21 or 'immediate traffic'";
+  }
+}
+augment "/if:interfaces/if:interface/ip:ipv6" {
+  description "augments for IPv6 based M-Plane transport";
+  leaf m-plane-marking {
+    type inet:dscp;
+    default 18;
+    description "18 represents AF21 or 'immediate traffic'";
+  }
+}
+
+// WG4 Specific Augmentations Follow
+
+// WG4 Augmentation for basic Ethernet leafs
+
+  augment "/if:interfaces/if:interface" {
+    if-feature ALIASMAC-BASED-CU-PLANE;
+    when "if:type = 'ianaift:ethernetCsmacd'" {
+      description
+        "Applies to WG4 Ethernet interfaces for alias MAC based CU-Plane";
+    }
+    description
+      "Augment the interface model with parameters for
+      base Ethernet interface";
+
+    leaf-list alias-macs {
+      type yang:mac-address;
+      description
+        "Augments interfaces with range of alias MAC addresses.";
+    }
+  }
+
+// WG4 Augmention for both ethernetCsmacd and l2vlan interfaces
+
+  augment "/if:interfaces/if:interface" {
+    when "(if:type = 'ianaift:ethernetCsmacd') or
+          (if:type = 'ianaift:l2vlan')" {
+      description "Applies to ethernetCsmacd and l2vlan interfaces";
+    }
+    description
+      "Augment the interface model with parameters for all
+      both ethernetCsmacd and l2vlan interfaces.";
+    leaf mac-address {
+      type yang:mac-address;
+      description
+        "The MAC address of the interface.";
+    }
+    container port-reference {
+      description
+        "a port reference used by other O-RAN modules";
+      leaf port-name {
+        type leafref {
+          path '/hw:hardware/hw:component/hw:name';
+        }
+        must "derived-from-or-self(deref(current())/../hw:class, 'ianahw:port')";
+// TAKE NOTE - depending on version of pyang, this may generate various
+// warnings, e.g., warning: XPath for "port-name" does not exist
+        description
+          "O-RAN interfaces use a reference to a physical port component.
+
+          In this case, the component name referenced must be of class type
+          port, i.e., when /hw:hardware/hw:component/hw:class is derived from
+          ianahw:port";
+      }
+      leaf port-number {
+        type uint8;
+        description
+          "A number allocated by the server which identifies a port.
+          Port number value is 0 to N-1 where N is number of ports
+          in the device.
+
+          This value is fixed for the lifetime of the equipment, i.e., cannot be
+          changed during equipment reboots.";
+      }
+    }
+  }
+
+// WG4 specific augmention to ietf-ip covering DSCP for CUS Plane
+
+  augment "/if:interfaces/if:interface/ip:ipv4" {
+    if-feature UDPIP-BASED-CU-PLANE;
+    description "augments for IPv4 based CUS transport";
+    uses dscp-marking;
+  }
+  augment "/if:interfaces/if:interface/ip:ipv6" {
+    if-feature UDPIP-BASED-CU-PLANE;
+    description "augments for IPv6 based CUS transport";
+    uses dscp-marking;
+  }
+
+// Other Working Group Specific Augmentations Follow Here
+
+
+  rpc reset-interface-counters {
+    description
+      "Management plane triggered restart of the interface counters.";
+  }
+}

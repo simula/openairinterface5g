@@ -116,6 +116,7 @@
 #define GNB_CONFIG_STRING_NROFDOWNLINKSYMBOLS                            "nrofDownlinkSymbols"
 #define GNB_CONFIG_STRING_NROFUPLINKSLOTS                                "nrofUplinkSlots"
 #define GNB_CONFIG_STRING_NROFUPLINKSYMBOLS                              "nrofUplinkSymbols"
+#define GNB_CONFIG_STRING_PATTERN2                                       "pattern2"
 #define GNB_CONFIG_STRING_DLULTRANSMISSIONPERIODICITY2                   "dl_UL_TransmissionPeriodicity2"
 #define GNB_CONFIG_STRING_NROFDOWNLINKSLOTS2                             "nrofDownlinkSlots2"
 #define GNB_CONFIG_STRING_NROFDOWNLINKSYMBOLS2                           "nrofDownlinkSymbols2"
@@ -123,6 +124,7 @@
 #define GNB_CONFIG_STRING_NROFUPLINKSYMBOLS2                             "nrofUplinkSymbols2"
 #define GNB_CONFIG_STRING_SSPBCHBLOCKPOWER                               "ssPBCH_BlockPower"
 
+#define GNB_CONFIG_STRING_ULSYNCVALIDITYDURATION                         "ntn-UlSyncValidityDuration-r17"
 #define GNB_CONFIG_STRING_CELLSPECIFICKOFFSET                            "cellSpecificKoffset_r17"
 #define GNB_CONFIG_STRING_EPHEMERIS_POSITION_X                           "positionX-r17"
 #define GNB_CONFIG_STRING_EPHEMERIS_POSITION_Y                           "positionY-r17"
@@ -131,55 +133,9 @@
 #define GNB_CONFIG_STRING_EPHEMERIS_VELOCITY_VY                          "velocityVY-r17"
 #define GNB_CONFIG_STRING_EPHEMERIS_VELOCITY_VZ                          "velocityVZ-r17"
 #define GNB_CONFIG_STRING_TA_COMMON                                      "ta-Common-r17"
+#define GNB_CONFIG_STRING_TA_COMMONDRIFT                                 "ta-CommonDrift-r17"
 
 #define CARRIERBANDWIDTH_OKVALUES {11,18,24,25,31,32,38,51,52,65,66,78,79,93,106,107,121,132,133,135,160,162,189,216,217,245,264,270,273}
-
-/* Serving Cell Config Dedicated */
-#define GNB_CONFIG_STRING_SERVINGCELLCONFIGDEDICATED                     "servingCellConfigDedicated"
-#define GNB_CONFIG_STRING_DLPTRSFREQDENSITY0_0                           "dl_ptrsFreqDensity0_0"
-#define GNB_CONFIG_STRING_DLPTRSFREQDENSITY1_0                           "dl_ptrsFreqDensity1_0"
-#define GNB_CONFIG_STRING_DLPTRSTIMEDENSITY0_0                           "dl_ptrsTimeDensity0_0"
-#define GNB_CONFIG_STRING_DLPTRSTIMEDENSITY1_0                           "dl_ptrsTimeDensity1_0"
-#define GNB_CONFIG_STRING_DLPTRSTIMEDENSITY2_0                           "dl_ptrsTimeDensity2_0"
-#define GNB_CONFIG_STRING_DLPTRSEPRERATIO_0                              "dl_ptrsEpreRatio_0"
-#define GNB_CONFIG_STRING_DLPTRSREOFFSET_0                               "dl_ptrsReOffset_0"
-#define GNB_CONFIG_STRING_ULPTRSFREQDENSITY0_0                           "ul_ptrsFreqDensity0_0"
-#define GNB_CONFIG_STRING_ULPTRSFREQDENSITY1_0                           "ul_ptrsFreqDensity1_0"
-#define GNB_CONFIG_STRING_ULPTRSTIMEDENSITY0_0                           "ul_ptrsTimeDensity0_0"
-#define GNB_CONFIG_STRING_ULPTRSTIMEDENSITY1_0                           "ul_ptrsTimeDensity1_0"
-#define GNB_CONFIG_STRING_ULPTRSTIMEDENSITY2_0                           "ul_ptrsTimeDensity2_0"
-#define GNB_CONFIG_STRING_ULPTRSREOFFSET_0                               "ul_ptrsReOffset_0"
-#define GNB_CONFIG_STRING_ULPTRSMAXPORTS_0                               "ul_ptrsMaxPorts_0"
-#define GNB_CONFIG_STRING_ULPTRSPOWER_0                                  "ul_ptrsPower_0"
-
-#define GNB_CONFIG_STRING_DLBWP1_ID                                      "dl_bwp-Id_1"
-#define GNB_CONFIG_STRING_DLBWP2_ID                                      "dl_bwp-Id_2"
-#define GNB_CONFIG_STRING_DLBWP3_ID                                      "dl_bwp-Id_3"
-#define GNB_CONFIG_STRING_DLBWP4_ID                                      "dl_bwp-Id_4"
-#define GNB_CONFIG_STRING_LOCATIONANDBANDWIDTH_DLBWP1                    "dl_bwp1_locationAndBandwidth"
-#define GNB_CONFIG_STRING_LOCATIONANDBANDWIDTH_DLBWP2                    "dl_bwp2_locationAndBandwidth"
-#define GNB_CONFIG_STRING_LOCATIONANDBANDWIDTH_DLBWP3                    "dl_bwp3_locationAndBandwidth"
-#define GNB_CONFIG_STRING_LOCATIONANDBANDWIDTH_DLBWP4                    "dl_bwp4_locationAndBandwidth"
-#define GNB_CONFIG_STRING_SCS_DLBWP1                                     "dl_bwp1_subcarrierSpacing"
-#define GNB_CONFIG_STRING_SCS_DLBWP2                                     "dl_bwp2_subcarrierSpacing"
-#define GNB_CONFIG_STRING_SCS_DLBWP3                                     "dl_bwp3_subcarrierSpacing"
-#define GNB_CONFIG_STRING_SCS_DLBWP4                                     "dl_bwp4_subcarrierSpacing"
-#define GNB_CONFIG_STRING_FIRSTACTIVEDLBWP_ID                            "firstActiveDownlinkBWP-Id"
-#define GNB_CONFIG_STRING_DEFAULTDLBWP_ID                                "defaultDownlinkBWP-Id"
-#define GNB_CONFIG_STRING_ULBWP1_ID                                      "ul_bwp-Id_1"
-#define GNB_CONFIG_STRING_ULBWP2_ID                                      "ul_bwp-Id_2"
-#define GNB_CONFIG_STRING_ULBWP3_ID                                      "ul_bwp-Id_3"
-#define GNB_CONFIG_STRING_ULBWP4_ID                                      "ul_bwp-Id_4"
-#define GNB_CONFIG_STRING_LOCATIONANDBANDWIDTH_ULBWP1                    "ul_bwp1_locationAndBandwidth"
-#define GNB_CONFIG_STRING_LOCATIONANDBANDWIDTH_ULBWP2                    "ul_bwp2_locationAndBandwidth"
-#define GNB_CONFIG_STRING_LOCATIONANDBANDWIDTH_ULBWP3                    "ul_bwp3_locationAndBandwidth"
-#define GNB_CONFIG_STRING_LOCATIONANDBANDWIDTH_ULBWP4                    "ul_bwp4_locationAndBandwidth"
-#define GNB_CONFIG_STRING_SCS_ULBWP1                                     "ul_bwp1_subcarrierSpacing"
-#define GNB_CONFIG_STRING_SCS_ULBWP2                                     "ul_bwp2_subcarrierSpacing"
-#define GNB_CONFIG_STRING_SCS_ULBWP3                                     "ul_bwp3_subcarrierSpacing"
-#define GNB_CONFIG_STRING_SCS_ULBWP4                                     "ul_bwp4_subcarrierSpacing"
-#define GNB_CONFIG_STRING_FIRSTACTIVEULBWP_ID                            "firstActiveUplinkBWP-Id"
-
 /*--------------------------------------------------------------------------------------------------------------------*/
 
 /*-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/
@@ -222,37 +178,33 @@
 {GNB_CONFIG_STRING_PRACHMSG1FDM,NULL,0,.i64ptr=&scc->uplinkConfigCommon->initialUplinkBWP->rach_ConfigCommon->choice.setup->rach_ConfigGeneric.msg1_FDM,.defint64val=NR_RACH_ConfigGeneric__msg1_FDM_one,TYPE_INT64,0/*72*/},\
 {GNB_CONFIG_STRING_PRACHMSG1FREQUENCYSTART,NULL,0,.i64ptr=&scc->uplinkConfigCommon->initialUplinkBWP->rach_ConfigCommon->choice.setup->rach_ConfigGeneric.msg1_FrequencyStart,.defint64val=0,TYPE_INT64,0/*73*/},\
 {GNB_CONFIG_STRING_ZEROCORRELATIONZONECONFIG,NULL,0,.i64ptr=&scc->uplinkConfigCommon->initialUplinkBWP->rach_ConfigCommon->choice.setup->rach_ConfigGeneric.zeroCorrelationZoneConfig,.defint64val=13,TYPE_INT64,0/*74*/},\
-{GNB_CONFIG_STRING_PREAMBLERECEIVEDTARGETPOWER,NULL,0,.i64ptr=&scc->uplinkConfigCommon->initialUplinkBWP->rach_ConfigCommon->choice.setup->rach_ConfigGeneric.preambleReceivedTargetPower,.defintval=-118,TYPE_INT64,0/*75*/},\
+{GNB_CONFIG_STRING_PREAMBLERECEIVEDTARGETPOWER,NULL,0,.i64ptr=&scc->uplinkConfigCommon->initialUplinkBWP->rach_ConfigCommon->choice.setup->rach_ConfigGeneric.preambleReceivedTargetPower,.defint64val=-118,TYPE_INT64,0/*75*/},\
 {GNB_CONFIG_STRING_PREAMBLETRANSMAX,NULL,0,.i64ptr=&scc->uplinkConfigCommon->initialUplinkBWP->rach_ConfigCommon->choice.setup->rach_ConfigGeneric.preambleTransMax,.defint64val=NR_RACH_ConfigGeneric__preambleTransMax_n10,TYPE_INT64,0/*76*/},\
 {GNB_CONFIG_STRING_POWERRAMPINGSTEP,NULL,0,.i64ptr=&scc->uplinkConfigCommon->initialUplinkBWP->rach_ConfigCommon->choice.setup->rach_ConfigGeneric.powerRampingStep,.defint64val=NR_RACH_ConfigGeneric__powerRampingStep_dB2,TYPE_INT64,0/*77*/},\
-{GNB_CONFIG_STRING_RARESPONSEWINDOW,NULL,0,.i64ptr=&scc->uplinkConfigCommon->initialUplinkBWP->rach_ConfigCommon->choice.setup->rach_ConfigGeneric.ra_ResponseWindow,.defint64val=NR_RACH_ConfigGeneric__ra_ResponseWindow_sl20,TYPE_INT64,0/*78*/},\
+{GNB_CONFIG_STRING_RARESPONSEWINDOW,NULL,0,.i64ptr=&scc->uplinkConfigCommon->initialUplinkBWP->rach_ConfigCommon->choice.setup->rach_ConfigGeneric.ra_ResponseWindow,.defint64val=-1,TYPE_INT64,0/*78*/},\
 {GNB_CONFIG_STRING_SSBPERRACHOCCASIONANDCBPREAMBLESPERSSBPR,NULL,0,.uptr=&scc->uplinkConfigCommon->initialUplinkBWP->rach_ConfigCommon->choice.setup->ssb_perRACH_OccasionAndCB_PreamblesPerSSB->present,.defuintval=NR_RACH_ConfigCommon__ssb_perRACH_OccasionAndCB_PreamblesPerSSB_PR_one,TYPE_UINT,0/*79*/},\
 {GNB_CONFIG_STRING_SSBPERRACHOCCASIONANDCBPREAMBLESPERSSB,NULL,0,.i64ptr=&scc->uplinkConfigCommon->initialUplinkBWP->rach_ConfigCommon->choice.setup->ssb_perRACH_OccasionAndCB_PreamblesPerSSB->choice.one,.defint64val=NR_RACH_ConfigCommon__ssb_perRACH_OccasionAndCB_PreamblesPerSSB__one_n64,TYPE_INT64,0 /*80*/}, \
 {GNB_CONFIG_STRING_RACONTENTIONRESOLUTIONTIMER,NULL,0,.i64ptr=&scc->uplinkConfigCommon->initialUplinkBWP->rach_ConfigCommon->choice.setup->ra_ContentionResolutionTimer,.defint64val=NR_RACH_ConfigCommon__ra_ContentionResolutionTimer_sf64,TYPE_INT64,0/*81*/},\
 {GNB_CONFIG_STRING_RSRPTHRESHOLDSSB,NULL,0,.i64ptr=scc->uplinkConfigCommon->initialUplinkBWP->rach_ConfigCommon->choice.setup->rsrp_ThresholdSSB,.defint64val=19,TYPE_INT64,0/*82*/},\
 {GNB_CONFIG_STRING_PRACHROOTSEQUENCEINDEXPR,NULL,0,.uptr=&scc->uplinkConfigCommon->initialUplinkBWP->rach_ConfigCommon->choice.setup->prach_RootSequenceIndex.present,.defuintval=NR_RACH_ConfigCommon__prach_RootSequenceIndex_PR_l139,TYPE_UINT,0/*83*/},\
 {GNB_CONFIG_STRING_PRACHROOTSEQUENCEINDEX,NULL,0,.i64ptr=&scc->uplinkConfigCommon->initialUplinkBWP->rach_ConfigCommon->choice.setup->prach_RootSequenceIndex.choice.l139,.defint64val=0,TYPE_INT64,0/*84*/},\
-{GNB_CONFIG_STRING_RESTRICTEDSETCONFIG,NULL,0,.i64ptr=&scc->uplinkConfigCommon->initialUplinkBWP->rach_ConfigCommon->choice.setup->restrictedSetConfig,.defintval=NR_RACH_ConfigCommon__restrictedSetConfig_unrestrictedSet,TYPE_INT64,0/*85*/}, \
-{GNB_CONFIG_STRING_MSG3TRANSFPREC,NULL,0,.i64ptr=scc->uplinkConfigCommon->initialUplinkBWP->rach_ConfigCommon->choice.setup->msg3_transformPrecoder,.defintval=1,TYPE_INT64,0/*86*/}, \
+{GNB_CONFIG_STRING_RESTRICTEDSETCONFIG,NULL,0,.i64ptr=&scc->uplinkConfigCommon->initialUplinkBWP->rach_ConfigCommon->choice.setup->restrictedSetConfig,.defint64val=NR_RACH_ConfigCommon__restrictedSetConfig_unrestrictedSet,TYPE_INT64,0/*85*/}, \
+{GNB_CONFIG_STRING_MSG3TRANSFPREC,NULL,0,.i64ptr=scc->uplinkConfigCommon->initialUplinkBWP->rach_ConfigCommon->choice.setup->msg3_transformPrecoder,.defint64val=1,TYPE_INT64,0/*86*/}, \
 {GNB_CONFIG_STRING_MSG3DELTAPREABMLE, NULL,0,.i64ptr=scc->uplinkConfigCommon->initialUplinkBWP->pusch_ConfigCommon->choice.setup->msg3_DeltaPreamble,.defint64val=1,TYPE_INT64,0},\
 {GNB_CONFIG_STRING_P0NOMINALWITHGRANT, NULL,0,.i64ptr=scc->uplinkConfigCommon->initialUplinkBWP->pusch_ConfigCommon->choice.setup->p0_NominalWithGrant,.defint64val=1,TYPE_INT64,0},\
 {GNB_CONFIG_STRING_PUCCHGROUPHOPPING, NULL,0,.i64ptr=&scc->uplinkConfigCommon->initialUplinkBWP->pucch_ConfigCommon->choice.setup->pucch_GroupHopping,.defint64val=NR_PUCCH_ConfigCommon__pucch_GroupHopping_neither,TYPE_INT64,0},\
 {GNB_CONFIG_STRING_HOPPINGID, NULL,0,.i64ptr=scc->uplinkConfigCommon->initialUplinkBWP->pucch_ConfigCommon->choice.setup->hoppingId,.defint64val=40,TYPE_INT64,0},\
 {GNB_CONFIG_STRING_P0NOMINAL, NULL,0,.i64ptr=scc->uplinkConfigCommon->initialUplinkBWP->pucch_ConfigCommon->choice.setup->p0_nominal,.defint64val=1,TYPE_INT64,0},\
 {GNB_CONFIG_STRING_PUCCHRES, NULL,0,.i64ptr=scc->uplinkConfigCommon->initialUplinkBWP->pucch_ConfigCommon->choice.setup->pucch_ResourceCommon,.defint64val=0,TYPE_INT64,0},\
-{GNB_CONFIG_STRING_SSBPOSITIONSINBURST,NULL,0,.u64ptr=&ssb_bitmap,.defintval=0xff,TYPE_UINT64,0}, \
+{GNB_CONFIG_STRING_SSBPOSITIONSINBURST,NULL,0,.u64ptr=&ssb_bitmap,.defint64val=0xff,TYPE_UINT64,0}, \
 {GNB_CONFIG_STRING_REFERENCESUBCARRIERSPACING,NULL,0,.i64ptr=&scc->tdd_UL_DL_ConfigurationCommon->referenceSubcarrierSpacing,.defint64val=NR_SubcarrierSpacing_kHz30,TYPE_INT64,0},\
 {GNB_CONFIG_STRING_DLULTRANSMISSIONPERIODICITY,NULL,0,.i64ptr=&scc->tdd_UL_DL_ConfigurationCommon->pattern1.dl_UL_TransmissionPeriodicity,.defint64val=NR_TDD_UL_DL_Pattern__dl_UL_TransmissionPeriodicity_ms0p5,TYPE_INT64,0},\
 {GNB_CONFIG_STRING_NROFDOWNLINKSLOTS,NULL,0,.i64ptr=&scc->tdd_UL_DL_ConfigurationCommon->pattern1.nrofDownlinkSlots,.defint64val=7,TYPE_INT64,0},\
 {GNB_CONFIG_STRING_NROFDOWNLINKSYMBOLS,NULL,0,.i64ptr=&scc->tdd_UL_DL_ConfigurationCommon->pattern1.nrofDownlinkSymbols,.defint64val=6,TYPE_INT64,0},\
 {GNB_CONFIG_STRING_NROFUPLINKSLOTS,NULL,0,.i64ptr=&scc->tdd_UL_DL_ConfigurationCommon->pattern1.nrofUplinkSlots,.defint64val=2,TYPE_INT64,0},\
 {GNB_CONFIG_STRING_NROFUPLINKSYMBOLS,NULL,0,.i64ptr=&scc->tdd_UL_DL_ConfigurationCommon->pattern1.nrofUplinkSymbols,.defint64val=4,TYPE_INT64,0},\
-{GNB_CONFIG_STRING_DLULTRANSMISSIONPERIODICITY2,NULL,0,.i64ptr=&scc->tdd_UL_DL_ConfigurationCommon->pattern2->dl_UL_TransmissionPeriodicity,.defintval=-1,TYPE_INT64,0},\
-{GNB_CONFIG_STRING_NROFDOWNLINKSLOTS2,NULL,0,.i64ptr=&scc->tdd_UL_DL_ConfigurationCommon->pattern2->nrofDownlinkSlots,.defint64val=-1,TYPE_INT64,0},\
-{GNB_CONFIG_STRING_NROFDOWNLINKSYMBOLS2,NULL,0,.i64ptr=&scc->tdd_UL_DL_ConfigurationCommon->pattern2->nrofDownlinkSymbols,.defint64val=-1,TYPE_INT64,0},\
-{GNB_CONFIG_STRING_NROFUPLINKSLOTS2,NULL,0,.i64ptr=&scc->tdd_UL_DL_ConfigurationCommon->pattern2->nrofUplinkSlots,.defint64val=-1,TYPE_INT64,0},\
-{GNB_CONFIG_STRING_NROFUPLINKSYMBOLS2,NULL,0,.i64ptr=&scc->tdd_UL_DL_ConfigurationCommon->pattern2->nrofUplinkSymbols,.defint64val=-1,TYPE_INT64,0},\
 {GNB_CONFIG_STRING_SSPBCHBLOCKPOWER,NULL,0,.i64ptr=&scc->ss_PBCH_BlockPower,.defint64val=20,TYPE_INT64,0}, \
+{GNB_CONFIG_STRING_ULSYNCVALIDITYDURATION,NULL,0,.i64ptr=scc->ext2->ntn_Config_r17->ntn_UlSyncValidityDuration_r17,.defint64val=0,TYPE_INT64,0}, \
 {GNB_CONFIG_STRING_CELLSPECIFICKOFFSET,NULL,0,.i64ptr=scc->ext2->ntn_Config_r17->cellSpecificKoffset_r17,.defint64val=0,TYPE_INT64,0}, \
 {GNB_CONFIG_STRING_EPHEMERIS_POSITION_X,NULL,0,.i64ptr=&scc->ext2->ntn_Config_r17->ephemerisInfo_r17->choice.positionVelocity_r17->positionX_r17,.defint64val=LONG_MAX,TYPE_INT64,0}, \
 {GNB_CONFIG_STRING_EPHEMERIS_POSITION_Y,NULL,0,.i64ptr=&scc->ext2->ntn_Config_r17->ephemerisInfo_r17->choice.positionVelocity_r17->positionY_r17,.defint64val=LONG_MAX,TYPE_INT64,0}, \
@@ -261,75 +213,38 @@
 {GNB_CONFIG_STRING_EPHEMERIS_VELOCITY_VY,NULL,0,.i64ptr=&scc->ext2->ntn_Config_r17->ephemerisInfo_r17->choice.positionVelocity_r17->velocityVY_r17,.defint64val=LONG_MAX,TYPE_INT64,0}, \
 {GNB_CONFIG_STRING_EPHEMERIS_VELOCITY_VZ,NULL,0,.i64ptr=&scc->ext2->ntn_Config_r17->ephemerisInfo_r17->choice.positionVelocity_r17->velocityVZ_r17,.defint64val=LONG_MAX,TYPE_INT64,0}, \
 {GNB_CONFIG_STRING_TA_COMMON,NULL,0,.i64ptr=&scc->ext2->ntn_Config_r17->ta_Info_r17->ta_Common_r17,.defint64val=-1,TYPE_INT64,0}, \
-{GNB_CONFIG_STRING_MSG1SUBCARRIERSPACING,NULL,0,.i64ptr=scc->uplinkConfigCommon->initialUplinkBWP->rach_ConfigCommon->choice.setup->msg1_SubcarrierSpacing,.defintval=-1,TYPE_INT64,0}}
+{GNB_CONFIG_STRING_TA_COMMONDRIFT,NULL,0,.i64ptr=scc->ext2->ntn_Config_r17->ta_Info_r17->ta_CommonDrift_r17,.defint64val=0,TYPE_INT64,0}, \
+{GNB_CONFIG_STRING_MSG1SUBCARRIERSPACING,NULL,0,.i64ptr=scc->uplinkConfigCommon->initialUplinkBWP->rach_ConfigCommon->choice.setup->msg1_SubcarrierSpacing,.defint64val=-1,TYPE_INT64,0}}
 
-/*-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/
-/*                                     Serving Cell Config Dedicated configuration parameters                                                                                                     */
-/*-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/
+#define SCC_PATTERN2_STRING_CONFIG     "pattern2"
 
-#define SCDPARAMS_DESC(scd) { \
-{GNB_CONFIG_STRING_DLPTRSFREQDENSITY0_0,NULL,0,.i64ptr=scd->downlinkBWP_ToAddModList->list.array[0]->bwp_Dedicated->pdsch_Config->choice.setup->dmrs_DownlinkForPDSCH_MappingTypeA->choice.setup->phaseTrackingRS->choice.setup->frequencyDensity->list.array[0],.defint64val=-1,TYPE_INT64,0}, \
-{GNB_CONFIG_STRING_DLPTRSFREQDENSITY1_0,NULL,0,.i64ptr=scd->downlinkBWP_ToAddModList->list.array[0]->bwp_Dedicated->pdsch_Config->choice.setup->dmrs_DownlinkForPDSCH_MappingTypeA->choice.setup->phaseTrackingRS->choice.setup->frequencyDensity->list.array[1],.defint64val=-1,TYPE_INT64,0}, \
-{GNB_CONFIG_STRING_DLPTRSTIMEDENSITY0_0,NULL,0,.i64ptr=scd->downlinkBWP_ToAddModList->list.array[0]->bwp_Dedicated->pdsch_Config->choice.setup->dmrs_DownlinkForPDSCH_MappingTypeA->choice.setup->phaseTrackingRS->choice.setup->timeDensity->list.array[0],.defint64val=-1,TYPE_INT64,0}, \
-{GNB_CONFIG_STRING_DLPTRSTIMEDENSITY1_0,NULL,0,.i64ptr=scd->downlinkBWP_ToAddModList->list.array[0]->bwp_Dedicated->pdsch_Config->choice.setup->dmrs_DownlinkForPDSCH_MappingTypeA->choice.setup->phaseTrackingRS->choice.setup->timeDensity->list.array[1],.defint64val=-1,TYPE_INT64,0}, \
-{GNB_CONFIG_STRING_DLPTRSTIMEDENSITY2_0,NULL,0,.i64ptr=scd->downlinkBWP_ToAddModList->list.array[0]->bwp_Dedicated->pdsch_Config->choice.setup->dmrs_DownlinkForPDSCH_MappingTypeA->choice.setup->phaseTrackingRS->choice.setup->timeDensity->list.array[2],.defint64val=-1,TYPE_INT64,0}, \
-{GNB_CONFIG_STRING_DLPTRSEPRERATIO_0,NULL,0,.i64ptr=scd->downlinkBWP_ToAddModList->list.array[0]->bwp_Dedicated->pdsch_Config->choice.setup->dmrs_DownlinkForPDSCH_MappingTypeA->choice.setup->phaseTrackingRS->choice.setup->epre_Ratio,.defint64val=-1,TYPE_INT64,0}, \
-{GNB_CONFIG_STRING_DLPTRSREOFFSET_0,NULL,0,.i64ptr=scd->downlinkBWP_ToAddModList->list.array[0]->bwp_Dedicated->pdsch_Config->choice.setup->dmrs_DownlinkForPDSCH_MappingTypeA->choice.setup->phaseTrackingRS->choice.setup->resourceElementOffset,.defint64val=-1,TYPE_INT64,0}, \
-{GNB_CONFIG_STRING_ULPTRSFREQDENSITY0_0,NULL,0,.i64ptr=scd->uplinkConfig->uplinkBWP_ToAddModList->list.array[0]->bwp_Dedicated->pusch_Config->choice.setup->dmrs_UplinkForPUSCH_MappingTypeB->choice.setup->phaseTrackingRS->choice.setup->transformPrecoderDisabled->frequencyDensity->list.array[0],.defint64val=-1,TYPE_INT64,0}, \
-{GNB_CONFIG_STRING_ULPTRSFREQDENSITY1_0,NULL,0,.i64ptr=scd->uplinkConfig->uplinkBWP_ToAddModList->list.array[0]->bwp_Dedicated->pusch_Config->choice.setup->dmrs_UplinkForPUSCH_MappingTypeB->choice.setup->phaseTrackingRS->choice.setup->transformPrecoderDisabled->frequencyDensity->list.array[1],.defint64val=-1,TYPE_INT64,0}, \
-{GNB_CONFIG_STRING_ULPTRSTIMEDENSITY0_0,NULL,0,.i64ptr=scd->uplinkConfig->uplinkBWP_ToAddModList->list.array[0]->bwp_Dedicated->pusch_Config->choice.setup->dmrs_UplinkForPUSCH_MappingTypeB->choice.setup->phaseTrackingRS->choice.setup->transformPrecoderDisabled->timeDensity->list.array[0],.defint64val=-1,TYPE_INT64,0}, \
-{GNB_CONFIG_STRING_ULPTRSTIMEDENSITY1_0,NULL,0,.i64ptr=scd->uplinkConfig->uplinkBWP_ToAddModList->list.array[0]->bwp_Dedicated->pusch_Config->choice.setup->dmrs_UplinkForPUSCH_MappingTypeB->choice.setup->phaseTrackingRS->choice.setup->transformPrecoderDisabled->timeDensity->list.array[1],.defint64val=-1,TYPE_INT64,0}, \
-{GNB_CONFIG_STRING_ULPTRSTIMEDENSITY2_0,NULL,0,.i64ptr=scd->uplinkConfig->uplinkBWP_ToAddModList->list.array[0]->bwp_Dedicated->pusch_Config->choice.setup->dmrs_UplinkForPUSCH_MappingTypeB->choice.setup->phaseTrackingRS->choice.setup->transformPrecoderDisabled->timeDensity->list.array[2],.defint64val=-1,TYPE_INT64,0}, \
-{GNB_CONFIG_STRING_ULPTRSREOFFSET_0,NULL,0,.i64ptr=scd->uplinkConfig->uplinkBWP_ToAddModList->list.array[0]->bwp_Dedicated->pusch_Config->choice.setup->dmrs_UplinkForPUSCH_MappingTypeB->choice.setup->phaseTrackingRS->choice.setup->transformPrecoderDisabled->resourceElementOffset,.defint64val=-1,TYPE_INT64,0}, \
-{GNB_CONFIG_STRING_ULPTRSMAXPORTS_0,NULL,0,.i64ptr=&scd->uplinkConfig->uplinkBWP_ToAddModList->list.array[0]->bwp_Dedicated->pusch_Config->choice.setup->dmrs_UplinkForPUSCH_MappingTypeB->choice.setup->phaseTrackingRS->choice.setup->transformPrecoderDisabled->maxNrofPorts,.defint64val=0,TYPE_INT64,0}, \
-{GNB_CONFIG_STRING_ULPTRSPOWER_0,NULL,0,.i64ptr=&scd->uplinkConfig->uplinkBWP_ToAddModList->list.array[0]->bwp_Dedicated->pusch_Config->choice.setup->dmrs_UplinkForPUSCH_MappingTypeB->choice.setup->phaseTrackingRS->choice.setup->transformPrecoderDisabled->ptrs_Power,.defint64val=0,TYPE_INT64,0}, \
-{GNB_CONFIG_STRING_FIRSTACTIVEDLBWP_ID,NULL,0,.i64ptr=scd->firstActiveDownlinkBWP_Id,.defint64val=1,TYPE_INT64,0}, \
-{GNB_CONFIG_STRING_FIRSTACTIVEULBWP_ID,NULL,0,.i64ptr=scd->uplinkConfig->firstActiveUplinkBWP_Id,.defint64val=1,TYPE_INT64,0}, \
-{GNB_CONFIG_STRING_DLBWP1_ID,NULL,0,.i64ptr=&scd->downlinkBWP_ToAddModList->list.array[0]->bwp_Id,.defint64val=1,TYPE_INT64,0}, \
-{GNB_CONFIG_STRING_DLBWP2_ID,NULL,0,.i64ptr=&scd->downlinkBWP_ToAddModList->list.array[1]->bwp_Id,.defint64val=2,TYPE_INT64,0}, \
-{GNB_CONFIG_STRING_DLBWP3_ID,NULL,0,.i64ptr=&scd->downlinkBWP_ToAddModList->list.array[2]->bwp_Id,.defint64val=3,TYPE_INT64,0}, \
-{GNB_CONFIG_STRING_DLBWP4_ID,NULL,0,.i64ptr=&scd->downlinkBWP_ToAddModList->list.array[3]->bwp_Id,.defint64val=4,TYPE_INT64,0}, \
-{GNB_CONFIG_STRING_SCS_DLBWP1,NULL,0,.i64ptr=&scd->downlinkBWP_ToAddModList->list.array[0]->bwp_Common->genericParameters.subcarrierSpacing,.defint64val=1,TYPE_INT64,0}, \
-{GNB_CONFIG_STRING_SCS_DLBWP2,NULL,0,.i64ptr=&scd->downlinkBWP_ToAddModList->list.array[1]->bwp_Common->genericParameters.subcarrierSpacing,.defint64val=1,TYPE_INT64,0}, \
-{GNB_CONFIG_STRING_SCS_DLBWP3,NULL,0,.i64ptr=&scd->downlinkBWP_ToAddModList->list.array[2]->bwp_Common->genericParameters.subcarrierSpacing,.defint64val=1,TYPE_INT64,0}, \
-{GNB_CONFIG_STRING_SCS_DLBWP4,NULL,0,.i64ptr=&scd->downlinkBWP_ToAddModList->list.array[3]->bwp_Common->genericParameters.subcarrierSpacing,.defint64val=1,TYPE_INT64,0}, \
-{GNB_CONFIG_STRING_LOCATIONANDBANDWIDTH_DLBWP1,NULL,0,.i64ptr=&scd->downlinkBWP_ToAddModList->list.array[0]->bwp_Common->genericParameters.locationAndBandwidth,.defint64val=0,TYPE_INT64,0}, \
-{GNB_CONFIG_STRING_LOCATIONANDBANDWIDTH_DLBWP2,NULL,0,.i64ptr=&scd->downlinkBWP_ToAddModList->list.array[1]->bwp_Common->genericParameters.locationAndBandwidth,.defint64val=0,TYPE_INT64,0}, \
-{GNB_CONFIG_STRING_LOCATIONANDBANDWIDTH_DLBWP3,NULL,0,.i64ptr=&scd->downlinkBWP_ToAddModList->list.array[2]->bwp_Common->genericParameters.locationAndBandwidth,.defint64val=0,TYPE_INT64,0}, \
-{GNB_CONFIG_STRING_LOCATIONANDBANDWIDTH_DLBWP4,NULL,0,.i64ptr=&scd->downlinkBWP_ToAddModList->list.array[3]->bwp_Common->genericParameters.locationAndBandwidth,.defint64val=0,TYPE_INT64,0}, \
-{GNB_CONFIG_STRING_ULBWP1_ID,NULL,0,.i64ptr=&scd->uplinkConfig->uplinkBWP_ToAddModList->list.array[0]->bwp_Id,.defint64val=1,TYPE_INT64,0}, \
-{GNB_CONFIG_STRING_ULBWP2_ID,NULL,0,.i64ptr=&scd->uplinkConfig->uplinkBWP_ToAddModList->list.array[1]->bwp_Id,.defint64val=2,TYPE_INT64,0}, \
-{GNB_CONFIG_STRING_ULBWP3_ID,NULL,0,.i64ptr=&scd->uplinkConfig->uplinkBWP_ToAddModList->list.array[2]->bwp_Id,.defint64val=3,TYPE_INT64,0}, \
-{GNB_CONFIG_STRING_ULBWP4_ID,NULL,0,.i64ptr=&scd->uplinkConfig->uplinkBWP_ToAddModList->list.array[3]->bwp_Id,.defint64val=4,TYPE_INT64,0}, \
-{GNB_CONFIG_STRING_SCS_ULBWP1,NULL,0,.i64ptr=&scd->uplinkConfig->uplinkBWP_ToAddModList->list.array[0]->bwp_Common->genericParameters.subcarrierSpacing,.defint64val=1,TYPE_INT64,0}, \
-{GNB_CONFIG_STRING_SCS_ULBWP2,NULL,0,.i64ptr=&scd->uplinkConfig->uplinkBWP_ToAddModList->list.array[1]->bwp_Common->genericParameters.subcarrierSpacing,.defint64val=1,TYPE_INT64,0}, \
-{GNB_CONFIG_STRING_SCS_ULBWP3,NULL,0,.i64ptr=&scd->uplinkConfig->uplinkBWP_ToAddModList->list.array[2]->bwp_Common->genericParameters.subcarrierSpacing,.defint64val=1,TYPE_INT64,0}, \
-{GNB_CONFIG_STRING_SCS_ULBWP4,NULL,0,.i64ptr=&scd->uplinkConfig->uplinkBWP_ToAddModList->list.array[3]->bwp_Common->genericParameters.subcarrierSpacing,.defint64val=1,TYPE_INT64,0}, \
-{GNB_CONFIG_STRING_LOCATIONANDBANDWIDTH_ULBWP1,NULL,0,.i64ptr=&scd->uplinkConfig->uplinkBWP_ToAddModList->list.array[0]->bwp_Common->genericParameters.locationAndBandwidth,.defint64val=0,TYPE_INT64,0}, \
-{GNB_CONFIG_STRING_LOCATIONANDBANDWIDTH_ULBWP2,NULL,0,.i64ptr=&scd->uplinkConfig->uplinkBWP_ToAddModList->list.array[1]->bwp_Common->genericParameters.locationAndBandwidth,.defint64val=0,TYPE_INT64,0}, \
-{GNB_CONFIG_STRING_LOCATIONANDBANDWIDTH_ULBWP3,NULL,0,.i64ptr=&scd->uplinkConfig->uplinkBWP_ToAddModList->list.array[2]->bwp_Common->genericParameters.locationAndBandwidth,.defint64val=0,TYPE_INT64,0}, \
-{GNB_CONFIG_STRING_LOCATIONANDBANDWIDTH_ULBWP4,NULL,0,.i64ptr=&scd->uplinkConfig->uplinkBWP_ToAddModList->list.array[3]->bwp_Common->genericParameters.locationAndBandwidth,.defint64val=0,TYPE_INT64,0}, \
-{GNB_CONFIG_STRING_DEFAULTDLBWP_ID,NULL,0,.i64ptr=scd->defaultDownlinkBWP_Id,.defint64val=0,TYPE_INT64,0}}
+#define SCC_PATTERN2_PARAMS_DESC(pattern2) { \
+{GNB_CONFIG_STRING_DLULTRANSMISSIONPERIODICITY2, NULL,0,.i64ptr=&pattern2.dl_UL_TransmissionPeriodicity,.defint64val=-1,TYPE_INT64,0},\
+{GNB_CONFIG_STRING_NROFDOWNLINKSLOTS2, NULL,0,.i64ptr=&pattern2.nrofDownlinkSlots,.defint64val=-1,TYPE_INT64,0},\
+{GNB_CONFIG_STRING_NROFDOWNLINKSYMBOLS2, NULL,0,.i64ptr=&pattern2.nrofDownlinkSymbols,.defint64val=-1,TYPE_INT64,0},\
+{GNB_CONFIG_STRING_NROFUPLINKSLOTS2,NULL, 0,.i64ptr=&pattern2.nrofUplinkSlots,.defint64val=-1,TYPE_INT64,0},\
+{GNB_CONFIG_STRING_NROFUPLINKSYMBOLS2,NULL, 0,.i64ptr=&pattern2.nrofUplinkSymbols,.defint64val=-1,TYPE_INT64,0}}
+
 
 /*-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/
 /*                                     Serving Cell Config Common configuration parameters to apply in RA 2-Step                                                                                                    */
 /*-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/
 
 #define MSGASCCPARAMS_DESC(scc) { \
-{GNB_CONFIG_STRING_MSGBRESPONSEWINDOW_R16,NULL,0,.i64ptr=scc->uplinkConfigCommon->initialUplinkBWP->ext1->msgA_ConfigCommon_r16->choice.setup->rach_ConfigCommonTwoStepRA_r16.rach_ConfigGenericTwoStepRA_r16.msgB_ResponseWindow_r16,.defintval=-1,TYPE_INT64,0},\
-{GNB_CONFIG_STRING_MSGARSRPTHRESHOLD_R16,NULL,0,.i64ptr=scc->uplinkConfigCommon->initialUplinkBWP->ext1->msgA_ConfigCommon_r16->choice.setup->rach_ConfigCommonTwoStepRA_r16.msgA_RSRP_Threshold_r16,.defintval=19,TYPE_INT64,0},\
-{GNB_CONFIG_STRING_MSGAMCS_R16,NULL,0,.i64ptr=&scc->uplinkConfigCommon->initialUplinkBWP->ext1->msgA_ConfigCommon_r16->choice.setup->msgA_PUSCH_Config_r16->msgA_PUSCH_ResourceGroupA_r16->msgA_MCS_r16,.defintval=2,TYPE_INT64,0},\
-{GNB_CONFIG_STRING_NROFSLOTSMSGAPUSCH_R16,NULL,0,.i64ptr=&scc->uplinkConfigCommon->initialUplinkBWP->ext1->msgA_ConfigCommon_r16->choice.setup->msgA_PUSCH_Config_r16->msgA_PUSCH_ResourceGroupA_r16->nrofSlotsMsgA_PUSCH_r16,.defintval=1,TYPE_INT64,0},\
-{GNB_CONFIG_STRING_NROFMSGAPOPERSLOT_R16,NULL,0,.i64ptr=&scc->uplinkConfigCommon->initialUplinkBWP->ext1->msgA_ConfigCommon_r16->choice.setup->msgA_PUSCH_Config_r16->msgA_PUSCH_ResourceGroupA_r16->nrofMsgA_PO_PerSlot_r16,.defintval=NR_MsgA_PUSCH_Resource_r16__nrofMsgA_PO_PerSlot_r16_one,TYPE_INT64,0},\
-{GNB_CONFIG_STRING_MSGAPUSCHTIMEDOMAINOFFSET_R16,NULL,0,.i64ptr=&scc->uplinkConfigCommon->initialUplinkBWP->ext1->msgA_ConfigCommon_r16->choice.setup->msgA_PUSCH_Config_r16->msgA_PUSCH_ResourceGroupA_r16->msgA_PUSCH_TimeDomainOffset_r16,.defintval=0,TYPE_INT64,0},\
-{GNB_CONFIG_STRING_STARTSYMBOLANDLENGTHMSGA_PO_R16,NULL,0,.i64ptr=scc->uplinkConfigCommon->initialUplinkBWP->ext1->msgA_ConfigCommon_r16->choice.setup->msgA_PUSCH_Config_r16->msgA_PUSCH_ResourceGroupA_r16->startSymbolAndLengthMsgA_PO_r16,.defintval=38,TYPE_INT64,0},\
-{GNB_CONFIG_STRING_MAPPINGTYPEMSGAPUSCH_R16,NULL,0,.i64ptr=scc->uplinkConfigCommon->initialUplinkBWP->ext1->msgA_ConfigCommon_r16->choice.setup->msgA_PUSCH_Config_r16->msgA_PUSCH_ResourceGroupA_r16->mappingTypeMsgA_PUSCH_r16,.defintval=0,TYPE_INT64,0},\
-{GNB_CONFIG_STRING_GUARDBANDMSGAPUSCH_R16,NULL,0,.i64ptr=&scc->uplinkConfigCommon->initialUplinkBWP->ext1->msgA_ConfigCommon_r16->choice.setup->msgA_PUSCH_Config_r16->msgA_PUSCH_ResourceGroupA_r16->guardBandMsgA_PUSCH_r16,.defintval=0,TYPE_INT64,0}, \
-{GNB_CONFIG_STRING_FREQUENCYSTARTMSGAPUSCH_R16,NULL,0,.i64ptr=&scc->uplinkConfigCommon->initialUplinkBWP->ext1->msgA_ConfigCommon_r16->choice.setup->msgA_PUSCH_Config_r16->msgA_PUSCH_ResourceGroupA_r16->frequencyStartMsgA_PUSCH_r16,.defintval=0,TYPE_INT64,0}, \
-{GNB_CONFIG_STRING_NROFPRBSPERMSGAPO_R16,NULL,0,.i64ptr=&scc->uplinkConfigCommon->initialUplinkBWP->ext1->msgA_ConfigCommon_r16->choice.setup->msgA_PUSCH_Config_r16->msgA_PUSCH_ResourceGroupA_r16->nrofPRBs_PerMsgA_PO_r16,.defintval=8,TYPE_INT64,0}, \
-{GNB_CONFIG_STRING_NROFMSGAPOFDM_R16,NULL,0,.i64ptr=&scc->uplinkConfigCommon->initialUplinkBWP->ext1->msgA_ConfigCommon_r16->choice.setup->msgA_PUSCH_Config_r16->msgA_PUSCH_ResourceGroupA_r16->nrofMsgA_PO_FDM_r16,.defintval=NR_MsgA_PUSCH_Resource_r16__nrofMsgA_PO_FDM_r16_one,TYPE_INT64,0}, \
-{GNB_CONFIG_STRING_MSGAPUSCHNROFPORTS_R16,NULL,0,.i64ptr=scc->uplinkConfigCommon->initialUplinkBWP->ext1->msgA_ConfigCommon_r16->choice.setup->msgA_PUSCH_Config_r16->msgA_PUSCH_ResourceGroupA_r16->msgA_DMRS_Config_r16.msgA_PUSCH_NrofPorts_r16,.defintval=1,TYPE_INT64,0},\
-{GNB_CONFIG_STRING_NROFDMRSSEQUENCES_R16,NULL,0,.i64ptr=&scc->uplinkConfigCommon->initialUplinkBWP->ext1->msgA_ConfigCommon_r16->choice.setup->msgA_PUSCH_Config_r16->msgA_PUSCH_ResourceGroupA_r16->nrofDMRS_Sequences_r16,.defintval=1,TYPE_INT64,0},\
-{GNB_CONFIG_STRING_MSGATRANSFORMPRECODER_R16,NULL,0,.i64ptr=scc->uplinkConfigCommon->initialUplinkBWP->ext1->msgA_ConfigCommon_r16->choice.setup->msgA_PUSCH_Config_r16->msgA_TransformPrecoder_r16,.defintval=NR_MsgA_PUSCH_Config_r16__msgA_TransformPrecoder_r16_disabled,TYPE_INT64,0},\
-{GNB_CONFIG_STRING_MSGACBPREAMBLESPERSHAREDRO_R16,NULL,0,.i64ptr=scc->uplinkConfigCommon->initialUplinkBWP->ext1->msgA_ConfigCommon_r16->choice.setup->rach_ConfigCommonTwoStepRA_r16.msgA_CB_PreamblesPerSSB_PerSharedRO_r16,.defintval=1,TYPE_INT64,0}}
+{GNB_CONFIG_STRING_MSGBRESPONSEWINDOW_R16,NULL,0,.i64ptr=scc->uplinkConfigCommon->initialUplinkBWP->ext1->msgA_ConfigCommon_r16->choice.setup->rach_ConfigCommonTwoStepRA_r16.rach_ConfigGenericTwoStepRA_r16.msgB_ResponseWindow_r16,.defint64val=-1,TYPE_INT64,0},\
+{GNB_CONFIG_STRING_MSGARSRPTHRESHOLD_R16,NULL,0,.i64ptr=scc->uplinkConfigCommon->initialUplinkBWP->ext1->msgA_ConfigCommon_r16->choice.setup->rach_ConfigCommonTwoStepRA_r16.msgA_RSRP_Threshold_r16,.defint64val=19,TYPE_INT64,0},\
+{GNB_CONFIG_STRING_MSGAMCS_R16,NULL,0,.i64ptr=&scc->uplinkConfigCommon->initialUplinkBWP->ext1->msgA_ConfigCommon_r16->choice.setup->msgA_PUSCH_Config_r16->msgA_PUSCH_ResourceGroupA_r16->msgA_MCS_r16,.defint64val=2,TYPE_INT64,0},\
+{GNB_CONFIG_STRING_NROFSLOTSMSGAPUSCH_R16,NULL,0,.i64ptr=&scc->uplinkConfigCommon->initialUplinkBWP->ext1->msgA_ConfigCommon_r16->choice.setup->msgA_PUSCH_Config_r16->msgA_PUSCH_ResourceGroupA_r16->nrofSlotsMsgA_PUSCH_r16,.defint64val=1,TYPE_INT64,0},\
+{GNB_CONFIG_STRING_NROFMSGAPOPERSLOT_R16,NULL,0,.i64ptr=&scc->uplinkConfigCommon->initialUplinkBWP->ext1->msgA_ConfigCommon_r16->choice.setup->msgA_PUSCH_Config_r16->msgA_PUSCH_ResourceGroupA_r16->nrofMsgA_PO_PerSlot_r16,.defint64val=NR_MsgA_PUSCH_Resource_r16__nrofMsgA_PO_PerSlot_r16_one,TYPE_INT64,0},\
+{GNB_CONFIG_STRING_MSGAPUSCHTIMEDOMAINOFFSET_R16,NULL,0,.i64ptr=&scc->uplinkConfigCommon->initialUplinkBWP->ext1->msgA_ConfigCommon_r16->choice.setup->msgA_PUSCH_Config_r16->msgA_PUSCH_ResourceGroupA_r16->msgA_PUSCH_TimeDomainOffset_r16,.defint64val=0,TYPE_INT64,0},\
+{GNB_CONFIG_STRING_STARTSYMBOLANDLENGTHMSGA_PO_R16,NULL,0,.i64ptr=scc->uplinkConfigCommon->initialUplinkBWP->ext1->msgA_ConfigCommon_r16->choice.setup->msgA_PUSCH_Config_r16->msgA_PUSCH_ResourceGroupA_r16->startSymbolAndLengthMsgA_PO_r16,.defint64val=38,TYPE_INT64,0},\
+{GNB_CONFIG_STRING_MAPPINGTYPEMSGAPUSCH_R16,NULL,0,.i64ptr=scc->uplinkConfigCommon->initialUplinkBWP->ext1->msgA_ConfigCommon_r16->choice.setup->msgA_PUSCH_Config_r16->msgA_PUSCH_ResourceGroupA_r16->mappingTypeMsgA_PUSCH_r16,.defint64val=0,TYPE_INT64,0},\
+{GNB_CONFIG_STRING_GUARDBANDMSGAPUSCH_R16,NULL,0,.i64ptr=&scc->uplinkConfigCommon->initialUplinkBWP->ext1->msgA_ConfigCommon_r16->choice.setup->msgA_PUSCH_Config_r16->msgA_PUSCH_ResourceGroupA_r16->guardBandMsgA_PUSCH_r16,.defint64val=0,TYPE_INT64,0}, \
+{GNB_CONFIG_STRING_FREQUENCYSTARTMSGAPUSCH_R16,NULL,0,.i64ptr=&scc->uplinkConfigCommon->initialUplinkBWP->ext1->msgA_ConfigCommon_r16->choice.setup->msgA_PUSCH_Config_r16->msgA_PUSCH_ResourceGroupA_r16->frequencyStartMsgA_PUSCH_r16,.defint64val=0,TYPE_INT64,0}, \
+{GNB_CONFIG_STRING_NROFPRBSPERMSGAPO_R16,NULL,0,.i64ptr=&scc->uplinkConfigCommon->initialUplinkBWP->ext1->msgA_ConfigCommon_r16->choice.setup->msgA_PUSCH_Config_r16->msgA_PUSCH_ResourceGroupA_r16->nrofPRBs_PerMsgA_PO_r16,.defint64val=8,TYPE_INT64,0}, \
+{GNB_CONFIG_STRING_NROFMSGAPOFDM_R16,NULL,0,.i64ptr=&scc->uplinkConfigCommon->initialUplinkBWP->ext1->msgA_ConfigCommon_r16->choice.setup->msgA_PUSCH_Config_r16->msgA_PUSCH_ResourceGroupA_r16->nrofMsgA_PO_FDM_r16,.defint64val=NR_MsgA_PUSCH_Resource_r16__nrofMsgA_PO_FDM_r16_one,TYPE_INT64,0}, \
+{GNB_CONFIG_STRING_MSGAPUSCHNROFPORTS_R16,NULL,0,.i64ptr=scc->uplinkConfigCommon->initialUplinkBWP->ext1->msgA_ConfigCommon_r16->choice.setup->msgA_PUSCH_Config_r16->msgA_PUSCH_ResourceGroupA_r16->msgA_DMRS_Config_r16.msgA_PUSCH_NrofPorts_r16,.defint64val=1,TYPE_INT64,0},\
+{GNB_CONFIG_STRING_NROFDMRSSEQUENCES_R16,NULL,0,.i64ptr=&scc->uplinkConfigCommon->initialUplinkBWP->ext1->msgA_ConfigCommon_r16->choice.setup->msgA_PUSCH_Config_r16->msgA_PUSCH_ResourceGroupA_r16->nrofDMRS_Sequences_r16,.defint64val=1,TYPE_INT64,0},\
+{GNB_CONFIG_STRING_MSGATRANSFORMPRECODER_R16,NULL,0,.i64ptr=scc->uplinkConfigCommon->initialUplinkBWP->ext1->msgA_ConfigCommon_r16->choice.setup->msgA_PUSCH_Config_r16->msgA_TransformPrecoder_r16,.defint64val=NR_MsgA_PUSCH_Config_r16__msgA_TransformPrecoder_r16_disabled,TYPE_INT64,0},\
+{GNB_CONFIG_STRING_MSGACBPREAMBLESPERSHAREDRO_R16,NULL,0,.i64ptr=scc->uplinkConfigCommon->initialUplinkBWP->ext1->msgA_ConfigCommon_r16->choice.setup->rach_ConfigCommonTwoStepRA_r16.msgA_CB_PreamblesPerSSB_PerSharedRO_r16,.defint64val=1,TYPE_INT64,0}}
 #endif

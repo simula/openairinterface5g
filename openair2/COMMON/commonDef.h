@@ -43,7 +43,6 @@ Description Contains global common definitions
 #include <stddef.h>
 #include <stdbool.h>
 #include "common/platform_constants.h"
-typedef uint8_t     Byte_t;     /* 8 bit unsigned integer   */
 
 /*
 -----------------------------------------------------------------------------
@@ -62,30 +61,30 @@ typedef uint8_t     AcT_t;      /* Access Technology    */
  * International Mobile Subscriber Identity
  */
 typedef struct {
-  Byte_t length;
+  uint8_t length;
   union {
     struct {
-      Byte_t digit2:4;
-      Byte_t digit1:4;
-      Byte_t digit4:4;
-      Byte_t digit3:4;
-      Byte_t digit6:4;
-      Byte_t digit5:4;
-      Byte_t digit8:4;
-      Byte_t digit7:4;
-      Byte_t digit10:4;
-      Byte_t digit9:4;
-      Byte_t digit12:4;
-      Byte_t digit11:4;
-      Byte_t digit14:4;
-      Byte_t digit13:4;
+      uint8_t digit2: 4;
+      uint8_t digit1: 4;
+      uint8_t digit4: 4;
+      uint8_t digit3: 4;
+      uint8_t digit6: 4;
+      uint8_t digit5: 4;
+      uint8_t digit8: 4;
+      uint8_t digit7: 4;
+      uint8_t digit10: 4;
+      uint8_t digit9: 4;
+      uint8_t digit12: 4;
+      uint8_t digit11: 4;
+      uint8_t digit14: 4;
+      uint8_t digit13: 4;
 #define EVEN_PARITY 0
 #define ODD_PARITY  1
-      Byte_t parity:4;
-      Byte_t digit15:4;
+      uint8_t parity: 4;
+      uint8_t digit15: 4;
     } num;
 #define IMSI_SIZE   8
-    Byte_t value[IMSI_SIZE];
+    uint8_t value[IMSI_SIZE];
   } u;
 } imsi_t;
 
@@ -119,7 +118,7 @@ typedef struct {
  * Mobile subscriber dialing number
  */
 typedef struct {
-  Byte_t ext:1;
+  uint8_t ext: 1;
   /* Type Of Number           */
 #define MSISDN_TON_UNKNOWKN     0b000
 #define MSISDN_TON_INTERNATIONAL    0b001
@@ -128,7 +127,7 @@ typedef struct {
 #define MSISDN_TON_SUBCRIBER        0b100
 #define MSISDN_TON_ABBREVIATED      0b110
 #define MSISDN_TON_RESERVED     0b111
-  Byte_t ton:3;
+  uint8_t ton: 3;
   /* Numbering Plan Identification    */
 #define MSISDN_NPI_UNKNOWN      0b0000
 #define MSISDN_NPI_ISDN_TELEPHONY   0b0001
@@ -140,11 +139,11 @@ typedef struct {
 #define MSISDN_NPI_ISDN_MOBILE      0b0111
 #define MSISDN_NPI_PRIVATE      0b1110
 #define MSISDN_NPI_RESERVED     0b1111
-  Byte_t npi:4;
+  uint8_t npi: 4;
   /* Dialing Number           */
   struct {
-    Byte_t lsb:4;
-    Byte_t msb:4;
+    uint8_t lsb: 4;
+    uint8_t msb: 4;
 #define MSISDN_DIGIT_SIZE   10
   } digit[MSISDN_DIGIT_SIZE];
 } msisdn_t;
@@ -159,12 +158,12 @@ typedef imsi_t imei_t;
  * PLMN = BCD encoding (Mobile Country Code + Mobile Network Code)
  */
 typedef struct {
-  Byte_t MCCdigit2:4;
-  Byte_t MCCdigit1:4;
-  Byte_t MNCdigit3:4;
-  Byte_t MCCdigit3:4;
-  Byte_t MNCdigit2:4;
-  Byte_t MNCdigit1:4;
+  uint8_t MCCdigit2: 4;
+  uint8_t MCCdigit1: 4;
+  uint8_t MNCdigit3: 4;
+  uint8_t MCCdigit3: 4;
+  uint8_t MNCdigit2: 4;
+  uint8_t MNCdigit1: 4;
 } plmn_t;
 
 /*
@@ -256,17 +255,29 @@ typedef struct {
 /*
  * A list of PLMNs
  */
-#define PLMN_LIST_T(SIZE) struct {Byte_t n_plmns; plmn_t plmn[SIZE];}
+#define PLMN_LIST_T(SIZE) \
+  struct {                \
+    uint8_t n_plmns;      \
+    plmn_t plmn[SIZE];    \
+  }
 
 /*
  * A list of TACs
  */
-#define TAC_LIST_T(SIZE) struct {Byte_t n_tacs; TAC_t tac[SIZE];}
+#define TAC_LIST_T(SIZE) \
+  struct {               \
+    uint8_t n_tacs;      \
+    TAC_t tac[SIZE];     \
+  }
 
 /*
  * A list of TAIs
  */
-#define TAI_LIST_T(SIZE) struct {Byte_t n_tais; tai_t tai[SIZE];}
+#define TAI_LIST_T(SIZE) \
+  struct {               \
+    uint8_t n_tais;      \
+    tai_t tai[SIZE];     \
+  }
 
 typedef enum eps_protocol_discriminator_e {
   /* Protocol discriminator identifier for EPS Mobility Management */

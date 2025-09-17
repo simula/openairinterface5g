@@ -63,9 +63,9 @@ void lte_param_init(PHY_VARS_eNB **eNBp,
   PHY_VARS_UE  *UE;
   RU_t         *ru;
   printf("Start lte_param_init\n");
-  *eNBp = malloc(sizeof(PHY_VARS_eNB));
-  *UEp = malloc(sizeof(PHY_VARS_UE));
-  *rup = malloc(sizeof(RU_t));
+  *eNBp = malloc_or_fail(sizeof(PHY_VARS_eNB));
+  *UEp = malloc_or_fail(sizeof(PHY_VARS_UE));
+  *rup = malloc_or_fail(sizeof(RU_t));
   eNB = *eNBp;
   UE  = *UEp;
   ru  = *rup;

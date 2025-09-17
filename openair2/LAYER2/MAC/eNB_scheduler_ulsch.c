@@ -1635,6 +1635,7 @@ schedule_ulsch_rnti(module_id_t   module_idP,
         T_INT(subframeP),
         T_INT(harq_pid),
         T_INT(mcs),
+        T_INT(UE_template_ptr->pre_first_nb_rb_ul),
         T_INT(rb_table[rb_table_index]),
         T_INT(UE_template_ptr->TBS_UL[harq_pid]),
         T_INT(ndi));

@@ -25,14 +25,8 @@
 #include "nr_modulation.h"
 #include "PHY/LTE_ESTIMATION/lte_estimation.h"
 #include "PHY/NR_UE_ESTIMATION/nr_estimation.h"
+#include "PHY/nr_phy_common/inc/nr_phy_common.h"
 #include <common/utils/LOG/log.h>
-
-//#define DEBUG_FEP
-
-/*#ifdef LOG_I
-#undef LOG_I
-#define LOG_I(A,B...) printf(A)
-#endif*/
 
 int nr_slot_fep(PHY_VARS_NR_UE *ue,
                 const NR_DL_FRAME_PARMS *frame_parms,
@@ -43,7 +37,6 @@ int nr_slot_fep(PHY_VARS_NR_UE *ue,
                 uint32_t sample_offset,
                 c16_t **rxdata)
 {
-
   AssertFatal(symbol < frame_parms->symbols_per_slot, "slot_fep: symbol must be between 0 and %d\n", frame_parms->symbols_per_slot-1);
   AssertFatal(slot < frame_parms->slots_per_frame, "slot_fep: Ns must be between 0 and %d\n", frame_parms->slots_per_frame - 1);
 
@@ -67,7 +60,7 @@ int nr_slot_fep(PHY_VARS_NR_UE *ue,
 
   dft_size_idx_t dftsize = get_dft(frame_parms->ofdm_symbol_size);
   // This is for misalignment issues
-  int32_t tmp_dft_in[8192] __attribute__ ((aligned (32)));
+  c16_t tmp_dft_in[frame_parms->ofdm_symbol_size] __attribute__ ((aligned (32)));
 
   unsigned int rx_offset = frame_parms->get_samples_slot_timestamp(slot, frame_parms, 0);
   unsigned int abs_symbol = slot * frame_parms->symbols_per_slot + symbol;
@@ -80,16 +73,10 @@ int nr_slot_fep(PHY_VARS_NR_UE *ue,
   // use OFDM symbol from within 1/8th of the CP to avoid ISI
   rx_offset -= (nb_prefix_samples / frame_parms->ofdm_offset_divisor);
 
-#ifdef DEBUG_FEP
-  //  if (ue->frame <100)
-  LOG_D(PHY,"slot_fep: slot %d, symbol %d, nb_prefix_samples %u, nb_prefix_samples0 %u, rx_offset %u energy %d\n",
-  Ns, symbol, nb_prefix_samples, nb_prefix_samples0, rx_offset, dB_fixed(signal_energy((int32_t *)&common_vars->rxdata[0][rx_offset],frame_parms->ofdm_symbol_size)));
-#endif
+  rx_offset %= total_samples;
 
   for (unsigned char aa=0; aa<frame_parms->nb_antennas_rx; aa++) {
-    int16_t *rxdata_ptr = (int16_t *)&rxdata[aa][rx_offset];
-
-    rx_offset %= total_samples;
+    c16_t *rxdata_ptr = &rxdata[aa][rx_offset];
 
     // This happens only during initial sync
     if (rx_offset + frame_parms->ofdm_symbol_size > total_samples) {
@@ -100,19 +87,25 @@ int nr_slot_fep(PHY_VARS_NR_UE *ue,
       memcpy((void *)&tmp_dft_in[total_samples - rx_offset],
              (void *)&rxdata[aa][0],
              (frame_parms->ofdm_symbol_size - (total_samples - rx_offset)) * sizeof(int32_t));
-      rxdata_ptr = (int16_t *)tmp_dft_in;
+      rxdata_ptr = tmp_dft_in;
 
     } else if ((rx_offset & 7) != 0) { // if input to dft is not 256-bit aligned
       memcpy((void *)&tmp_dft_in[0], (void *)&rxdata[aa][rx_offset], frame_parms->ofdm_symbol_size * sizeof(int32_t));
+      rxdata_ptr = tmp_dft_in;
+    }
 
-      rxdata_ptr = (int16_t *)tmp_dft_in;
+    if (ue && ue->cont_fo_comp) {
+      start_meas_nr_ue_phy(ue, RX_FO_COMPENSATION_STATS);
+      nr_fo_compensation(ue->freq_offset, frame_parms->samples_per_subframe, rx_offset, rxdata_ptr, tmp_dft_in, frame_parms->ofdm_symbol_size);
+      rxdata_ptr = tmp_dft_in;
+      stop_meas_nr_ue_phy(ue, RX_FO_COMPENSATION_STATS);
     }
 
     if (ue)
       start_meas_nr_ue_phy(ue, RX_DFT_STATS);
 
     dft(dftsize,
-        rxdata_ptr,
+        (int16_t *)rxdata_ptr,
         (int16_t *)&rxdataF[aa][frame_parms->ofdm_symbol_size*symbol],
         1);
 
@@ -121,10 +114,6 @@ int nr_slot_fep(PHY_VARS_NR_UE *ue,
 
     apply_nr_rotation_RX(frame_parms, rxdataF[aa], frame_parms->symbol_rotation[linktype], slot, N_RB, 0, symbol, 1);
   }
-
-#ifdef DEBUG_FEP
-  printf("slot_fep: done\n");
-#endif
 
   return 0;
 }
@@ -217,12 +206,12 @@ void apply_nr_rotation_RX(const NR_DL_FRAME_PARMS *frame_parms,
                         &rot2,
                         this_symbol + frame_parms->first_carrier_offset - 6,
                         (nb_rb + 1) * 6, 15);
-      multadd_cpx_vector((int16_t *)this_symbol, (int16_t *)shift_rot, (int16_t *)this_symbol,
-                         1, (nb_rb + 1) * 6, 15);
-      multadd_cpx_vector((int16_t *)(this_symbol + frame_parms->first_carrier_offset - 6),
-                         (int16_t *)(shift_rot   + frame_parms->first_carrier_offset - 6),
-                         (int16_t *)(this_symbol + frame_parms->first_carrier_offset - 6),
-                         1, (nb_rb + 1) * 6, 15);
+      mult_cpx_vector(this_symbol, shift_rot, this_symbol, (nb_rb + 1) * 6, 15);
+      mult_cpx_vector(this_symbol + frame_parms->first_carrier_offset - 6,
+                      shift_rot + frame_parms->first_carrier_offset - 6,
+                      this_symbol + frame_parms->first_carrier_offset - 6,
+                      (nb_rb + 1) * 6,
+                      15);
     } else {
       rotate_cpx_vector(this_symbol, &rot2, this_symbol,
                         nb_rb * 6, 15);
@@ -230,12 +219,12 @@ void apply_nr_rotation_RX(const NR_DL_FRAME_PARMS *frame_parms,
                         &rot2,
                         this_symbol + frame_parms->first_carrier_offset,
                         nb_rb * 6, 15);
-      multadd_cpx_vector((int16_t *)this_symbol, (int16_t *)shift_rot, (int16_t *)this_symbol,
-                         1, nb_rb * 6, 15);
-      multadd_cpx_vector((int16_t *)(this_symbol + frame_parms->first_carrier_offset),
-                         (int16_t *)(shift_rot   + frame_parms->first_carrier_offset),
-                         (int16_t *)(this_symbol + frame_parms->first_carrier_offset),
-                         1, nb_rb * 6, 15);
+      mult_cpx_vector(this_symbol, shift_rot, this_symbol, nb_rb * 6, 15);
+      mult_cpx_vector(this_symbol + frame_parms->first_carrier_offset,
+                      shift_rot + frame_parms->first_carrier_offset,
+                      this_symbol + frame_parms->first_carrier_offset,
+                      nb_rb * 6,
+                      15);
     }
   }
 }

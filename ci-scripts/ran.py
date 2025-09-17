@@ -36,7 +36,6 @@ import re               # reg
 import logging
 import os
 import time
-from multiprocessing import Process, Lock, SimpleQueue
 import yaml
 import cls_cmd
 
@@ -44,9 +43,10 @@ import cls_cmd
 #-----------------------------------------------------------
 # OAI Testing modules
 #-----------------------------------------------------------
-import sshconnection as SSH
+import cls_cmd
 import helpreadme as HELP
 import constants as CONST
+from cls_ci_helper import archiveArtifact
 
 #-----------------------------------------------------------
 # Class Declaration
@@ -60,447 +60,121 @@ class RANManagement():
 		self.ranAllowMerge = False
 		self.ranCommitID = ''
 		self.ranTargetBranch = ''
-		self.eNBIPAddress = ''
-		self.eNBUserName = ''
-		self.eNBPassword = ''
 		self.eNBSourceCodePath = ''
-		self.eNB1IPAddress = ''
-		self.eNB1UserName = ''
-		self.eNB1Password = ''
-		self.eNB1SourceCodePath = ''
-		self.eNB2IPAddress = ''
-		self.eNB2UserName = ''
-		self.eNB2Password = ''
-		self.eNB2SourceCodePath = ''
-		self.Build_eNB_args = ''
-		self.backgroundBuild = False
-		self.backgroundBuildTestId = ['', '', '']
-		self.Build_eNB_forced_workspace_cleanup = False
 		self.Initialize_eNB_args = ''
 		self.imageKind = ''
-		self.air_interface = ['', '', ''] #changed from 'lte' to '' may lead to side effects in main
-		self.eNB_instance = 0
-		self.eNB_serverId = ['', '', '']
-		self.eNBLogFiles = ['', '', '']
+		self.air_interface = ''
 		self.eNBOptions = ['', '', '']
 		self.eNBmbmsEnables = [False, False, False]
 		self.eNBstatuses = [-1, -1, -1]
 		self.testCase_id = ''
-		self.epcPcapFile = ''
 		self.runtime_stats= ''
 		self.datalog_rt_stats={}
 		self.datalog_rt_stats_file='datalog_rt_stats.default.yaml'
-		self.eNB_Trace = '' #if 'yes', Tshark will be launched at initialization
-		self.eNB_Stats = '' #if 'yes', Statistics Monitor will be launched at initialization		
 		self.USRPIPAddress = ''
 		#checkers from xml
 		self.ran_checkers={}
 		self.cmd_prefix = '' # prefix before {lte,nr}-softmodem
 		self.node = ''
 		self.command = ''
-		self.command_fail = False
 
 
 #-----------------------------------------------------------
 # RAN management functions
 #-----------------------------------------------------------
 
-	def InitializeeNB(self, HTML, EPC):
-		if self.eNB_serverId[self.eNB_instance] == '0':
-			lIpAddr = self.eNBIPAddress
-			lUserName = self.eNBUserName
-			lPassWord = self.eNBPassword
-			lSourcePath = self.eNBSourceCodePath
-		elif self.eNB_serverId[self.eNB_instance] == '1':
-			lIpAddr = self.eNB1IPAddress
-			lUserName = self.eNB1UserName
-			lPassWord = self.eNB1Password
-			lSourcePath = self.eNB1SourceCodePath
-		elif self.eNB_serverId[self.eNB_instance] == '2':
-			lIpAddr = self.eNB2IPAddress
-			lUserName = self.eNB2UserName
-			lPassWord = self.eNB2Password
-			lSourcePath = self.eNB2SourceCodePath
-		if lIpAddr == '' or lUserName == '' or lPassWord == '' or lSourcePath == '':
-			HELP.GenericHelp(CONST.Version)
-			sys.exit('Insufficient Parameter')
-		logging.debug('Starting eNB/gNB on server: ' + lIpAddr)
+	def InitializeeNB(self, ctx, node, HTML):
+		if not node:
+			raise ValueError(f"{node=}")
+		logging.debug('Starting eNB/gNB on server: ' + node)
 
 		self.testCase_id = HTML.testCase_id
-		mySSH = SSH.SSHConnection()
-		cwd = os.getcwd()
+		lSourcePath = self.eNBSourceCodePath
+		cmd = cls_cmd.getConnection(node)
 		
-		#Get pcap on enb and/or gnb if enabled in the xml 
-		if self.eNB_Trace=='yes':
-			if self.air_interface[self.eNB_instance] == 'lte-softmodem':
-				pcapfile_prefix="enb_"
-			else:
-				pcapfile_prefix="gnb_"
-			mySSH.open(lIpAddr, lUserName, lPassWord)
-			eth_interface = 'any'
-			fltr = 'sctp'
-			logging.debug('\u001B[1m Launching tshark on xNB on interface ' + eth_interface + ' with filter "' + fltr + '"\u001B[0m')
-			pcapfile = pcapfile_prefix + self.testCase_id + '_log.pcap'
-			mySSH.command('echo ' + lPassWord + ' | sudo -S rm -f /tmp/' + pcapfile , '\$', 5)
-			mySSH.command('echo $USER; nohup sudo -E tshark  -i ' + eth_interface + ' -f "' + fltr + '" -w /tmp/' + pcapfile + ' > /dev/null 2>&1 &','\$', 5)
-			mySSH.close()
-			
-
-
-		# If tracer options is on, running tshark on EPC side and capture traffic b/ EPC and eNB
-		if EPC.IPAddress != "none":
-			localEpcIpAddr = EPC.IPAddress
-			localEpcUserName = EPC.UserName
-			localEpcPassword = EPC.Password
-			mySSH.open(localEpcIpAddr, localEpcUserName, localEpcPassword)
-			eth_interface = 'any'
-			fltr = 'sctp'
-			logging.debug('\u001B[1m Launching tshark on EPC on interface ' + eth_interface + ' with filter "' + fltr + '"\u001B[0m')
-			self.epcPcapFile = 'enb_' + self.testCase_id + '_s1log.pcap'
-			mySSH.command('echo ' + localEpcPassword + ' | sudo -S rm -f /tmp/' + self.epcPcapFile , '\$', 5)
-			mySSH.command('echo $USER; nohup sudo tshark -f "host ' + lIpAddr +'" -i ' + eth_interface + ' -f "' + fltr + '" -w /tmp/' + self.epcPcapFile + ' > /tmp/tshark.log 2>&1 &', localEpcUserName, 5)
-			mySSH.close()
-
-		mySSH.open(lIpAddr, lUserName, lPassWord)
-		mySSH.command('cd ' + lSourcePath, '\$', 5)
 		# Initialize_eNB_args usually start with -O and followed by the location in repository
 		full_config_file = self.Initialize_eNB_args.replace('-O ','')
 		extra_options = ''
 		extIdx = full_config_file.find('.conf')
-		if (extIdx > 0):
-			extra_options = full_config_file[extIdx + 5:]
-			# if tracer options is on, compiling and running T Tracer
-			result = re.search('T_stdout', str(extra_options))
-			if result is not None:
-				logging.debug('\u001B[1m Compiling and launching T Tracer\u001B[0m')
-				mySSH.command('cd common/utils/T/tracer', '\$', 5)
-				mySSH.command('make', '\$', 10)
-				mySSH.command('echo $USER; nohup ./record -d ../T_messages.txt -o ' + lSourcePath + '/cmake_targets/enb_' + self.testCase_id + '_record.raw -ON -off VCD -off HEAVY -off LEGACY_GROUP_TRACE -off LEGACY_GROUP_DEBUG > ' + lSourcePath + '/cmake_targets/enb_' + self.testCase_id + '_record.log 2>&1 &', lUserName, 5)
-				mySSH.command('cd ' + lSourcePath, '\$', 5)
-			full_config_file = full_config_file[:extIdx + 5]
-			config_path, config_file = os.path.split(full_config_file)
-		else:
-			sys.exit('Insufficient Parameter')
-		ci_full_config_file = config_path + '/ci-' + config_file
-		rruCheck = False
-		result = re.search('^rru|^rcc|^du.band', str(config_file))
-		if result is not None:
-			rruCheck = True
-		# Make a copy and adapt to EPC / eNB IP addresses
-		mySSH.command('cp ' + full_config_file + ' ' + ci_full_config_file, '\$', 5)
-		localMmeIpAddr = EPC.MmeIPAddress
-		mySSH.command('sed -i -e \'s/CI_MME_IP_ADDR/' + localMmeIpAddr + '/\' ' + ci_full_config_file, '\$', 2);
-		mySSH.command('sed -i -e \'s/CI_ENB_IP_ADDR/' + lIpAddr + '/\' ' + ci_full_config_file, '\$', 2);
-		mySSH.command('sed -i -e \'s/CI_GNB_IP_ADDR/' + lIpAddr + '/\' ' + ci_full_config_file, '\$', 2);
-		mySSH.command('sed -i -e \'s/CI_RCC_IP_ADDR/' + self.eNBIPAddress + '/\' ' + ci_full_config_file, '\$', 2);
-		mySSH.command('sed -i -e \'s/CI_RRU1_IP_ADDR/' + self.eNB1IPAddress + '/\' ' + ci_full_config_file, '\$', 2);
-		mySSH.command('sed -i -e \'s/CI_RRU2_IP_ADDR/' + self.eNB2IPAddress + '/\' ' + ci_full_config_file, '\$', 2);
-		mySSH.command('sed -i -e \'s/CI_FR1_CTL_ENB_IP_ADDR/' + self.eNBIPAddress + '/\' ' + ci_full_config_file, '\$', 2);
-		self.eNBmbmsEnables[int(self.eNB_instance)] = False
-		mySSH.command('grep --colour=never enable_enb_m2 ' + ci_full_config_file, '\$', 2);
-		result = re.search('yes', mySSH.getBefore())
-		if result is not None:
-			self.eNBmbmsEnables[int(self.eNB_instance)] = True
-			logging.debug('\u001B[1m MBMS is enabled on this eNB\u001B[0m')
-		result = re.search('noS1', str(self.Initialize_eNB_args))
-		eNBinNoS1 = False
-		if result is not None:
-			eNBinNoS1 = True
-			logging.debug('\u001B[1m eNB is in noS1 configuration \u001B[0m')
-		# Launch eNB with the modified config file
-		mySSH.command('source oaienv', '\$', 5)
-		mySSH.command('cd cmake_targets', '\$', 5)
-		if self.air_interface[self.eNB_instance] == 'nr-softmodem':
-			mySSH.command('if [ -e rbconfig.raw ]; then echo ' + lPassWord + ' | sudo -S rm rbconfig.raw; fi', '\$', 5)
-			mySSH.command('if [ -e reconfig.raw ]; then echo ' + lPassWord + ' | sudo -S rm reconfig.raw; fi', '\$', 5)
-		# NOTE: WE SHALL do a check if the executable is present (in case build went wrong)
+		if (extIdx <= 0):
+			raise ValueError(f"no config file in {self.Initialize_eNB_args}")
+		extra_options = full_config_file[extIdx + 5:]
+		full_config_file = full_config_file[:extIdx + 5]
+		config_path, config_file = os.path.split(full_config_file)
 
-		#hack UHD_RFNOC_DIR variable for gNB / N310 on RHEL8 server:
-		#if the USRP address is in the xml then we are using an eth USRP (N3xx)
-		if self.air_interface[self.eNB_instance] == 'lte-softmodem':
-			gNB = False
-		else:
-			gNB = True
-		mySSH.command(f'echo "ulimit -c unlimited && {self.cmd_prefix} ./ran_build/build/{self.air_interface[self.eNB_instance]} -O {lSourcePath}/{ci_full_config_file} {extra_options}" > ./my-lte-softmodem-run{self.eNB_instance}.sh', '\$', 5)
+		logfile = f'{lSourcePath}/cmake_targets/enb.log'
+		cmd.cd(f"{lSourcePath}/cmake_targets/") # important: set wd so nrL1_stats.log etc are logged here
+		cmd.run(f'sudo -E stdbuf -o0 {self.cmd_prefix} {lSourcePath}/cmake_targets/ran_build/build/{self.air_interface} -O {lSourcePath}/{full_config_file} {extra_options} > {logfile} 2>&1 &')
 
-		mySSH.command('chmod 775 ./my-lte-softmodem-run' + str(self.eNB_instance) + '.sh', '\$', 5)
-		mySSH.command('echo ' + lPassWord + ' | sudo -S rm -Rf enb_' + self.testCase_id + '.log', '\$', 5)
-		mySSH.command('echo $USER; nohup sudo -E stdbuf -o0 ./my-lte-softmodem-run' + str(self.eNB_instance) + '.sh > ' + lSourcePath + '/cmake_targets/enb_' + self.testCase_id + '.log 2>&1 &', lUserName, 10)
-
-
-		#stats monitoring during runtime
-		time.sleep(20)
-		monitor_file='../ci-scripts/stats_monitor.py'
-		conf_file='../ci-scripts/stats_monitor_conf.yaml'
-		if self.eNB_Stats=='yes':
-			if self.air_interface[self.eNB_instance] == 'lte-softmodem':
-				mySSH.command('echo $USER; nohup python3 ' + monitor_file + ' ' + conf_file + ' ' + self.testCase_id + ' enb 2>&1 > enb_stats_monitor_execution.log &', '\$', 5)
-			else:
-				mySSH.command('echo $USER; nohup python3 ' + monitor_file + ' ' + conf_file + ' ' + self.testCase_id + ' gnb 2>&1 > gnb_stats_monitor_execution.log &', '\$', 5)
-
-
-
-		self.eNBLogFiles[int(self.eNB_instance)] = 'enb_' + self.testCase_id + '.log'
 		if extra_options != '':
-			self.eNBOptions[int(self.eNB_instance)] = extra_options
-		time.sleep(6)
-		doLoop = True
-		loopCounter = 20
+			self.eNBOptions = extra_options
+
 		enbDidSync = False
-		while (doLoop):
-			loopCounter = loopCounter - 1
-			if (loopCounter == 0):
-				# In case of T tracer recording, we may need to kill it
-				result = re.search('T_stdout', str(self.Initialize_eNB_args))
-				if result is not None:
-					mySSH.command('killall --signal SIGKILL record', '\$', 5)
-				mySSH.close()
-				doLoop = False
-				logging.error('\u001B[1;37;41m eNB/gNB logging system did not show got sync! \u001B[0m')
-				HTML.CreateHtmlTestRow(self.air_interface[self.eNB_instance] + ' -O ' + config_file + extra_options, 'KO', CONST.ALL_PROCESSES_OK)
-				# In case of T tracer recording, we need to kill tshark on EPC side
-				localEpcIpAddr = EPC.IPAddress
-				localEpcUserName = EPC.UserName
-				localEpcPassword = EPC.Password
-				mySSH.open(localEpcIpAddr, localEpcUserName, localEpcPassword)
-				logging.debug('\u001B[1m Stopping tshark on EPC \u001B[0m')
-				mySSH.command('echo ' + localEpcPassword + ' | sudo -S killall --signal SIGKILL tshark', '\$', 5)
-				if self.epcPcapFile  != '':
-					mySSH.command('echo ' + localEpcPassword + ' | sudo -S chmod 666 /tmp/' + self.epcPcapFile, '\$', 5)
-				mySSH.close()
-				if self.epcPcapFile != '':
-					copyin_res = mySSH.copyin(localEpcIpAddr, localEpcUserName, localEpcPassword, '/tmp/' + self.epcPcapFile, '.')
-					if (copyin_res == 0):
-						mySSH.copyout(lIpAddr, lUserName, lPassWord, self.epcPcapFile, lSourcePath + '/cmake_targets/.')
-				return False
-			else:
-				mySSH.command('stdbuf -o0 cat enb_' + self.testCase_id + '.log | grep -E --text --color=never -i "wait|sync|Starting|Started"', '\$', 4)
-				if rruCheck:
-					result = re.search('wait RUs', mySSH.getBefore())
-				else:
-					result = re.search('got sync|Starting F1AP at CU', mySSH.getBefore())
-				if result is None:
-					time.sleep(6)
-				else:
-					doLoop = False
-					enbDidSync = True
-					time.sleep(10)
-
-		rruCheck = False
-		result = re.search('^rru|^du.band', str(config_file))
-		if result is not None:
-			rruCheck = True
-		if enbDidSync and eNBinNoS1 and not rruCheck:
-			mySSH.command('ifconfig oaitun_enb1', '\$', 4)
-			mySSH.command('ifconfig oaitun_enb1', '\$', 4)
-			result = re.search('inet addr:1|inet 1', mySSH.getBefore())
+		for _ in range(10):
+			time.sleep(5)
+			ret = cmd.run(f'grep --text -E --color=never -i "wait|sync|Starting|Started" {logfile}', reportNonZero=False)
+			result = re.search('got sync|Starting F1AP at CU', ret.stdout)
 			if result is not None:
-				logging.debug('\u001B[1m oaitun_enb1 interface is mounted and configured\u001B[0m')
-			else:
-				logging.error('\u001B[1m oaitun_enb1 interface is either NOT mounted or NOT configured\u001B[0m')
-			if self.eNBmbmsEnables[int(self.eNB_instance)]:
-				mySSH.command('ifconfig oaitun_enm1', '\$', 4)
-				result = re.search('inet addr', mySSH.getBefore())
-				if result is not None:
-					logging.debug('\u001B[1m oaitun_enm1 interface is mounted and configured\u001B[0m')
-				else:
-					logging.error('\u001B[1m oaitun_enm1 interface is either NOT mounted or NOT configured\u001B[0m')
+				enbDidSync = True
+				break
+		if not enbDidSync:
+			cmd.run(f'sudo killall -9 {self.air_interface}') # in case it did not stop automatically
+			archiveArtifact(cmd, ctx, logfile)
+
+		cmd.close()
+
+		msg = f'{self.cmd_prefix} {self.air_interface} -O {config_file} {extra_options}'
 		if enbDidSync:
-			self.eNBstatuses[int(self.eNB_instance)] = int(self.eNB_serverId[self.eNB_instance])
+			logging.debug('\u001B[1m Initialize eNB/gNB Completed\u001B[0m')
+			HTML.CreateHtmlTestRowQueue(msg, 'OK', [])
+		else:
+			logging.error('\u001B[1;37;41m eNB/gNB logging system did not show got sync! \u001B[0m')
+			HTML.CreateHtmlTestRowQueue(msg, 'KO', [])
 
-		mySSH.close()
-
-		HTML.CreateHtmlTestRow(f'{self.cmd_prefix} {self.air_interface[self.eNB_instance]} -O {config_file} {extra_options}', 'OK', CONST.ALL_PROCESSES_OK)
-		logging.debug('\u001B[1m Initialize eNB/gNB Completed\u001B[0m')
 		return enbDidSync
 
-	def CheckeNBProcess(self, status_queue):
-		# At least the instance 0 SHALL be on!
-		if self.eNBstatuses[0] == 0:
-			lIpAddr = self.eNBIPAddress
-			lUserName = self.eNBUserName
-			lPassWord = self.eNBPassword
-		elif self.eNBstatuses[0] == 1:
-			lIpAddr = self.eNB1IPAddress
-			lUserName = self.eNB1UserName
-			lPassWord = self.eNB1Password
-		elif self.eNBstatuses[0] == 2:
-			lIpAddr = self.eNB2IPAddress
-			lUserName = self.eNB2UserName
-			lPassWord = self.eNB2Password
-		else:
-			lIpAddr = self.eNBIPAddress
-			lUserName = self.eNBUserName
-			lPassWord = self.eNBPassword
-		mySSH = SSH.SSHConnection()
-		mySSH.open(lIpAddr, lUserName, lPassWord)
-		if self.air_interface[self.eNB_instance] == '':
-			pattern = 'softmodem'
-		else:
-			pattern = self.air_interface[self.eNB_instance]
-		mySSH.command('stdbuf -o0 ps -aux | grep --color=never ' + pattern + ' | grep -v grep', '\$', 5)
-		result = re.search(pattern, mySSH.getBefore())
-		success = result is not None
-		if not success:
-			logging.debug('\u001B[1;37;41m eNB Process Not Found! \u001B[0m')
-			status_queue.put(CONST.ENB_PROCESS_FAILED)
-		else:
-			status_queue.put(CONST.ENB_PROCESS_OK)
-		mySSH.close()
-		return success
-
-	def TerminateeNB(self, HTML, EPC):
-		if self.eNB_serverId[self.eNB_instance] == '0':
-			lIpAddr = self.eNBIPAddress
-			lUserName = self.eNBUserName
-			lPassWord = self.eNBPassword
-			lSourcePath = self.eNBSourceCodePath
-		elif self.eNB_serverId[self.eNB_instance] == '1':
-			lIpAddr = self.eNB1IPAddress
-			lUserName = self.eNB1UserName
-			lPassWord = self.eNB1Password
-			lSourcePath = self.eNB1SourceCodePath
-		elif self.eNB_serverId[self.eNB_instance] == '2':
-			lIpAddr = self.eNB2IPAddress
-			lUserName = self.eNB2UserName
-			lPassWord = self.eNB2Password
-			lSourcePath = self.eNB2SourceCodePath
-		if lIpAddr == '' or lUserName == '' or lPassWord == '' or lSourcePath == '':
-			HELP.GenericHelp(CONST.Version)
-			sys.exit('Insufficient Parameter')
-		logging.debug('Stopping eNB/gNB on server: ' + lIpAddr)
-		mySSH = SSH.SSHConnection()
-		mySSH.open(lIpAddr, lUserName, lPassWord)
-		mySSH.command('cd ' + lSourcePath + '/cmake_targets', '\$', 5)
-		if self.air_interface[self.eNB_instance] == 'lte-softmodem':
-			nodeB_prefix = 'e'
-		else:
-			nodeB_prefix = 'g'
-		mySSH.command('stdbuf -o0  ps -aux | grep --color=never -e softmodem | grep -v grep', '\$', 5)
-		result = re.search('-softmodem', mySSH.getBefore())
+	def TerminateeNB(self, ctx, node, HTML):
+		logging.debug('Stopping eNB/gNB on server: ' + node)
+		lSourcePath = self.eNBSourceCodePath
+		cmd = cls_cmd.getConnection(node)
+		ret = cmd.run('ps -aux | grep --color=never -e softmodem | grep -v grep')
+		result = re.search('-softmodem', ret.stdout)
 		if result is not None:
-			mySSH.command('echo ' + lPassWord + ' | sudo -S killall --signal SIGINT -r .*-softmodem || true', '\$', 5)
-			time.sleep(10)
-			mySSH.command('stdbuf -o0  ps -aux | grep --color=never -e softmodem | grep -v grep', '\$', 5)
-			result = re.search('-softmodem', mySSH.getBefore())
-			if result is not None:
-				mySSH.command('echo ' + lPassWord + ' | sudo -S killall --signal SIGKILL -r .*-softmodem || true', '\$', 5)
-				time.sleep(5)
-		mySSH.command('rm -f my-lte-softmodem-run' + str(self.eNB_instance) + '.sh', '\$', 5)
-		#stopping tshark (valid if eNB and enabled in xml, will not harm otherwise)
-		logging.debug('\u001B[1m Stopping tshark on xNB \u001B[0m')
-		mySSH.command('echo ' + lPassWord + ' | sudo -S killall --signal SIGKILL tshark', '\$', 5)
-		time.sleep(1)
-		mySSH.close()
-		if EPC.IPAddress != "none" and EPC.IPAddress != '':
-			localEpcIpAddr = EPC.IPAddress
-			localEpcUserName = EPC.UserName
-			localEpcPassword = EPC.Password
-			logging.debug('\u001B[1m Stopping tshark on EPC (' + localEpcIpAddr + ') \u001B[0m')
-			mySSH.open(localEpcIpAddr, localEpcUserName, localEpcPassword)
-			mySSH.command('echo ' + localEpcPassword + ' | sudo -S killall --signal SIGKILL tshark', '\$', 5)
-			time.sleep(1)
-			if self.epcPcapFile != '':
-				mySSH.command('echo ' + localEpcPassword + ' | sudo -S chmod 666 /tmp/' + self.epcPcapFile, '\$', 5)
-				mySSH.copyin(localEpcIpAddr, localEpcUserName, localEpcPassword, '/tmp/' + self.epcPcapFile, '.')
-				mySSH.copyout(lIpAddr, lUserName, lPassWord, self.epcPcapFile, lSourcePath + '/cmake_targets/.')
-			mySSH.command('killall --signal SIGKILL record', '\$', 5)
-			mySSH.close()
-		# if T tracer was run with option 0 (no logs), analyze logs
-		# from textlog, otherwise do normal analysis (e.g., option 2)
-		result = re.search('T_stdout 0', str(self.Initialize_eNB_args))
-		if (result is not None):
-			logging.debug('\u001B[1m Replaying RAW record file\u001B[0m')
-			mySSH.open(lIpAddr, lUserName, lPassWord)
-			mySSH.command('cd ' + lSourcePath + '/common/utils/T/tracer/', '\$', 5)
-			enbLogFile = self.eNBLogFiles[int(self.eNB_instance)]
-			raw_record_file = enbLogFile.replace('.log', '_record.raw')
-			replay_log_file = enbLogFile.replace('.log', '_replay.log')
-			extracted_txt_file = enbLogFile.replace('.log', '_extracted_messages.txt')
-			extracted_log_file = enbLogFile.replace('.log', '_extracted_messages.log')
-			mySSH.command('./extract_config -i ' + lSourcePath + '/cmake_targets/' + raw_record_file + ' > ' + lSourcePath + '/cmake_targets/' + extracted_txt_file, '\$', 5)
-			mySSH.command('echo $USER; nohup ./replay -i ' + lSourcePath + '/cmake_targets/' + raw_record_file + ' > ' + lSourcePath + '/cmake_targets/' + replay_log_file + ' 2>&1 &', lUserName, 5)
-			mySSH.command('./textlog -d ' +  lSourcePath + '/cmake_targets/' + extracted_txt_file + ' -no-gui -ON -full > ' + lSourcePath + '/cmake_targets/' + extracted_log_file, '\$', 5)
-			mySSH.close()
-			mySSH.copyin(lIpAddr, lUserName, lPassWord, lSourcePath + '/cmake_targets/' + extracted_log_file, '.')
-			logging.debug('\u001B[1m Analyzing eNB replay logfile \u001B[0m')
-			logStatus = self.AnalyzeLogFile_eNB(extracted_log_file, HTML, self.ran_checkers)
+			cmd.run('sudo -S killall --signal SIGINT -r .*-softmodem')
+			time.sleep(6)
+
+		ret = cmd.run('ps -aux | grep --color=never -e softmodem | grep -v grep')
+		result = re.search('-softmodem', ret.stdout)
+		if result is not None:
+			cmd.run('sudo -S killall --signal SIGKILL -r .*-softmodem')
+			time.sleep(5)
+
+		# see InitializeeNB()
+		logfile = f'{lSourcePath}/cmake_targets/enb.log'
+		logdir = os.path.dirname(logfile)
+
+		file = archiveArtifact(cmd, ctx, logfile)
+		archiveArtifact(cmd, ctx, f"{logdir}/nrL1_stats.log")
+		archiveArtifact(cmd, ctx, f"{logdir}/nrMAC_stats.log")
+		cmd.close()
+		if file is None:
+			logging.debug('\u001B[1;37;41m Could not copy xNB logfile to analyze it! \u001B[0m')
+			msg = 'Could not copy xNB logfile to analyze it!'
+			HTML.CreateHtmlTestRowQueue('N/A', 'KO', [msg])
+			return False
+
+		logging.debug('\u001B[1m Analyzing xNB logfile \u001B[0m ' + file)
+		logStatus = self.AnalyzeLogFile_eNB(file, HTML, self.ran_checkers)
+		if logStatus < 0:
+			HTML.CreateHtmlTestRow('N/A', 'KO', logStatus)
+		else:
 			HTML.CreateHtmlTestRow(self.runtime_stats, 'OK', CONST.ALL_PROCESSES_OK)
-			self.eNBLogFiles[int(self.eNB_instance)] = ''
-			return True
-		else:
-			analyzeFile = False
-			if self.eNBLogFiles[int(self.eNB_instance)] != '':
-				analyzeFile = True
-				fileToAnalyze = self.eNBLogFiles[int(self.eNB_instance)]
-				self.eNBLogFiles[int(self.eNB_instance)] = ''
-			if analyzeFile:
-				#*stats.log files + pickle + png
-				mySSH.copyin(lIpAddr, lUserName, lPassWord, lSourcePath + '/cmake_targets/*stats.log', '.')
-				mySSH.copyin(lIpAddr, lUserName, lPassWord, lSourcePath + '/cmake_targets/*.pickle', '.')
-				mySSH.copyin(lIpAddr, lUserName, lPassWord, lSourcePath + '/cmake_targets/*.png', '.')
-				#
-				copyin_res = mySSH.copyin(lIpAddr, lUserName, lPassWord, lSourcePath + '/cmake_targets/' + fileToAnalyze, '.')
-				if (copyin_res == -1):
-					logging.debug('\u001B[1;37;41m Could not copy ' + nodeB_prefix + 'NB logfile to analyze it! \u001B[0m')
-					HTML.htmleNBFailureMsg='Could not copy ' + nodeB_prefix + 'NB logfile to analyze it!'
-					HTML.CreateHtmlTestRow('N/A', 'KO', CONST.ENB_PROCESS_NOLOGFILE_TO_ANALYZE)
-					self.eNBmbmsEnables[int(self.eNB_instance)] = False
-					return False
-				if self.eNB_serverId[self.eNB_instance] != '0':
-					#*stats.log files + pickle + png
 
-					#debug / tentative
-					mySSH.copyout(self.eNBIPAddress, self.eNBUserName, self.eNBPassword, './nrL1_stats.log', self.eNBSourceCodePath + '/cmake_targets/')
-					mySSH.copyout(self.eNBIPAddress, self.eNBUserName, self.eNBPassword, './nrMAC_stats.log', self.eNBSourceCodePath + '/cmake_targets/')
-					mySSH.copyout(self.eNBIPAddress, self.eNBUserName, self.eNBPassword, './gnb_stats_monitor.pickle', self.eNBSourceCodePath + '/cmake_targets/')
-					mySSH.copyout(self.eNBIPAddress, self.eNBUserName, self.eNBPassword, './gnb_stats_monitor.png', self.eNBSourceCodePath + '/cmake_targets/')
-					#
-					mySSH.copyout(self.eNBIPAddress, self.eNBUserName, self.eNBPassword, './' + fileToAnalyze, self.eNBSourceCodePath + '/cmake_targets/')
-				logging.debug('\u001B[1m Analyzing ' + nodeB_prefix + 'NB logfile \u001B[0m ' + fileToAnalyze)
-				logStatus = self.AnalyzeLogFile_eNB(fileToAnalyze, HTML, self.ran_checkers)
-				if (logStatus < 0):
-					HTML.CreateHtmlTestRow('N/A', 'KO', logStatus)
-					#display rt stats for gNB only
-					if len(self.datalog_rt_stats)!=0 and nodeB_prefix == 'g':
-						HTML.CreateHtmlDataLogTable(self.datalog_rt_stats)
-					self.eNBmbmsEnables[int(self.eNB_instance)] = False
-					return False
-				else:
-					HTML.CreateHtmlTestRow(self.runtime_stats, 'OK', CONST.ALL_PROCESSES_OK)
-			else:
-				HTML.CreateHtmlTestRow(self.runtime_stats, 'OK', CONST.ALL_PROCESSES_OK)
 		#display rt stats for gNB only
-		if len(self.datalog_rt_stats)!=0 and nodeB_prefix == 'g':
+		if len(self.datalog_rt_stats) != 0:
 			HTML.CreateHtmlDataLogTable(self.datalog_rt_stats)
-		self.eNBmbmsEnables[int(self.eNB_instance)] = False
-		self.eNBstatuses[int(self.eNB_instance)] = -1
-		return True
 
-	def LogCollecteNB(self):
-		mySSH = SSH.SSHConnection()
-		# Copying back to xNB server any log from all the runs.
-		# Should also contains ping and iperf logs
-		absPath = os.path.abspath('.')
-		if absPath.count('ci-scripts') == 0:
-			os.chdir('./ci-scripts')
-
-		for x in os.listdir():
-			if x.endswith('.log') or x.endswith('.log.png'):
-				mySSH.copyout(self.eNBIPAddress, self.eNBUserName, self.eNBPassword, x, self.eNBSourceCodePath + '/cmake_targets/', silent=True, ignorePermDenied=True)
-		# Back to normal
-		mySSH.open(self.eNBIPAddress, self.eNBUserName, self.eNBPassword)
-		mySSH.command('cd ' + self.eNBSourceCodePath, '\$', 5)
-		mySSH.command('cd cmake_targets', '\$', 5)
-		mySSH.command('echo ' + self.eNBPassword + ' | sudo -S mv /tmp/enb_*.pcap .','\$',20)
-		mySSH.command('echo ' + self.eNBPassword + ' | sudo -S mv /tmp/gnb_*.pcap .','\$',20)
-		mySSH.command('echo ' + self.eNBPassword + ' | sudo -S rm -f enb.log.zip', '\$', 5)
-		mySSH.command('echo ' + self.eNBPassword + ' | sudo -S zip enb.log.zip *.log enb_*record.raw enb_*.pcap gnb_*.pcap enb_*txt physim_*.log *stats.log *monitor.pickle *monitor*.png ping*.log* iperf*.log log/*/*.log log/*/*.pcap', '\$', 60)
-		result = re.search('core.\d+', mySSH.getBefore())
-		if result is not None:
-			mySSH.command('echo ' + self.eNBPassword + ' | sudo -S zip enb.log.zip core* ran_build/build/{lte,nr}-softmodem', '\$', 60) # add core and executable to zip
-		mySSH.command('echo ' + self.eNBPassword + ' | sudo -S rm enb*.log core* enb_*record.raw enb_*.pcap gnb_*.pcap enb_*txt physim_*.log *stats.log *monitor.pickle *monitor*.png ping*.log* iperf*.log log/*/*.log log/*/*.pcap', '\$', 15)
-		mySSH.close()
+		return logStatus >= 0
 
 	def _analyzeUeRetx(self, rounds, checkers, regex):
 		if len(rounds) == 0 or len(checkers) == 0:
@@ -647,16 +321,16 @@ class RANManagement():
 					X2HO_state = CONST.X2_HO_REQ_STATE__IDLE
 					X2HO_outNbProcedures += 1
 
-			if self.eNBOptions[int(self.eNB_instance)] != '':
-				res1 = re.search('max_rxgain (?P<requested_option>[0-9]+)', self.eNBOptions[int(self.eNB_instance)])
+			if self.eNBOptions[0] != '':
+				res1 = re.search('max_rxgain (?P<requested_option>[0-9]+)', self.eNBOptions[0])
 				res2 = re.search('max_rxgain (?P<applied_option>[0-9]+)',  str(line))
 				if res1 is not None and res2 is not None:
 					requested_option = int(res1.group('requested_option'))
 					applied_option = int(res2.group('applied_option'))
 					if requested_option == applied_option:
-						htmleNBFailureMsg += '<span class="glyphicon glyphicon-ok-circle"></span> Command line option(s) correctly applied <span class="glyphicon glyphicon-arrow-right"></span> ' + self.eNBOptions[int(self.eNB_instance)] + '\n\n'
+						htmleNBFailureMsg += '<span class="glyphicon glyphicon-ok-circle"></span> Command line option(s) correctly applied <span class="glyphicon glyphicon-arrow-right"></span> ' + self.eNBOptions[0] + '\n\n'
 					else:
-						htmleNBFailureMsg += '<span class="glyphicon glyphicon-ban-circle"></span> Command line option(s) NOT applied <span class="glyphicon glyphicon-arrow-right"></span> ' + self.eNBOptions[int(self.eNB_instance)] + '\n\n'
+						htmleNBFailureMsg += '<span class="glyphicon glyphicon-ban-circle"></span> Command line option(s) NOT applied <span class="glyphicon glyphicon-arrow-right"></span> ' + self.eNBOptions[0] + '\n\n'
 			result = re.search('Exiting OAI softmodem|Caught SIGTERM, shutting down', str(line))
 			if result is not None:
 				exitSignalReceived = True
@@ -743,7 +417,7 @@ class RANManagement():
 			result = re.search('dropping, not enough RBs', str(line))
 			if result is not None:
 				dropNotEnoughRBs += 1
-			if self.eNBmbmsEnables[int(self.eNB_instance)]:
+			if self.eNBmbmsEnables[0]:
 				result = re.search('MBMS USER-PLANE.*Requesting.*bytes from RLC', str(line))
 				if result is not None:
 					mbmsRequestMsg += 1
@@ -816,11 +490,16 @@ class RANManagement():
 			datalog_rt_stats = yaml.load(f,Loader=yaml.FullLoader)
 		rt_keys = datalog_rt_stats['Ref'] #we use the keys from the Ref field  
 
-		if os.path.isfile('./nrL1_stats.log') and os.path.isfile('./nrMAC_stats.log'):
+		# nrL1_stats.log/nrMAC_stats.log should be in the same directory as main log file
+		# currently the link is only implicit as below based on pattern matching
+		# I will rework this to give the file explicitly
+		l1_stats_fn = re.sub(r'-enb.log$', '-nrL1_stats.log', eNBlogFile)
+		mac_stats_fn = re.sub(r'-enb.log$', '-nrMAC_stats.log', eNBlogFile)
+		if os.path.isfile(l1_stats_fn) and os.path.isfile(mac_stats_fn):
 			# don't use CI-nrL1_stats.log, as this will increase the processing time for
 			# no reason, we just need the last occurence
-			nrL1_stats = open('./nrL1_stats.log', 'r')
-			nrMAC_stats = open('./nrMAC_stats.log', 'r')
+			nrL1_stats = open(l1_stats_fn, 'r')
+			nrMAC_stats = open(mac_stats_fn, 'r')
 			for line in nrL1_stats.readlines():
 				for k in rt_keys:
 					result = re.search(k, line)     
@@ -840,14 +519,14 @@ class RANManagement():
 			nrL1_stats.close()
 			nrMAC_stats.close()
 		else:
-			logging.debug("NR Stats files for RT analysis not found")
+			logging.debug(f"NR Stats files for RT analysis not found: {l1_stats_fn}, {mac_stats_fn}")
 
 		#stdout log file and stat log files analysis completed
 		logging.debug('   File analysis (stdout, stats) completed')
 
 		#post processing depending on the node type
 		if not nodeB_prefix_found:
-			if self.air_interface[self.eNB_instance] == 'lte-softmodem':
+			if self.air_interface == 'lte-softmodem':
 				nodeB_prefix = 'e'
 			else:
 				nodeB_prefix = 'g'
@@ -1051,7 +730,7 @@ class RANManagement():
 			rrcMsg = ' -- ' + str(rrcReestablishReject) + ' were rejected'
 			logging.debug('\u001B[1;30;43m ' + rrcMsg + ' \u001B[0m')
 			htmleNBFailureMsg += rrcMsg + '\n'
-		if self.eNBmbmsEnables[int(self.eNB_instance)]:
+		if self.eNBmbmsEnables[0]:
 			if mbmsRequestMsg > 0:
 				rrcMsg = 'eNB requested ' + str(mbmsRequestMsg) + ' times the RLC for MBMS USER-PLANE'
 				logging.debug('\u001B[1;30;43m ' + rrcMsg + ' \u001B[0m')
@@ -1064,8 +743,8 @@ class RANManagement():
 			rrcMsg = 'eNB completed ' + str(X2HO_outNbProcedures) + ' X2 Handover Release procedure(s)'
 			logging.debug('\u001B[1;30;43m ' + rrcMsg + ' \u001B[0m')
 			htmleNBFailureMsg += rrcMsg + '\n'
-		if self.eNBOptions[int(self.eNB_instance)] != '':
-			res1 = re.search('drx_Config_present prSetup', self.eNBOptions[int(self.eNB_instance)])
+		if self.eNBOptions[0] != '':
+			res1 = re.search('drx_Config_present prSetup', self.eNBOptions[0])
 			if res1 is not None:
 				if cdrxActivationMessageCount > 0:
 					rrcMsg = 'eNB activated the CDRX Configuration for ' + str(cdrxActivationMessageCount) + ' time(s)'

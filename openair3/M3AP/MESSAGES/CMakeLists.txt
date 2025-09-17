@@ -16,10 +16,11 @@ else()
   message(FATAL_ERROR "unknown M3AP_RELEASE ${M3AP_RELEASE}")
 endif()
 
-add_custom_command(OUTPUT ${m3ap_source} ${m3ap_headers}
-  COMMAND ASN1C_PREFIX=M3AP_ ${ASN1C_EXEC} -gen-APER -no-gen-BER -no-gen-JER -no-gen-OER -gen-UPER -fcompound-names -no-gen-example -fno-include-deps -D ${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/${M3AP_GRAMMAR}
-  DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/${M3AP_GRAMMAR}
-  COMMENT "Generating M3AP source files from ${CMAKE_CURRENT_SOURCE_DIR}/${M3AP_GRAMMAR}"
+run_asn1c(${CMAKE_CURRENT_SOURCE_DIR}/${M3AP_GRAMMAR}
+          "M3AP_"
+          OUTPUT ${m3ap_source} ${m3ap_headers}
+          OPTIONS -gen-APER -no-gen-BER -no-gen-JER -no-gen-OER -gen-UPER -fcompound-names -no-gen-example -fno-include-deps
+          COMMENT "M3AP source files"
 )
 
 add_library(asn1_m3ap ${m3ap_source})

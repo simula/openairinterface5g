@@ -21,6 +21,7 @@
 
 #include "ran_func_rc_subs.h"
 #include "common/utils/assertions.h"
+#include "common/utils/alg/find.h"
 
 #include <assert.h>
 #include <pthread.h>
@@ -29,86 +30,56 @@
 
 static pthread_mutex_t rc_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-int cmp_ric_req_id(struct ric_req_id_s *c1, struct ric_req_id_s *c2)
+static bool eq_int(const void* value, const void* it)
 {
-  if (c1->ric_req_id < c2->ric_req_id)
-    return -1;
-
-  if (c1->ric_req_id > c2->ric_req_id)
-    return 1;
-
-  return 0;
+  const uint32_t ric_req_id = *(uint32_t *)value;
+  const ran_param_data_t *dit = (const ran_param_data_t *)it;
+  return ric_req_id == dit->ric_req_id;
 }
 
-RB_GENERATE(ric_id_2_param_id_trees, ric_req_id_s, entries, cmp_ric_req_id);
-
-void init_rc_subs_data(rc_subs_data_t* rc_subs_data)
+void init_rc_subs_data(rc_subs_data_t *rc_subs_data)
 {
   pthread_mutex_lock(&rc_mutex);
- 
-  // Initialize hash table
-  DevAssert(rc_subs_data->htable == NULL);
- 
-  // Initialize RB trees
-  // 1 RB tree = 1 ran_param_id => many ric_req_id(s)
-  for (size_t i = 0; i < END_E2SM_RC_RAN_PARAM_ID; i++) {
-    RB_INIT(&rc_subs_data->rb[i]);
-  }
-
-   rc_subs_data->htable = hashtable_create(MAX_NUM_RIC_REQ_ID, NULL, free);
-  assert(rc_subs_data->htable != NULL && "Memory exhausted");
+  // Initialize sequence array
+  seq_arr_init(&rc_subs_data->rs1_param3, sizeof(ran_param_data_t));
+  seq_arr_init(&rc_subs_data->rs1_param4, sizeof(ran_param_data_t));
+  seq_arr_init(&rc_subs_data->rs4_param202, sizeof(ran_param_data_t));
   pthread_mutex_unlock(&rc_mutex);
 }
 
-void insert_rc_subs_data(rc_subs_data_t* rc_subs_data, uint32_t ric_req_id, arr_ran_param_id_t* arr_ran_param_id)
+void insert_rc_subs_data(seq_arr_t *seq_arr, ran_param_data_t *data)
 {
   pthread_mutex_lock(&rc_mutex);
-
-  // Insert in hash table
-  DevAssert(rc_subs_data->htable != NULL);
-  uint64_t key = ric_req_id;
-  // Check if the subscription already exists
-  AssertFatal(hashtable_is_key_exists(rc_subs_data->htable, key) == HASH_TABLE_KEY_NOT_EXISTS, "RIC req ID %d already subscribed", ric_req_id);
-  arr_ran_param_id_t* data = malloc(sizeof(*data));
-  assert(data != NULL);
-  *data = *arr_ran_param_id;
-  hashtable_rc_t ret = hashtable_insert(rc_subs_data->htable, key, data);
-  assert(ret == HASH_TABLE_OK  && "Hash table not ok");
-
-  // Insert in RB trees
-  // 1 RB tree = 1 ran_param_id => many ric_req_id(s)
-  const size_t sz = arr_ran_param_id->len;
-  rb_ric_req_id_t *node = calloc(1, sizeof(*node));
-  assert(node != NULL);
-  node->ric_req_id = ric_req_id;
-  for (size_t i = 0; i < sz; i++) {
-    RB_INSERT(ric_id_2_param_id_trees, &rc_subs_data->rb[arr_ran_param_id->ran_param_id[i]], node);
-  }
-
+  // Insert (RIC request ID + Event Trigger Definition) in specific RAN Parameter ID sequence
+  seq_arr_push_back(seq_arr, data, sizeof(*data));
   pthread_mutex_unlock(&rc_mutex);
 }
 
-void remove_rc_subs_data(rc_subs_data_t* rc_subs_data, uint32_t ric_req_id)
+void remove_rc_subs_data(rc_subs_data_t *rc_subs_data, uint32_t ric_req_id)
 {
   pthread_mutex_lock(&rc_mutex);
-  DevAssert(rc_subs_data->htable != NULL);
-
-  uint64_t key = ric_req_id;
-  // Get the array of ran_param_id(s)
-  void *data = NULL;
-  hashtable_rc_t ret = hashtable_get(rc_subs_data->htable, key, &data);
-  AssertFatal(ret == HASH_TABLE_OK && data != NULL, "element for ue_id %d not found\n", ric_req_id);
-  arr_ran_param_id_t arr_ran_param_id = *(arr_ran_param_id_t *)data;
-  // Remove ric_req_id with its ran_param_id(s) from hash table
-  ret = hashtable_remove(rc_subs_data->htable, key);
-  
-  // Remove ric_req_id from each ran_param_id tree where subscribed
-  rb_ric_req_id_t *node = calloc(1, sizeof(*node));
-  assert(node != NULL);
-  node->ric_req_id = ric_req_id;
-  for (size_t i = 0; i < arr_ran_param_id.len; i++) {
-    RB_REMOVE(ric_id_2_param_id_trees, &rc_subs_data->rb[arr_ran_param_id.ran_param_id[i]], node);
+  /* find the sequence element that matches RIC request ID */
+  elm_arr_t elm_rs1_param3 = find_if(&rc_subs_data->rs1_param3, (void *)&ric_req_id, eq_int);
+  ran_param_data_t *data_rs1_param3 = elm_rs1_param3.it;
+  if (data_rs1_param3 != NULL) {
+    free_e2sm_rc_event_trigger(&data_rs1_param3->ev_tr);
+    seq_arr_erase(&rc_subs_data->rs1_param3, elm_rs1_param3.it);
   }
 
+  /* find the sequence element that matches RIC request ID */
+  elm_arr_t elm_rs1_param4 = find_if(&rc_subs_data->rs1_param4, (void *)&ric_req_id, eq_int);
+  ran_param_data_t *data_rs1_param4 = elm_rs1_param4.it;
+  if (data_rs1_param4 != NULL) {
+    free_e2sm_rc_event_trigger(&data_rs1_param4->ev_tr);
+    seq_arr_erase(&rc_subs_data->rs1_param4, elm_rs1_param4.it);
+  }
+
+  /* find the sequence element that matches RIC request ID */
+  elm_arr_t elm_rs4_param202 = find_if(&rc_subs_data->rs4_param202, (void *)&ric_req_id, eq_int);
+  ran_param_data_t *data_rs4_param202 = elm_rs4_param202.it;
+  if (data_rs4_param202 != NULL) {
+    free_e2sm_rc_event_trigger(&data_rs4_param202->ev_tr);
+    seq_arr_erase(&rc_subs_data->rs4_param202, elm_rs4_param202.it);
+  }
   pthread_mutex_unlock(&rc_mutex);
 }

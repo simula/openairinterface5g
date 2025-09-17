@@ -1,0 +1,368 @@
+module o-ran-compression-factors {
+  yang-version 1.1;
+  namespace "urn:o-ran:compression-factors:1.0";
+  prefix "o-ran-compression-factors";
+
+
+  organization "O-RAN Alliance";
+
+  contact
+    "www.o-ran.org";
+
+  description
+    "This module defines the module capabilities for
+    the O-RAN Radio Unit U-Plane configuration.
+
+    Copyright 2020 the O-RAN Alliance.
+
+    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS 'AS IS'
+    AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+    IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+    ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+    LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+    CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+    SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+    INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+    CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+    ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+    POSSIBILITY OF SUCH DAMAGE.
+
+    Redistribution and use in source and binary forms, with or without
+    modification, are permitted provided that the following conditions are met:
+
+    * Redistributions of source code must retain the above copyright notice,
+    this list of conditions and the above disclaimer.
+    * Redistributions in binary form must reproduce the above copyright notice,
+    this list of conditions and the above disclaimer in the documentation
+    and/or other materials provided with the distribution.
+    * Neither the Members of the O-RAN Alliance nor the names of its
+    contributors may be used to endorse or promote products derived from
+    this software without specific prior written permission.";
+
+  revision "2020-08-10" {
+   description
+     "version 4.0.0
+
+     1) supporting compression types per endpoint
+     2) adding feature for configurable fs-offset for compression";
+
+   reference "ORAN-WG4.M.0-v04.00";
+  }
+
+   revision "2020-04-17" {
+    description
+      "version 3.0.0
+
+      1) adding selective RE sending compression types";
+
+    reference "ORAN-WG4.M.0-v03.00";
+  }
+
+  revision "2019-07-03" {
+    description
+      "version 1.1.0
+
+      1) changes related to compression bitwidth presentation";
+
+    reference "ORAN-WG4.M.0-v01.00";
+  }
+
+  revision "2019-02-04" {
+    description
+      "version 1.0.0
+
+      1) imported model from xRAN
+      2) changed namespace and reference from xran to o-ran";
+
+    reference "ORAN-WG4.M.0-v01.00";
+  }
+
+  feature CONFIGURABLE-FS-OFFSET {
+    description
+      "Presence of this feature means that O-RU supports configurable fs-offset for compression.";
+  }
+
+  grouping compression-method-grouping {
+    description
+      "Grouping for compression method.";
+
+    leaf iq-bitwidth {
+      type uint8;
+      description
+        "Bitwidth to be used in compression";
+    }
+
+    leaf compression-method {
+      type enumeration {
+        enum NO_COMPRESSION {
+          description
+            "No compression will be used";
+        }
+        enum BLOCK_FLOATING_POINT {
+          description
+            "Block floating point compression and decompression will be used";
+        }
+
+        enum BLOCK_SCALING {
+          description
+            "Block scaling compression and decompresion will be used";
+        }
+
+        enum U_LAW {
+          description
+            "u-Law compression and decompresion method will be used";
+        }
+
+        enum BEAMSPACE {
+          description
+            "Beamspace compression and decompression will be used";
+        }
+
+        enum MODULATION {
+          description
+            "Modulation compression and decompression will be used";
+        }
+        enum BLOCK-FLOATING-POINT-SELECTIVE-RE-SENDING {
+          description
+            "block floating point with selective re sending
+            compression and decompression will be used";
+        }
+        enum MODULATION-COMPRESSION-SELECTIVE-RE-SENDING {
+          description
+            "modulation compression with selective re sending
+            compression and decompression will be used";
+        }
+      }
+      description
+        "Compresion method which can be supported by the O-RU";
+    }
+  }
+
+  grouping compression-formats {
+    description
+      "Grouping deicated to list compression formats as choice";
+
+    choice compression-format {
+      description
+        "Choice of compression format for particular element";
+
+      case no-compresison {
+        description "Compression for beam weights is not supported.";
+      }
+      case block-floating-point {
+        description "Block floating point compression and decompression is supported.";
+
+        leaf exponent {
+          type uint8 {
+            range "4";
+          }
+          description "Exponent bit width size in number of bits used when encoding in udCompParam.";
+        }
+      }
+
+      case block-floating-point-selective-re-sending {
+        description
+          "Block floating point with selective re sending compression and decompression is supported.";
+
+        leaf sres-exponent {
+          type uint8 {
+            range "4";
+          }
+          description "Exponent bit width size in number of bits used when encoding in udCompParam.";
+        }
+      }
+
+      case block-scaling {
+        description "Block scaling compression and decompresion is supported.";
+        leaf block-scalar {
+          type uint8;
+            description
+              "Common scaler for compressed PRB";
+        }
+      }
+
+      case u-law {
+        description "u-Law compression and decompresion method is supported.";
+        leaf comp-bit-width {
+          type uint8 {
+            range "0..15";
+          }
+          description "Bit with for u-law compression";
+        }
+        leaf comp-shift {
+          type uint8 {
+            range "0..15";
+          }
+          description
+            "the shift applied to the entire PRB";
+        }
+      }
+
+      case beam-space-compression {
+        description "Beamspace compression and decompression is supported. Applies to beamforming weights only.";
+        leaf-list active-beam-space-coeficient-mask {
+          type uint8;
+          description
+            "active beamspace coefficient indices associated with the compressed beamforming vector";
+        }
+        leaf block-scaler {
+          type uint8;
+          description
+            "Common scaler for compressed beamforming coefficients";
+        }
+      }
+
+      case modulation-compression {
+        description "Modulation compression and decompression is supported.";
+        leaf csf {
+          type uint8 {
+            range "0..1";
+          }
+          description "Constallation shift flag";
+        }
+
+        leaf mod-comp-scaler {
+          type uint16 {
+            range "0..32767";
+          }
+          description "Modulation compression scaler value.";
+        }
+      }
+
+      case modulation-compression-selective-re-sending {
+        description "Modulation compression with selective re sending and decompression is supported.";
+        leaf sres-csf {
+          type uint8 {
+            range "0..1";
+          }
+          description "Constallation shift flag";
+        }
+
+        leaf sres-mod-comp-scaler {
+          type uint16 {
+            range "0..32767";
+          }
+          description "Modulation compression scaler value.";
+        }
+      }
+
+    }
+  }
+
+  grouping compression-params {
+    description
+      "Parameters to define compression";
+
+    leaf compression-type {
+      type enumeration {
+        enum STATIC {
+          description
+            "Indicates that static compression method will be used (both compression and IQ bitwidth)";
+        }
+        enum DYNAMIC {
+          description
+            "Indicates that dynamic compression method will be used";
+        }
+      }
+      mandatory true;
+      description
+        "Compression type that O-DU wants to be supported";
+    }
+
+// *********** TO BE REMOVED ***********
+    leaf bitwidth {
+      when "../compression-type = 'STATIC'";
+      type uint8;
+      status deprecated;
+      description
+        "Bitwidth to be used in compression.
+        This has since been replaced in M-Plane version
+        2.0.0 with the iq-bitwidth schema node";
+    }
+// *************************************
+
+    uses compression-formats;
+  }
+
+  grouping compression-parameters {
+    description
+      "Parameters used to define description type";
+
+    leaf iq-bitwidth {
+      type uint8;
+      description
+        "Bitwidth to be used in compression";
+    }
+
+    uses compression-formats;
+  }
+
+  grouping format-of-iq-sample {
+    description
+      "Indicates module capabilities about IQ samples";
+
+    leaf dynamic-compression-supported {
+      type boolean;
+
+      description
+        "Informs if radio supports dynamic compression method";
+    }
+
+    leaf realtime-variable-bit-width-supported {
+      type boolean;
+
+      description
+        "Informs if O-RU supports realtime variable bit with";
+    }
+
+    list compression-method-supported {
+      uses compression-parameters;
+
+      description
+        "List of supported compression methods by O-RU
+         Note: if O-RU supports different compression methods per endpoint
+               then please refer do endpoints to have information what
+               exactly is supported on a paticular endpoint";
+    }
+
+    leaf syminc-supported {
+      type boolean;
+
+      description
+        "Informs if symbol number increment command in a C-Plane is
+         supported or not";
+    }
+
+    leaf regularization-factor-se-supported {
+      type boolean;
+
+      description
+        "Informs if regularizationFactor in section type 5 is
+         supported(true) or not(false)";
+    }
+
+    leaf little-endian-supported {
+      type boolean;
+      default false;
+
+      description
+        "All O-RUs support bigendian byte order. This node informs if module supports the
+        the optional capability for little endian byte order for C/U plane data flows.
+
+        Note - little endian support does not invalidate bigendian support.";
+    }
+  }
+
+
+  grouping compression-details {
+    description "";
+
+    leaf iq-bitwidth {
+      type uint8;
+      description
+        "Bitwidth to be used in compression";
+    }
+
+    uses compression-params;
+  }
+}

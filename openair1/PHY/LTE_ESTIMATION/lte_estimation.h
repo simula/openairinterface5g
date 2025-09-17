@@ -53,9 +53,7 @@ The algorithm uses a time domain correlation with a downsampled version of the r
 \param eNB_id return value with the eNb_id
 \return sync_pos Position of the sync within the frame (downsampled) if successfull and -1 if there was an error or no peak was detected.
  */
-int lte_sync_time(int **rxdata,
-                  LTE_DL_FRAME_PARMS *frame_parms,
-                  int *eNB_id);
+int lte_sync_time(c16_t **rxdata, LTE_DL_FRAME_PARMS *frame_parms, int *eNB_id);
 
 /*!
 \brief This function performs the coarse frequency and PSS synchronization.
@@ -194,19 +192,19 @@ void phy_adjust_gain (PHY_VARS_UE *phy_vars_ue,
                       unsigned char eNB_id);
 
 int32_t lte_ul_channel_estimation(LTE_DL_FRAME_PARMS *frame_parms,
-                              L1_rxtx_proc_t *proc,
-				  LTE_eNB_ULSCH_t * ulsch,
-				  int32_t **ul_ch_estimates,
-				  int32_t **ul_ch_estimates_time,
-				  int32_t **rxdataF_ext,
-                              module_id_t UE_id,
-                              uint8_t l,
-                              uint8_t Ns);
+                                  L1_rxtx_proc_t *proc,
+                                  LTE_eNB_ULSCH_t *ulsch,
+                                  c16_t **ul_ch_estimates,
+                                  c16_t **ul_ch_estimates_time,
+                                  c16_t **rxdataF_ext,
+                                  module_id_t UE_id,
+                                  uint8_t l,
+                                  uint8_t Ns);
 
 int32_t lte_ul_channel_estimation_RRU(LTE_DL_FRAME_PARMS *frame_parms,
-                                      int32_t **ul_ch_estimates,
-                                      int32_t **ul_ch_estimates_time,
-                                      int32_t **rxdataF_ext,
+                                      c16_t **ul_ch_estimates,
+                                      c16_t **ul_ch_estimates_time,
+                                      c16_t **rxdataF_ext,
                                       int N_rb_alloc,
                                       int frame_rx,
                                       int subframe_rx,
@@ -217,9 +215,7 @@ int32_t lte_ul_channel_estimation_RRU(LTE_DL_FRAME_PARMS *frame_parms,
                                       int interpolate,
                                       uint16_t rnti);
 
-int16_t lte_ul_freq_offset_estimation(LTE_DL_FRAME_PARMS *frame_parms,
-                                      int32_t *ul_ch_estimates,
-                                      uint16_t nb_rb);
+int16_t lte_ul_freq_offset_estimation(LTE_DL_FRAME_PARMS *frame_parms, c16_t *ul_ch_estimates, uint16_t nb_rb);
 
 int lte_srs_channel_estimation(LTE_DL_FRAME_PARMS *frame_parms,
                                LTE_eNB_COMMON *eNB_common_vars,
@@ -235,8 +231,7 @@ int lte_est_timing_advance(LTE_DL_FRAME_PARMS *frame_parms,
                            unsigned char number_of_cards,
                            short coef);
 
-int lte_est_timing_advance_pusch(LTE_DL_FRAME_PARMS *frame_parms,
-                                 int32_t **ul_ch_estimates_time);
+int lte_est_timing_advance_pusch(LTE_DL_FRAME_PARMS *frame_parms, c16_t **ul_ch_estimates_time);
 
 void lte_eNB_I0_measurements(PHY_VARS_eNB *phy_vars_eNB,
                              int subframe,
@@ -252,11 +247,10 @@ void lte_eNB_srs_measurements(PHY_VARS_eNB *phy_vars_eNBy,
                               module_id_t UE_id,
                               unsigned char init_averaging);
 
-
 void freq_equalization(LTE_DL_FRAME_PARMS *frame_parms,
-                       int **rxdataF_comp,
-                       int **ul_ch_mag,
-                       int **ul_ch_mag_b,
+                       c16_t **rxdataF_comp,
+                       c16_t **ul_ch_mag,
+                       c16_t **ul_ch_mag_b,
                        unsigned char symbol,
                        unsigned short Msc_RS,
                        unsigned char Qm);

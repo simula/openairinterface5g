@@ -1,0 +1,1168 @@
+module o-ran-performance-management {
+  yang-version 1.1;
+  namespace "urn:o-ran:performance-management:1.0";
+  prefix "o-ran-pm";
+
+  import ietf-yang-types {
+    prefix "yang-types";
+    revision-date 2013-07-15;
+  }
+
+  // import idetifier for O-RU
+  import ietf-hardware {
+    prefix "hw";
+  }
+
+  // import ietf-interface
+  import ietf-interfaces {
+    prefix "if";
+  }
+
+  // import ietf-inet-type
+  import ietf-inet-types {
+    prefix "inet";
+  }
+
+  // import port-number
+  import o-ran-interfaces {
+    prefix "o-ran-int";
+  }
+
+  // import ru-mac-address, o-du-mac-address and vlan-id
+  import o-ran-processing-element {
+    prefix "o-ran-elements";
+  }
+
+  import o-ran-file-management {
+    prefix "o-ran-fm";
+  }
+
+  import iana-hardware {
+    prefix ianahw;
+  }
+
+  organization "O-RAN Alliance";
+
+  contact
+    "www.o-ran.org";
+
+  description
+    "This module defines the configuration for performance measurement for
+    transceiver and rx-window measurement objects.
+
+    NOTE, whereas this YANG model may define support of schema nodes associated
+    with O-RU measurements as optional, the CU-Plane specification may further
+    specify whether, according to a particular version of the CU plane
+    specification, which specific measurements are mandatory to support
+    from an O-RU perspective. In such a situation, the definition of mandatory
+    performance counters in sub-section 7.1 of the CU-plane specification shall
+    take precedence.
+
+    Copyright 2020 the O-RAN Alliance.
+
+    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS 'AS IS'
+    AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+    IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+    ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+    LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+    CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+    SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+    INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+    CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+    ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+    POSSIBILITY OF SUCH DAMAGE.
+
+    Redistribution and use in source and binary forms, with or without
+    modification, are permitted provided that the following conditions are met:
+
+    * Redistributions of source code must retain the above copyright notice,
+    this list of conditions and the above disclaimer.
+    * Redistributions in binary form must reproduce the above copyright notice,
+    this list of conditions and the above disclaimer in the documentation
+    and/or other materials provided with the distribution.
+    * Neither the Members of the O-RAN Alliance nor the names of its
+    contributors may be used to endorse or promote products derived from
+    this software without specific prior written permission.";
+
+  revision "2020-04-17" {
+    description
+      "version 3.0.0
+
+      1) updated top level model description concerning optionality of measurements
+      2) added new rx window counters
+      3) added new TX stats measurements
+      4) added new EPE measurements
+      5) fixed typo in enumeration - TX_POPWER
+      6) introduced config false data indicating which type of measurmeents are supported";
+
+    reference "ORAN-WG4.M.0-v03.00";
+  }
+
+  revision "2019-07-03" {
+    description
+      "version 2.0.0
+
+      1) added new measurement objects for QSFP
+      2) backward compatible changes to correct sFTP Server Authentication.
+      3) simplifying file management and authentication to reuse from o-ran-file-management module
+      4) minor fixes according to lack of descriptions and reference
+      5) added to descriptions to indicate applicability of leafs and Containers
+      to separate O-RAN use cases
+      6) backward compatible changes to introduce groupings.";
+
+    reference "ORAN-WG4.M.0-v02.00";
+  }
+
+  revision "2019-02-04" {
+    description
+      "version 1.0.0
+
+      1) imported model from xRAN
+      2) changed namespace and reference from xran to o-ran";
+
+    reference "ORAN-WG4.M.0-v01.00";
+  }
+
+
+  feature GRANULARITY-TRANSPORT-MEASUREMENT {
+    description
+      "This feature indicates that the O-RU supports an optional object-unit TRANSPORT in rx-window-measurement.";
+  }
+
+  feature GRANULARITY-EAXC-ID-MEASUREMENT {
+    description
+      "This feature indicates that the O-RU supports an optional object-unit EAXC_ID in rx-window-measurement.";
+  }
+
+  grouping start-and-end-time {
+    description
+      "Definition for start and end time for an event";
+
+    leaf start-time {
+      type yang-types:date-and-time;
+      description
+        "Start time for measurement of object stats";
+    }
+    leaf end-time {
+      type yang-types:date-and-time;
+      description
+        "End time for measurement of object stats";
+    }
+  }
+
+  grouping epe-measurement-result-grouping {
+    description
+      "energy, power and environmental measurement-result are listed for O-RU";
+
+    list epe-measurement-result {
+      key "object-unit-id";
+      config false;
+      leaf object-unit-id {
+        type leafref {
+          path "/hw:hardware/hw:component/hw:class";
+        }
+
+        description
+          "the hardware component type is used for the object-unit-id for the
+           EPE measurements. For example, the object-unit-id will be set to
+           or-hw:O-RAN-RADIO if the measurement applies to the complete O-RU
+           self-contained sub-system.
+
+           Other hardware-classes include: or-hw:O-RU-POWER-AMPLIFIER,
+           ianahw:power-supply, ianahw:fan, ianahw:cpu";
+      }
+      leaf min {
+        type decimal64 {
+          fraction-digits 4;
+        }
+
+        description
+          "minimum value for the measurment-object";
+      }
+      leaf max {
+        type decimal64 {
+          fraction-digits 4;
+        }
+        description
+          "maximum value for the measurment-object";
+      }
+      leaf average {
+        type decimal64 {
+          fraction-digits 4;
+        }
+        description
+          "average value of the measurement-object";
+      }
+    }
+  }
+
+  grouping transceiver-measurement-result-grouping {
+    description
+      "transceiver-measurement-result are listed per port-number";
+
+    list transceiver-measurement-result {
+      key "object-unit-id";
+      config false;
+      leaf object-unit-id {
+        type leafref {
+          path "/if:interfaces/if:interface/o-ran-int:port-reference/o-ran-int:port-number";
+        }
+
+        description
+          "port-number is used for the object-unit-id for the
+           transceiver-measurement-result, for which object-unit is
+           PORT_NUMBER only";
+      }
+      container min {
+        description
+          "minimum value with recorded time are included for the
+           measurement-object";
+
+        leaf value {
+          type decimal64 {
+            fraction-digits 4;
+          }
+
+          description
+            "minimum value for the measurment-object";
+        }
+        leaf time {
+          type yang-types:date-and-time;
+
+          description
+            "recorded time for the minimum value";
+        }
+      }
+      container max {
+        description
+        "maximum value with recorded time are included for the
+         measurement-object";
+
+        leaf value {
+          type decimal64 {
+            fraction-digits 4;
+          }
+
+          description
+            "maximum value for the measurment-object";
+        }
+        leaf time {
+          type yang-types:date-and-time;
+
+          description
+            "recorded time for the maximum value";
+        }
+      }
+      container first {
+        description
+          "first value with the recorded time are included for the
+           measurement-object";
+
+        leaf value {
+          type decimal64 {
+            fraction-digits 4;
+          }
+
+          description
+            "first value of the measurement-object";
+        }
+        leaf time {
+          type yang-types:date-and-time;
+
+          description
+            "recorded time for the first value";
+        }
+      }
+      container latest {
+        description
+          "latest value with the recorded time are included for the
+           measurement-object";
+
+        leaf value {
+          type decimal64 {
+            fraction-digits 4;
+          }
+
+          description
+            "latest value of the measurement-object";
+        }
+        leaf time {
+          type yang-types:date-and-time;
+
+          description
+            "recorded time for the latest value";
+        }
+      }
+      leaf-list frequeny-table {
+        type uint32;
+
+        description
+          "frequency-table for the measurment-object are included per bin.
+           The configuration parameters for this frequency-table are defined
+           by bin-count, lower-bound and upper-bound";
+      }
+
+      description
+        "List of transceiver measurement results";
+    }
+  }
+
+  grouping rx-window-measurement-result-grouping{
+    description
+      "Group of measurement reasults for rx window measurements";
+
+    choice object-unit-id {
+      config false;
+      case RU {
+        leaf name{
+          type leafref {
+            path "/hw:hardware/hw:component/hw:name";
+          }
+
+          description
+            "the name of O-RU module or one of its child ports
+            in ietf-hardware/component is used when O-RU is selected as
+            object-unit for the reception window stats.";
+        }
+        leaf count {
+          type uint64;
+          mandatory true;
+
+          description
+            "the number of data packet are counted for the reception
+             window stats per O-RU.";
+        }
+      }
+
+      case TRANSPORT {
+        list tr-measured-result{
+          leaf name{
+            type leafref{
+              path "/o-ran-elements:processing-elements/o-ran-elements:ru-elements/o-ran-elements:name";
+            }
+
+            description
+              "the name of ru-elements in o-ran-processing-elements
+               when TRANSPORT is selected as object-unit for the reception
+               window stats.";
+          }
+          leaf count {
+            type uint64;
+            mandatory true;
+
+            description
+              "the number of data packet are counted for the reception
+               window stats.";
+          }
+
+          description
+            "the number of data packet are counted for the reception
+             window stats per TRANSPORT.";
+        }
+      }
+
+      case EAXC_ID {
+        list eaxc-measured-result {
+          leaf eaxc-id{
+            type uint16;
+
+            description
+              "eaxc-id is used
+               when EAXC_ID is selected as object-unit for the reception
+               window stats.
+               EAXC_ID consists of DU-Port-Id, Band-Selector, CC-id and
+               RU-Port-Id to be used in header of C/U-plane data packet.";
+          }
+          leaf count {
+            type uint64;
+            mandatory true;
+
+            description
+              "the number of data packet are counted for the reception
+               window stats.";
+          }
+          leaf transport-name {
+            type leafref{
+              path "/o-ran-elements:processing-elements/o-ran-elements:ru-elements/o-ran-elements:name";
+            }
+
+            description
+              "the name of ru-elements in o-ran-processing-elements for the
+               transport information corresponding to this eaxc-id";
+          }
+
+          description
+            "the number of data packet are counted for the reception
+             window stats per EAXC-ID.";
+        }
+      }
+
+      description
+        "measurement-result for the reception window stats depends on the
+         configured object-unit, RU, TRANSPORT or EAXC_ID";
+    }
+  }
+
+  grouping tx-measurement-result-grouping{
+    description
+      "Group of measurement reasults for tx stats";
+
+    choice object-unit-id {
+      config false;
+      case RU {
+        leaf name{
+          type leafref {
+            path "/hw:hardware/hw:component/hw:name";
+          }
+
+          description
+            "the name of O-RU module or one of its child ports
+            in ietf-hardware/component is used when O-RU is selected as
+            object-unit for the reception window stats.";
+        }
+        leaf count {
+          type uint64;
+          mandatory true;
+
+          description
+            "the number of data packet are counted for the tx stats per O-RU.";
+        }
+      }
+
+      case TRANSPORT {
+        list tr-measured-result{
+          leaf name{
+            type leafref{
+              path "/o-ran-elements:processing-elements/o-ran-elements:ru-elements/o-ran-elements:name";
+            }
+
+            description
+              "the name of ru-elements in o-ran-processing-elements
+               when TRANSPORT is selected as object-unit for the tx stats.";
+          }
+          leaf count {
+            type uint64;
+            mandatory true;
+
+            description
+              "the number of data packet are counted for the tx stats.";
+          }
+
+          description
+            "the number of data packet are counted for the tx stats per TRANSPORT.";
+        }
+      }
+
+      case EAXC_ID {
+        list eaxc-measured-result {
+          leaf eaxc-id{
+            type uint16;
+
+            description
+              "eaxc-id is used
+               when EAXC_ID is selected as object-unit for the tx stats.
+               EAXC_ID consists of DU-Port-Id, Band-Selector, CC-id and
+               RU-Port-Id to be used in header of C/U-plane data packet.";
+          }
+          leaf count {
+            type uint64;
+            mandatory true;
+
+            description
+              "the number of data packet are counted for the tx stats.";
+          }
+          leaf transport-name {
+            type leafref{
+              path "/o-ran-elements:processing-elements/o-ran-elements:ru-elements/o-ran-elements:name";
+            }
+
+            description
+              "the name of ru-elements in o-ran-processing-elements for the
+               transport information corresponding to this eaxc-id";
+          }
+
+          description
+            "the number of data packet are counted for the tx stats per EAXC-ID.";
+        }
+      }
+
+      description
+        "measurement-result for the tx stats depends on the
+         configured object-unit, RU, TRANSPORT or EAXC_ID";
+    }
+  }
+
+
+  grouping measurement-group {
+    description
+      "Group of measurement results";
+
+    uses measurement-capabilities;
+    leaf enable-SFTP-upload {
+      type boolean;
+      default false;
+      description
+        "Flag to enable upload of performance measurement result files.";
+    }
+
+    leaf enable-random-file-upload {
+      type boolean;
+      default false;
+      description
+        "Flag to enable upload of performance measurement result files at
+         random within file-upload-interval.";
+    }
+
+    list remote-SFTP-uploads {
+      key remote-SFTP-upload-path;
+      description
+        "SFTP upload can be done to one or more than one SFTP servers";
+
+      leaf remote-SFTP-upload-path {
+        type inet:uri;
+        description
+          "URI specifying the remote location where the files are to uploaded.
+          The following format is possible:
+          sftp://<username>@<host>[:<port>]/path";
+      }
+
+      uses o-ran-fm:credential-information;
+    }
+
+// transceiver measurements applicable to all O-RAN HW functions
+
+    leaf transceiver-measurement-interval {
+      type uint16;
+      units seconds;
+      description
+        "measurement interval to measure the performance of transceiver
+         measurement objects periodically.";
+    }
+
+// EPE measurements applicable to all O-RAN HW functions
+
+    leaf epe-measurement-interval {
+      type uint16;
+      units seconds;
+      description
+        "measurement interval to measure the energy, power and environmental
+         measurement objects periodically.";
+    }
+
+// RX Window measurements applicable to O-RAN WG4 defined functions
+
+    leaf rx-window-measurement-interval {
+      type uint16;
+      units seconds;
+      description
+        "measurement interval to measure the performance of reception
+         window measurement objects periodically.";
+    }
+
+    leaf tx-measurement-interval {
+      type uint16;
+      units seconds;
+      description
+        "measurement interval to measure the tx (outbound)
+         window measurement objects periodically.";
+    }
+
+    leaf notification-interval {
+      type uint16;
+      units seconds;
+      description
+        "notification interval for the measurement result to be notified
+         periodically.";
+    }
+
+    leaf file-upload-interval {
+      type uint16;
+      units seconds;
+      description
+        "file upload interval for the measurement result file to be
+         uploaded periodically.";
+    }
+
+    leaf max-bin-count{
+      type uint16;
+      config false;
+      mandatory true;
+      description
+        "indicates the maximum value of configurable bin-count for frequency
+         table in transceiver-measurement-objects as one of module
+         capabilities.";
+    }
+
+    list transceiver-measurement-objects {
+      key "measurement-object";
+      description
+        "optional list used to report transceiver measurements
+        applicable to any O-RAN defined hardware function";
+      leaf measurement-object {
+        type enumeration {
+          enum RX_POWER {
+            description
+              "Measured Rx input power in mW for SFP or lane 1 of QSFP";
+          }
+          enum RX_POWER_LANE_2 {
+            description
+              "Measured Rx input power in mW for lane 2 of QSFP";
+          }
+          enum RX_POWER_LANE_3 {
+            description
+              "Measured Rx input power in mW for lane 3 of QSFP";
+          }
+          enum RX_POWER_LANE_4 {
+            description
+              "Measured Rx input power in mW for lane 4 of QSFP";
+          }
+          enum TX_POPWER {
+            status deprecated;
+            description
+              "Measured Tx input power in mW.";
+          }
+          enum TX_POWER {
+            description
+              "Measured Tx input power in mW.";
+          }
+          enum TX_POWER_LANE_2 {
+            description
+              "Measured Tx input power in mW for lane 2 of QSFP";
+          }
+          enum TX_POWER_LANE_3 {
+            description
+              "Measured Tx input power in mW for lane 3 of QSFP";
+          }
+          enum TX_POWER_LANE_4 {
+            description
+              "Measured Tx input power in mW for lane 4 of QSFP";
+          }
+          enum TX_BIAS_COUNT {
+            description
+              "Internally measured Tx Bias Current in mA for SFP or lane 1 of QSFP";
+          }
+          enum TX_BIAS_COUNT_LANE_2 {
+            description
+              "Internally measured Tx Bias Current in mA for lane 2 of QSFP";
+          }
+          enum TX_BIAS_COUNT_LANE_3 {
+            description
+              "Internally measured Tx Bias Current in mA for lane 3 of QSFP";
+          }
+          enum TX_BIAS_COUNT_LANE_4 {
+            description
+              "Internally measured Tx Bias Current in mA for lane 4 of QSFP";
+          }
+          enum VOLTAGE {
+            description
+              "Internally measured transceiver supply voltage in mV";
+          }
+          enum TEMPERATURE {
+            description
+              "Internally measured optional laser temperature in degrees Celsius.";
+          }
+        }
+        description "Target metric to measure the performance";
+      }
+
+      leaf active {
+        type boolean;
+        default false;
+        description
+          "Enable/disable the performance measurement per Object";
+      }
+
+      leaf-list report-info {
+        type enumeration {
+          enum MAXIMUM {
+            description
+              "to report maximum value and its recorded time within the
+               measurement-interval for the measurement-object.";
+          }
+          enum MINIMUM {
+            description
+              "to report minimum value and its recorded time within the
+               measurement-interval for the measurement-object.";
+          }
+          enum FIRST {
+            description
+              "to report first value and its recorded time within the
+               measurement-interval for the measurement-object.";
+          }
+          enum LATEST {
+            description
+              "to report latest value and its recorded time within the
+               measurement-interval for the measurement-object.";
+          }
+          enum FREQUENCY_TABLE {
+            description
+              "to report frequency bin table within the
+               measurement-interval for the measurement-object.";
+          }
+        }
+        description "The reporting info to the measurement object.";
+      }
+
+      leaf object-unit {
+        type enumeration {
+          enum PORT_NUMBER {
+            description
+              "unit to measure the performance per object-id";
+          }
+        }
+        mandatory true;
+        description "unit to measure the performance per object-id.";
+      }
+
+      leaf function {
+        type enumeration {
+          enum RAW {
+            description
+              "the value is expressed by real value.";
+          }
+          enum LOG_10 {
+            description
+              "the value is expressed by logarithm with base 10.";
+          }
+        }
+
+        description
+          "the value to be recorded for transceiver-measurement
+           by real value or log 10.";
+      }
+
+      leaf bin-count {
+        type uint16;
+
+        description
+          "the number of bin for the frequency table.
+           This value shall be less than max-bin-count";
+      }
+
+      leaf lower-bound {
+        type decimal64 {
+          fraction-digits 4;
+        }
+
+        description
+          "the lower value of the first bin of frequency table.";
+      }
+
+      leaf upper-bound {
+        type decimal64 {
+          fraction-digits 4;
+        }
+
+        description
+          "the upper value of the last bin of frequency table.";
+      }
+      uses transceiver-measurement-result-grouping;
+// configuration and measurement result for the transceiver-measurement
+
+    }
+
+    list rx-window-measurement-objects {
+      key "measurement-object";
+      description
+        "optional list used to report RX Window measurements
+        applicable to O-RAN WG4 define O-RU functions";
+      leaf measurement-object {
+        type enumeration {
+          enum RX_ON_TIME {
+            description
+              "the number of data packets, received on time within
+               the reception window.";
+          }
+          enum RX_EARLY {
+            description
+              "the number of data packets, received before
+               the reception window.";
+          }
+          enum RX_LATE {
+            description
+              "the number of data packets, received after
+               the reception window.";
+          }
+          enum RX_CORRUPT {
+            description
+              "the number of data packets, which are corrupt or whose header
+               is incorrect.";
+          }
+          enum RX_DUPL {
+            status deprecated;
+            description
+              "the number of data packets, which is duplicated with other packets,
+               received within the measurement period.";
+          }
+          enum RX_TOTAL {
+            description
+              "the total number of received packets (data and control) within the measurement period.";
+          }
+          enum RX_ON_TIME_C {
+            description
+              "the number of control packets, received on time within
+               the reception window.";
+          }
+          enum RX_EARLY_C {
+            description
+              "the number of control packets, received before
+               the reception window.";
+          }
+          enum RX_LATE_C {
+            description
+              "the number of control packets, received after
+               the reception window.";
+          }
+          enum RX_SEQID_ERR {
+            description
+              "the number of data packets, received with an erroneous sequence ID.";
+          }
+          enum RX_SEQID_ERR_C {
+            description
+              "the number of control packets, received with an erroneous sequence ID.";
+          }
+          enum RX_ERR_DROP {
+            description
+              "The total number of inbound messages which are discarded by the receiving
+              O-RAN entity for any reason.";
+          }
+        }
+        description
+          "target reception window metric to measure the performance.";
+      }
+
+      leaf active {
+        type boolean;
+        default false;
+        description
+          "Enable/disable the performance measurement per reception window
+           measurement object.";
+      }
+
+      leaf object-unit {
+        type enumeration {
+          enum RU {
+            description
+              "the reception window stats are counted per hardware component.
+              This may be the parent 'module' or child 'port' component.";
+          }
+          enum TRANSPORT {
+            if-feature GRANULARITY-TRANSPORT-MEASUREMENT;
+            description
+              "the reception window stats are counted per transport flow.
+              When there are multiple transport flows between O-DU and O-RU,
+               e.g. multiple sets of o-du mac address, ru mac address and
+                    vlan-id, the reception window stats per transport flow
+                    are counted in this case.
+              This configuration is allowed only when O-RU supports
+              a feature GRANULARITY-TRANSPORT-MEASUREMENT.";
+          }
+          enum EAXC_ID {
+            if-feature GRANULARITY-EAXC-ID-MEASUREMENT;
+
+            description
+              "the reception window stats are counted per eAxC ID, which is
+               used in the header of receivd data packet.
+              This configuration is allowed only when O-RU supports
+              a feature GRANULARITY-EAXC-ID-MEASUREMENT.";
+          }
+        }
+        description
+          "unit to measure the performance per object-id.";
+      }
+
+      leaf report-info {
+        type enumeration {
+          enum COUNT {
+            description
+              "the number of data packet are counted for the reception
+               window stats.";
+          }
+        }
+        description
+          "The reporting info to the measurement object.";
+      }
+
+      uses rx-window-measurement-result-grouping;
+// configuration and measurement result for the reception window stats
+
+    }
+
+
+    list tx-measurement-objects {
+      key "measurement-object";
+      description
+        "optional list used to report TX measurements
+        applicable to O-RAN WG4 define O-RU functions";
+      leaf measurement-object {
+        type enumeration {
+          enum TX_TOTAL {
+            description
+              "the number of outbound packets (data and control), transmitted within
+               the measurement period";
+          }
+          enum TX_TOTAL_C {
+            description
+              "the number of outbound control packets, transmitted within
+               the measurement period.
+               This counter is required only if RU supports LAA/LBT capabilities.";
+          }
+        }
+        description
+          "CU-plane transmission counters";
+      }
+
+      leaf active {
+        type boolean;
+        default false;
+        description
+          "Enable/disable the measurement per measurement object.";
+      }
+
+      leaf object-unit {
+        type enumeration {
+          enum RU {
+            description
+              "the transmission stats are counted per hardware component.
+              This may be the parent 'module' or child 'port' component.";
+          }
+          enum TRANSPORT {
+            if-feature GRANULARITY-TRANSPORT-MEASUREMENT;
+            description
+              "the transmission stats are counted per transport flow.
+              When there are multiple transport flows between O-DU and O-RU,
+               e.g. multiple sets of o-du mac address, ru mac address and
+                    vlan-id, the transmission stats per transport flow
+                    are counted in this case.
+              This configuration is allowed only when O-RU supports
+              a feature GRANULARITY-TRANSPORT-MEASUREMENT.";
+          }
+          enum EAXC_ID {
+            if-feature GRANULARITY-EAXC-ID-MEASUREMENT;
+
+            description
+              "the transmission stats are counted per eAxC ID, which is
+               used in the header of receivd data packet.
+              This configuration is allowed only when O-RU supports
+              a feature GRANULARITY-EAXC-ID-MEASUREMENT.";
+          }
+        }
+        description
+          "unit to measure the performance per object-id.";
+      }
+
+      leaf report-info {
+        type enumeration {
+          enum COUNT {
+            description
+              "the number of data packet are counted for the reception
+               window stats.";
+          }
+        }
+        description
+          "The reporting info to the measurement object.";
+      }
+
+      uses tx-measurement-result-grouping;
+    // configuration and measurement result for the tx stats
+
+    }
+
+    list epe-measurement-objects {
+      key "measurement-object";
+      description
+        "optional list used to report energy, power and environmental
+        measurements applicable to any O-RAN defined hardware function";
+      leaf measurement-object {
+        type enumeration {
+          enum TEMPERATURE {
+            description
+              "Measured temperature in degrees celcius";
+          }
+          enum POWER  {
+            description
+              "Measured power consumed, in watts (W)";
+          }
+        }
+        description "Target metric to measure the performance";
+      }
+
+      leaf active {
+        type boolean;
+        default false;
+        description
+          "Enable/disable the performance measurement per Object";
+      }
+
+      leaf-list report-info {
+        type enumeration {
+          enum MAXIMUM {
+            description
+              "to report maximum value and its recorded time within the
+               measurement-interval for the measurement-object.";
+          }
+          enum MINIMUM {
+            description
+              "to report minimum value and its recorded time within the
+               measurement-interval for the measurement-object.";
+          }
+          enum AVERAGE {
+            description
+              "to report average value within the
+               measurement-interval for the measurement-object.";
+          }
+        }
+        description "The reporting info to the measurement object.";
+      }
+
+
+      uses epe-measurement-result-grouping;
+    // configuration and measurement result for the epe-measurement
+
+    }
+
+
+  }
+
+  grouping measurement-capabilities {
+    container measurement-capabilitites {
+      config false;
+      description "the type of measurement objects supported by the O-RU";
+
+      list transceiver-objects {
+        key measurement-object;
+        leaf measurement-object {
+          type leafref {
+            path "/performance-measurement-objects/transceiver-measurement-objects/measurement-object";
+          }
+        }
+      }
+      list rx-window-objects {
+        key measurement-object;
+        leaf measurement-object {
+          type leafref {
+            path "/performance-measurement-objects/rx-window-measurement-objects/measurement-object";
+          }
+        }
+      }
+      list tx-stats-objects {
+        key measurement-object;
+        leaf measurement-object {
+          type leafref {
+            path "/performance-measurement-objects/tx-measurement-objects/measurement-object";
+          }
+        }
+      }
+      list epe-stats-objects {
+        key "measurement-object";
+        description
+          "An optional list describing the energy, power and environmental measurements supported
+          by the O-RU. Measurements are defined per hardware component.";
+        leaf measurement-object {
+          type leafref {
+            path "/performance-measurement-objects/epe-measurement-objects/measurement-object";
+          }
+        }
+        leaf-list component-class {
+          type identityref {
+            base ianahw:hardware-class;
+          }
+          description
+            "An indication of the general hardware type of the
+             component for which EPE measurements are supported.";
+
+        }
+      }
+    }
+  }
+
+  grouping measurement-notification {
+    list transceiver-stats {
+      key "measurement-object";
+      leaf measurement-object {
+        type leafref {
+          path "/performance-measurement-objects/transceiver-measurement-objects/measurement-object";
+        }
+
+        description
+          "measurement-object for the transceiver-measurement";
+      }
+
+      uses start-and-end-time;
+      uses transceiver-measurement-result-grouping;
+
+      description
+        "measurement result of transceiver-measurement per measurement-object";
+    }
+
+    list rx-window-stats {
+      key "measurement-object";
+      leaf measurement-object {
+        type leafref {
+          path "/performance-measurement-objects/rx-window-measurement-objects/measurement-object";
+        }
+
+        description
+          "measurement-object for the reception window measurement";
+      }
+      uses start-and-end-time;
+      uses rx-window-measurement-result-grouping;
+
+      description
+        "measurement result for the reception window measurement per
+         measurement-object";
+
+    }
+
+    list tx-stats {
+      key "measurement-object";
+      leaf measurement-object {
+        type leafref {
+          path "/performance-measurement-objects/tx-measurement-objects/measurement-object";
+        }
+
+        description
+          "measurement-object for the tx stats measurement";
+      }
+      uses start-and-end-time;
+      uses tx-measurement-result-grouping;
+
+      description
+        "measurement result for the tx stats measurement per
+         measurement-object";
+
+    }
+
+    container epe-stats {
+      description
+        "container for the epe stats measurement";
+
+      uses start-and-end-time;
+      uses epe-measurement-result-grouping;
+
+
+    }
+
+    description
+      "notification may contain measurement result for transceiver-stats
+       and/or rx-window-stats";
+  }
+
+  // Top level container
+
+  container performance-measurement-objects {
+    description
+      "configuration for performance management and measurement-result are
+       included";
+    uses measurement-group;
+  }
+
+// Notifications
+
+  notification measurement-result-stats {
+    description
+      "Notification may contain measurement results for transceiver-stats
+       and/or rx-window-stats";
+    uses measurement-notification;
+  }
+}

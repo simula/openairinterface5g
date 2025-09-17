@@ -1,0 +1,22 @@
+message(STATUS "Building with support for WLS")
+add_library(wls_integration_lib
+        wls_pnf.c
+        wls_vnf.c
+        wls_common.c
+)
+
+find_library(WLS_LIB wls REQUIRED)
+message(STATUS "  wls library found in ${WLS_LIB}")
+
+find_library(hugetlbfs_LIB hugetlbfs REQUIRED)
+message(STATUS "  hugetlbfs library found in ${hugetlbfs_LIB}")
+
+pkg_check_modules(dpdk REQUIRED libdpdk=20.11.3)
+target_link_libraries(wls_integration_lib PRIVATE ${dpdk_LINK_LIBRARIES})
+target_include_directories(wls_integration_lib PRIVATE ${dpdk_INCLUDE_DIRS})
+target_include_directories(wls_integration_lib PRIVATE include/)
+
+target_compile_definitions(wls_integration_lib PUBLIC ENABLE_WLS)
+target_link_libraries(wls_integration_lib PRIVATE NFAPI_LIB NFAPI_USER_LIB)
+target_link_libraries(wls_integration_lib PRIVATE nr_fapi_p5 nr_fapi_p7)
+target_link_libraries(wls_integration_lib PRIVATE "${WLS_LIB}" "${hugetlbfs_LIB}")

@@ -37,16 +37,17 @@
 #include "openair2/LAYER2/nr_rlc/nr_rlc_oai_api.h"
 #include "openair2/LAYER2/nr_rlc/nr_rlc_ue_manager.h"
 #include "openair2/LAYER2/nr_rlc/nr_rlc_entity_am.h"
+#include "openair2/LAYER2/NR_MAC_gNB/mac_proto.h"
 
 #define TELNETSERVERCODE
 #include "telnetsrv.h"
 
-#define ERROR_MSG_RET(mSG, aRGS...) do { prnt(mSG, ##aRGS); return 1; } while (0)
+#define ERROR_MSG_RET(mSG, aRGS...) do { prnt(mSG, ##aRGS); return -1; } while (0)
 
 static int get_single_ue_rnti_mac(void)
 {
   NR_UE_info_t *ue = NULL;
-  UE_iterator(RC.nrmac[0]->UE_info.list, it) {
+  UE_iterator(RC.nrmac[0]->UE_info.connected_ue_list, it) {
     if (it && ue)
       return -1;
     if (it)
@@ -71,30 +72,41 @@ int get_single_rnti(char *buf, int debug, telnet_printfunc_t prnt)
   return 0;
 }
 
+rrc_gNB_ue_context_t *get_single_rrc_ue(void)
+{
+  rrc_gNB_ue_context_t *ue = NULL;
+  rrc_gNB_ue_context_t *l = NULL;
+  int n = 0;
+  RB_FOREACH (l, rrc_nr_ue_tree_s, &RC.nrrrc[0]->rrc_ue_head) {
+    if (ue == NULL)
+      ue = l;
+    n++;
+  }
+  if (!ue) {
+    printf("could not find any UE in RRC\n");
+  }
+  if (n > 1) {
+    printf("more than one UE in RRC present\n");
+    ue = NULL;
+  }
+
+  return ue;
+}
+
 int get_reestab_count(char *buf, int debug, telnet_printfunc_t prnt)
 {
   if (!RC.nrrrc)
     ERROR_MSG_RET("no RRC present, cannot list counts\n");
   rrc_gNB_ue_context_t *ue = NULL;
-  int rnti = -1;
   if (!buf) {
-    rrc_gNB_ue_context_t *l = NULL;
-    int n = 0;
-    RB_FOREACH(l, rrc_nr_ue_tree_s, &RC.nrrrc[0]->rrc_ue_head) {
-      if (ue == NULL) ue = l;
-      n++;
-    }
+    ue = get_single_rrc_ue();
     if (!ue)
-      ERROR_MSG_RET("could not find any UE in RRC\n");
-    if (n > 1)
-      ERROR_MSG_RET("more than one UE in RRC present\n");
+      ERROR_MSG_RET("no single UE in RRC present\n");
   } else {
-    rnti = strtol(buf, NULL, 16);
-    if (rnti < 1 || rnti >= 0xfffe)
-      ERROR_MSG_RET("RNTI needs to be [1,0xfffe]\n");
-    ue = rrc_gNB_get_ue_context_by_rnti_any_du(RC.nrrrc[0], rnti);
+    ue_id_t ue_id = strtol(buf, NULL, 10);
+    ue = rrc_gNB_get_ue_context(RC.nrrrc[0], ue_id);
     if (!ue)
-      ERROR_MSG_RET("could not find UE with RNTI %04x in RRC\n");
+      ERROR_MSG_RET("could not find UE with ue_id %d in RRC\n");
   }
 
   prnt("UE RNTI %04x reestab %d reconfig %d\n",
@@ -104,10 +116,8 @@ int get_reestab_count(char *buf, int debug, telnet_printfunc_t prnt)
   return 0;
 }
 
-int trigger_reestab(char *buf, int debug, telnet_printfunc_t prnt)
+int fetch_rnti(char *buf, telnet_printfunc_t prnt)
 {
-  if (!RC.nrmac)
-    ERROR_MSG_RET("no MAC/RLC present, cannot trigger reestablishment\n");
   int rnti = -1;
   if (!buf) {
     rnti = get_single_ue_rnti_mac();
@@ -118,18 +128,124 @@ int trigger_reestab(char *buf, int debug, telnet_printfunc_t prnt)
     if (rnti < 1 || rnti >= 0xfffe)
       ERROR_MSG_RET("RNTI needs to be [1,0xfffe]\n");
   }
+  return rnti;
+}
 
+int trigger_reestab(char *buf, int debug, telnet_printfunc_t prnt)
+{
+  if (!RC.nrmac)
+    ERROR_MSG_RET("no MAC/RLC present, cannot trigger reestablishment\n");
+  int rnti = fetch_rnti(buf, prnt);
+  if (rnti < 0)
+    ERROR_MSG_RET("could not identify UE (no UE, no such RNTI, or multiple UEs)\n");
   nr_rlc_test_trigger_reestablishment(rnti);
-
   prnt("Reset RLC counters of UE RNTI %04x to trigger reestablishment\n", rnti);
   return 0;
 }
 
+extern nr_rrc_du_container_t *get_du_for_ue(gNB_RRC_INST *rrc, uint32_t ue_id);
+
+/** @brief Get connected DU by the UE ID */
+int fetch_du_by_ue_id(char *buf, int debug, telnet_printfunc_t prnt)
+{
+  if (!RC.nrrrc)
+    ERROR_MSG_RET("no RRC present, cannot list counts\n");
+
+  ue_id_t ue_id = 1;
+  if (buf) {
+    ue_id = strtol(buf, NULL, 10);
+  }
+  nr_rrc_du_container_t *du = get_du_for_ue(RC.nrrrc[0], ue_id);
+
+  if (du) {
+    prnt("gNB_DU_id %d is connected to ue_id %ld\n", du->setup_req->gNB_DU_id, ue_id);
+    return 0;
+  } else {
+    ERROR_MSG_RET("No DU connected\n");
+    return -1;
+  }
+}
+
+extern void nr_HO_F1_trigger_telnet(gNB_RRC_INST *rrc, uint32_t rrc_ue_id);
+/**
+ * @brief Trigger F1 handover for UE
+ * @param buf: RRC UE ID or NULL for the first UE in list
+ * @param debug: Debug flag
+ * @param prnt: Print function
+ * @return 0 on success, -1 on failure
+ */
+int rrc_gNB_trigger_f1_ho(char *buf, int debug, telnet_printfunc_t prnt)
+{
+  if (!RC.nrrrc)
+    ERROR_MSG_RET("no RRC present, cannot list counts\n");
+  rrc_gNB_ue_context_t *ue = NULL;
+  if (!buf) {
+    ue = get_single_rrc_ue();
+    if (!ue)
+      ERROR_MSG_RET("no single UE in RRC present\n");
+  } else {
+    ue_id_t ue_id = strtol(buf, NULL, 10);
+    ue = rrc_gNB_get_ue_context(RC.nrrrc[0], ue_id);
+    if (!ue)
+      ERROR_MSG_RET("could not find UE with ue_id %d in RRC\n", ue_id);
+  }
+
+  gNB_RRC_UE_t *UE = &ue->ue_context;
+  nr_HO_F1_trigger_telnet(RC.nrrrc[0], UE->rrc_ue_id);
+  prnt("RRC F1 handover triggered for UE %u\n", UE->rrc_ue_id);
+  return 0;
+}
+
+int force_ul_failure(char *buf, int debug, telnet_printfunc_t prnt)
+{
+  if (!RC.nrmac)
+    ERROR_MSG_RET("no MAC/RLC present, force_ul_failure failed\n");
+  int rnti = fetch_rnti(buf, prnt);
+  if (rnti < 0)
+    ERROR_MSG_RET("could not identify UE (no UE, no such RNTI, or multiple UEs)\n");
+  NR_UE_info_t *UE = find_nr_UE(&RC.nrmac[0]->UE_info, rnti);
+  nr_mac_trigger_ul_failure(&UE->UE_sched_ctrl, UE->current_UL_BWP.scs);
+  return 0;
+}
+
+int force_ue_release(char *buf, int debug, telnet_printfunc_t prnt)
+{
+  force_ul_failure(buf, debug, prnt);
+  int rnti = fetch_rnti(buf, prnt);
+  if (rnti < 0)
+    ERROR_MSG_RET("could not identify UE (no UE, no such RNTI, or multiple UEs)\n");
+  NR_UE_info_t *UE = find_nr_UE(&RC.nrmac[0]->UE_info, rnti);
+  NR_UE_sched_ctrl_t *sched_ctrl = &UE->UE_sched_ctrl;
+  sched_ctrl->ul_failure_timer = 2;
+  nr_mac_check_ul_failure(RC.nrmac[0], UE->rnti, sched_ctrl);
+  return 0;
+}
+
+static int get_current_bwp(char *buf, int debug, telnet_printfunc_t prnt)
+{
+  int rnti = fetch_rnti(buf, prnt);
+  if (rnti < 0)
+    ERROR_MSG_RET("could not identify UE (no UE, no such RNTI, or multiple UEs)\n");
+  NR_UE_info_t *UE = find_nr_UE(&RC.nrmac[0]->UE_info, rnti);
+  int dl_bwp = UE->current_DL_BWP.bwp_id;
+  const char *dl_bwp_text = dl_bwp > 0 ? "dedicated" : "initial";
+  int ul_bwp = UE->current_UL_BWP.bwp_id;
+  const char *ul_bwp_text = ul_bwp > 0 ? "dedicated" : "initial";
+
+  prnt("UE %04x DL BWP ID %d (%s) UL BWP ID %d (%s)\n", UE->rnti, dl_bwp, dl_bwp_text, ul_bwp, ul_bwp_text);
+  return 0;
+}
+
 static telnetshell_cmddef_t cicmds[] = {
-  {"get_single_rnti", "", get_single_rnti},
-  {"force_reestab", "[rnti(hex,opt)]", trigger_reestab},
-  {"get_reestab_count", "[rnti(hex,opt)]", get_reestab_count},
-  {"", "", NULL},
+    {"get_single_rnti", "", get_single_rnti},
+    {"force_reestab", "[rnti(hex,opt)]", trigger_reestab},
+    {"get_reestab_count", "[rnti(hex,opt)]", get_reestab_count},
+    {"force_ue_release", "[rnti(hex,opt)]", force_ue_release},
+    {"force_ul_failure", "[rnti(hex,opt)]", force_ul_failure},
+    {"trigger_f1_ho", "[rrc_ue_id(int,opt)]", rrc_gNB_trigger_f1_ho},
+    {"fetch_du_by_ue_id", "[rrc_ue_id(int,opt)]", fetch_du_by_ue_id},
+    {"get_current_bwp", "[rnti(hex,opt)]", get_current_bwp},
+    {"", "", NULL},
 };
 
 static telnetshell_vardef_t civars[] = {

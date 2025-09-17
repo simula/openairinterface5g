@@ -31,15 +31,10 @@ typedef struct ldpc_interface_s {
   LDPC_encoderfunc_t *LDPCencoder;
 } ldpc_interface_t;
 
-// Global var to limit the rework of the dirty legacy code
-extern ldpc_interface_t ldpc_interface, ldpc_interface_offload;
-
 /* functions to load the LDPC shared lib, implemented in openair1/PHY/CODING/nrLDPC_load.c */
 int load_LDPClib(char *version, ldpc_interface_t *);
 int free_LDPClib(ldpc_interface_t *ldpc_interface);
 
-LDPC_initfunc_t LDPCinit;
-LDPC_shutdownfunc_t LDPCshutdown;
 LDPC_decoderfunc_t LDPCdecoder;
 LDPC_encoderfunc_t LDPCencoder;
 

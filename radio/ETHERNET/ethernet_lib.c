@@ -617,7 +617,6 @@ void dump_dev(openair0_device *device)
     eth_state_t *eth = (eth_state_t*)device->priv;
 
     printf("Ethernet device interface %i configuration:\n" ,device->openair0_cfg->Mod_id);
-    printf("       Log level is %i :\n" ,device->openair0_cfg->log_level);
     printf("       RB number: %i, sample rate: %lf \n" ,
            device->openair0_cfg->num_rb_dl, device->openair0_cfg->sample_rate);
     printf("       RAU configured for %i tx/%i rx channels)\n",

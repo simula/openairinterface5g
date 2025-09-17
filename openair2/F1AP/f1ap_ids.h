@@ -40,6 +40,7 @@ typedef struct f1_ue_data_t {
 void cu_init_f1_ue_data(void);
 bool cu_add_f1_ue_data(uint32_t ue_id, const f1_ue_data_t *data);
 bool cu_exists_f1_ue_data(uint32_t ue_id);
+bool cu_update_f1_ue_data(uint32_t ue_id, const f1_ue_data_t *data);
 f1_ue_data_t cu_get_f1_ue_data(uint32_t ue_id);
 bool cu_remove_f1_ue_data(uint32_t ue_id);
 

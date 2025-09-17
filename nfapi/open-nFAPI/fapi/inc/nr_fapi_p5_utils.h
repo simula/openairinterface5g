@@ -18,50 +18,13 @@
  * For more information about the OpenAirInterface (OAI) Software Alliance:
  *      contact@openairinterface.org
  */
-/*! \file nfapi/open-nFAPI/fapi/inc/nr_fapi_p5_utils.h
- * \brief
- * \author Ruben S. Silva
- * \date 2024
- * \version 0.1
- * \company OpenAirInterface Software Alliance
- * \email: contact@openairinterface.org, rsilva@allbesmart.pt
- * \note
- * \warning
- */
 
 #ifndef OPENAIRINTERFACE_NR_FAPI_P5_UTILS_H
 #define OPENAIRINTERFACE_NR_FAPI_P5_UTILS_H
 #include "stdio.h"
 #include "stdint.h"
-#include "nr_fapi.h"
+#include "nfapi/open-nFAPI/fapi/inc/nr_fapi.h"
 #include "nfapi/oai_integration/vendor_ext.h"
-
-#define EQ_TLV(_tlv_a, _tlv_b)        \
-  do {                                \
-    EQ(_tlv_a.tl.tag, _tlv_b.tl.tag); \
-    EQ(_tlv_a.value, _tlv_b.value);   \
-  } while (0)
-
-#define EQ(_a, _b)      \
-  do {                  \
-    if ((_a) != (_b)) { \
-      return false;     \
-    }                   \
-  } while (0)
-
-#define COPY_TL(_dst_tl, _src_tl)    \
-  do {                               \
-    _dst_tl.tag = _src_tl.tag;       \
-    _dst_tl.length = _src_tl.length; \
-  } while (0)
-
-#define COPY_TLV(_dst, _src)   \
-  do {                         \
-    COPY_TL(_dst.tl, _src.tl); \
-    _dst.value = _src.value;   \
-  } while (0)
-
-void copy_vendor_extension_value(nfapi_vendor_extension_tlv_t *dst, const nfapi_vendor_extension_tlv_t *src);
 
 bool eq_param_request(const nfapi_nr_param_request_scf_t *unpacked_req, const nfapi_nr_param_request_scf_t *req);
 bool eq_param_response(const nfapi_nr_param_response_scf_t *unpacked_req, const nfapi_nr_param_response_scf_t *req);
@@ -92,5 +55,17 @@ void copy_start_response(const nfapi_nr_start_response_scf_t *src, nfapi_nr_star
 void copy_stop_request(const nfapi_nr_stop_request_scf_t *src, nfapi_nr_stop_request_scf_t *dst);
 void copy_stop_indication(const nfapi_nr_stop_indication_scf_t *src, nfapi_nr_stop_indication_scf_t *dst);
 void copy_error_indication(const nfapi_nr_error_indication_scf_t *src, nfapi_nr_error_indication_scf_t *dst);
+
+void dump_param_request(const nfapi_nr_param_request_scf_t *msg);
+void dump_param_response(const nfapi_nr_param_response_scf_t *msg);
+void dump_config_request(const nfapi_nr_config_request_scf_t *msg);
+void dump_config_response(const nfapi_nr_config_response_scf_t *msg);
+void dump_start_request(const nfapi_nr_start_request_scf_t *msg);
+void dump_start_response(const nfapi_nr_start_response_scf_t *msg);
+void dump_stop_request(const nfapi_nr_stop_request_scf_t *msg);
+void dump_stop_indication(const nfapi_nr_stop_indication_scf_t *msg);
+char* error_ind_code_to_str(nfapi_nr_phy_notifications_errors_e error_code);
+void dump_error_indication(const nfapi_nr_error_indication_scf_t *msg);
+
 
 #endif // OPENAIRINTERFACE_NR_FAPI_P5_UTILS_H

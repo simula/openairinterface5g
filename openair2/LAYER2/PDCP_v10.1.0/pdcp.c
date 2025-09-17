@@ -129,10 +129,6 @@ static sdu_size_t             pdcp_output_sdu_bytes_to_write;
 notifiedFIFO_t         pdcp_sdu_list;
 
 pdcp_enb_t pdcp_enb[MAX_NUM_CCs];
-
-
-extern int oai_exit;
-
 pthread_t pdcp_stats_thread_desc;
 /*! \fn bool pdcp_config_req_asn1 (const protocol_ctxt_t* const ctxt_pP, srb_flag_t srb_flagP, uint32_t  action, rb_id_t rb_id,
  * uint8_t rb_sn, uint8_t rb_report, uint16_t header_compression_profile, uint8_t security_mode) \brief  Function for RRC to
@@ -557,6 +553,9 @@ bool pdcp_data_req(protocol_ctxt_t  *ctxt_pP,
       break;
   }
 
+  if (pdcp_uid == MAX_MOBILES_PER_ENB)
+    return ret;
+
   LOG_D(PDCP,"ueid %d lcid %d tx seq num %d\n", pdcp_uid, (int)(rb_idP+rb_offset), current_sn);
   Pdcp_stats_tx[ctxt_pP->module_id][pdcp_uid][rb_idP+rb_offset]++;
   Pdcp_stats_tx_tmp_w[ctxt_pP->module_id][pdcp_uid][rb_idP+rb_offset]++;
@@ -594,7 +593,6 @@ bool pdcp_data_ind(const protocol_ctxt_t *const ctxt_pP,
   uint8_t      rb_offset= (srb_flagP == 0) ? DTCH -1 :0;
   uint16_t     pdcp_uid=0;
 
-  MessageDef  *message_p        = NULL;
   uint32_t    rx_hfn_for_count;
   int         pdcp_sn_for_count;
   int         security_ok;
@@ -996,19 +994,11 @@ bool pdcp_data_ind(const protocol_ctxt_t *const ctxt_pP,
 
   if (LINK_ENB_PDCP_TO_GTPV1U) {
     if ((true == ctxt_pP->enb_flag) && (false == srb_flagP)) {
-      LOG_D(PDCP, "Sending packet to GTP, Calling GTPV1U_TUNNEL_DATA_REQ  ue %lx rab %ld len %u\n", ctxt_pP->rntiMaybeUEid, rb_id + 4, sdu_buffer_sizeP - payload_offset);
-      message_p = itti_alloc_new_message_sized(TASK_PDCP_ENB, 0, GTPV1U_TUNNEL_DATA_REQ,
-                                              sizeof(gtpv1u_tunnel_data_req_t) +
-                                              sdu_buffer_sizeP - payload_offset + GTPU_HEADER_OVERHEAD_MAX );
-      AssertFatal(message_p != NULL, "OUT OF MEMORY");
-      gtpv1u_tunnel_data_req_t *req=&GTPV1U_TUNNEL_DATA_REQ(message_p);
-      req->buffer       = (uint8_t*)(req+1);
-      memcpy(req->buffer + GTPU_HEADER_OVERHEAD_MAX, sdu_buffer_pP + payload_offset, sdu_buffer_sizeP - payload_offset);
-      req->length       = sdu_buffer_sizeP - payload_offset;
-      req->offset       = GTPU_HEADER_OVERHEAD_MAX;
-      req->ue_id = ctxt_pP->rntiMaybeUEid;
-      req->bearer_id    = rb_id + 4;
-      itti_send_msg_to_task(TASK_GTPV1_U, INSTANCE_DEFAULT, message_p);
+      ue_id_t ue_id = ctxt_pP->rntiMaybeUEid;
+      uint8_t *gtp_buf = sdu_buffer_pP + payload_offset;
+      size_t gtp_len = sdu_buffer_sizeP - payload_offset;
+      LOG_D(PDCP, "Sending packet to GTP  ue %lx rab %ld len %ld\n", ue_id, rb_id + 4, gtp_len);
+      gtpv1uSendDirect(INSTANCE_DEFAULT, ue_id, rb_id + 4, gtp_buf, gtp_len, false, false);
       packet_forwarded = true;
     }
   } else {
@@ -1052,7 +1042,7 @@ bool pdcp_data_ind(const protocol_ctxt_t *const ctxt_pP,
       if (ctxt_pP->enb_flag == ENB_FLAG_NO) {
         pdcpHead->rb_id = rb_id;
 
-        if (EPC_MODE_ENABLED) {
+        if (!IS_SOFTMODEM_NOS1) {
           /* for the UE compiled in S1 mode, we need 1 here
            * for the UE compiled in noS1 mode, we need 0
            * TODO: be sure of this
@@ -1067,12 +1057,12 @@ bool pdcp_data_ind(const protocol_ctxt_t *const ctxt_pP,
             }
           } // nfapi_mode
         } else {
-	  if (UE_NAS_USE_TUN) {
-	    pdcpHead->inst  = ctxt_pP->module_id;
-	  } else if (ENB_NAS_USE_TUN) {
-	    pdcpHead->inst  = 0;
-	  }
-	}
+          if (UE_NAS_USE_TUN) {
+            pdcpHead->inst = ctxt_pP->module_id;
+          } else if (ENB_NAS_USE_TUN) {
+            pdcpHead->inst = 0;
+          }
+        }
       } else {
         pdcpHead->rb_id = rb_id + (ctxt_pP->module_id * LTE_maxDRB);
         pdcpHead->inst  = ctxt_pP->module_id;
@@ -1104,16 +1094,17 @@ bool pdcp_data_ind(const protocol_ctxt_t *const ctxt_pP,
       break;
     }
   }
-
-  Pdcp_stats_rx[ctxt_pP->module_id][pdcp_uid][rb_idP+rb_offset]++;
-  Pdcp_stats_rx_tmp_w[ctxt_pP->module_id][pdcp_uid][rb_idP+rb_offset]++;
-  Pdcp_stats_rx_bytes[ctxt_pP->module_id][pdcp_uid][rb_idP+rb_offset]+=(sdu_buffer_sizeP  - payload_offset);
-  Pdcp_stats_rx_bytes_tmp_w[ctxt_pP->module_id][pdcp_uid][rb_idP+rb_offset]+=(sdu_buffer_sizeP  - payload_offset);
-
-  Pdcp_stats_rx_sn[ctxt_pP->module_id][pdcp_uid][rb_idP+rb_offset]=sequence_number;
-  Pdcp_stats_rx_aiat[ctxt_pP->module_id][pdcp_uid][rb_idP+rb_offset]+= (pdcp_enb[ctxt_pP->module_id].sfn - Pdcp_stats_rx_iat[ctxt_pP->module_id][pdcp_uid][rb_idP+rb_offset]);
-  Pdcp_stats_rx_aiat_tmp_w[ctxt_pP->module_id][pdcp_uid][rb_idP+rb_offset]+=(pdcp_enb[ctxt_pP->module_id].sfn - Pdcp_stats_rx_iat[ctxt_pP->module_id][pdcp_uid][rb_idP+rb_offset]);
-  Pdcp_stats_rx_iat[ctxt_pP->module_id][pdcp_uid][rb_idP+rb_offset]=pdcp_enb[ctxt_pP->module_id].sfn;
+  if( pdcp_uid < MAX_MOBILES_PER_ENB ) {
+    Pdcp_stats_rx[ctxt_pP->module_id][pdcp_uid][rb_idP+rb_offset]++;
+    Pdcp_stats_rx_tmp_w[ctxt_pP->module_id][pdcp_uid][rb_idP+rb_offset]++;
+    Pdcp_stats_rx_bytes[ctxt_pP->module_id][pdcp_uid][rb_idP+rb_offset]+=(sdu_buffer_sizeP  - payload_offset);
+    Pdcp_stats_rx_bytes_tmp_w[ctxt_pP->module_id][pdcp_uid][rb_idP+rb_offset]+=(sdu_buffer_sizeP  - payload_offset);
+    
+    Pdcp_stats_rx_sn[ctxt_pP->module_id][pdcp_uid][rb_idP+rb_offset]=sequence_number;
+    Pdcp_stats_rx_aiat[ctxt_pP->module_id][pdcp_uid][rb_idP+rb_offset]+= (pdcp_enb[ctxt_pP->module_id].sfn - Pdcp_stats_rx_iat[ctxt_pP->module_id][pdcp_uid][rb_idP+rb_offset]);
+    Pdcp_stats_rx_aiat_tmp_w[ctxt_pP->module_id][pdcp_uid][rb_idP+rb_offset]+=(pdcp_enb[ctxt_pP->module_id].sfn - Pdcp_stats_rx_iat[ctxt_pP->module_id][pdcp_uid][rb_idP+rb_offset]);
+    Pdcp_stats_rx_iat[ctxt_pP->module_id][pdcp_uid][rb_idP+rb_offset]=pdcp_enb[ctxt_pP->module_id].sfn;
+  }
   free(sdu_buffer_pP);
 
   if (ctxt_pP->enb_flag) {
@@ -1271,7 +1262,7 @@ pdcp_run (
 
   // IP/NAS -> PDCP traffic : TX, read the pkt from the upper layer buffer
   //  if (LINK_ENB_PDCP_TO_GTPV1U && ctxt_pP->enb_flag == ENB_FLAG_NO) {
-  if (!get_softmodem_params()->emulate_l1 && (!EPC_MODE_ENABLED || ctxt_pP->enb_flag == ENB_FLAG_NO)) {
+  if (!get_softmodem_params()->emulate_l1 && (IS_SOFTMODEM_NOS1 || ctxt_pP->enb_flag == ENB_FLAG_NO)) {
     pdcp_fifo_read_input_sdus(ctxt_pP);
   }
 
@@ -1307,124 +1298,8 @@ pdcp_mbms_run (
 )
 //-----------------------------------------------------------------------------
 {
- // if (ctxt_pP->enb_flag) {
- //   start_meas(&eNB_pdcp_stats[ctxt_pP->module_id].pdcp_run);
- // } else {
- //   start_meas(&UE_pdcp_stats[ctxt_pP->module_id].pdcp_run);
- // }
-
- // pdcp_enb[ctxt_pP->module_id].sfn++; // range: 0 to 18,446,744,073,709,551,615
- // pdcp_enb[ctxt_pP->module_id].frame=ctxt_pP->frame; // 1023
- // pdcp_enb[ctxt_pP->module_id].subframe= ctxt_pP->subframe;
- // pdcp_update_stats(ctxt_pP);
- // VCD_SIGNAL_DUMPER_DUMP_FUNCTION_BY_NAME(VCD_SIGNAL_DUMPER_FUNCTIONS_PDCP_RUN, VCD_FUNCTION_IN);
- // MessageDef   *msg_p;
-  //int           result;
-  //protocol_ctxt_t  ctxt;
-
-//  do {
-//    // Checks if a message has been sent to PDCP sub-task
-//    itti_poll_msg (ctxt_pP->enb_flag ? TASK_PDCP_ENB : TASK_PDCP_UE, &msg_p);
-//
-//    if (msg_p != NULL) {
-//      switch (ITTI_MSG_ID(msg_p)) {
-//        case RRC_DCCH_DATA_REQ:
-//          PROTOCOL_CTXT_SET_BY_MODULE_ID(
-//            &ctxt,
-//            RRC_DCCH_DATA_REQ (msg_p).module_id,
-//            RRC_DCCH_DATA_REQ (msg_p).enb_flag,
-//            RRC_DCCH_DATA_REQ (msg_p).rnti,
-//            RRC_DCCH_DATA_REQ (msg_p).frame,
-//            0,
-//            RRC_DCCH_DATA_REQ (msg_p).eNB_index);
-//          LOG_D(PDCP, PROTOCOL_CTXT_FMT"Received %s from %s: instance %d, rb_id %d, muiP %d, confirmP %d, mode %d\n",
-//                PROTOCOL_CTXT_ARGS(&ctxt),
-//                ITTI_MSG_NAME (msg_p),
-//                ITTI_MSG_ORIGIN_NAME(msg_p),
-//                ITTI_MSG_DESTINATION_INSTANCE (msg_p),
-//                RRC_DCCH_DATA_REQ (msg_p).rb_id,
-//                RRC_DCCH_DATA_REQ (msg_p).muip,
-//                RRC_DCCH_DATA_REQ (msg_p).confirmp,
-//                RRC_DCCH_DATA_REQ (msg_p).mode);
-//          LOG_D(PDCP, "Before calling pdcp_data_req from pdcp_run! RRC_DCCH_DATA_REQ (msg_p).rb_id: %d \n", RRC_DCCH_DATA_REQ (msg_p).rb_id);
-//          result = pdcp_data_req (&ctxt,
-//                                  SRB_FLAG_YES,
-//                                  RRC_DCCH_DATA_REQ (msg_p).rb_id,
-//                                  RRC_DCCH_DATA_REQ (msg_p).muip,
-//                                  RRC_DCCH_DATA_REQ (msg_p).confirmp,
-//                                  RRC_DCCH_DATA_REQ (msg_p).sdu_size,
-//                                  RRC_DCCH_DATA_REQ (msg_p).sdu_p,
-//                                  RRC_DCCH_DATA_REQ (msg_p).mode,
-//                                  NULL, NULL
-//                                 );
-//
-//          if (result != true)
-//            LOG_E(PDCP, "PDCP data request failed!\n");
-//
-//          // Message buffer has been processed, free it now.
-//          result = itti_free (ITTI_MSG_ORIGIN_ID(msg_p), RRC_DCCH_DATA_REQ (msg_p).sdu_p);
-//          AssertFatal (result == EXIT_SUCCESS, "Failed to free memory (%d)!\n", result);
-//          break;
-//
-//        case RRC_PCCH_DATA_REQ: {
-//          sdu_size_t     sdu_buffer_sizeP;
-//          sdu_buffer_sizeP = RRC_PCCH_DATA_REQ(msg_p).sdu_size;
-//          uint8_t CC_id = RRC_PCCH_DATA_REQ(msg_p).CC_id;
-//          uint8_t ue_index = RRC_PCCH_DATA_REQ(msg_p).ue_index;
-//          RC.rrc[ctxt_pP->module_id]->carrier[CC_id].sizeof_paging[ue_index] = sdu_buffer_sizeP;
-//
-//          if (sdu_buffer_sizeP > 0) {
-//            memcpy(RC.rrc[ctxt_pP->module_id]->carrier[CC_id].paging[ue_index], RRC_PCCH_DATA_REQ(msg_p).sdu_p, sdu_buffer_sizeP);
-//          }
-//
-//          //paging pdcp log
-//          LOG_D(PDCP, "PDCP Received RRC_PCCH_DATA_REQ CC_id %d length %d \n", CC_id, sdu_buffer_sizeP);
-//        }
-//        break;
-//
-//        default:
-//          LOG_E(PDCP, "Received unexpected message %s\n", ITTI_MSG_NAME (msg_p));
-//          break;
-//      }
-//
-//      result = itti_free (ITTI_MSG_ORIGIN_ID(msg_p), msg_p);
-//      AssertFatal (result == EXIT_SUCCESS, "Failed to free memory (%d)!\n", result);
-//    }
-//  } while(msg_p != NULL);
-//
-  // IP/NAS -> PDCP traffic : TX, read the pkt from the upper layer buffer
-  //  if (LINK_ENB_PDCP_TO_GTPV1U && ctxt_pP->enb_flag == ENB_FLAG_NO) {
-  //if (EPC_MODE_ENABLED || ctxt_pP->enb_flag == ENB_FLAG_NO ) {
-
-    pdcp_fifo_read_input_mbms_sdus_fromtun(ctxt_pP);
-  //}
-
-  // PDCP -> NAS/IP traffic: RX
-//  if (ctxt_pP->enb_flag) {
-//    start_meas(&eNB_pdcp_stats[ctxt_pP->module_id].pdcp_ip);
-//  } else {
-//    start_meas(&UE_pdcp_stats[ctxt_pP->module_id].pdcp_ip);
-//  }
-//
-
-    //pdcp_fifo_flush_mbms_sdus(ctxt_pP);
-
-//  if (ctxt_pP->enb_flag) {
-//    stop_meas(&eNB_pdcp_stats[ctxt_pP->module_id].pdcp_ip);
-//  } else {
-//    stop_meas(&UE_pdcp_stats[ctxt_pP->module_id].pdcp_ip);
-//  }
-//
-//  if (ctxt_pP->enb_flag) {
-//    stop_meas(&eNB_pdcp_stats[ctxt_pP->module_id].pdcp_run);
-//  } else {
-//    stop_meas(&UE_pdcp_stats[ctxt_pP->module_id].pdcp_run);
-//  }
-//
-//  VCD_SIGNAL_DUMPER_DUMP_FUNCTION_BY_NAME(VCD_SIGNAL_DUMPER_FUNCTIONS_PDCP_RUN, VCD_FUNCTION_OUT);
+  pdcp_fifo_read_input_mbms_sdus_fromtun(ctxt_pP);
 }
-
-
 
 void pdcp_init_stats_UE(module_id_t mod, uint16_t uid) {
   Pdcp_stats_tx_window_ms[mod][uid] = 100;
@@ -2297,24 +2172,35 @@ uint64_t pdcp_module_init( uint64_t pdcp_optmask, int id) {
 
   if (UE_NAS_USE_TUN) {
     int num_if = (NFAPI_MODE == NFAPI_UE_STUB_PNF || IS_SOFTMODEM_SIML1 || NFAPI_MODE == NFAPI_MODE_STANDALONE_PNF) ? MAX_MOBILES_PER_ENB : 1;
-    tun_init("oaitun_ue", num_if, id);
-    if (IS_SOFTMODEM_NOS1)
-      tun_config(1, "10.0.1.2", NULL, "oaitun_ue");
-    tun_init_mbms("oaitun_uem", id + 1);
-    tun_config(1, "10.0.2.2", NULL, "oaitun_uem");
+    int begx = (id == 0) ? 0 : id - 1;
+    int endx = (id == 0) ? num_if : id;
+    for (int i = begx; i < endx; i++) {
+      char ifname[IFNAMSIZ];
+      tun_generate_ifname(ifname, "oaitun_ue", i);
+      tun_init(ifname, i);
+    }
+    char ifname[IFNAMSIZ];
+    tun_generate_ifname(ifname, "oaitun_uem", id + 1);
+    tun_init_mbms(ifname);
+    tun_config(ifname, "10.0.2.2", NULL);
     LOG_I(PDCP, "UE pdcp will use tun interface\n");
   } else if (ENB_NAS_USE_TUN) {
-    tun_init("oaitun_enb", 1, 0);
-    tun_config(1, "10.0.1.1", NULL, "oaitun_enb");
+    char ifname[IFNAMSIZ];
+    tun_generate_ifname(ifname, "oaitun_enb", 0);
+    tun_init(ifname, 0);
+    tun_config(ifname, "10.0.1.1", NULL);
     if (pdcp_optmask & ENB_NAS_USE_TUN_W_MBMS_BIT) {
-      tun_init_mbms("oaitun_enm", 1);
-      tun_config(1, "10.0.2.1", NULL, "oaitun_enm");
+      tun_generate_ifname(ifname, "oaitun_enm", 0);
+      tun_init_mbms(ifname);
+      tun_config(ifname, "10.0.2.1", NULL);
       LOG_I(PDCP, "ENB pdcp will use mbms tun interface\n");
     }
     LOG_I(PDCP, "ENB pdcp will use tun interface\n");
   } else if (pdcp_optmask & ENB_NAS_USE_TUN_W_MBMS_BIT) {
-    tun_init_mbms("oaitun_enm", 0);
-    tun_config(1, "10.0.2.1", NULL, "oaitun_enm");
+    char ifname[IFNAMSIZ];
+    tun_generate_ifname(ifname, "oaitun_enm", 0);
+    tun_init_mbms(ifname);
+    tun_config(ifname, "10.0.2.1", NULL);
     LOG_I(PDCP, "ENB pdcp will use mbms tun interface\n");
   }
 

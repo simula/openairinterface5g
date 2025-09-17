@@ -107,10 +107,10 @@ int websrv_scope_manager(uint64_t lcount, websrv_params_t *websrvparams)
       websrv_websocket_send_scopemessage(SCOPEMSG_TYPE_TIME, strtime, websrvparams_ptr->wm);
     }
     if ((lcount % scope_params.refrate) == 0) {
-      if (IS_SOFTMODEM_GNB_BIT && (scope_params.statusmask & SCOPE_STATUSMASK_STARTED)) {
+      if (IS_SOFTMODEM_GNB && (scope_params.statusmask & SCOPE_STATUSMASK_STARTED)) {
         phy_scope_gNB(scope_params.scopeform, scope_params.scopedata, scope_params.selectedTarget + 1 /* ue id, +1 as used in loop < limit */);
       }
-      if (IS_SOFTMODEM_5GUE_BIT && (scope_params.statusmask & SCOPE_STATUSMASK_STARTED)) {
+      if (IS_SOFTMODEM_5GUE && (scope_params.statusmask & SCOPE_STATUSMASK_STARTED)) {
         phy_scope_nrUE(((scopeData_t *)((PHY_VARS_NR_UE *)(scope_params.scopedata))->scopeData)->liveData,
                        scope_params.scopeform,
                        (PHY_VARS_NR_UE *)scope_params.scopedata,
@@ -124,7 +124,7 @@ int websrv_scope_manager(uint64_t lcount, websrv_params_t *websrvparams)
 /* free scope  resources, as websrv scope interface can be stopped and started */
 void websrv_scope_stop(void)
 {
-  clear_softmodem_optmask(SOFTMODEM_DOSCOPE_BIT);
+  IS_SOFTMODEM_DOSCOPE = false;
   scope_params.statusmask &= ~SCOPE_STATUSMASK_STARTED;
   OAI_phy_scope_t *sp = (OAI_phy_scope_t *)scope_params.scopeform;
   if (sp != NULL)
@@ -138,7 +138,7 @@ void websrv_scope_stop(void)
 char *websrv_scope_initdata(void)
 {
   scope_params.num_datamsg_max = 200;
-  if (IS_SOFTMODEM_GNB_BIT) {
+  if (IS_SOFTMODEM_GNB) {
     scopeParms_t p;
     p.ru = RC.ru[0];
     p.gNB = RC.gNB[0];
@@ -147,7 +147,7 @@ char *websrv_scope_initdata(void)
     scope_params.scopeform = create_phy_scope_gnb();
     scope_params.statusmask |= SCOPE_STATUSMASK_AVAILABLE;
     return "gNB";
-  } else if (IS_SOFTMODEM_5GUE_BIT) {
+  } else if (IS_SOFTMODEM_5GUE) {
     scope_params.scopedata = PHY_vars_UE_g[0][0];
     nrUEinitScope(PHY_vars_UE_g[0][0]);
     scope_params.scopeform = create_phy_scope_nrue(scope_params.selectedTarget);
@@ -188,12 +188,12 @@ int websrv_scope_callback_set_params(const struct _u_request *request, struct _u
           websrv_scope_initdata();
           scope_params.statusmask |= SCOPE_STATUSMASK_STARTED;
           scope_params.selectedTarget = 1; // 1 UE to be received from GUI (for xNB scope's
-          set_softmodem_optmask(SOFTMODEM_DOSCOPE_BIT); // to trigger data copy in scope buffers
+          IS_SOFTMODEM_DOSCOPE = true; // to trigger data copy in scope buffers
         }
         httpstatus = 200;
       } else if (strcmp(vval, "stop") == 0) {
         scope_params.statusmask &= ~SCOPE_STATUSMASK_STARTED;
-        clear_softmodem_optmask(SOFTMODEM_DOSCOPE_BIT);
+        IS_SOFTMODEM_DOSCOPE = false;
         httpstatus = 200;
       } else {
         LOG_W(UTIL, "invalid startstop command value: %s\n", vval);
@@ -232,11 +232,11 @@ int websrv_scope_callback_set_params(const struct _u_request *request, struct _u
       httpstatus = 200;
     } else if (strcmp(vname, "TargetSelect") == 0) {
       scope_params.selectedTarget = strtol(vval, NULL, 10);
-      if (IS_SOFTMODEM_GNB_BIT && scope_params.selectedTarget > NUMBER_OF_UE_MAX) {
+      if (IS_SOFTMODEM_GNB && scope_params.selectedTarget > NUMBER_OF_UE_MAX) {
         snprintf(errmsg, sizeof(errmsg) - 1, "max UE index is %d for this gNB", NUMBER_OF_UE_MAX);
         httpstatus = 500;
         scope_params.selectedTarget = 1;
-      } else if (IS_SOFTMODEM_5GUE_BIT && scope_params.selectedTarget > 0) {
+      } else if (IS_SOFTMODEM_5GUE && scope_params.selectedTarget > 0) {
         snprintf(errmsg, sizeof(errmsg) - 1, "UE currently supports only one gNB");
         httpstatus = 500;
         scope_params.selectedTarget = 0;
@@ -276,7 +276,7 @@ int websrv_scope_callback_get_desc(const struct _u_request *request, struct _u_r
   char stitle[64];
 
   websrv_scope_stop(); // in case it's not the first connection
-  if (IS_SOFTMODEM_DOSCOPE | IS_SOFTMODEM_ENB_BIT | IS_SOFTMODEM_4GUE_BIT) {
+  if (IS_SOFTMODEM_DOSCOPE | IS_SOFTMODEM_ENB | IS_SOFTMODEM_4GUE) {
     strcpy(stitle, "none");
   } else {
     strcpy(stitle, websrv_scope_initdata());

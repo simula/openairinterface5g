@@ -216,11 +216,7 @@ int nas_timer_start(long sec, nas_timer_callback_t cb, void *args)
 
   /* Insert the new entry into the timer queue */
   _nas_timer_db_insert_entry(id, te);
-# if defined(NAS_MME)
-  ret = timer_setup(sec, 0, TASK_NAS_MME, INSTANCE_DEFAULT, TIMER_PERIODIC, args, &timer_id);
-# else
   ret = timer_setup(sec, 0, TASK_NAS_UE, INSTANCE_DEFAULT, TIMER_PERIODIC, args, &timer_id);
-# endif
 
   if (ret == -1) {
     return NAS_TIMER_INACTIVE_ID;
@@ -294,39 +290,6 @@ int nas_timer_restart(int id)
 
   return (NAS_TIMER_INACTIVE_ID);
 }
-
-/****************************************************************************/
-/*********************  L O C A L    F U N C T I O N S  *********************/
-/****************************************************************************/
-
-/****************************************************************************
- **                                                                        **
- ** Name:    _nas_timer_handler()                                      **
- **                                                                        **
- ** Description: The timer handler is executed whenever the system deli-   **
- **      vers signal SIGALARM. It starts execution of the callback **
- **      function of the first entry within the queue of active    **
- **      timer entries. The entry is not removed from the queue of **
- **      active timer entries and shall be explicitly removed when **
- **      the timer expires.                                        **
- **                                                                        **
- ** Inputs:  None                                                      **
- **      Others:    None                                       **
- **                                                                        **
- ** Outputs:     None                                                      **
- **      Return:    None                                       **
- **      Others:    _nas_timer_db                              **
- **                                                                        **
- ***************************************************************************/
-
-void nas_timer_handle_signal_expiry(long timer_id, void *arg_p)
-{
-  /* Get the timer entry for which the system timer expired */
-  nas_timer_entry_t *te = _nas_timer_db.head->entry;
-
-  te->cb(te->args);
-}
-
 
 /*
  * -----------------------------------------------------------------------------

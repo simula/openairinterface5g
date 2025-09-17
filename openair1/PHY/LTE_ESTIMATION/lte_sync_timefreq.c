@@ -55,9 +55,7 @@ void lte_sync_timefreq(PHY_VARS_UE *ue,int band,unsigned int DL_freq)
   int32_t *rxp;
   int16_t *sp;
   simde__m128i *sp2 = NULL;
-  simde__m128i s;
   int re,re256;
-  simde__m128i mmtmp00, mmtmp01, mmtmp02, mmtmp10, mmtmp11, mmtmp12;
   int maxcorr[3],minamp,pos=0,pssind;
   int16_t *pss6144_0 = NULL, *pss6144_1 = NULL, *pss6144_2 = NULL;
 
@@ -129,25 +127,10 @@ void lte_sync_timefreq(PHY_VARS_UE *ue,int band,unsigned int DL_freq)
           re256=32;
 
           for (re = 0; re<256/4; re++) {  // loop over 256 points of upsampled PSS
-            //      printf("f %d, re %d\n",f,re);
-            s = sp2[re];
-            mmtmp00 = simde_mm_srai_epi32(simde_mm_madd_epi16(((simde__m128i *)pss6144_0)[re], s), 15);
-            mmtmp01 = simde_mm_srai_epi32(simde_mm_madd_epi16(((simde__m128i *)pss6144_1)[re], s), 15);
-            mmtmp02 = simde_mm_srai_epi32(simde_mm_madd_epi16(((simde__m128i *)pss6144_2)[re], s), 15);
-
-            s = simde_mm_shufflelo_epi16(s, SIMDE_MM_SHUFFLE(2, 3, 0, 1));
-            s = simde_mm_shufflehi_epi16(s, SIMDE_MM_SHUFFLE(2, 3, 0, 1));
-            s = simde_mm_sign_epi16(s, *(simde__m128i *)&conjugate[0]);
-            mmtmp10 = simde_mm_srai_epi32(simde_mm_madd_epi16(((simde__m128i *)pss6144_0)[re], s), 15);
-            mmtmp11 = simde_mm_srai_epi32(simde_mm_madd_epi16(((simde__m128i *)pss6144_1)[re], s), 15);
-            mmtmp12 = simde_mm_srai_epi32(simde_mm_madd_epi16(((simde__m128i *)pss6144_2)[re], s), 15);
-
-            autocorr0[re256] =
-                simde_mm_packs_epi32(simde_mm_unpacklo_epi32(mmtmp00, mmtmp10), simde_mm_unpackhi_epi32(mmtmp00, mmtmp10));
-            autocorr1[re256] =
-                simde_mm_packs_epi32(simde_mm_unpacklo_epi32(mmtmp01, mmtmp11), simde_mm_unpackhi_epi32(mmtmp01, mmtmp11));
-            autocorr2[re256] =
-                simde_mm_packs_epi32(simde_mm_unpacklo_epi32(mmtmp02, mmtmp12), simde_mm_unpackhi_epi32(mmtmp02, mmtmp12));
+            simde__m128i s = sp2[re];
+            autocorr0[re256] = oai_mm_cpx_mult_conj(s, ((simde__m128i *)pss6144_0)[re], 15);
+            autocorr1[re256] = oai_mm_cpx_mult_conj(s, ((simde__m128i *)pss6144_1)[re], 15);
+            autocorr2[re256] = oai_mm_cpx_mult_conj(s, ((simde__m128i *)pss6144_2)[re], 15);
 
             re256 = (re256+1)&0x3f;
           }
@@ -188,28 +171,10 @@ void lte_sync_timefreq(PHY_VARS_UE *ue,int band,unsigned int DL_freq)
           re256 = 32;
 
           for (re = 0; re<(-f+3)/4; re++) {  // loop over 256 points of upsampled PSS
-            s = sp2[re];
-            /*            printf("re %d, %p\n",re,&sp2[re]);
-                  print_shorts("s",&s);
-                  print_shorts("pss",&((simde__m128i*)pss6144_0)[re]);*/
-
-            mmtmp00 = simde_mm_srai_epi32(simde_mm_madd_epi16(((simde__m128i *)pss6144_0)[re], s), 15);
-            mmtmp01 = simde_mm_srai_epi32(simde_mm_madd_epi16(((simde__m128i *)pss6144_1)[re], s), 15);
-            mmtmp02 = simde_mm_srai_epi32(simde_mm_madd_epi16(((simde__m128i *)pss6144_2)[re], s), 15);
-
-            s = simde_mm_shufflelo_epi16(s, SIMDE_MM_SHUFFLE(2, 3, 0, 1));
-            s = simde_mm_shufflehi_epi16(s, SIMDE_MM_SHUFFLE(2, 3, 0, 1));
-            s = simde_mm_sign_epi16(s, *(simde__m128i *)&conjugate[0]);
-            mmtmp10 = simde_mm_srai_epi32(simde_mm_madd_epi16(((simde__m128i *)pss6144_0)[re], s), 15);
-            mmtmp11 = simde_mm_srai_epi32(simde_mm_madd_epi16(((simde__m128i *)pss6144_1)[re], s), 15);
-            mmtmp12 = simde_mm_srai_epi32(simde_mm_madd_epi16(((simde__m128i *)pss6144_2)[re], s), 15);
-
-            autocorr0[re256] =
-                simde_mm_packs_epi32(simde_mm_unpacklo_epi32(mmtmp00, mmtmp10), simde_mm_unpackhi_epi32(mmtmp00, mmtmp10));
-            autocorr1[re256] =
-                simde_mm_packs_epi32(simde_mm_unpacklo_epi32(mmtmp01, mmtmp11), simde_mm_unpackhi_epi32(mmtmp01, mmtmp11));
-            autocorr2[re256] =
-                simde_mm_packs_epi32(simde_mm_unpacklo_epi32(mmtmp02, mmtmp12), simde_mm_unpackhi_epi32(mmtmp02, mmtmp12));
+            simde__m128i s = sp2[re];
+            autocorr0[re256] = oai_mm_cpx_mult_conj(s, ((simde__m128i *)pss6144_0)[re], 15);
+            autocorr1[re256] = oai_mm_cpx_mult_conj(s, ((simde__m128i *)pss6144_1)[re], 15);
+            autocorr2[re256] = oai_mm_cpx_mult_conj(s, ((simde__m128i *)pss6144_2)[re], 15);
 
             re256 = (re256+1)&0x3f;
           }
@@ -246,27 +211,10 @@ void lte_sync_timefreq(PHY_VARS_UE *ue,int band,unsigned int DL_freq)
           }
 
           for (re = 0; re<(256+f)/4; re++) {  // loop over 256 points of upsampled PSS
-            s = sp2[re];
-            /*            printf("re %d %p\n",re,&sp2[re]);
-                  print_shorts("s",&s);
-                  print_shorts("pss",&((simde__m128i*)pss6144_0)[re]);*/
-            mmtmp00 = simde_mm_srai_epi32(simde_mm_madd_epi16(((simde__m128i *)pss6144_0)[re], s), 15);
-            mmtmp01 = simde_mm_srai_epi32(simde_mm_madd_epi16(((simde__m128i *)pss6144_1)[re], s), 15);
-            mmtmp02 = simde_mm_srai_epi32(simde_mm_madd_epi16(((simde__m128i *)pss6144_2)[re], s), 15);
-
-            s = simde_mm_shufflelo_epi16(s, SIMDE_MM_SHUFFLE(2, 3, 0, 1));
-            s = simde_mm_shufflehi_epi16(s, SIMDE_MM_SHUFFLE(2, 3, 0, 1));
-            s = simde_mm_sign_epi16(s, *(simde__m128i *)&conjugate[0]);
-            mmtmp10 = simde_mm_srai_epi32(simde_mm_madd_epi16(((simde__m128i *)pss6144_0)[re], s), 15);
-            mmtmp11 = simde_mm_srai_epi32(simde_mm_madd_epi16(((simde__m128i *)pss6144_1)[re], s), 15);
-            mmtmp12 = simde_mm_srai_epi32(simde_mm_madd_epi16(((simde__m128i *)pss6144_2)[re], s), 15);
-
-            autocorr0[re256] =
-                simde_mm_packs_epi32(simde_mm_unpacklo_epi32(mmtmp00, mmtmp10), simde_mm_unpackhi_epi32(mmtmp00, mmtmp10));
-            autocorr1[re256] =
-                simde_mm_packs_epi32(simde_mm_unpacklo_epi32(mmtmp01, mmtmp11), simde_mm_unpackhi_epi32(mmtmp01, mmtmp11));
-            autocorr2[re256] =
-                simde_mm_packs_epi32(simde_mm_unpacklo_epi32(mmtmp02, mmtmp12), simde_mm_unpackhi_epi32(mmtmp02, mmtmp12));
+            simde__m128i s = sp2[re];
+            autocorr0[re256] = oai_mm_cpx_mult_conj(s, ((simde__m128i *)pss6144_0)[re], 15);
+            autocorr1[re256] = oai_mm_cpx_mult_conj(s, ((simde__m128i *)pss6144_1)[re], 15);
+            autocorr2[re256] = oai_mm_cpx_mult_conj(s, ((simde__m128i *)pss6144_2)[re], 15);
 
             re256 = (re256+1)&0x3f;
           }

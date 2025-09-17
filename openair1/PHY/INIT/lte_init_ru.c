@@ -39,7 +39,7 @@ int phy_init_RU(RU_t *ru) {
   RU_CALIBRATION *calibration = &ru->calibration;
   int i,j,p,re;
   //load_dftslib();
-  LOG_I(PHY,"Initializing RU signal buffers (if_south %s) nb_tx %d\n",ru_if_types[ru->if_south],ru->nb_tx);
+  LOG_D(PHY, "Initializing RU signal buffers (if_south %s) nb_tx %d\n", ru_if_types[ru->if_south], ru->nb_tx);
 
   if (ru->is_slave == 1) {
     generate_ul_ref_sigs_rx();
@@ -54,8 +54,11 @@ int phy_init_RU(RU_t *ru) {
     for (i=0; i<ru->nb_tx; i++) {
       // Allocate 10 subframes of I/Q TX signal data (time) if not
       ru->common.txdata[i]  = (int32_t *)malloc16_clear( fp->samples_per_tti*10*sizeof(int32_t) );
-      LOG_I(PHY,"[INIT] common.txdata[%d] = %p (%lu bytes)\n",i,ru->common.txdata[i],
-            fp->samples_per_tti*10*sizeof(int32_t));
+      LOG_D(PHY,
+            "[INIT] common.txdata[%d] = %p (%lu bytes)\n",
+            i,
+            ru->common.txdata[i],
+            fp->samples_per_tti * 10 * sizeof(int32_t));
     }
 
     if (ru->is_slave == 1) {
@@ -71,7 +74,6 @@ int phy_init_RU(RU_t *ru) {
     }
   } // IF5 or local RF
   else {
-    //    LOG_I(PHY,"No rxdata/txdata for RU\n");
     ru->common.txdata        = (int32_t **)NULL;
     ru->common.rxdata        = (int32_t **)NULL;
   }
@@ -79,22 +81,21 @@ int phy_init_RU(RU_t *ru) {
   if (ru->function != NGFI_RRU_IF5) { // we need to do RX/TX RU processing
     load_dftslib();
     init_7_5KHz();
-    LOG_I(PHY,"nb_tx %d\n",ru->nb_tx);
+    LOG_D(PHY, "nb_tx %d\n", ru->nb_tx);
     ru->common.rxdata_7_5kHz = (int32_t **)malloc16(ru->nb_rx*sizeof(int32_t *) );
 
     for (i=0; i<ru->nb_rx; i++) {
       ru->common.rxdata_7_5kHz[i] = (int32_t *)malloc16_clear( 2*fp->samples_per_tti*2*sizeof(int32_t) );
-      LOG_I(PHY,"rxdata_7_5kHz[%d] %p for RU %d\n",i,ru->common.rxdata_7_5kHz[i],ru->idx);
+      LOG_D(PHY, "rxdata_7_5kHz[%d] %p for RU %d\n", i, ru->common.rxdata_7_5kHz[i], ru->idx);
     }
 
     // allocate IFFT input buffers (TX)
     ru->common.txdataF_BF = (int32_t **)malloc16(ru->nb_tx*sizeof(int32_t *));
-    LOG_I(PHY,"[INIT] common.txdata_BF= %p (%lu bytes)\n",ru->common.txdataF_BF,
-          ru->nb_tx*sizeof(int32_t *));
+    LOG_D(PHY, "[INIT] common.txdata_BF= %p (%lu bytes)\n", ru->common.txdataF_BF, ru->nb_tx * sizeof(int32_t *));
 
     for (i=0; i<ru->nb_tx; i++) {
       ru->common.txdataF_BF[i] = (int32_t *)malloc16_clear(fp->symbols_per_tti*fp->ofdm_symbol_size*sizeof(int32_t) );
-      LOG_I(PHY,"txdataF_BF[%d] %p for RU %d\n",i,ru->common.txdataF_BF[i],ru->idx);
+      LOG_D(PHY, "txdataF_BF[%d] %p for RU %d\n", i, ru->common.txdataF_BF[i], ru->idx);
     }
 
     // allocate FFT output buffers (RX)
@@ -103,7 +104,7 @@ int phy_init_RU(RU_t *ru) {
     for (i=0; i<ru->nb_rx; i++) {
       // allocate 2 subframes of I/Q signal data (frequency)
       ru->common.rxdataF[i] = (int32_t *)malloc16_clear(sizeof(int32_t)*(2*fp->ofdm_symbol_size*fp->symbols_per_tti) );
-      LOG_I(PHY,"rxdataF[%d] %p for RU %d\n",i,ru->common.rxdataF[i],ru->idx);
+      LOG_D(PHY, "rxdataF[%d] %p for RU %d\n", i, ru->common.rxdataF[i], ru->idx);
     }
 
     if (ru->is_slave == 1) {
@@ -114,7 +115,7 @@ int phy_init_RU(RU_t *ru) {
       for (i=0; i<ru->nb_rx; i++) {
         // allocate 2 subframes of I/Q signal data (frequency)
         calibration->rxdataF_ext[i] = (int32_t *)malloc16_clear(sizeof(int32_t)*fp->N_RB_UL*12*fp->symbols_per_tti );
-        LOG_I(PHY,"rxdataF_ext[%d] %p for RU %d\n",i,calibration->rxdataF_ext[i],ru->idx);
+        LOG_D(PHY, "rxdataF_ext[%d] %p for RU %d\n", i, calibration->rxdataF_ext[i], ru->idx);
         calibration->drs_ch_estimates[i] = (int32_t *)malloc16_clear(sizeof(int32_t)*fp->N_RB_UL*12*fp->symbols_per_tti);
       }
     }
@@ -186,7 +187,7 @@ int phy_init_RU(RU_t *ru) {
 void phy_free_RU(RU_t *ru) {
   int i,j,p;
   RU_CALIBRATION *calibration = &ru->calibration;
-  LOG_I(PHY, "Freeing RU signal buffers (if_south %s) nb_tx %d\n", ru_if_types[ru->if_south], ru->nb_tx);
+  LOG_D(PHY, "Freeing RU signal buffers (if_south %s) nb_tx %d\n", ru_if_types[ru->if_south], ru->nb_tx);
 
   if (ru->if_south <= REMOTE_IF5) { // this means REMOTE_IF5 or LOCAL_RF, so free memory for time-domain signals
     for (i = 0; i < ru->nb_tx; i++) free_and_zero(ru->common.txdata[i]);

@@ -67,7 +67,7 @@ static void drawsymbol(FL_OBJECT *obj, int id,
 static void commonGraph(OAIgraph_t *graph, int type, FL_Coord x, FL_Coord y, FL_Coord w, FL_Coord h, const char *label, FL_COLOR pointColor) {
   if (type==WATERFALL) {
     graph->waterFallh=h-15;
-    graph->waterFallAvg=malloc(sizeof(*graph->waterFallAvg) * graph->waterFallh);
+    graph->waterFallAvg = malloc_or_fail(sizeof(*graph->waterFallAvg) * graph->waterFallh);
 
     for (int i=0; i< graph->waterFallh; i++)
       graph->waterFallAvg[i]=0;
@@ -309,7 +309,7 @@ static void puschIQ (OAIgraph_t *graph, calibData_t *context) {
 
 static OAI_phy_scope_t *createScopeCalibration(calibData_t * context) {
   FL_OBJECT *obj;
-  OAI_phy_scope_t *fdui = calloc(( sizeof *fdui ),1);
+  OAI_phy_scope_t *fdui = calloc_or_fail((sizeof *fdui), 1);
   fdui->context=context;
   // Define form
   fdui->phy_scope = fl_bgn_form( FL_NO_BOX, 800, 800 );
@@ -380,7 +380,7 @@ static void *scopeThread(void *arg) {
 
 void CalibrationInitScope(void ** samplesRx,openair0_device *rfdevice) {
   pthread_t forms_thread;
-  calibData_t * tmp=(calibData_t *) malloc(sizeof(*tmp));
+  calibData_t *tmp = (calibData_t *)malloc_or_fail(sizeof(*tmp));
   tmp->samplesRx=samplesRx;
   tmp->rfdevice=rfdevice;
   threadCreate(&forms_thread, scopeThread, (void*) tmp, "scope", -1, OAI_PRIORITY_RT_LOW);

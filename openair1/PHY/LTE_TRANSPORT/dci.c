@@ -418,7 +418,10 @@ uint8_t generate_dci_top(uint8_t num_pdcch_symbols,
       // if REG is allocated to PHICH, skip it
       if (check_phich_reg(frame_parms,kprime,lprime,mi) == 1) {
 #ifdef DEBUG_DCI_ENCODING
-        printf("generate_dci: skipping REG %d (kprime %u, lprime %u)\n",(lprime==0)?(kprime/6) : (kprime>>2),kprime,lprime);
+        printf("generate_dci: skipping REG %u (kprime %u, lprime %u)\n",
+               (lprime == 0) ? (kprime / 6) : (kprime >> 2),
+               kprime,
+               lprime);
 #endif
       } else {
         // Copy REG to TX buffer

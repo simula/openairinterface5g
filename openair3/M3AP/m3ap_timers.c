@@ -21,7 +21,6 @@
 
 #include "m3ap_timers.h"
 #include "assertions.h"
-#include "PHY/defs_common.h"         /* TODO: try to not include this */
 #include "m3ap_messages_types.h"
 #include "m3ap_MCE_defs.h"
 #include "m3ap_ids.h"

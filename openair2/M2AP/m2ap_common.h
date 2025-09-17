@@ -50,8 +50,6 @@
 # define M2AP_PORT 36423
 #endif
 
-extern int asn1_xer_print;
-
 #include "common/utils/LOG/log.h"
 #include "m2ap_default_values.h"
 #define M2AP_INFO(x, args...) LOG_I(M2AP, x, ##args)

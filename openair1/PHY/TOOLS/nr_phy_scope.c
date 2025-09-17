@@ -456,9 +456,8 @@ static void timeSignal (OAIgraph_t *graph, PHY_VARS_gNB *phy_vars_gnb, RU_t *phy
 */
 
 static void timeResponse (OAIgraph_t *graph, scopeData_t *p, int nb_UEs) {
-  const int len = p->gNB->frame_parms.ofdm_symbol_size;
-  if (!len)
-    // gnb not yet initialized, many race conditions in the scope
+  scopeGraphData_t *val = p->liveData[gNBulDelay];
+  if (!val || !val->dataSize)
     return;
 #ifdef WEBSRVSCOPE
   websrv_scopedata_msg_t *msg = NULL;
@@ -466,38 +465,24 @@ static void timeResponse (OAIgraph_t *graph, scopeData_t *p, int nb_UEs) {
   float *values = (float *)msg->data_xy;
 #else
   float *values, *time;
-  oai_xygraph_getbuff(graph, &time, &values, len, 0);
+  oai_xygraph_getbuff(graph, &time, &values, val->lineSz, 0);
 #endif
 
-  const int ant = 0; // display antenna 0 for each UE
-#ifdef WEBSRVSCOPE
-  int uestart = nb_UEs - 1; // web scope shows one UE signal, that can be selected from GUI
-#else
-  int uestart = 0; // xforms scope designed to display nb_UEs signals
-#endif
-  for (int ue = uestart; ue < nb_UEs; ue++) {
-    if (p->gNB->pusch_vars &&
-        p->gNB->pusch_vars[ue].ul_ch_estimates_time &&
-        p->gNB->pusch_vars[ue].ul_ch_estimates_time[ant] ) {
-      scopeSample_t *data= (scopeSample_t *)p->gNB->pusch_vars[ue].ul_ch_estimates_time[ant];
-
-      if (data != NULL) {
-        for (int i=0; i<len; i++) {
-          values[i] = SquaredNorm(data[i]);
-        }
-#ifdef WEBSRVSCOPE
-        msg->header.msgtype = SCOPEMSG_TYPE_DATA;
-        msg->header.chartid = graph->chartid;
-        msg->header.datasetid = graph->datasetid;
-        msg->header.msgseg = 0;
-        msg->header.update = 1;
-        websrv_scope_senddata(len, 4, msg);
-#else
-        oai_xygraph(graph,time,values, len, ue, 10);
-#endif
-      }
-    }
+  // We display UEs randomly, with one buffer
+  c16_t *samples = (c16_t *)(val + 1);
+  for (int i = 0; i < val->lineSz; i++) {
+    values[i] = SquaredNorm(samples[i]);
   }
+#ifdef WEBSRVSCOPE
+  msg->header.msgtype = SCOPEMSG_TYPE_DATA;
+  msg->header.chartid = graph->chartid;
+  msg->header.datasetid = graph->datasetid;
+  msg->header.msgseg = 0;
+  msg->header.update = 1;
+  websrv_scope_senddata(val->lineSz, 4, msg);
+#else
+  oai_xygraph(graph, time, values, val->lineSz, 0, 10);
+#endif
 }
 
 static void gNBfreqWaterFall (OAIgraph_t *graph, scopeData_t *p, int nb_UEs) {
@@ -629,7 +614,7 @@ static void puschThroughtput (OAIgraph_t *graph, scopeData_t *p, int nb_UEs) {
 STATICFORXSCOPE OAI_phy_scope_t *create_phy_scope_gnb(void)
 {
   FL_OBJECT *obj;
-  OAI_phy_scope_t *fdui = calloc(( sizeof *fdui ),1);
+  OAI_phy_scope_t *fdui = calloc_or_fail((sizeof *fdui), 1);
   // Define form
   fdui->phy_scope = fl_bgn_form( FL_NO_BOX, 800, 800 );
   fl_set_form_dblbuffer(fdui->phy_scope, 1);
@@ -754,7 +739,7 @@ static void scopeUpdaterGnb(enum PlotTypeGnbIf plotType, int numElt)
 
 STATICFORXSCOPE void gNBinitScope(scopeParms_t *p)
 {
-  AssertFatal(p->gNB->scopeData = calloc(sizeof(scopeData_t), 1), "");
+  AssertFatal(p->gNB->scopeData = calloc_or_fail(sizeof(scopeData_t), 1), "");
   scopeData_t *scope=(scopeData_t *) p->gNB->scopeData;
   scope->argc=p->argc;
   scope->argv=p->argv;
@@ -1013,7 +998,7 @@ static void uePdschThroughput  (scopeGraphData_t **data, OAIgraph_t *graph, PHY_
 STATICFORXSCOPE OAI_phy_scope_t *create_phy_scope_nrue(int ID)
 {
   FL_OBJECT *obj;
-  OAI_phy_scope_t *fdui = calloc(( sizeof *fdui ),1);
+  OAI_phy_scope_t *fdui = calloc_or_fail((sizeof *fdui), 1);
   // Define form
   fdui->phy_scope = fl_bgn_form( FL_NO_BOX, 800, 900 );
   fl_set_form_dblbuffer(fdui->phy_scope, 1);
@@ -1154,7 +1139,7 @@ static void *nrUEscopeThread(void *arg) {
 
 STATICFORXSCOPE void nrUEinitScope(PHY_VARS_NR_UE *ue)
 {
-  AssertFatal(ue->scopeData = calloc(sizeof(scopeData_t), 1), "");
+  AssertFatal(ue->scopeData = calloc_or_fail(sizeof(scopeData_t), 1), "");
   scopeData_t *scope=(scopeData_t *) ue->scopeData;
   scope->copyData = copyData;
 #ifndef WEBSRVSCOPE
@@ -1165,9 +1150,9 @@ STATICFORXSCOPE void nrUEinitScope(PHY_VARS_NR_UE *ue)
 }
 
 void nrscope_autoinit(void *dataptr) {
-  AssertFatal( (IS_SOFTMODEM_GNB_BIT||IS_SOFTMODEM_5GUE_BIT),"Scope cannot find NRUE or GNB context");
+  AssertFatal((IS_SOFTMODEM_GNB || IS_SOFTMODEM_5GUE), "Scope cannot find NRUE or GNB context");
 
-  if (IS_SOFTMODEM_GNB_BIT)
+  if (IS_SOFTMODEM_GNB)
     gNBinitScope(dataptr);
   else
     nrUEinitScope(dataptr);
@@ -1200,7 +1185,7 @@ static void reset_stats_gNB(FL_OBJECT *button,
 }
 static FD_stats_form *create_form_stats_form(int ID) {
   FL_OBJECT *obj;
-  FD_stats_form *fdui = calloc(( sizeof *fdui ),1);
+  FD_stats_form *fdui = calloc_or_fail(( sizeof *fdui ),1);
   fdui->vdata = fdui->cdata = NULL;
   fdui->ldata = 0;
   fdui->stats_form = fl_bgn_form( FL_NO_BOX, 1115, 900 );

@@ -129,7 +129,7 @@ int s1ap_eNB_encode_initiating(S1AP_S1AP_PDU_t *pdu,
       return -1;
   }
 
-  if (asn1_xer_print) {
+  if (LOG_DEBUGFLAG(DEBUG_ASN1)) {
     xer_fprint(stdout, &asn_DEF_S1AP_S1AP_PDU, (void *)pdu);
   }
 
@@ -183,7 +183,7 @@ int s1ap_eNB_encode_successfull_outcome(S1AP_S1AP_PDU_t *pdu,
       return -1;
   }
 
-  if (asn1_xer_print) {
+  if (LOG_DEBUGFLAG(DEBUG_ASN1)) {
     xer_fprint(stdout, &asn_DEF_S1AP_S1AP_PDU, (void *)pdu);
   }
 
@@ -214,7 +214,7 @@ int s1ap_eNB_encode_unsuccessfull_outcome(S1AP_S1AP_PDU_t *pdu,
       return -1;
   }
 
-  if (asn1_xer_print) {
+  if (LOG_DEBUGFLAG(DEBUG_ASN1)) {
     xer_fprint(stdout, &asn_DEF_S1AP_S1AP_PDU, (void *)pdu);
   }
 

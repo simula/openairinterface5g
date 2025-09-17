@@ -3,32 +3,6 @@
 #include <stdlib.h>
 #include "PHY/defs_common.h"
 
-int f_read(char *calibF_fname, int nb_ant, int nb_freq, int32_t **tdd_calib_coeffs){
-
-  FILE *calibF_fd;
-  int i,j,calibF_e;
-  
-  calibF_fd = fopen(calibF_fname,"r");
- 
-  if (calibF_fd) {
-    printf("Loading Calibration matrix from %s\n", calibF_fname);
-  
-    for(i=0;i<nb_ant;i++){
-      for(j=0;j<nb_freq*2;j++){
-        if (fscanf(calibF_fd, "%d", &calibF_e) != 1) abort();
-        tdd_calib_coeffs[i][j] = (int16_t)calibF_e;
-      }
-    }
-    printf("%d\n",(int)tdd_calib_coeffs[0][0]);
-    printf("%d\n",(int)tdd_calib_coeffs[1][599]);
-    fclose(calibF_fd);
-  } else
-   printf("%s not found, running with defaults\n",calibF_fname);
-  /* TODO: what to return? is this code used at all? */
-  return 0;
-}
-
-
 int estimate_DLCSI_from_ULCSI(int32_t **calib_dl_ch_estimates, int32_t **ul_ch_estimates, int32_t **tdd_calib_coeffs, int nb_ant, int nb_freq) {
 
   /* TODO: what to return? is this code used at all? */

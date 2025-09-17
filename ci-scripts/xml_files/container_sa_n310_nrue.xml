@@ -25,6 +25,7 @@
   <htmlTabName>40 MHz TDD SA</htmlTabName>
   <htmlTabIcon>tasks</htmlTabIcon>
   <TestCaseRequestedList>
+    060000
     010000 010001
     800813
     020000
@@ -38,21 +39,28 @@
     040001 040000
     333333
     444444
+    060001
   </TestCaseRequestedList>
   <TestCaseExclusionList></TestCaseExclusionList>
+
+  <testCase id="060000">
+    <class>DeployCoreNetwork</class>
+    <desc>Initialize 5G Core</desc>
+    <cn_id>oc-cn5g</cn_id>
+  </testCase>
 
   <testCase id="010000">
     <class>Pull_Cluster_Image</class>
     <desc>Pull Images from Cluster</desc>
-    <images_to_pull>oai-gnb</images_to_pull>
-    <test_svr_id>avra</test_svr_id>
+    <images>oai-gnb</images>
+    <node>avra</node>
   </testCase>
 
   <testCase id="010001">
     <class>Pull_Cluster_Image</class>
     <desc>Pull Images from Cluster</desc>
-    <images_to_pull>oai-nr-ue</images_to_pull>
-    <test_svr_id>caracal</test_svr_id>
+    <images>oai-nr-ue</images>
+    <node>caracal</node>
   </testCase>
 
   <testCase id = "030000">
@@ -71,28 +79,26 @@
   <testCase id="800813">
     <class>Create_Workspace</class>
     <desc>Create new Workspace</desc>
-    <eNB_instance>0</eNB_instance>
-    <eNB_serverId>0</eNB_serverId>
+    <node>avra</node>
   </testCase>
   <testCase id="020000">
     <class>Deploy_Object</class>
     <desc>Deploy gNB (TDD/Band78/40MHz/N310) in a container</desc>
+    <node>avra</node>
     <yaml_path>ci-scripts/yaml_files/5g_sa_n310_gnb</yaml_path>
-    <eNB_instance>0</eNB_instance>
-    <eNB_serverId>0</eNB_serverId>
+    <num_attempts>3</num_attempts>
   </testCase>
   <testCase id="800814">
     <class>Create_Workspace</class>
     <desc>Create new Workspace</desc>
-    <eNB_instance>1</eNB_instance>
-    <eNB_serverId>1</eNB_serverId>
+    <node>caracal</node>
   </testCase>
   <testCase id="020001">
     <class>Deploy_Object</class>
     <desc>Deploy nrUE (TDD/Band78/40MHz/N310) in a container</desc>
     <yaml_path>ci-scripts/yaml_files/5g_sa_n310_nrue</yaml_path>
-    <eNB_instance>1</eNB_instance>
-    <eNB_serverId>1</eNB_serverId>
+    <node>caracal</node>
+    <num_attempts>3</num_attempts>
   </testCase>
  
   <testCase id="000001">
@@ -103,8 +109,8 @@
 
   <testCase id="000100">
     <class>Iperf</class>
-    <desc>iperf (DL/20Mbps/UDP)(30 sec)(single-ue profile)</desc>
-    <iperf_args>-u -b 20M -t 30 -i 1 -R</iperf_args>
+    <desc>iperf (DL/60Mbps/UDP)(30 sec)</desc>
+    <iperf_args>-u -b 60M -t 30 -i 1 -R</iperf_args>
     <id>oai_ue_caracal</id>
     <svr_id>oc-cn5g</svr_id>
     <iperf_packetloss_threshold>25</iperf_packetloss_threshold>
@@ -113,8 +119,8 @@
 
   <testCase id="000200">
     <class>Iperf</class>
-    <desc>iperf (UL/5Mbps/UDP)(30 sec)(single-ue profile)</desc>
-    <iperf_args>-u -b 5M -t 30 -i 1 </iperf_args>
+    <desc>iperf (UL/20Mbps/UDP)(30 sec)</desc>
+    <iperf_args>-u -b 20M -t 30 -i 1 </iperf_args>
     <id>oai_ue_caracal</id>
     <svr_id>oc-cn5g</svr_id>
     <iperf_packetloss_threshold>25</iperf_packetloss_threshold>
@@ -125,7 +131,8 @@
     <class>Ping</class>
     <desc>Ping: 20pings in 20sec</desc>
     <id>oai_ue_caracal</id>
-    <ping_args>-c 20 %cn_ip%</ping_args>
+    <svr_id>oc-cn5g</svr_id>
+    <ping_args>-c 20</ping_args>
     <ping_packetloss_threshold>1</ping_packetloss_threshold>
     <ping_rttavg_threshold>25</ping_rttavg_threshold>
   </testCase>
@@ -134,7 +141,8 @@
     <class>Ping</class>
     <desc>Ping: 100pings in 20sec</desc>
     <id>oai_ue_caracal</id>
-    <ping_args>-c 100 -i 0.2 %cn_ip%</ping_args>
+    <svr_id>oc-cn5g</svr_id>
+    <ping_args>-c 100 -i 0.2</ping_args>
     <ping_packetloss_threshold>1</ping_packetloss_threshold>
     <ping_rttavg_threshold>30</ping_rttavg_threshold>
   </testCase>
@@ -143,9 +151,8 @@
     <class>Undeploy_Object</class>
     <always_exec>true</always_exec>
     <desc>Undeploy gNB</desc>
+    <node>avra</node>
     <yaml_path>ci-scripts/yaml_files/5g_sa_n310_gnb</yaml_path>
-    <eNB_instance>0</eNB_instance>
-    <eNB_serverId>0</eNB_serverId>
     <d_retx_th>20,100,100,100</d_retx_th>
     <u_retx_th>20,100,100,100</u_retx_th>
   </testCase>
@@ -154,23 +161,31 @@
     <class>Undeploy_Object</class>
     <always_exec>true</always_exec>
     <desc>Undeploy nr UE</desc>
+    <node>caracal</node>
     <yaml_path>ci-scripts/yaml_files/5g_sa_n310_nrue</yaml_path>
-    <eNB_instance>1</eNB_instance>
-    <eNB_serverId>1</eNB_serverId>
   </testCase>
 
   <testCase id="333333">
     <class>Clean_Test_Server_Images</class>
     <always_exec>true</always_exec>
     <desc>Clean Test Images on Test Server</desc>
-    <test_svr_id>0</test_svr_id>
+    <node>avra</node>
+    <images>oai-gnb</images>
   </testCase>
 
   <testCase id="444444">
     <class>Clean_Test_Server_Images</class>
     <always_exec>true</always_exec>
     <desc>Clean Test Images on Test Server</desc>
-    <test_svr_id>1</test_svr_id>
+    <node>caracal</node>
+    <images>oai-nr-ue</images>
+  </testCase>
+
+  <testCase id="060001">
+    <class>UndeployCoreNetwork</class>
+    <desc>Terminate 5G Core</desc>
+    <always_exec>true</always_exec>
+    <cn_id>oc-cn5g</cn_id>
   </testCase>
 
 </testCaseList>

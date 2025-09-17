@@ -756,17 +756,7 @@ typedef struct {
   /// num active cba group
   uint8_t                 num_active_cba_groups;
   /// allocated CBA RNTI for this ulsch
-  uint16_t                cba_rnti[4];//NUM_MAX_CBA_GROUP];
-  #ifdef LOCALIZATION
-  /// epoch timestamp in millisecond
-  int32_t                 reference_timestamp_ms;
-  /// aggregate physical states every n millisecond
-  int32_t                 aggregation_period_ms;
-  /// a set of lists used for localization
-  struct                  list loc_rss_list[10], loc_rssi_list[10], loc_subcarrier_rss_list[10], loc_timing_advance_list[10], loc_timing_update_list[10];
-  struct                  list tot_loc_rss_list, tot_loc_rssi_list, tot_loc_subcarrier_rss_list, tot_loc_timing_advance_list, tot_loc_timing_update_list;
-  #endif
-
+  uint16_t cba_rnti[4]; // NUM_MAX_CBA_GROUP];
 } NB_IoT_eNB_NULSCH_t;
 
 #define NPBCH_A 34

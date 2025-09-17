@@ -1,0 +1,3 @@
+test:
+  Host: localhost
+  NetworkScript: echo "inet 127.0.0.1 mtu 1500"

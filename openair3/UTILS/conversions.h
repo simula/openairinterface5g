@@ -31,7 +31,7 @@
     ((x & 0x00FF0000) >> 8) | ((x & 0xFF000000) >> 24))
 
 # define hton_int16(x)   \
-    (((x & 0x00FF) << 8) | ((x & 0xFF00) >> 8)
+    ((((x) & 0x00FF) << 8) | (((x) & 0xFF00) >> 8))
 
 # define ntoh_int32_buf(bUF)        \
     ((*((uint8_t*)bUF)) << 24) | ((*((uint8_t*)bUF + 1)) << 16) | ((*((uint8_t*)bUF + 2)) << 8)   \
@@ -285,19 +285,6 @@ do {                                    \
     BUFFER_TO_UINT32((aSN)->buf, x);               \
   } while (0)
 
-#define BIT_STRING_TO_INT32(aSN, x)     \
-do {                                    \
-    DevCheck((aSN)->bits_unused == 0, (aSN)->bits_unused, 0, 0);    \
-    OCTET_STRING_TO_INT32(aSN, x);      \
-} while(0)
-
-#define BIT_STRING_TO_CELL_IDENTITY(aSN, vALUE)                     \
-do {                                                                \
-    DevCheck((aSN)->bits_unused == 4, (aSN)->bits_unused, 4, 0);    \
-    vALUE = ((aSN)->buf[0] << 20) | ((aSN)->buf[1] << 12) |         \
-        ((aSN)->buf[2] << 4) | (aSN)->buf[3];                       \
-} while(0)
-
 #define BIT_STRING_TO_NR_CELL_IDENTITY(aSN, vALUE)                     \
 do {                                                                   \
     DevCheck((aSN)->bits_unused == 4, (aSN)->bits_unused, 4, 0);       \
@@ -314,14 +301,6 @@ do {                                                                   \
     (((vALUE) / 10) % 10)
 #define MCC_MNC_DIGIT(vALUE) \
     ((vALUE) % 10)
-
-#define MCC_TO_BUFFER(mCC, bUFFER)      \
-do {                                    \
-    DevAssert(bUFFER != NULL);          \
-    (bUFFER)[0] = MCC_HUNDREDS(mCC);    \
-    (bUFFER)[1] = MCC_MNC_DECIMAL(mCC); \
-    (bUFFER)[2] = MCC_MNC_DIGIT(mCC);   \
-} while(0)
 
 #define MCC_MNC_TO_PLMNID(mCC, mNC, mNCdIGITlENGTH, oCTETsTRING)               \
 do {                                                                           \
@@ -459,14 +438,6 @@ do {                                                    \
     (bITsTRING)->bits_unused = 4;                       \
 } while(0)
 
-/*
-#define INT16_TO_3_BYTE_BUFFER(x, buf) \
-do {                            \
-	(buf)[0] = 0x00; \
-    (buf)[1] = (x) >> 8;        \
-    (buf)[2] = (x);             \
-} while(0)
-*/
 
 #define NR_FIVEGS_TAC_ID_TO_BIT_STRING(x, aSN)      \
 do {                                                    \
@@ -496,20 +467,6 @@ do {                                                    \
     (bITsTRING)->size = 8;                              \
     (bITsTRING)->bits_unused = 0;                       \
 } while(0)
-
-#define BIT_STRING_TO_MaskedIMEISV(bITsTRING, mACRO)    \
-do {                                                                    \
-    DevCheck((bITsTRING)->size == 8, (bITsTRING)->size, 8, 0);          \
-    DevCheck((bITsTRING)->bits_unused == 0, (bITsTRING)->bits_unused, 0, 0); \
-    mACRO = ((bITsTRING)->buf[0] << 56) +                               \
-            ((bITsTRING)->buf[1] << 48) +                               \
-            ((bITsTRING)->buf[2] << 40) +                               \
-            ((bITsTRING)->buf[3] << 32) +                               \
-            ((bITsTRING)->buf[4] << 24) +                               \
-            ((bITsTRING)->buf[5] << 16) +                               \
-            ((bITsTRING)->buf[6] << 8) +                                \
-            ((bITsTRING)->buf[7]);                                      \
-} while (0)
 
 /* TS 36.413 v10.9.0 section 9.2.1.37:
  * Macro eNB ID:

@@ -1,163 +1,192 @@
 /*
-* Licensed to the OpenAirInterface (OAI) Software Alliance under one or more
-* contributor license agreements.  See the NOTICE file distributed with
-* this work for additional information regarding copyright ownership.
-* The OpenAirInterface Software Alliance licenses this file to You under
-* the OAI Public License, Version 1.1  (the "License"); you may not use this file
-* except in compliance with the License.
-* You may obtain a copy of the License at
-*
-*      http://www.openairinterface.org/?page_id=698
-*
-* Author and copyright: Laurent Thomas, open-cells.com
-*
-* Unless required by applicable law or agreed to in writing, software
-* distributed under the License is distributed on an "AS IS" BASIS,
-* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-* See the License for the specific language governing permissions and
-* limitations under the License.
-*-------------------------------------------------------------------------------
-* For more information about the OpenAirInterface (OAI) Software Alliance:
-*      contact@openairinterface.org
-*/
-
+ * Licensed to the OpenAirInterface (OAI) Software Alliance under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The OpenAirInterface Software Alliance licenses this file to You under
+ * the OAI Public License, Version 1.1  (the "License"); you may not use this file
+ * except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.openairinterface.org/?page_id=698
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *-------------------------------------------------------------------------------
+ * For more information about the OpenAirInterface (OAI) Software Alliance:
+ *      contact@openairinterface.org
+ */
 
 #define _GNU_SOURCE
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <string.h>
 #include <ctype.h>
-#include <threadPool/thread-pool.h>
+#include "thread-pool.h"
+#include "bounded_notified_fifo.h"
+#include <sys/sysinfo.h>
 
+typedef struct {
+  tpool_t* tpool;
+  int idx;
+} task_thread_args_t;
 
-static inline  notifiedFIFO_elt_t *pullNotifiedFifoRemember( notifiedFIFO_t *nf, struct one_thread *thr) {
-  mutexlock(nf->lockF);
-
-  while(!nf->outF && !thr->terminate)
-    condwait(nf->notifF, nf->lockF);
-
-  if (thr->terminate) {
-    mutexunlock(nf->lockF);
-    return NULL;
+void pushTpool(tpool_t* tpool, task_t task)
+{
+  DevAssert(tpool != NULL);
+  if (tpool->len_thr == 0) {
+    task.func(task.args);
+    return;
   }
 
-  notifiedFIFO_elt_t *ret=nf->outF;
-  nf->outF=nf->outF->next;
+  size_t const index = tpool->index++;
+  size_t const len_thr = tpool->len_thr;
 
-  if (nf->outF==NULL)
-    nf->inF=NULL;
+  not_q_t* q_arr = (not_q_t*)tpool->q_arr;
 
-  // For abort feature
-  thr->runningOnKey=ret->key;
-  thr->dropJob = false;
-  mutexunlock(nf->lockF);
-  return ret;
+  for (size_t i = 0; i < len_thr; ++i) {
+    if (try_push_not_q(&q_arr[(i + index) % len_thr], task)) {
+      return;
+    }
+  }
+
+  push_not_q(&q_arr[index % len_thr], task);
 }
 
-void *one_thread(void *arg) {
-  struct  one_thread *myThread=(struct  one_thread *) arg;
-  struct  thread_pool *tp=myThread->pool;
+static void* worker_thread(void* arg)
+{
+  DevAssert(arg != NULL);
 
-  // Infinite loop to process requests
-  do {
-    notifiedFIFO_elt_t *elt=pullNotifiedFifoRemember(&tp->incomingFifo, myThread);
-    if (elt == NULL) {
-      AssertFatal(myThread->terminate, "pullNotifiedFifoRemember() returned NULL although thread not aborted\n");
+  task_thread_args_t* args = (task_thread_args_t*)arg;
+  int const idx = args->idx;
+  tpool_t* tpool = args->tpool;
+
+  uint32_t const len = tpool->len_thr;
+  uint32_t const num_it = 2 * (tpool->len_thr + idx);
+
+  not_q_t* q_arr = (not_q_t*)tpool->q_arr;
+
+  init_not_q(&q_arr[idx], idx);
+  // Synchronize all threads
+  pthread_barrier_wait(&tpool->barrier);
+
+  for (;;) {
+    ret_try_t ret = {.success = false};
+
+    for (uint32_t i = idx; i < num_it; ++i) {
+      ret = try_pop_not_q(&q_arr[i % len]);
+      if (ret.success == true)
+        break;
+    }
+
+    if (ret.success == false) {
+      if (pop_not_q(&q_arr[idx], &ret) == false)
+        break;
+    }
+
+    if (ret.t.func == NULL && ret.t.args == NULL) {
+      pushTpool(tpool, (task_t){.args = NULL, .func = NULL});
       break;
     }
+    ret.t.func(ret.t.args);
+  }
 
-    if (tp->measurePerf) elt->startProcessingTime=rdtsc_oai();
-
-    elt->processingFunc(NotifiedFifoData(elt));
-
-    if (tp->measurePerf) elt->endProcessingTime=rdtsc_oai();
-
-    if (elt->reponseFifo) {
-      // Check if the job is still alive, else it has been aborted
-      mutexlock(tp->incomingFifo.lockF);
-
-      if (myThread->dropJob)
-        delNotifiedFIFO_elt(elt);
-      else
-        pushNotifiedFIFO(elt->reponseFifo, elt);
-      myThread->runningOnKey=-1;
-      mutexunlock(tp->incomingFifo.lockF);
-    }
-    else
-      delNotifiedFIFO_elt(elt);
-  } while (!myThread->terminate);
+  free(args);
   return NULL;
 }
 
-void initNamedTpool(char *params,tpool_t *pool, bool performanceMeas, char *name) {
-  memset(pool,0,sizeof(*pool));
-  char *measr=getenv("OAI_THREADPOOLMEASUREMENTS");
-  pool->measurePerf=performanceMeas;
-  // force measurement if the output is defined
-  pool->measurePerf |= measr!=NULL;
+void initNamedTpool(char* params, tpool_t* tpool, bool performanceMeas, char* name)
+{
+  (void)performanceMeas;
 
-  if (measr) {
-    mkfifo(measr,0666);
-    AssertFatal(-1 != (pool->dummyKeepReadingTraceFd=
-                         open(measr, O_RDONLY| O_NONBLOCK)),"");
-    AssertFatal(-1 != (pool->traceFd=
-                         open(measr, O_WRONLY|O_APPEND|O_NOATIME|O_NONBLOCK)),"");
-  } else
-    pool->traceFd=-1;
+  DevAssert(tpool != NULL);
+  memset(tpool, 0, sizeof(*tpool));
 
-  pool->activated=true;
-  initNotifiedFIFO(&pool->incomingFifo);
-  char *saveptr, * curptr;
-  char *parms_cpy=strdup(params);
-  pool->nbThreads=0;
-  curptr=strtok_r(parms_cpy,",",&saveptr);
-  struct one_thread * ptr;
-  char *tname = (name == NULL ? "Tpool" : name);
-  while ( curptr!=NULL ) {
-    int c=toupper(curptr[0]);
+  char* tname = (name == NULL ? "Tpool" : name);
+  char *saveptr, *curptr;
+  char* parms_cpy = strdup(params);
+  curptr = strtok_r(parms_cpy, ",", &saveptr);
+  int core_id[128] = {0};
+  int num_workers = 0;
+  while (curptr != NULL) {
+    int c = toupper(curptr[0]);
 
     switch (c) {
-
       case 'N':
-        pool->activated=false;
         break;
 
       default:
-        ptr=pool->allthreads;
-        pool->allthreads=(struct one_thread *)malloc(sizeof(struct one_thread));
-        pool->allthreads->next=ptr;
-        pool->allthreads->coreID=atoi(curptr);
-        pool->allthreads->id=pool->nbThreads;
-        pool->allthreads->pool=pool;
-        pool->allthreads->dropJob = false;
-        pool->allthreads->terminate = false;
-        //Configure the thread scheduler policy for Linux
-        // set the thread name for debugging
-        sprintf(pool->allthreads->name,"%s%d_%d",tname,pool->nbThreads,pool->allthreads->coreID);
-        // we set the maximum priority for thread pool threads (which is close
-        // but not equal to Linux maximum). See also the corresponding commit
-        // message; initially introduced for O-RAN 7.2 fronthaul split
-        threadCreate(&pool->allthreads->threadID, one_thread, (void *)pool->allthreads,
-                     pool->allthreads->name, pool->allthreads->coreID, OAI_PRIORITY_RT_MAX);
-        pool->nbThreads++;
+        core_id[num_workers++] = atoi(curptr);
     }
 
-    curptr=strtok_r(NULL,",",&saveptr);
+    curptr = strtok_r(NULL, ",", &saveptr);
   }
   free(parms_cpy);
-  if (pool->activated && pool->nbThreads==0) {
-    printf("No servers created in the thread pool, exit\n");
-    exit(1);
+
+  if (num_workers) {
+    tpool->q_arr = calloc(num_workers, sizeof(not_q_t));
+    AssertFatal(tpool->q_arr != NULL, "Memory exhausted");
+
+    tpool->t_arr = calloc(num_workers, sizeof(pthread_t));
+    AssertFatal(tpool->t_arr != NULL, "Memory exhausted");
   }
+  tpool->len_thr = num_workers;
+
+  tpool->index = 0;
+
+  const pthread_barrierattr_t* barrier_attr = NULL;
+  int rc = pthread_barrier_init(&tpool->barrier, barrier_attr, num_workers + 1);
+  DevAssert(rc == 0);
+
+  for (size_t i = 0; i < num_workers; ++i) {
+    task_thread_args_t* args = malloc(sizeof(task_thread_args_t));
+    AssertFatal(args != NULL, "Memory exhausted");
+    args->idx = i;
+    args->tpool = tpool;
+    char name[64];
+    sprintf(name, "%s%ld_%d", tname, i, core_id[i]);
+    threadCreate(&tpool->t_arr[i], worker_thread, args, name, core_id[i], OAI_PRIORITY_RT_MAX);
+  }
+
+  // Syncronize thread pool threads. All the threads started
+  pthread_barrier_wait(&tpool->barrier);
 }
 
-void initFloatingCoresTpool(int nbThreads,tpool_t *pool, bool performanceMeas, char *name) {
+void initFloatingCoresTpool(int nbThreads, tpool_t* pool, bool performanceMeas, char* name)
+{
   char threads[1024] = "n";
   if (nbThreads) {
-    strcpy(threads,"-1");
-    for (int i=1; i < nbThreads; i++)
-      strncat(threads,",-1", sizeof(threads)-1);
+    strcpy(threads, "-1");
+    for (int i = 1; i < nbThreads; i++)
+      strncat(threads, ",-1", sizeof(threads) - 1);
   }
-  threads[sizeof(threads)-1]=0;
+  threads[sizeof(threads) - 1] = 0;
   initNamedTpool(threads, pool, performanceMeas, name);
+}
+
+
+void abortTpool(tpool_t* tpool)
+{
+  if (tpool->len_thr > 0) {
+    not_q_t* q_arr = (not_q_t*)tpool->q_arr;
+
+    pushTpool(tpool, (task_t){.args = NULL, .func = NULL});
+
+    for (uint32_t i = 0; i < tpool->len_thr; ++i) {
+      int rc = pthread_join(tpool->t_arr[i], NULL);
+      DevAssert(rc == 0);
+    }
+
+    for (uint32_t i = 0; i < tpool->len_thr; ++i) {
+      free_not_q(&q_arr[i]);
+    }
+
+    free(tpool->q_arr);
+    free(tpool->t_arr);
+  }
+
+  int rc = pthread_barrier_destroy(&tpool->barrier);
+  DevAssert(rc == 0);
 }

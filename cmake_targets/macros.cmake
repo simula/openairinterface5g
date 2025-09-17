@@ -107,3 +107,18 @@ or directly with
 ")
   endif()
 endfunction()
+
+function(run_asn1c ASN1C_GRAMMAR ASN1C_PREFIX)
+  set(options "")
+  set(oneValueArgs COMMENT)
+  set(multiValueArgs OUTPUT OPTIONS)
+  cmake_parse_arguments(ASN1C "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+
+  get_filename_component(GRAMMAR_FILE ${ASN1C_GRAMMAR} NAME)
+  set(LOGFILE "${CMAKE_CURRENT_BINARY_DIR}/${GRAMMAR_FILE}.log")
+  add_custom_command(OUTPUT ${ASN1C_OUTPUT}
+    COMMAND ASN1C_PREFIX=${ASN1C_PREFIX} ${ASN1C_EXEC} ${ASN1C_OPTIONS} -D ${CMAKE_CURRENT_BINARY_DIR} ${ASN1C_GRAMMAR} > ${LOGFILE} 2>&1 || cat ${LOGFILE}
+    DEPENDS ${ASN1C_GRAMMAR}
+    COMMENT "Generating ${ASN1C_COMMENT} from ${GRAMMAR_FILE}"
+  )
+endfunction()

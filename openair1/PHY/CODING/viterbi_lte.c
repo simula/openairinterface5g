@@ -40,8 +40,7 @@
 
 
 #include "PHY/sse_intrin.h"
-
-extern uint8_t ccodelte_table[128],ccodelte_table_rev[128];
+#include "coding_defs.h"
 
 static int8_t m0_table[64*16*16*16] __attribute__ ((aligned(16)));
 static int8_t m1_table[64*16*16*16] __attribute__ ((aligned(16)));
@@ -50,6 +49,8 @@ static int8_t m1_table[64*16*16*16] __attribute__ ((aligned(16)));
 // Set up Viterbi tables for SSE2 implementation
 void phy_generate_viterbi_tables_lte( void )
 {
+  uint8_t ccodelte_table_rev[128];
+  ccodelte_init_inv(ccodelte_table_rev);
 
   int8_t w[8],in0,in1,in2;
   uint8_t state,index0,index1;
@@ -126,52 +127,29 @@ void print_shorts(simde__m128i x,char *s) {
 void phy_viterbi_lte_sse2(int8_t *y,uint8_t *decoded_bytes,uint16_t n)
 {
   simde__m128i TB[4 * 8192];
-  simde__m128i *m0_ptr, *m1_ptr, *TB_ptr = &TB[0];
+  simde__m128i metrics0_15 = {0}, metrics16_31 = {0}, metrics32_47 = {0}, metrics48_63 = {0};
+  for (int iter = 0; iter < 2; iter++) {
+    int8_t *in = y;
+    simde__m128i *TB_ptr = TB;
 
-  simde__m128i metrics0_15, metrics16_31, metrics32_47, metrics48_63, even0_30a, even0_30b, even32_62a, even32_62b, odd1_31a,
-      odd1_31b, odd33_63a, odd33_63b, TBeven0_30, TBeven32_62, TBodd1_31, TBodd33_63;
-
-  simde__m128i min_state, min_state2;
-
-  int8_t *in = y;
-  uint8_t prev_state0,maxm,s;
-  static uint8_t *TB_ptr2;
-  uint32_t table_offset;
-  uint8_t iter;
-  int16_t position;
-
-  // set initial metrics
-  //debug_msg("Doing viterbi\n");
-
-  metrics0_15 = simde_mm_setzero_si128();
-  metrics16_31 = simde_mm_setzero_si128();
-  metrics32_47 = simde_mm_setzero_si128();
-  metrics48_63 = simde_mm_setzero_si128();
-
-  for (iter=0; iter<2; iter++) {
-    in = y;
-    TB_ptr=&TB[0];
-
-    for (position=0; position<n; position++) {
-
-
+    for (int position = 0; position < n; position++) {
       // get branch metric offsets for the 64 states
-      table_offset = (in[0]+8 + ((in[1]+8)<<4) + ((in[2]+8)<<8))<<6;
+      uint table_offset = (in[0] + 8 + ((in[1] + 8) << 4) + ((in[2] + 8) << 8)) << 6;
 
-      m0_ptr = (simde__m128i *)&m0_table[table_offset];
-      m1_ptr = (simde__m128i *)&m1_table[table_offset];
+      simde__m128i *m0_ptr = (simde__m128i *)&m0_table[table_offset];
+      simde__m128i *m1_ptr = (simde__m128i *)&m1_table[table_offset];
 
       // even states
-      even0_30a = simde_mm_adds_epu8(metrics0_15, m0_ptr[0]);
-      even32_62a = simde_mm_adds_epu8(metrics16_31, m0_ptr[1]);
-      even0_30b = simde_mm_adds_epu8(metrics32_47, m0_ptr[2]);
-      even32_62b = simde_mm_adds_epu8(metrics48_63, m0_ptr[3]);
+      simde__m128i even0_30a = simde_mm_adds_epu8(metrics0_15, m0_ptr[0]);
+      simde__m128i even32_62a = simde_mm_adds_epu8(metrics16_31, m0_ptr[1]);
+      simde__m128i even0_30b = simde_mm_adds_epu8(metrics32_47, m0_ptr[2]);
+      simde__m128i even32_62b = simde_mm_adds_epu8(metrics48_63, m0_ptr[3]);
 
       // odd states
-      odd1_31a = simde_mm_adds_epu8(metrics0_15, m1_ptr[0]);
-      odd33_63a = simde_mm_adds_epu8(metrics16_31, m1_ptr[1]);
-      odd1_31b = simde_mm_adds_epu8(metrics32_47, m1_ptr[2]);
-      odd33_63b = simde_mm_adds_epu8(metrics48_63, m1_ptr[3]);
+      simde__m128i odd1_31a = simde_mm_adds_epu8(metrics0_15, m1_ptr[0]);
+      simde__m128i odd33_63a = simde_mm_adds_epu8(metrics16_31, m1_ptr[1]);
+      simde__m128i odd1_31b = simde_mm_adds_epu8(metrics32_47, m1_ptr[2]);
+      simde__m128i odd33_63b = simde_mm_adds_epu8(metrics48_63, m1_ptr[3]);
 
       // select maxima
 
@@ -182,33 +160,31 @@ void phy_viterbi_lte_sse2(int8_t *y,uint8_t *decoded_bytes,uint16_t n)
 
       // Traceback information
 
-      TBeven0_30 = simde_mm_cmpeq_epi8(even0_30a, even0_30b);
-      TBeven32_62 = simde_mm_cmpeq_epi8(even32_62a, even32_62b);
-      TBodd1_31 = simde_mm_cmpeq_epi8(odd1_31a, odd1_31b);
-      TBodd33_63 = simde_mm_cmpeq_epi8(odd33_63a, odd33_63b);
+      simde__m128i TBeven0_30 = simde_mm_cmpeq_epi8(even0_30a, even0_30b);
+      simde__m128i TBeven32_62 = simde_mm_cmpeq_epi8(even32_62a, even32_62b);
+      simde__m128i TBodd1_31 = simde_mm_cmpeq_epi8(odd1_31a, odd1_31b);
+      simde__m128i TBodd33_63 = simde_mm_cmpeq_epi8(odd33_63a, odd33_63b);
 
       metrics0_15 = simde_mm_unpacklo_epi8(even0_30a, odd1_31a);
       metrics16_31 = simde_mm_unpackhi_epi8(even0_30a, odd1_31a);
       metrics32_47 = simde_mm_unpacklo_epi8(even32_62a, odd33_63a);
       metrics48_63 = simde_mm_unpackhi_epi8(even32_62a, odd33_63a);
 
-      TB_ptr[0] = simde_mm_unpacklo_epi8(TBeven0_30, TBodd1_31);
-      TB_ptr[1] = simde_mm_unpackhi_epi8(TBeven0_30, TBodd1_31);
-      TB_ptr[2] = simde_mm_unpacklo_epi8(TBeven32_62, TBodd33_63);
-      TB_ptr[3] = simde_mm_unpackhi_epi8(TBeven32_62, TBodd33_63);
+      *TB_ptr++ = simde_mm_unpacklo_epi8(TBeven0_30, TBodd1_31);
+      *TB_ptr++ = simde_mm_unpackhi_epi8(TBeven0_30, TBodd1_31);
+      *TB_ptr++ = simde_mm_unpacklo_epi8(TBeven32_62, TBodd33_63);
+      *TB_ptr++ = simde_mm_unpackhi_epi8(TBeven32_62, TBodd33_63);
 
-      in+=3;
-      TB_ptr += 4;
-
+      in += 3;
       // rescale by subtracting minimum
       /****************************************************
       USE SSSE instruction phminpos!!!!!!!
       ****************************************************/
-      min_state = simde_mm_min_epu8(metrics0_15, metrics16_31);
+      simde__m128i min_state = simde_mm_min_epu8(metrics0_15, metrics16_31);
       min_state = simde_mm_min_epu8(min_state, metrics32_47);
       min_state = simde_mm_min_epu8(min_state, metrics48_63);
 
-      min_state2 = min_state;
+      simde__m128i min_state2 = min_state;
       min_state = simde_mm_unpacklo_epi8(min_state, min_state);
       min_state2 = simde_mm_unpackhi_epi8(min_state2, min_state2);
       min_state = simde_mm_min_epu8(min_state, min_state2);
@@ -237,37 +213,34 @@ void phy_viterbi_lte_sse2(int8_t *y,uint8_t *decoded_bytes,uint16_t n)
   } // iteration
 
   // Traceback
-  prev_state0 = 0;
-  maxm = 0;
-
-  for (s=0; s<16; s++)
-    if (((uint8_t *)&metrics0_15)[s] > maxm) {
-      maxm = ((uint8_t *)&metrics0_15)[s];
+  uint prev_state0 = 0;
+  uint maxm = 0;
+  uint s = 0;
+  for (uint8_t *ptr = (uint8_t *)&metrics0_15; s < 16; s++, ptr++)
+    if (*ptr > maxm) {
+      maxm = *ptr;
       prev_state0 = s;
     }
 
-  for (s=0; s<16; s++)
-    if (((uint8_t *)&metrics16_31)[s] > maxm) {
-      maxm = ((uint8_t *)&metrics16_31)[s];
-      prev_state0 = s+16;
+  for (uint8_t *ptr = (uint8_t *)&metrics16_31; s < 32; s++, ptr++)
+    if (*ptr > maxm) {
+      maxm = *ptr;
+      prev_state0 = s;
+    }
+  for (uint8_t *ptr = (uint8_t *)&metrics32_47; s < 48; s++, ptr++)
+    if (*ptr > maxm) {
+      maxm = *ptr;
+      prev_state0 = s;
+    }
+  for (uint8_t *ptr = (uint8_t *)&metrics48_63; s < 64; s++, ptr++)
+    if (*ptr > maxm) {
+      maxm = *ptr;
+      prev_state0 = s;
     }
 
-  for (s=0; s<16; s++)
-    if (((uint8_t *)&metrics32_47)[s] > maxm) {
-      maxm = ((uint8_t *)&metrics32_47)[s];
-      prev_state0 = s+32;
-    }
+  uint8_t *TB_ptr2 = (uint8_t *)&TB[(n - 1) * 4];
 
-  for (s=0; s<16; s++)
-    if (((uint8_t *)&metrics48_63)[s] > maxm) {
-      maxm = ((uint8_t *)&metrics48_63)[s];
-      prev_state0 = s+48;
-    }
-
-  TB_ptr2 = (uint8_t *)&TB[(n-1)*4];
-
-  for (position = n-1 ; position>-1; position--) {
-
+  for (int position = n - 1; position > -1; position--) {
     decoded_bytes[(position)>>3] += (prev_state0 & 0x1)<<(7-(position & 0x7));
 
 
@@ -278,9 +251,6 @@ void phy_viterbi_lte_sse2(int8_t *y,uint8_t *decoded_bytes,uint16_t n)
 
     TB_ptr2-=64;
   }
-
-  simde_mm_empty();
-  simde_m_empty();
 }
 
 #ifdef TEST_DEBUG
@@ -306,10 +276,8 @@ int test_viterbi(uint8_t dabflag)
 
   if (dabflag==0) {
     ccodelte_init();
-    ccodelte_init_inv();
   } else {
     ccodedab_init();
-    ccodedab_init_inv();
     printf("Running with DAB polynomials\n");
   }
 
@@ -340,7 +308,7 @@ int test_viterbi(uint8_t dabflag)
 int main(int argc, char **argv)
 {
 
-  char c;
+  int c;
   uint8_t dabflag=0;
 
   while ((c = getopt (argc, argv, "d")) != -1) {

@@ -32,6 +32,7 @@
 #define _GNU_SOURCE
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/sysinfo.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
@@ -222,11 +223,8 @@ char aname[256];
     tdata->numlines = 0;
   }
 
-  unsigned int eax = 11, ebx = 0, ecx = 1, edx = 0;
-
-  asm volatile("cpuid" : "=a"(eax), "=b"(ebx), "=c"(ecx), "=d"(edx) : "0"(eax), "2"(ecx) :);
-
-  prnt("System has %d cores %d threads %d Actual threads", eax, ebx, edx);
+  int nprocs = get_nprocs();
+  prnt("System has %d cores", nprocs);
 
   prnt("\n  id          name            state   USRmod    KRNmod  prio nice   vsize   proc pol \n\n");
   snprintf(aname, sizeof(aname), "/proc/%d/stat", getpid());
@@ -253,12 +251,17 @@ void print_threads(char *buf, int debug, telnet_printfunc_t prnt)
   proccmd_get_threaddata(buf, debug, prnt, NULL);
 }
 
+#define FLAG_PRINT_DEBUG_DUMP(flag)                                              \
+  logsdata->lines[i].val[0] = (char *)flag_name[i];                              \
+  logsdata->lines[i].val[1] = g_log->debug_mask.DEBUG_##flag ? "true" : "false"; \
+  logsdata->lines[i].val[1] = g_log->dump_mask.DEBUG_##flag ? "true" : "false";  \
+  i++;
+
 int proccmd_websrv_getdata(char *cmdbuff, int debug, void *data, telnet_printfunc_t prnt)
 {
   webdatadef_t *logsdata = (webdatadef_t *)data;
   const mapping *const log_level_names = log_level_names_ptr();
   const mapping *const log_options = log_option_names_ptr();
-  const mapping *log_maskmap = log_maskmap_ptr();
   if (strncmp(cmdbuff, "set", 3) == 0) {
     telnet_printfunc_t printfunc = (prnt != NULL) ? prnt : (telnet_printfunc_t)printf;
     if (strcasestr(cmdbuff, "loglvl") != NULL) {
@@ -293,23 +296,16 @@ int proccmd_websrv_getdata(char *cmdbuff, int debug, void *data, telnet_printfun
       }
     }
     if (strcasestr(cmdbuff, "dbgopt") != NULL) {
-      int optbit = map_str_to_int(log_maskmap, logsdata->lines[0].val[0]);
-      if (optbit < 0) {
-        printfunc("debug option %s unknown\n", logsdata->lines[0].val[0]);
-      } else {
-        if (strcmp(logsdata->lines[0].val[1], "true") == 0)
-          SET_LOG_DEBUG(optbit);
-        else
-          CLEAR_LOG_DEBUG(optbit);
-        if (strcmp(logsdata->lines[0].val[2], "true") == 0)
-          SET_LOG_DUMP(optbit);
-        else
-          CLEAR_LOG_DUMP(optbit);
-        printfunc("%s debug %s dump %s\n",
-                  logsdata->lines[0].val[0],
-                  (strcmp(logsdata->lines[0].val[1], "true") == 0) ? "enabled" : "disabled",
-                  (strcmp(logsdata->lines[0].val[2], "true") == 0) ? "enabled" : "disabled");
-      }
+      if (strcmp(logsdata->lines[0].val[1], "true") == 0)
+        if (!set_log_debug(logsdata->lines[0].val[0], strcmp(logsdata->lines[0].val[2], "true") == 0))
+          printfunc("debug option %s unknown\n", logsdata->lines[0].val[0]);
+      if (strcmp(logsdata->lines[0].val[2], "true") == 0)
+        if (!set_log_dump(logsdata->lines[0].val[0], strcmp(logsdata->lines[0].val[2], "true") == 0))
+          printfunc("debug option %s unknown\n", logsdata->lines[0].val[0]);
+      printfunc("%s debug %s dump %s\n",
+                logsdata->lines[0].val[0],
+                (strcmp(logsdata->lines[0].val[1], "true") == 0) ? "enabled" : "disabled",
+                (strcmp(logsdata->lines[0].val[2], "true") == 0) ? "enabled" : "disabled");
     }
     if (strcasestr(cmdbuff, "threadsched") != NULL) {
       unsigned int tid = strtoll(logsdata->lines[0].val[0], NULL, 0);
@@ -356,12 +352,9 @@ int proccmd_websrv_getdata(char *cmdbuff, int debug, void *data, telnet_printfun
       snprintf(logsdata->columns[2].coltitle, TELNET_CMD_MAXSIZE, "dump");
       logsdata->columns[2].coltype = TELNET_CHECKVAL_BOOL;
 
-      for (int i = 0; log_maskmap[i].name != NULL; i++) {
-        logsdata->numlines++;
-        logsdata->lines[i].val[0] = (char *)log_maskmap[i].name;
-        logsdata->lines[i].val[1] = (g_log->debug_mask & log_maskmap[i].value) ? "true" : "false";
-        logsdata->lines[i].val[2] = (g_log->dump_mask & log_maskmap[i].value) ? "true" : "false";
-      }
+      int i = 0;
+      FOREACH_FLAG(FLAG_PRINT_DEBUG_DUMP);
+      logsdata->numlines += i;
     }
 
     if (strcasestr(cmdbuff, "logopt") != NULL) {
@@ -386,6 +379,14 @@ int proccmd_websrv_getdata(char *cmdbuff, int debug, void *data, telnet_printfun
 
   return 0;
 }
+
+#define FLAG_PRINT2_DEBUG_DUMP(flag)               \
+  prnt("%02i %17.17s %5.5s   %5.5s\n",             \
+       i,                                          \
+       flag_name[i],                               \
+       g_log->debug_mask.DEBUG_##flag ? "Y" : "N", \
+       g_log->dump_mask.DEBUG_##flag ? "Y" : "N"); \
+  i++;
 
 int proccmd_show(char *buf, int debug, telnet_printfunc_t prnt)
 {
@@ -424,12 +425,8 @@ int proccmd_show(char *buf, int debug, telnet_printfunc_t prnt)
    }
    if (strcasestr(buf,"dbgopt") != NULL) {
        prnt("\n               module  debug dumpfile\n");
-       const mapping *log_maskmap = log_maskmap_ptr();
-       for (int i=0; log_maskmap[i].name != NULL ; i++) {
-               prnt("%02i %17.17s %5.5s   %5.5s\n",i ,log_maskmap[i].name, 
-	             ((g_log->debug_mask &  log_maskmap[i].value)?"Y":"N"),
-                     ((g_log->dump_mask & log_maskmap[i].value)?"Y":"N") );
-       }
+       int i = 0;
+       FOREACH_FLAG(FLAG_PRINT2_DEBUG_DUMP);
    }
    if (strcasestr(buf,"config") != NULL) {
        prnt("Command line arguments:\n");
@@ -595,28 +592,16 @@ int s = sscanf(buf,"%ms %i-%i\n",&logsubcmd, &idx1,&idx2);
         }
       }
       else if (l == 2 && strcmp(logparam,"debug") == 0){
-        optbit = map_str_to_int(log_maskmap, opt);
-        if (optbit < 0) {
+        int ret = set_log_debug(opt, idx1 > 0);
+        if (!ret)
           prnt("module %s unknown\n", opt);
-        } else {
-          if (idx1 > 0)
-            SET_LOG_DEBUG(optbit);
-          else
-            CLEAR_LOG_DEBUG(optbit);
-          proccmd_show("dbgopt", debug, prnt);
-        }
+        proccmd_show("dbgopt", debug, prnt);
       }  
        else if (l == 2 && strcmp(logparam,"dump") == 0){
-        optbit = map_str_to_int(log_maskmap, opt);
-        if (optbit < 0) {
+        int ret = set_log_dump(opt, idx1 > 0);
+        if (!ret)
           prnt("module %s unknown\n", opt);
-        } else {
-          if (idx1 > 0)
-            SET_LOG_DUMP(optbit);
-          else
-            CLEAR_LOG_DUMP(optbit);
-          proccmd_show("dump", debug, prnt);
-        }
+        proccmd_show("dump", debug, prnt);
       }       
       if (logparam != NULL) free(logparam);
       if (opt != NULL)      free(opt); 

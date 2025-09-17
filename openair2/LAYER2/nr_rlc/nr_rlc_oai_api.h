@@ -34,15 +34,37 @@
 #include "NR_LogicalChannelIdentity.h"
 #include "NR_RadioBearerConfig.h"
 #include "NR_CellGroupConfig.h"
-#include "openair2/RRC/NR/nr_rrc_proto.h"
 #include "nr_rlc_ue_manager.h"
 
 
 struct NR_RLC_Config;
 struct NR_LogicalChannelConfig;
 
+int nr_rlc_module_init(nr_rlc_op_mode_t mode);
+void nr_mac_rlc_data_ind(const module_id_t  module_idP,
+                         const uint16_t ue_id,
+                         const bool gnb_flagP,
+                         const logical_chan_id_t channel_idP,
+                         char *buffer_pP,
+                         const tb_size_t tb_sizeP);
+tbs_size_t nr_mac_rlc_data_req(const module_id_t  module_idP,
+                               const uint16_t ue_id,
+                               const bool gnb_flagP,
+                               const logical_chan_id_t channel_idP,
+                               const tb_size_t tb_sizeP,
+                               char *buffer_pP);
+rlc_op_status_t nr_rlc_data_req(const protocol_ctxt_t *const ctxt_pP,
+                                const srb_flag_t srb_flagP,
+                                const rb_id_t rb_idP,
+                                const mui_t muiP,
+                                sdu_size_t sdu_sizeP,
+                                uint8_t *sdu_pP);
+mac_rlc_status_resp_t nr_mac_rlc_status_ind(const uint16_t ue_id, const frame_t frame, const logical_chan_id_t channel_idP);
+
 void nr_rlc_add_srb(int ue_id, int srb_id, const NR_RLC_BearerConfig_t *rlc_BearerConfig);
 void nr_rlc_add_drb(int ue_id, int drb_id, const NR_RLC_BearerConfig_t *rlc_BearerConfig);
+
+void nr_rlc_set_rlf_handler(int ue_id, rlf_handler_t rlf_h);
 
 logical_chan_id_t nr_rlc_get_lcid_from_rb(int ue_id, bool is_srb, int rb_id);
 void nr_rlc_reestablish_entity(int ue_id, int lc_id);
@@ -57,6 +79,8 @@ void nr_rlc_release_entity(int ue_id, logical_chan_id_t channel_id);
 void nr_rlc_reconfigure_entity(int ue_id, int lc_id, NR_RLC_Config_t *rlc_Config);
 
 int nr_rlc_get_available_tx_space(const int ue_id, const logical_chan_id_t channel_idP);
+
+int nr_rlc_tx_list_occupancy(int ue_id, logical_chan_id_t lcid);
 
 void nr_rlc_activate_avg_time_to_tx(const int ue_id, const logical_chan_id_t channel_id, const bool is_on);
 

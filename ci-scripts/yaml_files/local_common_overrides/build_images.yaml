@@ -3,7 +3,7 @@ services:
     image: ran-base
     build:
       context: ../../../
-      dockerfile: docker/Dockerfile.base.ubuntu22
+      dockerfile: docker/Dockerfile.base.ubuntu
       tags:
         - ran-base
 
@@ -11,7 +11,7 @@ services:
     image: ran-build
     build:
       context: ../../../
-      dockerfile: docker/Dockerfile.build.ubuntu22
+      dockerfile: docker/Dockerfile.build.ubuntu
       tags:
         - ran-build
     depends_on:
@@ -22,7 +22,7 @@ services:
     image: gnb-local
     build:
       context: ../../../
-      dockerfile: docker/Dockerfile.gNB.ubuntu22
+      dockerfile: docker/Dockerfile.gNB.ubuntu
       tags:
         - gnb-local
     depends_on:
@@ -35,7 +35,7 @@ services:
     image: ue-local
     build:
       context: ../../../
-      dockerfile: docker/Dockerfile.nrUE.ubuntu22
+      dockerfile: docker/Dockerfile.nrUE.ubuntu
       tags:
         - ue-local
     depends_on:

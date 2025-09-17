@@ -314,7 +314,6 @@ void phy_viterbi_dot11_sse2(char *y,unsigned char *decoded_bytes,unsigned short 
     }
   }
 
-  simde_mm_empty();
 }
 
 #ifdef TEST_DEBUG

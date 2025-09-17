@@ -9,16 +9,14 @@ services:
             - IPC_LOCK
         ulimits:
           core: -1 # for core dumps
+        network_mode: "host"
         environment:
             USE_B2XX: 'yes'
-            USE_ADDITIONAL_OPTIONS: -E -q --RUs.[0].sdr_addrs serial=30C51D4 --continuous-tx --log_config.global_log_options level,nocolor,time,line_num,function
+            USE_ADDITIONAL_OPTIONS: --nsa -E -q --RUs.[0].sdr_addrs serial=30C51D4 --continuous-tx --log_config.global_log_options level,nocolor,time,line_num,function
         devices:
             - /dev/bus/usb/:/dev/bus/usb/
         volumes:
             - ../../conf_files/gnb.nsa.band78.106prb.usrpb200.conf:/opt/oai-gnb/etc/gnb.conf
-        networks:
-            public_net:
-                ipv4_address: 192.168.68.194
         #entrypoint: /bin/bash -c "sleep infinity"
         healthcheck:
             # pgrep does NOT work
@@ -26,12 +24,3 @@ services:
             interval: 10s
             timeout: 5s
             retries: 5
-
-networks:
-    public_net:
-        name: nsa-b200-gnb-net
-        ipam:
-            config:
-                - subnet: 192.168.68.192/26
-        driver_opts:
-            com.docker.network.bridge.name: "nsa-gnb-net"

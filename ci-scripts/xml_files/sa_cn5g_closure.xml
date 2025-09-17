@@ -30,7 +30,7 @@
 	<TestCaseExclusionList></TestCaseExclusionList>
 
 	<testCase id="060000">
-		<class>Terminate_5GCN</class>
+		<class>UndeployCoreNetwork</class>
 		<desc>Terminate 5G Core</desc>
 		<cn_id>oc-cn5g</cn_id>
 	</testCase>

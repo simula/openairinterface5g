@@ -29,6 +29,7 @@
  */
 
 #include "rrc_defs.h"
+#include "rrc_proto.h"
 #include "rrc_extern.h"
 #include "RRC/L2_INTERFACE/openair_rrc_L2_interface.h"
 #include "RRC/LTE/MESSAGES/asn1_msg.h"
@@ -396,7 +397,9 @@ static e_LTE_SecurityAlgorithmConfig__integrityProtAlgorithm rrc_eNB_select_inte
   return INTEGRITY_ALGORITHM_NONE;
 }
 
-/*! \fn int rrc_eNB_process_security (uint8_t mod_id, uint8_t ue_index, security_capabilities_t *security_capabilities)
+/*! \fn int rrc_eNB_process_security(const protocol_ctxt_t *const ctxt_pP,
+                         rrc_eNB_ue_context_t *const ue_context_pP,
+                         security_capabilities_t *security_capabilities_pP)
  *\brief save and analyze available security algorithms bit mask and select relevant ones.
  *\param mod_id Instance ID of eNB.
  *\param ue_index Instance ID of UE in the eNB.

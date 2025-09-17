@@ -27,7 +27,7 @@
 #include "assertions.h"
 #include <pthread.h>
 #include "common/config/config_userapi.h"
-#include <common/utils/threadPool/thread-pool.h>
+#include "common/utils/threadPool/notified_fifo.h"
 // global var for openair performance profiler
 int cpu_meas_enabled = 0;
 double cpu_freq_GHz  __attribute__ ((aligned(32)));

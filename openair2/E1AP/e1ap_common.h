@@ -31,7 +31,7 @@ typedef struct e1ap_upcp_inst_s {
   instance_t instance;
   uint32_t gnb_id; // associated gNB's ID, unused in E1 but necessary for e.g. E2 agent
   E1_t type;
-  enum sctp_state_e sockState;
+  sctp_state_e sockState;
   struct {
     sctp_assoc_t assoc_id;
     e1ap_setup_req_t setupReq;
@@ -40,8 +40,6 @@ typedef struct e1ap_upcp_inst_s {
   instance_t gtpInstF1U;
   e1ap_net_config_t net_config;
 } e1ap_upcp_inst_t;
-
-extern int asn1_xer_print;
 
 // forward declaration so we don't require E1AP ASN.1 when including this
 // header

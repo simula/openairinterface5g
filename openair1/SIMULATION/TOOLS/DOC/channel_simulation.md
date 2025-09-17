@@ -1,5 +1,13 @@
 [[_TOC_]]
 
+This document is complementary to the [RFSIMULATOR Tutorial](../../../../radio/rfsimulator/README.md).
+
+# Channel Modeling
+
+Channel models in the context of wireless communication refer to mathematical models that simulate the effects of transmission mediums on signal propagation. These models account for factors such as attenuation, interference, and fading, which can affect the quality of communication between transmitter and receiver.
+
+Different channel models represent different real-world scenarios, such as urban environments, indoor spaces, or rural areas. By using these models, researchers and engineers can predict and evaluate the performance of wireless systems under various conditions.
+
 # OAI channel simulation feature
 
 OpenAirInterface RFSimulator incorporates a channel simulation feature. This feature allows any component to modify the time domain samples of a RF channel. It achieves this by applying predefined models, such as those defined in 3GPP TR 36.873 or TR 38.901.
@@ -7,7 +15,6 @@ OpenAirInterface RFSimulator incorporates a channel simulation feature. This fea
 The definition, configuration, and real-time modification of a channel model are implemented in a common code. This code is included in UE, gNB and eNB. It is utilized when operating with the RFSimulator or the L1 simulator. PHY simulators also employ channel simulation, but their configuration is accomplished via dedicated command-line options.
 
 The RFSimulator is the exclusive option that provides access to all the configuration and real-time modification features of OAI's channel simulation. This makes it a comprehensive tool for managing and manipulating channel simulations in OAI.
-
 
 # Implementation
 OAI channel simulation is using the [config module](../../../../common/config/DOC/config.md) to get its parameters at init time. The [telnet server](../../../../common/utils/telnetsrv/DOC/telnetsrv.md) includes a set of commands which can be used to dynamically modify some channel model parameters.
@@ -39,13 +46,22 @@ channel_desc_t *new_channel_desc_scm(uint8_t nb_tx,
 
 # Channel Model configuration file
 
-To define and use a channel model for uplink, the gNB configuration file needs to include a channel configuration file. To do this, add `@include "channelmod_rfsimu.conf"` at the end of the gNB configuration file, and place the channel configuration file in the same directory. The same shall be done for downlink by including the channel model configuration file at the end of UE configuration file (e.g. [`ci-scripts/conf_files/nrue.uicc.conf`](../../../../ci-scripts/conf_files/nrue.uicc.conf)).
+To define and use a channel model for uplink, the gNB configuration file needs to include a channel configuration file. To do this, add:
+
+```bash
+@include "channelmod_rfsimu.conf"
+```
+
+at the end of the gNB configuration file, and place the channel configuration file in the same directory. The same shall be done for downlink by including the channel model configuration file at the end of UE configuration file. E.g.
+
+* nrUE [`ci-scripts/conf_files/nrue.uicc.conf`](../../../../ci-scripts/conf_files/nrue.uicc.conf)
+* gNB [gnb.sa.band78.106prb.rfsim.conf](../../../../ci-scripts/conf_files/gnb.sa.band78.106prb.rfsim.conf)
 
 All channel simulation parameters are defined in the `channelmod` section. Most parameters are specific to a channel model and  are only used by the rfsimulator. An example of the configuration file can be found here:
 
 * [`ci-scripts/conf_files/channelmod_rfsimu.conf`](../../../../ci-scripts/conf_files/channelmod_rfsimu.conf)
 
-e.g.:
+e.g. a simple scenario to with an AWGN channel:
 
 ```bash
 channelmod = {
@@ -74,7 +90,34 @@ channelmod = {
 };
 ```
 
-where `rfsimu_channel_ue0` will be activated on server side (i.e. eNB/gNB) for uplink and `rfsimu_channel_enB0` will be activated on client side (i.e. UE) for downlink.
+where `rfsimu_channel_ue0` will be activated on server side for uplink and `rfsimu_channel_enB0` will be activated on client side for downlink.
+
+Use `rfsimu_channel_ue1`, `rfsimu_channel_ue2`, etc. if you want to use different channel models for each client. The client connection order determines its channel model.
+
+The server could be either the UE or the gNB, the channel name suffix does not depend on the application but on the rfsimulators role (server/client).
+
+## Edit the configuration file
+
+How simulate noise of a AWGN channel? Starting from the configuration file in the previous section, in the `rfsimu_channel_enB0` model part, set the noise power to:
+
+```bash
+  noise_power_dB  = -10
+```
+
+In the `rfsimu_channel_ue0` model part, set the noise power to:
+```bash
+  noise_power_dB  = -20;
+```
+
+and the rest of the `channelmod_rfsimu.conf` remains unchanged.
+
+## Monitoring by nr-scope
+
+In order to verify the effects of the changes introduced by the channel simulation, the `nr-scope` constellation tool can be used to track and analyze the modulation constellation points. This tool allows users to visualize the modulation scheme being used and assess the quality of the received signals. By observing the constellation points, users can verify whether the changes made to the system configuration have resulted in.
+
+# Build the telnet server library
+
+Please refer to this documentation [telnetusage.md](../../../../common/utils/telnetsrv/DOC/telnetusage.md).
 
 # Run OAI with a channel model
 
@@ -86,11 +129,11 @@ When the `chanmod` option is enabled, the RF channel simulator with a channel mo
 Example run of OAI RFSIM on the same machine with activation of the channel model via command line:
 gNB:
 ```bash
-sudo ./nr-softmodem -O ../../../targets/PROJECTS/GENERIC-NR-5GC/CONF/gnb.sa.band78.fr1.106PRB.usrpb210.conf --gNBs.[0].min_rxtxtime 6 --rfsim --sa --rfsimulator.options chanmod --telnetsrv
+sudo ./nr-softmodem -O ../../../targets/PROJECTS/GENERIC-NR-5GC/CONF/gnb.sa.band78.fr1.106PRB.usrpb210.conf --gNBs.[0].min_rxtxtime 6 --rfsim --rfsimulator.options chanmod --telnetsrv
 ```
 UE:
 ```bash
-sudo ./nr-uesoftmodem -r 106 --numerology 1 --band 78 -C 3619200000 --rfsim --sa --rfsimulator.serveraddr 127.0.0.1 --uicc0.imsi 001010000000001 -O ../../../ci-scripts/conf_files/nrue.uicc.conf --rfsimulator.options chanmod
+sudo ./nr-uesoftmodem -r 106 --numerology 1 --band 78 -C 3619200000 --rfsim --rfsimulator.serveraddr 127.0.0.1 --uicc0.imsi 001010000000001 -O ../../../ci-scripts/conf_files/nrue.uicc.conf --rfsimulator.options chanmod
 ```
 where `@include "channelmod_rfsimu.conf"` has been added at the end of `ci-scripts/conf_files/channelmod_rfsimu.conf` which has been copied to `targets/PROJECTS/GENERIC-LTE-EPC/CONF/`.
 
@@ -103,6 +146,7 @@ Channel simulation parameters can also be specified on the command line by using
 |:---                 |:----       |:----               |:----|
 |`modellist`          |char string |`DefaultChannelList`|select and load the `modellist` from the config file.|
 |`max_chan`           |integer     |10                  |set the maximum number of channel models that can be defined in the system. Must be greater than the number of model definitions in the model list loaded at init time.|
+|`noise_power_dBFS`   |integer     |0                   |Noise power in dBFS. If set, noise per channel is not applied. To achieve positive SNR use values below the default gNB/nrUE amp backoff value (-36dBFS)|
 
 Example usage:
 ```bash
@@ -131,7 +175,7 @@ Example usage, set the offset for the selected model of the selected `modellist`
 
 e.g. with the softmodem:
 ```bash
-sudo ./nr-softmodem -O ../../../targets/PROJECTS/GENERIC-NR-5GC/CONF/gnb.sa.band78.fr1.106PRB.usrpb210.conf --gNBs.[0].min_rxtxtime 6 --rfsim --sa --rfsimulator.options chanmod --telnetsrv --channelmod.modellist modellist_rfsimu_2 --channelmod.modellist_rfsimu_2.[1].offset 120
+sudo ./nr-softmodem -O ../../../targets/PROJECTS/GENERIC-NR-5GC/CONF/gnb.sa.band78.fr1.106PRB.usrpb210.conf --gNBs.[0].min_rxtxtime 6 --rfsim --rfsimulator.options chanmod --telnetsrv --channelmod.modellist modellist_rfsimu_2 --channelmod.modellist_rfsimu_2.[1].offset 120
 ```
 
 ## Real time control and monitoring with telnet server

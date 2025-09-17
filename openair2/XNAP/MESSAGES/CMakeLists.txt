@@ -9,11 +9,12 @@ else()
   message(FATAL_ERROR "unknown XNAP_RELEASE ${XNAP_RELEASE}")
 endif()
 
-add_custom_command(OUTPUT ${xnap_source} ${xnap_headers}
-  COMMAND ASN1C_PREFIX=XNAP_ ${ASN1C_EXEC} -pdu=all -gen-APER -no-gen-BER -no-gen-JER -no-gen-OER -gen-UPER -fcompound-names -no-gen-example -fno-include-deps -findirect-choice -D ${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/${XNAP_GRAMMAR}
-  DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/${XNAP_GRAMMAR}
-  COMMENT "Generating XNAP source files from ${CMAKE_CURRENT_SOURCE_DIR}/${XNAP_GRAMMAR}"
-	)
+run_asn1c(${CMAKE_CURRENT_SOURCE_DIR}/${XNAP_GRAMMAR}
+          "XNAP_"
+          OUTPUT ${xnap_source} ${xnap_headers}
+          OPTIONS -pdu=all -gen-APER -no-gen-BER -no-gen-JER -no-gen-OER -gen-UPER -fcompound-names -no-gen-example -fno-include-deps -findirect-choice
+          COMMENT "XnAP source files"
+)
 
 add_library(asn1_xnap ${xnap_source})
 target_include_directories(asn1_xnap PUBLIC "${CMAKE_CURRENT_BINARY_DIR}")

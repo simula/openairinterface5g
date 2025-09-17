@@ -21,7 +21,6 @@
 
 #include "x2ap_timers.h"
 #include "assertions.h"
-#include "PHY/defs_common.h"         /* TODO: try to not include this */
 #include "x2ap_messages_types.h"
 #include "x2ap_eNB_defs.h"
 #include "x2ap_ids.h"
@@ -53,7 +52,8 @@ void x2ap_check_timers(instance_t instance)
   int                          x2_ongoing;
 
   instance_p = x2ap_eNB_get_instance(instance);
-  DevAssert(instance_p != NULL);
+  if (instance_p == NULL)
+    return;
 
   t = &instance_p->timers;
   m = &instance_p->id_manager;

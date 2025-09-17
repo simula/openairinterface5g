@@ -41,7 +41,6 @@
 #include <sys/socket.h>
 #include <net/if.h>
 #include <netinet/ether.h>
-#include <common/utils/threadPool/thread-pool.h>
 
 #define MAX_INST 4
 #define DEFAULT_IF "lo"

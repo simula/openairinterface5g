@@ -32,7 +32,9 @@
 
 #ifndef __RAN_CONTEXT_H__
 #define __RAN_CONTEXT_H__
-
+#ifdef __cplusplus
+extern "C" {
+#endif
 #include <pthread.h>
 #include <stdint.h>
 
@@ -44,7 +46,6 @@ struct gNB_RRC_INST_s;
 struct eNB_MAC_INST_s;
 struct eNB_MAC_INST_NB_IoT_s;
 struct gNB_MAC_INST_s;
-struct gtpv1u_data_s;
 struct RU_t_s;
 
 typedef struct {
@@ -98,8 +99,6 @@ typedef struct {
   struct eNB_MAC_INST_NB_IoT_s **nb_iot_mac;
   /// NR MAC context variables
   struct gNB_MAC_INST_s **nrmac;
-  /// GTPu descriptor 
-  struct gtpv1u_data_s *gtpv1u_data_g;
   /// RU descriptors. These describe what each radio unit is supposed to do and contain the necessary functions for fronthaul interfaces
   struct RU_t_s **ru;
   /// Mask to indicate fronthaul setup status of RU (hard-limit to 64 RUs)
@@ -111,6 +110,8 @@ typedef struct {
 } RAN_CONTEXT_t;
 
 extern RAN_CONTEXT_t RC;
-
 #define NB_eNB_INST RC.nb_inst
+#ifdef __cplusplus
+}
+#endif
 #endif

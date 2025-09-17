@@ -160,7 +160,7 @@ void measurcmd_display_rlcstats(telnet_printfunc_t prnt) {
   UE_info_t *UE_info = &(RC.mac[eNB_id]->UE_info);
   telnet_ltemeasurdef_t  statsptr[]=LTE_RLCMEASURE;
   int num_rlcmeasure = sizeof(statsptr)/sizeof(telnet_ltemeasurdef_t );
-  unsigned int *rlcstats = malloc(num_rlcmeasure*sizeof(unsigned int));
+  unsigned int *rlcstats = calloc_or_fail(num_rlcmeasure,sizeof(unsigned int));
   eNB_MAC_INST *eNB = RC.mac[eNB_id];
 
   for(int i=0; i <num_rlcmeasure ; i++) {

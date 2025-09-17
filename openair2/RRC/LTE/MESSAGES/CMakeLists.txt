@@ -10,10 +10,11 @@ else()
   message(FATAL_ERROR "unknown LTE_RRC_RELEASE ${LTE_RRC_RELEASE}")
 endif()
 
-add_custom_command(OUTPUT ${lte_rrc_source} ${lte_rrc_headers}
-  COMMAND ASN1C_PREFIX=LTE_ ${ASN1C_EXEC} -pdu=all -fcompound-names -gen-UPER -no-gen-BER -no-gen-JER -no-gen-OER -gen-APER -no-gen-example -D ${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/${LTE_RRC_GRAMMAR}
-  DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/${LTE_RRC_GRAMMAR}
-  COMMENT "Generating LTE RRC source file from ${CMAKE_CURRENT_SOURCE_DIR}/${LTE_RRC_GRAMMAR}"
+run_asn1c(${CMAKE_CURRENT_SOURCE_DIR}/${LTE_RRC_GRAMMAR}
+          "LTE_"
+          OUTPUT ${lte_rrc_source} ${lte_rrc_headers}
+          OPTIONS -pdu=all -fcompound-names -gen-UPER -no-gen-BER -no-gen-JER -no-gen-OER -gen-APER -no-gen-example
+          COMMENT "LTE RRC source files"
 )
 
 # Many other targets include LTE RRC ASN.1 headers, without actually needing

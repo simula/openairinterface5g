@@ -3,6 +3,10 @@
 IWYU - [include what you use](https://github.com/include-what-you-use/include-what-you-use)
 is a tool that can detect and correct C/C++ include errors
 
+# Pre-requisites
+
+The image ran-base:latest needs to be built. Please refer to [docker/README.md](../../docker/README.md)
+
 # Usage
 
 ```

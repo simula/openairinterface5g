@@ -38,7 +38,7 @@ RUN dnf install -y libasan libubsan
 RUN /bin/sh oaienv && \ 
     cd cmake_targets && \
     mkdir -p log && \
-    ./build_oai --phy_simulators --ninja --sanitize --noavx512 -c --cmake-opt -DCMAKE_C_FLAGS=-Werror --cmake-opt -DCMAKE_CXX_FLAGS=-Werror
+    ./build_oai --phy_simulators --ninja --sanitize --build-tool-opt -k10 --noavx512 -c --cmake-opt -DCMAKE_C_FLAGS=-Werror --cmake-opt -DCMAKE_CXX_FLAGS=-Werror --cmake-opt -DCMAKE_RUNTIME_OUTPUT_DIRECTORY=/opt/oai-physim/bin
 
 #start from scratch for target executable
 FROM registry.access.redhat.com/ubi9/ubi:latest AS oai-physim
@@ -53,41 +53,21 @@ RUN dnf update -y && \
         procps-ng \
         net-tools \
         iputils \
+        cmake \
         bc \
         iproute && \
     echo "/usr/local/lib" > /etc/ld.so.conf.d/local-lib.conf && \
     echo "/usr/local/lib64" >> /etc/ld.so.conf.d/local-lib.conf
 
 WORKDIR /opt/oai-physim/bin
-COPY --from=phy-sim-build \
-    /oai-ran/cmake_targets/ran_build/build/dlsim \
-    /oai-ran/cmake_targets/ran_build/build/nr_dlsim \
-    /oai-ran/cmake_targets/ran_build/build/nr_prachsim \
-    /oai-ran/cmake_targets/ran_build/build/nr_ulschsim \
-    /oai-ran/cmake_targets/ran_build/build/polartest \
-    /oai-ran/cmake_targets/ran_build/build/ulsim \
-    /oai-ran/cmake_targets/ran_build/build/ldpctest \
-    /oai-ran/cmake_targets/ran_build/build/nr_dlschsim \
-    /oai-ran/cmake_targets/ran_build/build/nr_pbchsim \
-    /oai-ran/cmake_targets/ran_build/build/nr_psbchsim \
-    /oai-ran/cmake_targets/ran_build/build/nr_pucchsim \
-    /oai-ran/cmake_targets/ran_build/build/nr_ulsim \
-    /oai-ran/cmake_targets/ran_build/build/smallblocktest \
-    ./
+COPY --from=phy-sim-build /opt/oai-physim/bin/ /opt/oai-physim/bin/
 
 COPY --from=phy-sim-build \
     /oai-ran/cmake_targets/ran_build/build/libcoding.so \
     /lib64/liblapacke.so.3 \
-    /lib64/libX11.so.6 \
-    /lib64/libXpm.so.4 \
-    /lib64/libxcb.so.1 \
-    /lib64/libXau.so.6 \
-    /lib64/libforms.so.2 \
     /lib64/libblas.so.3 \
     /lib64/libcblas.so.3 \
     /lib64/liblapack.so.3 \
-    /lib64/libexslt.so.0 \
-    /lib64/libxslt.so.1 \
     /usr/lib64/libasan.so.6 \
     /usr/lib64/libubsan.so.1 \
     /oai-ran/cmake_targets/ran_build/build/libdfts.so \
@@ -114,24 +94,11 @@ RUN ldconfig && \
         /usr/local/lib/libdfts.so \
         /usr/local/lib/libldpc*.so
 
-# Copy some executables
-WORKDIR /usr/bin/
-
-COPY --from=phy-sim-build \
-    /usr/bin/killall \
-    /usr/bin/xmlstarlet \
-    ./
-
 # Copy the relevant configuration files for phySim
 WORKDIR /opt/oai-physim/
 
 COPY --from=phy-sim-build \
-    /oai-ran/cmake_targets/autotests/run_exec_autotests.bash \
-    /oai-ran/cmake_targets/autotests/test_case_list.xml \
-    /opt/oai-physim/cmake_targets/autotests/
-COPY --from=phy-sim-build \
-    /oai-ran/cmake_targets/tools/build_helper \
-    /oai-ran/cmake_targets/tools/test_helper \
-    /opt/oai-physim/cmake_targets/tools/
+    /oai-ran/cmake_targets/ran_build/build/openair1/SIMULATION/tests/CTestTestfile.cmake \
+    /opt/oai-physim/
 
 #CMD ["sleep", "infinity"]

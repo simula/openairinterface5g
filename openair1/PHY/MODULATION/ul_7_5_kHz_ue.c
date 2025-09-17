@@ -28,13 +28,9 @@
 void apply_7_5_kHz(PHY_VARS_UE *ue,int32_t*txdata,uint8_t slot)
 {
 
-
-  uint16_t len;
   uint32_t *kHz7_5ptr;
-  simde__m128i *txptr128, *kHz7_5ptr128, mmtmp_re, mmtmp_im, mmtmp_re2, mmtmp_im2;
-  uint32_t slot_offset;
-  //   uint8_t aa;
-  uint32_t i;
+  simde__m128i *txptr128, *kHz7_5ptr128;
+
   LTE_DL_FRAME_PARMS *frame_parms=&ue->frame_parms;
 
   switch (frame_parms->N_RB_UL) {
@@ -68,31 +64,17 @@ void apply_7_5_kHz(PHY_VARS_UE *ue,int32_t*txdata,uint8_t slot)
     break;
   }
 
-  slot_offset = (uint32_t)slot * frame_parms->samples_per_tti/2;
-  len = frame_parms->samples_per_tti/2;
+  uint32_t slot_offset = (uint32_t)slot * frame_parms->samples_per_tti/2;
+  uint16_t len = frame_parms->samples_per_tti/2;
 
   txptr128 = (simde__m128i *)&txdata[slot_offset];
   kHz7_5ptr128 = (simde__m128i *)kHz7_5ptr;
   // apply 7.5 kHz
 
-  for (i = 0; i < (len >> 2); i++) {
-    mmtmp_re = simde_mm_madd_epi16(*txptr128, *kHz7_5ptr128);
+  for (uint32_t i = 0; i < (len >> 2); i++) {
     // Real part of complex multiplication (note: 7_5kHz signal is conjugated for this to work)
-    mmtmp_im = simde_mm_shufflelo_epi16(*kHz7_5ptr128, SIMDE_MM_SHUFFLE(2, 3, 0, 1));
-    mmtmp_im = simde_mm_shufflehi_epi16(mmtmp_im, SIMDE_MM_SHUFFLE(2, 3, 0, 1));
-    mmtmp_im = simde_mm_sign_epi16(mmtmp_im, *(simde__m128i *)&conjugate75[0]);
-    mmtmp_im = simde_mm_madd_epi16(mmtmp_im, txptr128[0]);
-    mmtmp_re = simde_mm_srai_epi32(mmtmp_re, 15);
-    mmtmp_im = simde_mm_srai_epi32(mmtmp_im, 15);
-    mmtmp_re2 = simde_mm_unpacklo_epi32(mmtmp_re, mmtmp_im);
-    mmtmp_im2 = simde_mm_unpackhi_epi32(mmtmp_re, mmtmp_im);
-
-    txptr128[0] = simde_mm_packs_epi32(mmtmp_re2, mmtmp_im2);
-    txptr128++;
-    kHz7_5ptr128++;
+    txptr128[i] = oai_mm_cpx_mult_conj(kHz7_5ptr128[i], txptr128[i], 15);
   }
 
-  //}
 }
-
 

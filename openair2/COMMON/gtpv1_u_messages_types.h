@@ -24,20 +24,18 @@
 
 #include "LTE_asn_constant.h"
 #include "NR_asn_constant.h"
+#include "s1ap_messages_types.h"
 
 #define GTPV1U_MAX_BEARERS_PER_UE max_val_LTE_DRB_Identity
 #define NR_GTPV1U_MAX_BEARERS_PER_UE max_val_NR_DRB_Identity
 
 #define GTPV1U_ENB_TUNNEL_DATA_IND(mSGpTR)    (mSGpTR)->ittiMsg.Gtpv1uTunnelDataInd
-#define GTPV1U_TUNNEL_DATA_REQ(mSGpTR)    (mSGpTR)->ittiMsg.Gtpv1uTunnelDataReq
 #define GTPV1U_ENB_DATA_FORWARDING_REQ(mSGpTR)    (mSGpTR)->ittiMsg.Gtpv1uDataForwardingReq
 #define GTPV1U_ENB_DATA_FORWARDING_IND(mSGpTR)    (mSGpTR)->ittiMsg.Gtpv1uDataForwardingInd
 #define GTPV1U_ENB_END_MARKER_REQ(mSGpTR)     (mSGpTR)->ittiMsg.Gtpv1uEndMarkerReq
 #define GTPV1U_ENB_END_MARKER_IND(mSGpTR)     (mSGpTR)->ittiMsg.Gtpv1uEndMarkerInd
 
 #define GTPV1U_REQ(mSGpTR)    (mSGpTR)->ittiMsg.gtpv1uReq
-
-#define GTPV1U_DU_BUFFER_REPORT_REQ(mSGpTR)    (mSGpTR)->ittiMsg.NRGtpv1uBufferReportReq
 
 #define GTPV1U_ALL_TUNNELS_TEID (teid_t)0xFFFFFFFF
 
@@ -106,15 +104,6 @@ typedef struct gtpv1u_enb_delete_tunnel_resp_s {
   teid_t                 enb_S1u_teid;         ///< local S1U Tunnel Endpoint Identifier to be deleted
 } gtpv1u_enb_delete_tunnel_resp_t;
 
-
-typedef struct gtpv1u_tunnel_data_req_s {
-  uint8_t               *buffer;
-  uint32_t               length;
-  uint32_t               offset;               ///< start of message offset in buffer
-  ue_id_t                ue_id;
-  rb_id_t                bearer_id;
-} gtpv1u_tunnel_data_req_t;
-
 typedef struct gtpv1u_enb_data_forwarding_req_s {
   uint8_t               *buffer;
   uint32_t               length;
@@ -170,13 +159,10 @@ typedef struct {
 typedef struct gtpv1u_gnb_create_tunnel_req_s {
   ue_id_t                ue_id;
   int                    num_tunnels;
-  //teid_t                 upf_NGu_teid[NR_GTPV1U_MAX_BEARERS_PER_UE];  ///< Tunnel Endpoint Identifier
   teid_t                 outgoing_teid[NR_GTPV1U_MAX_BEARERS_PER_UE];
   int outgoing_qfi[NR_GTPV1U_MAX_BEARERS_PER_UE];
-  pdusessionid_t         pdusession_id[NR_GTPV1U_MAX_BEARERS_PER_UE];
+  int pdusession_id[NR_GTPV1U_MAX_BEARERS_PER_UE];
   ebi_t                  incoming_rb_id[NR_GTPV1U_MAX_BEARERS_PER_UE];
-  //ebi_t                  outgoing_rb_id[NR_GTPV1U_MAX_BEARERS_PER_UE];
-  //transport_layer_addr_t upf_addr[NR_GTPV1U_MAX_BEARERS_PER_UE];
   transport_layer_addr_t dst_addr[NR_GTPV1U_MAX_BEARERS_PER_UE];
 } gtpv1u_gnb_create_tunnel_req_t;
 
@@ -185,13 +171,13 @@ typedef struct gtpv1u_gnb_create_tunnel_resp_s {
   ue_id_t                ue_id;
   int                    num_tunnels;
   teid_t                 gnb_NGu_teid[NR_GTPV1U_MAX_BEARERS_PER_UE];  ///< Tunnel Endpoint Identifier
-  pdusessionid_t         pdusession_id[NR_GTPV1U_MAX_BEARERS_PER_UE];
+  int pdusession_id[NR_GTPV1U_MAX_BEARERS_PER_UE];
   transport_layer_addr_t gnb_addr;
 } gtpv1u_gnb_create_tunnel_resp_t;
 typedef struct gtpv1u_gnb_delete_tunnel_req_s {
   ue_id_t                ue_id;
   uint8_t                num_pdusession;
-  pdusessionid_t         pdusession_id[NR_GTPV1U_MAX_BEARERS_PER_UE];
+  int pdusession_id[NR_GTPV1U_MAX_BEARERS_PER_UE];
 } gtpv1u_gnb_delete_tunnel_req_t;
 
 typedef struct gtpv1u_gnb_delete_tunnel_resp_s {
@@ -199,12 +185,5 @@ typedef struct gtpv1u_gnb_delete_tunnel_resp_s {
   uint8_t                status;               ///< Status of NGU endpoint deleteion (Failed = 0xFF or Success = 0x0)
   teid_t                 gnb_NGu_teid;         ///< local NGU Tunnel Endpoint Identifier to be deleted
 } gtpv1u_gnb_delete_tunnel_resp_t;
-
-
-typedef struct gtpv1u_DU_buffer_report_req_s {
-  uint32_t               buffer_availability;
-  ue_id_t                ue_id;
-  pdusessionid_t         pdusession_id;
-} gtpv1u_DU_buffer_report_req_t;
 
 #endif /* GTPV1_U_MESSAGES_TYPES_H_ */

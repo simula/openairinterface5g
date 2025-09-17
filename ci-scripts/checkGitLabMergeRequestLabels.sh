@@ -78,9 +78,10 @@ IS_MR_BUILD_ONLY=`echo $LABELS | grep -c BUILD-ONLY`
 IS_MR_CI=`echo $LABELS | grep -c CI`
 IS_MR_4G=`echo $LABELS | grep -c 4G-LTE`
 IS_MR_5G=`echo $LABELS | grep -c 5G-NR`
+IS_MR_5G_UE=`echo $LABELS | grep -c nrUE`
 
 # none is present! No CI
-if [ $IS_MR_BUILD_ONLY -eq 0 ] && [ $IS_MR_CI -eq 0 ] && [ $IS_MR_4G -eq 0 ] && [ $IS_MR_5G -eq 0 ] && [ $IS_MR_DOCUMENTATION -eq 0 ]
+if [ $IS_MR_BUILD_ONLY -eq 0 ] && [ $IS_MR_CI -eq 0 ] && [ $IS_MR_4G -eq 0 ] && [ $IS_MR_5G -eq 0 ] && [ $IS_MR_DOCUMENTATION -eq 0 ] && [ $IS_MR_5G_UE -eq 0 ]
 then
     echo "NONE"
     exit 0
@@ -90,6 +91,12 @@ fi
 if [ $IS_MR_4G -eq 1 ] && [ $IS_MR_5G -eq 1 ] || [ $IS_MR_CI -eq 1 ]
 then
     echo "FULL"
+    exit 0
+fi
+
+if [ $IS_MR_5G_UE -eq 1 ] && [ $IS_MR_4G -eq 1 ]
+then
+    echo "SHORTEN-4G-5G-UE"
     exit 0
 fi
 
@@ -104,6 +111,12 @@ fi
 if [ $IS_MR_5G -eq 1 ]
 then
     echo "SHORTEN-5G"
+    exit 0
+fi
+
+if [ $IS_MR_5G_UE -eq 1 ]
+then
+    echo "SHORTEN-5G-UE"
     exit 0
 fi
 

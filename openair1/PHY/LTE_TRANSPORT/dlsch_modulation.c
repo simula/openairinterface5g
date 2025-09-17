@@ -3025,22 +3025,20 @@ inline int check_skip_dc(int rb,LTE_DL_FRAME_PARMS *frame_parms) {
     return(0);
 }
 
+static uint64_t qam4_tm2_p2_0[8][16] __attribute__((aligned(32)));
+static uint64_t qam4_tm2_p2_1[8][16] __attribute__((aligned(32)));
+static uint64_t qam4_tm2_p2_b0[8][4][16] __attribute__((aligned(32)));
+static uint64_t qam4_tm2_p2_b1[8][4][16] __attribute__((aligned(32)));
 
-uint64_t qam4_tm2_p2_0[8][16] __attribute__ ((aligned(32)));
-uint64_t qam4_tm2_p2_1[8][16] __attribute__ ((aligned(32)));
-uint64_t qam4_tm2_p2_b0[8][4][16] __attribute__ ((aligned(32)));
-uint64_t qam4_tm2_p2_b1[8][4][16] __attribute__ ((aligned(32)));
+static uint64_t qam16_tm2_p2_0[8][256] __attribute__((aligned(32)));
+static uint64_t qam16_tm2_p2_1[8][256] __attribute__((aligned(32)));
+static uint64_t qam16_tm2_p2_b0[8][4][256] __attribute__((aligned(32)));
+static uint64_t qam16_tm2_p2_b1[8][4][256] __attribute__((aligned(32)));
 
-uint64_t qam16_tm2_p2_0[8][256] __attribute__ ((aligned(32)));
-uint64_t qam16_tm2_p2_1[8][256] __attribute__ ((aligned(32)));
-uint64_t qam16_tm2_p2_b0[8][4][256] __attribute__ ((aligned(32)));
-uint64_t qam16_tm2_p2_b1[8][4][256] __attribute__ ((aligned(32)));
-
-uint64_t qam64_tm2_p2_0[8][4096] __attribute__ ((aligned(32)));
-uint64_t qam64_tm2_p2_1[8][4096] __attribute__ ((aligned(32)));
-uint64_t qam64_tm2_p2_b0[8][4][4096] __attribute__ ((aligned(32)));
-uint64_t qam64_tm2_p2_b1[8][4][4096] __attribute__ ((aligned(32)));
-
+static uint64_t qam64_tm2_p2_0[8][4096] __attribute__((aligned(32)));
+static uint64_t qam64_tm2_p2_1[8][4096] __attribute__((aligned(32)));
+static uint64_t qam64_tm2_p2_b0[8][4][4096] __attribute__((aligned(32)));
+static uint64_t qam64_tm2_p2_b1[8][4][4096] __attribute__((aligned(32)));
 
 void init_modulation_LUT_qam4_tm2_p2() {
 

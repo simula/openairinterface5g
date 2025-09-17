@@ -30,9 +30,6 @@
  * \warning
  */
 
-extern c16_t nr_ru[839]; // quantized roots of unity
-extern uint16_t nr_du[838];
-
 static const char* const prachfmt[] = {"0", "1", "2", "3", "A1", "A2", "A3", "B1", "B4", "C0", "C2", "A1/B1", "A2/B2", "A3/B3"};
 
 /*************************************

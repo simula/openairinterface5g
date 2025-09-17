@@ -19,15 +19,16 @@
 # *      contact@openairinterface.org
 # */
 #---------------------------------------------------------------------
-
+## Resource consumption 3Gi, 5CPU
 kind: BuildConfig
 apiVersion: build.openshift.io/v1
 metadata:
   name: "oai-clang"
+  namespace: "oaicicd-ran"
 spec:
-    runPolicy: "Serial"
     nodeSelector:
-        kubernetes.io/hostname: demophon
+        node-role.kubernetes.io/fhi72-intel3: ""
+    runPolicy: "Serial"
     source:
         type: "Binary"
     strategy:

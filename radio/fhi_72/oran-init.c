@@ -29,7 +29,10 @@
 #include "oaioran.h"
 
 #include "common/utils/assertions.h"
+#include "common/utils/LOG/log.h"
+#include "common/utils/nr/nr_common.h"
 #include "common_lib.h"
+#include "openair2/LAYER2/NR_MAC_COMMON/nr_prach_config.h"
 
 /* PRACH data samples are 32 bits wide (16bits for I/Q). Each packet contains
  * 840 samples for long sequence or 144 for short sequence. The payload length
@@ -44,6 +47,10 @@
 // (multiple CCs)
 static oran_port_instance_t gPortInst[XRAN_PORTS_NUM][XRAN_MAX_SECTOR_NR];
 void *gxran_handle;
+
+static struct xran_fh_init g_fh_init = {0};
+static struct xran_fh_config g_fh_config[XRAN_PORTS_NUM] = {0};
+static uint32_t g_prach_conf_duration[XRAN_PORTS_NUM] = {0};
 
 static uint32_t get_nSW_ToFpga_FTH_TxBufferLen(int mu, int sections)
 {
@@ -78,10 +85,10 @@ static uint32_t get_nFpgaToSW_FTH_RxBufferLen(int mu)
   }
 }
 
-static struct xran_prb_map get_xran_prb_map_dl(const struct xran_fh_config *f)
+static struct xran_prb_map get_xran_prb_map(const struct xran_fh_config *f, const uint8_t dir, const int16_t start_sym, const int16_t num_sym)
 {
   struct xran_prb_map prbmap = {
-      .dir = XRAN_DIR_DL,
+      .dir = dir,
       .xran_port = 0,
       .band_id = 0,
       .cc_id = 0,
@@ -90,33 +97,10 @@ static struct xran_prb_map get_xran_prb_map_dl(const struct xran_fh_config *f)
       .nPrbElm = 1,
   };
   struct xran_prb_elm *e = &prbmap.prbMap[0];
-  e->nStartSymb = 0;
-  e->numSymb = 14;
+  e->nStartSymb = start_sym;
+  e->numSymb = num_sym;
   e->nRBStart = 0;
-  e->nRBSize = f->nDLRBs;
-  e->nBeamIndex = 0;
-  e->compMethod = f->ru_conf.compMeth;
-  e->iqWidth = f->ru_conf.iqWidth;
-  return prbmap;
-}
-
-static struct xran_prb_map get_xran_prb_map_ul(const struct xran_fh_config *f)
-{
-  struct xran_prb_map prbmap = {
-      .dir = XRAN_DIR_UL,
-      .xran_port = 0,
-      .band_id = 0,
-      .cc_id = 0,
-      .ru_port_id = 0,
-      .tti_id = 0,
-      .start_sym_id = 0,
-      .nPrbElm = 1,
-  };
-  struct xran_prb_elm *e = &prbmap.prbMap[0];
-  e->nStartSymb = 0;
-  e->numSymb = 14;
-  e->nRBStart = 0;
-  e->nRBSize = f->nULRBs;
+  e->nRBSize = (dir == XRAN_DIR_DL) ? f->nDLRBs : f->nULRBs;
   e->nBeamIndex = 0;
   e->compMethod = f->ru_conf.compMeth;
   e->iqWidth = f->ru_conf.iqWidth;
@@ -140,10 +124,10 @@ static uint32_t oran_allocate_uplane_buffers(
 {
   xran_status_t status;
   uint32_t pool;
-  // we need at least XRAN_N_FE_BUF_LEN * ant * XRAN_NUM_OF_SYMBOL_PER_SLOT
-  // buffers, but xran_bm_init() uses rte_pktmbuf_pool_create() which
-  // recommends to use a power of two for the buffers
-  uint32_t numBufs = next_power_2(XRAN_N_FE_BUF_LEN * ant * XRAN_NUM_OF_SYMBOL_PER_SLOT);
+  /* xran_bm_init() uses rte_pktmbuf_pool_create() which recommends to use a power of two for the buffers;
+    the E release sample app didn't take this into account, but we introduced it ourselves;
+    the F release sample app took this into account, so we can proudly say we assumed correctly */
+  uint32_t numBufs = next_power_2(XRAN_N_FE_BUF_LEN * ant * XRAN_NUM_OF_SYMBOL_PER_SLOT) - 1;
   status = xran_bm_init(instHandle, &pool, numBufs, bufSize);
   AssertFatal(XRAN_STATUS_SUCCESS == status, "Failed at xran_bm_init(), status %d\n", status);
   printf("xran_bm_init() hInstance %p poolIdx %u elements %u size %u\n", instHandle, pool, numBufs, bufSize);
@@ -217,26 +201,33 @@ static void oran_allocate_cplane_buffers(void *instHandle,
                                          struct xran_flat_buffer buf[XRAN_MAX_ANTENNA_NR][XRAN_N_FE_BUF_LEN],
                                          uint32_t ant,
                                          uint32_t sect,
+                                       #ifdef F_RELEASE
+                                         uint32_t mtu,
+                                         const struct xran_fh_config *fh_config,
+                                       #endif
                                          uint32_t size_of_prb_map,
-                                         const oran_cplane_prb_config *prb_conf)
+                                         oran_cplane_prb_config *prb_conf)
 {
   xran_status_t status;
+  uint32_t count1 = 0;
+
+#ifdef E_RELEASE
+  uint32_t count2 = 0;
   uint32_t poolSec;
   uint32_t numBufsSec = next_power_2(XRAN_N_FE_BUF_LEN * ant * XRAN_NUM_OF_SYMBOL_PER_SLOT * sect * XRAN_MAX_FRAGMENT);
   uint32_t bufSizeSec = sizeof(struct xran_section_desc);
   status = xran_bm_init(instHandle, &poolSec, numBufsSec, bufSizeSec);
   AssertFatal(XRAN_STATUS_SUCCESS == status, "Failed at xran_bm_init(), status %d\n", status);
   printf("xran_bm_init() hInstance %p poolIdx %u elements %u size %u\n", instHandle, poolSec, numBufsSec, bufSizeSec);
+#endif
 
   uint32_t poolPrb;
-  uint32_t numBufsPrb = next_power_2(XRAN_N_FE_BUF_LEN * ant * XRAN_NUM_OF_SYMBOL_PER_SLOT);
+  uint32_t numBufsPrb = next_power_2(XRAN_N_FE_BUF_LEN * ant * XRAN_NUM_OF_SYMBOL_PER_SLOT) - 1;
   uint32_t bufSizePrb = size_of_prb_map;
   status = xran_bm_init(instHandle, &poolPrb, numBufsPrb, bufSizePrb);
   AssertFatal(XRAN_STATUS_SUCCESS == status, "Failed at xran_bm_init(), status %d\n", status);
   printf("xran_bm_init() hInstance %p poolIdx %u elements %u size %u\n", instHandle, poolPrb, numBufsPrb, bufSizePrb);
 
-  uint32_t count1 = 0;
-  uint32_t count2 = 0;
   for (uint32_t a = 0; a < ant; a++) {
     for (uint32_t j = 0; j < XRAN_N_FE_BUF_LEN; ++j) {
       list[a][j].pBuffers = &buf[a][j];
@@ -254,13 +245,16 @@ static void oran_allocate_cplane_buffers(void *instHandle,
       fb->pData = ptr;
       fb->pCtrl = mb;
 
-      // the original sample app code copies up to size_of_prb_map, but I think
-      // this is wrong because the way it is computed leads to a number larger
-      // than sizeof(map)
-      struct xran_prb_map *p_rb_map = (struct xran_prb_map *)ptr;
-      const struct xran_prb_map *src = &prb_conf->slotMap;
-      if ((j % prb_conf->nTddPeriod) == prb_conf->mixed_slot_index)
+      struct xran_prb_map *src = &prb_conf->slotMap;
+      // get mixed slot map if in TDD and in mixed slot
+      if (prb_conf->nTddPeriod != 0 && (j % prb_conf->nTddPeriod) == prb_conf->mixed_slot_index)
         src = &prb_conf->mixedSlotMap;
+#ifdef E_RELEASE
+      /* as per E release sample app, the memory is copied up to size_of_prb_map
+        which translates to >= sizeof(struct xran_prb_map) + sizeof(struct xran_prb_elm)*5,
+        but we assume that RB allocation is done as 1 RE/UE so the total memory size is sizeof(struct xran_prb_map);
+        this is improved in F release */
+      struct xran_prb_map *p_rb_map = (struct xran_prb_map *)ptr;
       memcpy(p_rb_map, src, sizeof(*src));
 
       for (uint32_t elm_id = 0; elm_id < p_rb_map->nPrbElm; ++elm_id) {
@@ -282,10 +276,19 @@ static void oran_allocate_cplane_buffers(void *instHandle,
           }
         }
       }
+#elif defined F_RELEASE
+      if (fh_config->RunSlotPrbMapBySymbolEnable) {
+        xran_init_PrbMap_by_symbol_from_cfg(src, ptr, mtu, fh_config->nDLRBs);
+      } else {
+        xran_init_PrbMap_from_cfg(src, ptr, mtu);
+      }
+#endif
     }
   }
   printf("xran_bm_allocate_buffer() hInstance %p poolIdx %u count %u\n", instHandle, poolPrb, count1);
+#ifdef E_RELEASE
   printf("xran_bm_allocate_buffer() hInstance %p poolIdx %u count %u\n", instHandle, poolSec, count2);
+#endif
 }
 
 /* callback not actively used */
@@ -298,6 +301,9 @@ static void oran_allocate_buffers(void *handle,
                                   int xran_inst,
                                   int num_sectors,
                                   oran_port_instance_t *portInstances,
+                                #ifdef F_RELEASE
+                                  uint32_t mtu,
+                                #endif
                                   const struct xran_fh_config *fh_config)
 {
   AssertFatal(num_sectors == 1, "only support one sector at the moment\n");
@@ -305,9 +311,15 @@ static void oran_allocate_buffers(void *handle,
   AssertFatal(handle != NULL, "no handle provided\n");
   uint32_t xran_max_antenna_nr = RTE_MAX(fh_config->neAxc, fh_config->neAxcUl);
   uint32_t xran_max_sections_per_slot = RTE_MAX(fh_config->max_sections_per_slot, XRAN_MIN_SECTIONS_PER_SLOT);
-  uint32_t size_of_prb_map = sizeof(struct xran_prb_map) + sizeof(struct xran_prb_elm) * (xran_max_sections_per_slot - 1);
 
-  pi->buf_list = _mm_malloc(sizeof(*pi->buf_list), 256);
+#if defined(__arm__) || defined(__aarch64__)
+    // ARM-specific memory allocation
+    int ret = posix_memalign((void**)&pi->buf_list, 256, sizeof(*pi->buf_list));
+    AssertFatal(ret == 0, "out of memory\n");
+#else
+    // Intel-specific memory allocation
+    pi->buf_list = _mm_malloc(sizeof(*pi->buf_list), 256);
+#endif
   AssertFatal(pi->buf_list != NULL, "out of memory\n");
   oran_buf_list_t *bl = pi->buf_list;
 
@@ -317,46 +329,67 @@ static void oran_allocate_buffers(void *handle,
   printf("-> hInstance %p\n", pi->instanceHandle);
   AssertFatal(status == XRAN_STATUS_SUCCESS, "get sector instance failed for XRAN nInstanceNum %d\n", xran_inst);
 
-  const uint32_t txBufSize = get_nSW_ToFpga_FTH_TxBufferLen(fh_config->frame_conf.nNumerology, fh_config->max_sections_per_slot);
-  oran_allocate_uplane_buffers(pi->instanceHandle, bl->src, bl->bufs.tx, xran_max_antenna_nr, txBufSize);
+  // DL/UL PRB mapping depending on the duplex mode
+  struct xran_prb_map dlPm = get_xran_prb_map(fh_config, XRAN_DIR_DL, 0, 14);
+  struct xran_prb_map ulPm = get_xran_prb_map(fh_config, XRAN_DIR_UL, 0, 14);
+  struct xran_prb_map dlPmMixed = {0};
+  struct xran_prb_map ulPmMixed = {0};
+  uint32_t idx = 0;
+  if (fh_config->frame_conf.nFrameDuplexType == XRAN_TDD) {
+    oran_mixed_slot_t info = get_mixed_slot_info(&fh_config->frame_conf);
+    dlPmMixed = get_xran_prb_map(fh_config, XRAN_DIR_DL, 0, info.num_dlsym);
+    ulPmMixed = get_xran_prb_map(fh_config, XRAN_DIR_UL, info.start_ulsym, info.num_ulsym);
+    idx = info.idx;
+  }
 
-  oran_mixed_slot_t info = get_mixed_slot_info(&fh_config->frame_conf);
-  struct xran_prb_map dlPm = get_xran_prb_map_dl(fh_config);
-  struct xran_prb_map dlPmMixed = dlPm;
-  dlPmMixed.prbMap[0].nStartSymb = 0;
-  dlPmMixed.prbMap[0].numSymb = info.num_dlsym;
   oran_cplane_prb_config dlConf = {
       .nTddPeriod = fh_config->frame_conf.nTddPeriod,
-      .mixed_slot_index = info.idx,
+      .mixed_slot_index = idx,
       .slotMap = dlPm,
       .mixedSlotMap = dlPmMixed,
   };
+
+  oran_cplane_prb_config ulConf = {
+      .nTddPeriod = fh_config->frame_conf.nTddPeriod,
+      .mixed_slot_index = idx,
+      .slotMap = ulPm,
+      .mixedSlotMap = ulPmMixed,
+  };
+
+#ifdef E_RELEASE
+  uint32_t size_of_prb_map = sizeof(struct xran_prb_map) + sizeof(struct xran_prb_elm) * (xran_max_sections_per_slot - 1);
+#elif defined F_RELEASE
+  uint32_t numPrbElm = xran_get_num_prb_elm(&dlPm, mtu);
+  uint32_t size_of_prb_map  = sizeof(struct xran_prb_map) + sizeof(struct xran_prb_elm) * (numPrbElm);
+#endif
+
+  // PDSCH
+  const uint32_t txBufSize = get_nSW_ToFpga_FTH_TxBufferLen(fh_config->frame_conf.nNumerology, fh_config->max_sections_per_slot);
+  oran_allocate_uplane_buffers(pi->instanceHandle, bl->src, bl->bufs.tx, xran_max_antenna_nr, txBufSize);
   oran_allocate_cplane_buffers(pi->instanceHandle,
                                bl->srccp,
                                bl->bufs.tx_prbmap,
                                xran_max_antenna_nr,
                                xran_max_sections_per_slot,
+                             #ifdef F_RELEASE
+                               mtu,
+                               fh_config,
+                             #endif
                                size_of_prb_map,
                                &dlConf);
 
+  // PUSCH
   const uint32_t rxBufSize = get_nFpgaToSW_FTH_RxBufferLen(fh_config->frame_conf.nNumerology);
   oran_allocate_uplane_buffers(pi->instanceHandle, bl->dst, bl->bufs.rx, xran_max_antenna_nr, rxBufSize);
-
-  struct xran_prb_map ulPm = get_xran_prb_map_ul(fh_config);
-  struct xran_prb_map ulPmMixed = ulPm;
-  ulPmMixed.prbMap[0].nStartSymb = info.start_ulsym;
-  ulPmMixed.prbMap[0].numSymb = info.num_ulsym;
-  oran_cplane_prb_config ulConf = {
-      .nTddPeriod = fh_config->frame_conf.nTddPeriod,
-      .mixed_slot_index = info.idx,
-      .slotMap = ulPm,
-      .mixedSlotMap = ulPmMixed,
-  };
   oran_allocate_cplane_buffers(pi->instanceHandle,
                                bl->dstcp,
                                bl->bufs.rx_prbmap,
                                xran_max_antenna_nr,
                                xran_max_sections_per_slot,
+                             #ifdef F_RELEASE
+                               mtu,
+                               fh_config,
+                             #endif
                                size_of_prb_map,
                                &ulConf);
 
@@ -396,35 +429,20 @@ static void oran_allocate_buffers(void *handle,
   xran_5g_prach_req(pi->instanceHandle, prach, prachdecomp, oai_xran_fh_rx_prach_callback, &portInstances->prach_tag);
 }
 
-int *oai_oran_initialize(const openair0_config_t *openair0_cfg)
+int *oai_oran_initialize(struct xran_fh_init *xran_fh_init, struct xran_fh_config *xran_fh_config)
 {
   int32_t xret = 0;
 
-  struct xran_fh_init init = {0};
-  if (!set_fh_init(&init)) {
-    printf("could not read FHI 7.2/ORAN config\n");
-    return NULL;
-  }
-  print_fh_init(&init);
-
-  /* read all configuration before starting anything */
-  struct xran_fh_config xran_fh_config[XRAN_PORTS_NUM] = {0};
-  for (int32_t o_xu_id = 0; o_xu_id < init.xran_ports; o_xu_id++) {
-    if (!set_fh_config(o_xu_id, init.xran_ports, openair0_cfg, &xran_fh_config[o_xu_id])) {
-      printf("could not read FHI 7.2/RU-specific config\n");
-      return NULL;
-    }
-    print_fh_config(&xran_fh_config[o_xu_id]);
-  }
-
-  xret = xran_init(0, NULL, &init, NULL, &gxran_handle);
+  print_fh_init(xran_fh_init);
+  xret = xran_init(0, NULL, xran_fh_init, NULL, &gxran_handle);
   if (xret != XRAN_STATUS_SUCCESS) {
     printf("xran_init failed %d\n", xret);
     exit(-1);
   }
 
   /** process all the O-RU|O-DU for use case */
-  for (int32_t o_xu_id = 0; o_xu_id < init.xran_ports; o_xu_id++) {
+  for (int32_t o_xu_id = 0; o_xu_id < xran_fh_init->xran_ports; o_xu_id++) {
+    print_fh_config(&xran_fh_config[o_xu_id]);
     xret = xran_open(gxran_handle, &xran_fh_config[o_xu_id]);
     if (xret != XRAN_STATUS_SUCCESS) {
       printf("xran_open failed %d\n", xret);
@@ -432,18 +450,63 @@ int *oai_oran_initialize(const openair0_config_t *openair0_cfg)
     }
 
     int sector = 0;
-    printf("Initialize ORAN port instance %d (%d) sector %d\n", o_xu_id, init.xran_ports, sector);
+    printf("Initialize ORAN port instance %d (%d) sector %d\n", o_xu_id, xran_fh_init->xran_ports, sector);
     oran_port_instance_t *pi = &gPortInst[o_xu_id][sector];
     struct xran_cb_tag tag = {.cellId = sector, .oXuId = o_xu_id};
     pi->prach_tag = tag;
     pi->pusch_tag = tag;
+#ifdef E_RELEASE
+    LOG_W(HW, "Please be aware that E release support will be removed in the future. Consider switching to F release.\n");
     oran_allocate_buffers(gxran_handle, o_xu_id, 1, pi, &xran_fh_config[o_xu_id]);
+#elif defined F_RELEASE
+    oran_allocate_buffers(gxran_handle, o_xu_id, 1, pi, xran_fh_init->mtu, &xran_fh_config[o_xu_id]);
+#endif
 
     if ((xret = xran_reg_physide_cb(gxran_handle, oai_physide_dl_tti_call_back, NULL, 10, XRAN_CB_TTI)) != XRAN_STATUS_SUCCESS) {
       printf("xran_reg_physide_cb failed %d\n", xret);
       exit(-1);
     }
+
+    // retrieve and store prach duration
+    uint8_t idx = xran_fh_config[o_xu_id].prach_conf.nPrachConfIdx;
+    const struct xran_frame_config *fc = &xran_fh_config[o_xu_id].frame_conf;
+    g_prach_conf_duration[o_xu_id] =
+        get_nr_prach_occasion_info_from_index(idx,
+                                              fc->nNumerology > 2 ? FR2 : FR1,
+                                              fc->nFrameDuplexType == XRAN_FDD ? duplex_mode_FDD : duplex_mode_TDD)
+            .N_dur;
   }
 
+  // store config after xran initialization -- xran makes modifications to
+  // these structs during initialization
+  memcpy(&g_fh_init, xran_fh_init, sizeof(*xran_fh_init));
+  memcpy(&g_fh_config, xran_fh_config, sizeof(*xran_fh_config) * xran_fh_init->xran_ports);
+
   return (void *)gxran_handle;
+}
+
+oran_buf_list_t *get_xran_buffers(uint32_t port_id)
+{
+  struct xran_fh_init *fh_init = get_xran_fh_init();
+  DevAssert(port_id < fh_init->xran_ports);
+  return gPortInst[port_id][0].buf_list;
+}
+
+struct xran_fh_init *get_xran_fh_init(void)
+{
+  return &g_fh_init;
+}
+
+struct xran_fh_config *get_xran_fh_config(uint32_t port_id)
+{
+  struct xran_fh_init *fh_init = get_xran_fh_init();
+  DevAssert(port_id < fh_init->xran_ports);
+  return &g_fh_config[port_id];
+}
+
+uint32_t get_prach_conf_duration(uint32_t port_id)
+{
+  struct xran_fh_init *fh_init = get_xran_fh_init();
+  DevAssert(port_id < fh_init->xran_ports);
+  return g_prach_conf_duration[port_id];
 }

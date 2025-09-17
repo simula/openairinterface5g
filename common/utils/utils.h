@@ -109,8 +109,6 @@ static inline void *malloc_or_fail(size_t size)
 #define PAGE_MASK 0xfffff000
 #define virt_to_phys(x) (x)
 
-const char *hexdump(const void *data, size_t data_len, char *out, size_t out_len);
-
 // Converts an hexadecimal ASCII coded digit into its value. **
 int hex_char_to_hex_value (char c);
 // Converts an hexadecimal ASCII coded string into its value.**

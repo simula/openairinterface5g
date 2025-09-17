@@ -25,6 +25,7 @@
 #include "common/utils/LOG/log.h"
 #include "PHY/NR_UE_TRANSPORT/nr_transport_proto_ue.h"
 #include "PHY/TOOLS/phy_scope_interface.h"
+#include "PHY/nr_phy_common/inc/nr_phy_common.h"
 
 // #define DEBUG_PSBCH
 
@@ -158,8 +159,11 @@ int nr_rx_psbch(PHY_VARS_NR_UE *ue,
 
     int max_h = 0;
     if (symbol == 0) {
-      max_h = nr_pbch_channel_level(dl_ch_estimates_ext, frame_parms, nb_re);
-      // log2_maxh = 3+(log2_approx(max_h)/2);
+      int avg[frame_parms->nb_antennas_rx];
+      nr_channel_level(0, PBCH_MAX_RE_PER_SYMBOL, dl_ch_estimates_ext, frame_parms->nb_antennas_rx, 1, avg, nb_re);
+      max_h = avg[0];
+      for (int i = 1; i < frame_parms->nb_antennas_rx; i++)
+        max_h = cmax(avg[i], max_h);
       log2_maxh = 5 + (log2_approx(max_h) / 2); // LLR32 crc error. LLR 16 CRC works
     }
 #ifdef DEBUG_PSBCH

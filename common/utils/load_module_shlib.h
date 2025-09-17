@@ -32,9 +32,6 @@
 #ifndef LOAD_SHLIB_H
 #define LOAD_SHLIB_H
 
-
-
-
 typedef struct {
    char *fname;
    int (*fptr)(void);
@@ -68,11 +65,10 @@ typedef int(*checkverfunc_t)(char * mainexec_version, char ** shlib_version);
 /* the function array when calling load_module_shlib (farray param NULL)             */
 typedef int(*getfarrayfunc_t)(loader_shlibfunc_t **funcarray);
 
-#ifdef LOAD_MODULE_SHLIB_MAIN
 #define LOADER_CONFIG_PREFIX  "loader"
 #define DEFAULT_PATH      ""
 #define DEFAULT_MAXSHLIBS 10
-loader_data_t loader_data;
+extern loader_data_t loader_data;
 
 /*----------------------------------------------------------------------------------------------------------------------------------------------------------*/
 /*                                       LOADER parameters                                                                                                  */
@@ -85,13 +81,8 @@ loader_data_t loader_data;
 }
 // clang-format on
 
-/*-------------------------------------------------------------------------------------------------------------*/
-#else  /* LOAD_MODULE_SHLIB_MAIN */
-
-extern int load_module_version_shlib(char *modname, char *version, loader_shlibfunc_t *farray, int numf, void *initfunc_arg);
-extern void * get_shlibmodule_fptr(char *modname, char *fname);
-extern loader_data_t loader_data;
-#endif /* LOAD_MODULE_SHLIB_MAIN */
+int load_module_version_shlib(char *modname, char *version, loader_shlibfunc_t *farray, int numf, void *initfunc_arg);
+void *get_shlibmodule_fptr(char *modname, char *fname);
 #define load_module_shlib(M, F, N, I) load_module_version_shlib(M, NULL, F, N, I)
 void loader_reset();
 #endif

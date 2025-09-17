@@ -386,7 +386,7 @@ static inline int encode_parity_check_part_orig(unsigned char *c,unsigned char *
       rate=5;
   }
   else {
-    printf("problem with BG\n");
+    printf("problem with BG: is %d\n", BG);
     return(-1);
   }
 

@@ -23,10 +23,6 @@
 extern "C" {
 #include "openair2/LAYER2/NR_MAC_UE/mac_proto.h"
 #include "executables/softmodem-common.h"
-uint64_t get_softmodem_optmask(void)
-{
-  return 0;
-}
 static softmodem_params_t softmodem_params;
 softmodem_params_t* get_softmodem_params(void)
 {
@@ -96,7 +92,7 @@ TEST(test_pucch_power_state, test_accumulated_delta_pucch)
   pucch_Config.pucch_PowerControl = &power_config;
   mac.G_b_f_c = 0;
   mac.pucch_power_control_initialized = true;
-  mac.frame_type = TDD;
+  mac.frame_structure.frame_type = TDD;
 
   int scs = 1;
   int sum_delta_pucch = 3;
@@ -110,7 +106,7 @@ TEST(test_pucch_power_state, test_accumulated_delta_pucch)
   uint16_t start_prb = 0;
   int P_CMAX = nr_get_Pcmax(23,
                             mac.nr_band,
-                            mac.frame_type,
+                            mac.frame_structure.frame_type,
                             FR1,
                             current_UL_BWP.channel_bandwidth,
                             2,
@@ -182,7 +178,7 @@ TEST(test_pucch_power_state, test_accumulated_delta_pucch)
 
 TEST(pc_min, check_all_bw_indexes)
 {
-  const int bws[] = {5, 10, 15, 20, 25, 30, 35, 40, 50, 60, 70, 80, 90, 100};
+  const int bws[] = {5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 60, 70, 80, 90, 100};
   for (auto i = 0U; i < sizeofArray(bws); i++) {
     (void)nr_get_Pcmin(i);
   }
@@ -196,8 +192,6 @@ TEST(pusch_power_control, pusch_power_control_msg3)
   current_UL_BWP.BWPSize = 106;
   current_UL_BWP.channel_bandwidth = 40;
   mac.current_UL_BWP = &current_UL_BWP;
-  NR_RACH_ConfigCommon_t nr_rach_ConfigCommon = {0};
-  current_UL_BWP.rach_ConfigCommon = &nr_rach_ConfigCommon;
   mac.nr_band = 78;
   NR_PUSCH_Config_t pusch_Config = {0};
   current_UL_BWP.pusch_Config = &pusch_Config;
@@ -205,7 +199,7 @@ TEST(pusch_power_control, pusch_power_control_msg3)
   pusch_Config.pusch_PowerControl = &pusch_PowerControl;
   pusch_PowerControl.tpc_Accumulation = (long*)1;
   mac.pusch_power_control_initialized = true;
-  mac.frame_type = TDD;
+  mac.frame_structure.frame_type = TDD;
 
   // msg3 cofiguration as in 5g_rfsimulator testcase
   int num_rb = 8;
@@ -222,7 +216,7 @@ TEST(pusch_power_control, pusch_power_control_msg3)
 
   int P_CMAX = nr_get_Pcmax(23,
                             mac.nr_band,
-                            mac.frame_type,
+                            mac.frame_structure.frame_type,
                             FR1,
                             current_UL_BWP.channel_bandwidth,
                             Qm,
@@ -233,8 +227,8 @@ TEST(pusch_power_control, pusch_power_control_msg3)
                             num_rb,
                             start_prb);
 
-  long preambleReceivedTargetPower = -96;
-  nr_rach_ConfigCommon.rach_ConfigGeneric.preambleReceivedTargetPower = preambleReceivedTargetPower;
+  int preambleReceivedTargetPower = -96;
+  mac.ra.prach_resources.ra_preamble_rx_target_power = preambleReceivedTargetPower;
 
   int power = get_pusch_tx_power_ue(&mac,
                                     num_rb,
@@ -251,7 +245,7 @@ TEST(pusch_power_control, pusch_power_control_msg3)
                                     false);
   EXPECT_EQ(power, -84);
   EXPECT_LT(power, P_CMAX);
-  nr_rach_ConfigCommon.rach_ConfigGeneric.preambleReceivedTargetPower -= 2;
+  mac.ra.prach_resources.ra_preamble_rx_target_power -= 2;
 
   int reduced_power = get_pusch_tx_power_ue(&mac,
                                             num_rb,
@@ -298,7 +292,7 @@ TEST(pusch_power_control, pusch_power_data)
   NR_RACH_ConfigCommon_t nr_rach_ConfigCommon = {0};
   current_UL_BWP.rach_ConfigCommon = &nr_rach_ConfigCommon;
   mac.nr_band = 78;
-  mac.frame_type = TDD;
+  mac.frame_structure.frame_type = TDD;
 
   bool is_rar_tx_retx = false;
   int num_rb = 5;
@@ -323,7 +317,7 @@ TEST(pusch_power_control, pusch_power_data)
 
   int P_CMAX = nr_get_Pcmax(23,
                             mac.nr_band,
-                            mac.frame_type,
+                            mac.frame_structure.frame_type,
                             FR1,
                             current_UL_BWP.channel_bandwidth,
                             Qm,
@@ -376,8 +370,6 @@ TEST(pusch_power_control, pusch_power_control_state_initialization)
   current_UL_BWP.BWPSize = 106;
   current_UL_BWP.channel_bandwidth = 40;
   mac.current_UL_BWP = &current_UL_BWP;
-  NR_RACH_ConfigCommon_t nr_rach_ConfigCommon = {0};
-  current_UL_BWP.rach_ConfigCommon = &nr_rach_ConfigCommon;
   mac.nr_band = 78;
   NR_PUSCH_Config_t pusch_Config = {0};
   current_UL_BWP.pusch_Config = &pusch_Config;
@@ -397,8 +389,8 @@ TEST(pusch_power_control, pusch_power_control_state_initialization)
   uint32_t sum_bits_in_codeblocks = 56;
   int delta_pusch = 0;
   bool is_rar_tx_retx = true;
-  long preambleReceivedTargetPower = -96;
-  nr_rach_ConfigCommon.rach_ConfigGeneric.preambleReceivedTargetPower = preambleReceivedTargetPower;
+  int preambleReceivedTargetPower = -96;
+  mac.ra.prach_resources.ra_preamble_rx_target_power = preambleReceivedTargetPower;
 
   get_pusch_tx_power_ue(&mac,
                         num_rb,
@@ -448,11 +440,11 @@ TEST(pusch_power_control, pusch_power_control_state)
   pusch_Config.pusch_PowerControl = &pusch_PowerControl;
   long p0_NominalWithGrant = 0;
   current_UL_BWP.p0_NominalWithGrant = &p0_NominalWithGrant;
-  mac.frame_type = TDD;
+  mac.frame_structure.frame_type = TDD;
 
   int P_CMAX = nr_get_Pcmax(23,
                             mac.nr_band,
-                            mac.frame_type,
+                            mac.frame_structure.frame_type,
                             FR1,
                             current_UL_BWP.channel_bandwidth,
                             Qm,

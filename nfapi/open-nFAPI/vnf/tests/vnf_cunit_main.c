@@ -769,7 +769,7 @@ int start_response(nfapi_vnf_config_t* config, int p5_idx, nfapi_start_response_
 
 	vnf_test_config_vnf_t* vnf = &(vnf_test_config[0].vnfs[phy->vnf_idx]);
 
-	nfapi_vnf_p7_add_pnf(vnf->config, addr, port, response->header.phy_id);
+	nfapi_vnf_p7_add_pnf(vnf->config, addr, port, response->header.phy_id, 0);
 	return 0;
 }
 

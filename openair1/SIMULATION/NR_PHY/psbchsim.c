@@ -37,7 +37,6 @@
 #include "openair2/LAYER2/NR_MAC_COMMON/nr_mac_common.h"
 #include "openair1/SIMULATION/TOOLS/sim.h"
 #include "common/utils/nr/nr_common.h"
-#include "openair2/RRC/NR/nr_rrc_extern.h"
 #include "openair2/RRC/LTE/rrc_vars.h"
 #include "PHY/NR_UE_TRANSPORT/nr_transport_proto_ue.h"
 #include "PHY/INIT/nr_phy_init.h"
@@ -46,24 +45,19 @@
 #include "PHY/MODULATION/nr_modulation.h"
 #include "NR_SL-SSB-TimeAllocation-r16.h"
 #include "nr-uesoftmodem.h"
+#include "nr_unitary_defs.h"
 
 void e1_bearer_context_setup(const e1ap_bearer_setup_req_t *req)
 {
   abort();
 }
-void e1_bearer_context_modif(const e1ap_bearer_setup_req_t *req)
+void e1_bearer_context_modif(const e1ap_bearer_mod_req_t *req)
 {
   abort();
 }
 void e1_bearer_release_cmd(const e1ap_bearer_release_cmd_t *cmd)
 {
   abort();
-}
-void exit_function(const char *file, const char *function, const int line, const char *s, const int assert)
-{
-  const char *msg = s == NULL ? "no comment" : s;
-  printf("Exiting at: %s:%d %s(), %s\n", file, line, function, msg);
-  exit(-1);
 }
 int8_t nr_rrc_RA_succeeded(const module_id_t mod_id, const uint8_t gNB_index)
 {
@@ -84,7 +78,6 @@ instance_t CUuniqInstance = 0;
 openair0_config_t openair0_cfg[MAX_CARDS];
 
 RAN_CONTEXT_t RC;
-int oai_exit = 0;
 char *uecap_file;
 
 void nr_rrc_ue_generate_RRCSetupRequest(module_id_t module_id, const uint8_t gNB_index)
@@ -178,14 +171,17 @@ static void configure_NR_UE(PHY_VARS_NR_UE *UE, int mu, int N_RB)
   config.cell_config.frame_duplex_type = TDD;
   config.carrier_config.dl_grid_size[mu] = N_RB;
   config.carrier_config.ul_grid_size[mu] = N_RB;
-  config.carrier_config.dl_frequency = 0;
-  config.carrier_config.uplink_frequency = 0;
+  config.carrier_config.dl_frequency = 3300000;
+  config.carrier_config.uplink_frequency = 3300000;
 
   int band;
   if (mu == 1)
     band = 78;
-  if (mu == 0)
+  if (mu == 0) {
     band = 34;
+    config.carrier_config.dl_frequency = 2010000;
+    config.carrier_config.uplink_frequency = 2010000;
+  }
   nr_init_frame_parms_ue(fp, &config, band);
   fp->ofdm_offset_divisor = 8;
   nr_dump_frame_parms(fp);
@@ -260,15 +256,8 @@ static int freq_domain_loopback(PHY_VARS_NR_UE *UE_tx, PHY_VARS_NR_UE *UE_rx, in
   nr_tx_psbch(UE_tx, frame, slot, &phy_data->psbch_vars, txdataF);
 
   int estimateSz = sl_ue2->sl_frame_params.samples_per_slot_wCP;
-  __attribute__((aligned(32))) struct complex16 rxdataF[1][estimateSz];
-  for (int i = 0; i < sl_ue1->sl_frame_params.samples_per_slot_wCP; i++) {
-    struct complex16 *txdataF_ptr = (struct complex16 *)&txdataF[0][i];
-    struct complex16 *rxdataF_ptr = (struct complex16 *)&rxdataF[0][i];
-    rxdataF_ptr->r = txdataF_ptr->r;
-    rxdataF_ptr->i = txdataF_ptr->i;
-    // printf("r,i TXDATAF[%d]-    %d:%d, RXDATAF[%d]-    %d:%d\n",
-    //                                   i, txdataF_ptr->r, txdataF_ptr->i, i, txdataF_ptr->r, txdataF_ptr->i);
-  }
+  __attribute__((aligned(32))) c16_t rxdataF[1][estimateSz];
+  memcpy(rxdataF[0], txdataF[0], sl_ue1->sl_frame_params.samples_per_slot_wCP * sizeof(**rxdataF));
 
   uint8_t err_status = 0;
 
@@ -315,7 +304,10 @@ double cpuf;
 configmodule_interface_t *uniqCfg = NULL;
 int main(int argc, char **argv)
 {
-  char c;
+  stop = false;
+  __attribute__((unused)) struct sigaction oldaction;
+  sigaction(SIGINT, &sigint_action, &oldaction);
+
   int test_freqdomain_loopback = 0, test_slss_search = 0;
   int frame = 5, slot = 10, frame_tx = 0, slot_tx = 0;
   int loglvl = OAILOG_INFO;
@@ -343,6 +335,7 @@ int main(int argc, char **argv)
 
   randominit(0);
 
+  int c;
   while ((c = getopt(argc, argv, "--:O:c:hn:o:s:FIL:N:R:S:T:")) != -1) {
 
     /* ignore long options starting with '--', option '-O' and their arguments that are handled by configmodule */
@@ -583,11 +576,14 @@ int main(int argc, char **argv)
          proc.frame_rx,
          proc.nr_slot_rx,
          sl_uerx->sl_config.sl_sync_source.rx_slss_id);
+  int slot_start = frame_parms->get_samples_slot_timestamp(slot, frame_parms, 0);
+  c16_t *tx[frame_parms->nb_antennas_rx];
+  for (int i = 0; i < frame_parms->nb_antennas_rx; i++)
+    tx[i] = UE_TX->common_vars.txData[i] + slot_start;
+  phy_procedures_nrUE_SL_TX(UE_TX, &proc, &phy_data_tx, tx);
 
-  phy_procedures_nrUE_SL_TX(UE_TX, &proc, &phy_data_tx);
-
-  for (SNR = snr0; SNR >= snr1; SNR -= 1) {
-    for (int trial = 0; trial < n_trials; trial++) {
+  for (SNR = snr0; SNR >= snr1 && !stop; SNR -= 1) {
+    for (int trial = 0; trial < n_trials && !stop; trial++) {
       for (int i = 0; i < frame_length_complex_samples; i++) {
         for (int aa = 0; aa < frame_parms->nb_antennas_tx; aa++) {
           struct complex16 *txdata_ptr = (struct complex16 *)&UE_TX->common_vars.txData[aa][i];

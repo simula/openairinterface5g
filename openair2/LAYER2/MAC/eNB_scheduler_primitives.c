@@ -3471,7 +3471,7 @@ CCE_allocation_infeasible(int module_idP,
 
   if (format_flag != 2) { // DL DCI
     if (DL_req->number_pdu == MAX_NUM_DL_PDU) {
-      LOG_W(MAC, "Subframe %d: FAPI DL structure is full, skip scheduling UE %d\n", subframe, rnti);
+      LOG_W(MAC, "Subframe %d: FAPI DL structure is full, skip scheduling UE %x\n", subframe, rnti);
     } else {
       dl_config_pdu->dci_dl_pdu.dci_dl_pdu_rel8.tl.tag            = NFAPI_DL_CONFIG_REQUEST_DCI_DL_PDU_REL8_TAG;
       dl_config_pdu->pdu_type                                     = NFAPI_DL_CONFIG_DCI_DL_PDU_TYPE;
@@ -3489,7 +3489,7 @@ CCE_allocation_infeasible(int module_idP,
     }
   } else { // ue-specific UL DCI
     if (HI_DCI0_req->number_of_dci + HI_DCI0_req->number_of_hi == MAX_NUM_HI_DCI0_PDU) {
-      LOG_W(MAC, "Subframe %d: FAPI UL structure is full, skip scheduling UE %d\n", subframe, rnti);
+      LOG_W(MAC, "Subframe %d: FAPI UL structure is full, skip scheduling UE %x\n", subframe, rnti);
     } else {
       hi_dci0_pdu->pdu_type                               = NFAPI_HI_DCI0_DCI_PDU_TYPE;
       hi_dci0_pdu->dci_pdu.dci_pdu_rel8.tl.tag            = NFAPI_HI_DCI0_REQUEST_DCI_PDU_REL8_TAG;
@@ -3516,7 +3516,7 @@ int CCE_try_allocate_dlsch(int module_id,
   nfapi_dl_config_request_body_t *DL_req       = &RC.mac[module_id]->DL_req[CC_id].dl_config_request_body;
 
   if (DL_req->number_pdu >= MAX_NUM_DL_PDU) {
-    LOG_W(MAC, "Subframe %d: FAPI DL structure is full, skip scheduling UE %d\n", subframe, rnti);
+    LOG_W(MAC, "Subframe %d: FAPI DL structure is full, skip scheduling UE %x\n", subframe, rnti);
     return -1;
   }
 
@@ -3577,7 +3577,7 @@ int CCE_try_allocate_ulsch(int module_id,
   nfapi_hi_dci0_request_body_t *HI_DCI0_req = &RC.mac[module_id]->HI_DCI0_req[CC_id][subframe].hi_dci0_request_body;
 
   if (HI_DCI0_req->number_of_dci + HI_DCI0_req->number_of_hi >= MAX_NUM_HI_DCI0_PDU) {
-    LOG_W(MAC, "Subframe %d: FAPI UL structure is full, skip scheduling UE %d\n", subframe, rnti);
+    LOG_W(MAC, "Subframe %d: FAPI UL structure is full, skip scheduling UE %x\n", subframe, rnti);
     return -1;
   }
 

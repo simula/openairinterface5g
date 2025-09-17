@@ -43,7 +43,7 @@ void sl_ue_mac_free(NR_UE_MAC_INST_t *mac)
   // @todo: maybe this should be done by phy
   if (tdd_list) {
     int mu = sl_config->sl_bwp_config.sl_scs;
-    int nb_slots_to_set = TDD_CONFIG_NB_FRAMES*(1<<mu)*NR_NUMBER_OF_SUBFRAMES_PER_FRAME;
+    int nb_slots_to_set = (1 << mu) * NR_NUMBER_OF_SUBFRAMES_PER_FRAME;
     for (int i=0; i<nb_slots_to_set; i++) {
       free_and_zero(tdd_list[i].max_num_of_symbol_per_slot_list);
     }

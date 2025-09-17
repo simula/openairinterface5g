@@ -59,12 +59,6 @@ rrc_init_global_param(
   DCCH_LCHAN_DESC.transport_block_size = 4;
   DCCH_LCHAN_DESC.max_transport_blocks = 16;
   DCCH_LCHAN_DESC.Delay_class = 1;
-  DTCH_DL_LCHAN_DESC.transport_block_size = 52;
-  DTCH_DL_LCHAN_DESC.max_transport_blocks = 20;
-  DTCH_DL_LCHAN_DESC.Delay_class = 1;
-  DTCH_UL_LCHAN_DESC.transport_block_size = 52;
-  DTCH_UL_LCHAN_DESC.max_transport_blocks = 20;
-  DTCH_UL_LCHAN_DESC.Delay_class = 1;
   return 0;
 }
 
