@@ -34,7 +34,7 @@ case "$OS_DISTRO" in
   fedora) OS_BASEDISTRO="fedora"; INSTALLER="dnf"; CMAKE="cmake" ;;
   rhel)   OS_BASEDISTRO="fedora"; INSTALLER="dnf"; CMAKE="cmake3" ;;
   rocky)  OS_BASEDISTRO="fedora"; INSTALLER="dnf"; CMAKE="cmake" ;;
-  centos) OS_BASEDISTRO="centos"; INSTALLER="yum"; CMAKE="cmake3" ;;
+  centos) OS_BASEDISTRO="fedora"; INSTALLER="dnf"; CMAKE="cmake3" ;; # CentOS Stream
   debian) OS_BASEDISTRO="debian"; INSTALLER="apt-get"; CMAKE="cmake" ;;
   ubuntu) OS_BASEDISTRO="debian"; INSTALLER="apt-get"; CMAKE="cmake" ;;
 esac
@@ -42,7 +42,7 @@ KERNEL_VERSION=$(uname -r | cut -d '.' -f1)
 KERNEL_MAJOR=$(uname -r | cut -d '.' -f2)
 
 #check if we run inside a container
-IS_CONTAINER=`egrep -c "docker|podman|kubepods|libpod|buildah" /proc/self/cgroup || true`
+IS_CONTAINER=`grep -E -c "docker|podman|kubepods|libpod|buildah" /proc/self/cgroup || true`
 #sudo is not needed when we are root
 if [ "$UID" = 0 ]
 then
@@ -103,19 +103,11 @@ get_distribution_release() {
 check_supported_distribution() {
     local distribution=$(get_distribution_release)
     case "$distribution" in
-        "ubuntu23.10") return 0 ;;
+        "ubuntu24.04") return 0 ;;
         "ubuntu22.04") return 0 ;;
-        "ubuntu21.04") return 0 ;;
         "ubuntu20.04") return 0 ;;
-        "ubuntu18.04") return 0 ;;
         "debian11")    return 0 ;;
-        "fedora36")    return 0 ;;
-        "fedora37")    return 0 ;;
-        "rhel7")       return 0 ;;
-        "rhel7.6")     return 0 ;;
-        "rhel7.7")     return 0 ;;
-        "rhel7.8")     return 0 ;;
-        "rhel7.9")     return 0 ;;
+        "fedora40")    return 0 ;;
         "rhel8.2")     return 0 ;;
         "rhel8.3")     return 0 ;;
         "rhel8.4")     return 0 ;;
@@ -128,14 +120,15 @@ check_supported_distribution() {
         "rhel9.1")     return 0 ;;
         "rhel9.2")     return 0 ;;
         "rhel9.3")     return 0 ;;
-        "centos7")     return 0 ;;
-        "centos8")     return 0 ;;
+        "rhel9.4")     return 0 ;;
+        "centos9")     return 0 ;; # CentOS stream
         "rocky8.7")    return 0 ;;
         "rocky8.8")    return 0 ;;
         "rocky8.9")    return 0 ;;
         "rocky9.1")    return 0 ;;
         "rocky9.2")    return 0 ;;
         "rocky9.3")    return 0 ;;
+        "rocky9.4")    return 0 ;;
     esac
     return 1
 }
@@ -170,10 +163,6 @@ clean_kernel() {
     $SUDO iptables -t filter -F
     $SUDO iptables -t raw -F
     echo_info "Flushed iptables"
-    $SUDO rmmod nasmesh > /dev/null 2>&1
-    $SUDO rmmod oai_nw_drv  > /dev/null 2>&1
-    $SUDO rmmod ue_ip > /dev/null 2>&1
-    echo_info "removed drivers from kernel"
 }
 
 clean_all_files() {
@@ -198,7 +187,7 @@ check_warnings() {
   #we look for 'warning:' in the compilation log file
   #this is how gcc starts a warning
   #this is not perfect, we may get false positive
-  warning_count=`grep "warning:" "$1" | egrep -v "jobserver unavailable|disabling jobserver mode" | wc -l`
+  warning_count=`grep "warning:" "$1" | grep -E -v "jobserver unavailable|disabling jobserver mode" | wc -l`
   if [ $warning_count -gt 0 ]; then
     echo_error "WARNING: $warning_count warnings. See $1"
   fi
@@ -234,7 +223,7 @@ compilations() {
     ret=$?
   } > $dlog/$logfile 2>&1
   # Print the errors and warnings for CI purposes
-  egrep -A3 "warning:|error:" $dlog/$logfile || true
+  grep -E -A3 "warning:|error:" $dlog/$logfile || true
   check_warnings "$dlog/$logfile"
   if [[ $ret -eq 0 ]]; then
      echo_success "$targets compiled"
@@ -268,6 +257,14 @@ install_usrp_uhd_driver_from_source(){
             # - 3.15.0.0
             git apply $OPENAIR_DIR/cmake_targets/tools/uhd-3.15-tdd-patch.diff
             ret=$?;[[ $ret -ne 0 ]] && echo_fatal "Could not apply the TDD patch"
+        elif [[ "$UHD_VERSION" == "4.7.0.0" || "$UHD_VERSION" == "4.6.0.0" || "$UHD_VERSION" == "4.5.0.0" ]]; then
+            # Tested that patch for the following versions:
+            # - 4.7.0.0
+            cp $OPENAIR_DIR/cmake_targets/tools/uhd-4.x-tdd-patch.diff $OPENAIR_DIR/cmake_targets/tools/uhd-4.5plus-tdd-patch.diff
+            sed -i '9,13 s/STATE_OFF/STATE_RX1_OFF/' $OPENAIR_DIR/cmake_targets/tools/uhd-4.5plus-tdd-patch.diff
+            sed -i '24,28 s/STATE_OFF/STATE_RX2_OFF/' $OPENAIR_DIR/cmake_targets/tools/uhd-4.5plus-tdd-patch.diff
+            git apply $OPENAIR_DIR/cmake_targets/tools/uhd-4.5plus-tdd-patch.diff
+            ret=$?;[[ $ret -ne 0 ]] && echo_fatal "Could not apply the TDD patch"
         else
             # Tested that patch for the following versions:
             # - 4.0.0.0
@@ -289,7 +286,7 @@ install_usrp_uhd_driver_from_source(){
     git diff
     mkdir -p host/build
     cd host/build || true
-    $CMAKE ../ -GNinja
+    $CMAKE ../ -GNinja -DENABLE_TESTS=OFF -DENABLE_EXAMPLES=OFF
     echo "Compiling UHD"
     ninja
     $SUDO ninja install
@@ -320,7 +317,7 @@ check_install_usrp_uhd_driver(){
         $SUDO apt-get remove libuhd3.14.1 -y || true
         $SUDO apt-get remove libuhd3.15.0 -y || true
         local distribution=$(get_distribution_release)
-        if [[ "$distribution" == "ubuntu18.04" || "$distribution" == "ubuntu20.04" || "$distribution" == "ubuntu22.04" ]]; then
+        if [[ "$distribution" == "ubuntu20.04" || "$distribution" == "ubuntu22.04" ]]; then
             $SUDO apt-get remove libuhd4.?.? -y || true
         fi
         v=$(lsb_release -cs)
@@ -350,7 +347,7 @@ check_install_usrp_uhd_driver(){
         $SUDO apt-get update
         $SUDO apt-get -y install python-tk  $boost_libs_ubuntu libusb-1.0-0-dev
         case "$(get_distribution_release)" in
-          "ubuntu18.04" | "ubuntu20.04" | "ubuntu22.04")
+          "ubuntu20.04" | "ubuntu22.04")
             $SUDO apt-get -y install libuhd-dev libuhd4.5.0 uhd-host
             ;;
         esac
@@ -383,16 +380,16 @@ install_usrp_uhd_driver() {
         # On newer kernels, it fails to install
         $SUDO apt-get -y install uhd-host
     fi
-    # quick workaround for RHE7.6
+    # quick workaround for below distributions
     local distribution=$(get_distribution_release)
     if [ -z $1 ]; then
-      if [[ "$OS_DISTRO" == "rhel" ]] || [[ "$OS_DISTRO" == "rocky" ]]; then
+      if [[ "$OS_DISTRO" == "rhel" ]] || [[ "$OS_DISTRO" == "rocky" ]] || [[ "$OS_DISTRO" == "centos" ]]; then
           $SUDO /usr/local/bin/uhd_images_downloader
       else
           $SUDO uhd_images_downloader
       fi
     else
-      if [[ "$OS_DISTRO" == "rhel" ]] || [[ "$OS_DISTRO" == "rocky" ]]; then
+      if [[ "$OS_DISTRO" == "rhel" ]] || [[ "$OS_DISTRO" == "rocky" ]] || [[ "$OS_DISTRO" == "centos" ]]; then
           $SUDO /usr/local/bin/uhd_images_downloader -i $1
       else
           $SUDO uhd_images_downloader -i $1
@@ -527,25 +524,12 @@ check_install_soapy () {
     install_soapy_iris_from_source
 }
 
-# for ubuntu 18 we need a special repository (https://apt.kitware.com/) to install cmake >= 3.12
-add_cmake_repo () {
-  $SUDO $INSTALLER -y install wget
-  wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | gpg --dearmor - | $SUDO tee /usr/share/keyrings/kitware-archive-keyring.gpg >/dev/null
-  echo 'deb [signed-by=/usr/share/keyrings/kitware-archive-keyring.gpg] https://apt.kitware.com/ubuntu/ bionic main' | $SUDO tee /etc/apt/sources.list.d/kitware.list >/dev/null
-  $SUDO $INSTALLER -y update
-  $SUDO rm /usr/share/keyrings/kitware-archive-keyring.gpg
-  $SUDO $INSTALLER -y install kitware-archive-keyring
-}
-
 check_install_additional_tools (){
   $SUDO $INSTALLER update -y
   local optional_packages=""
   if [[ "$OS_BASEDISTRO" == "debian" ]]; then
     case "$(get_distribution_release)" in
-        "ubuntu18.04")
-            optional_packages="python-dev python-pip python-pyroute2 python python-numpy python-scipy python-matplotlib ctags"
-            ;;
-        "ubuntu20.04" | "ubuntu21.04" | "ubuntu22.04" | "debian11" )
+        "ubuntu20.04" | "ubuntu22.04" | "debian11" )
             optional_packages="python3 python3-pip python3-dev python3-scipy python3-matplotlib python3-pyroute2 universal-ctags"
             ;;
     esac
@@ -553,7 +537,6 @@ check_install_additional_tools (){
         doxygen \
         libgnutls28-dev \
         libpthread-stubs0-dev \
-        libqt5charts5-dev \
         tshark \
         uml-utilities \
         iperf3 \
@@ -585,10 +568,6 @@ check_install_oai_software() {
   if [[ "$OS_BASEDISTRO" == "debian" ]]; then
     $SUDO apt install -y software-properties-common
     case "$(get_distribution_release)" in
-        "ubuntu18.04")
-            add_cmake_repo
-            specific_packages=""
-            ;;
          "debian11")
             specific_packages="libz-dev"
             ;;
@@ -601,7 +580,6 @@ check_install_oai_software() {
         ninja-build \
 	pkg-config \
 	git \
-	libatlas-base-dev \
 	libblas-dev \
 	liblapack-dev \
 	liblapacke-dev \
@@ -612,8 +590,9 @@ check_install_oai_software() {
 	libtool  \
 	patch \
 	openssl \
-        zlib1g-dev \
-        xxd
+	zlib1g-dev \
+	xxd \
+	libyaml-cpp-dev
 
   elif [[ "$OS_BASEDISTRO" == "fedora" ]]; then
     if [[ "$OS_DISTRO" == "rhel" ]] || [[ "$OS_DISTRO" == "centos" ]] || [[ "$OS_DISTRO" == "rocky" ]]; then
@@ -631,7 +610,6 @@ check_install_oai_software() {
       gcc \
       gcc-c++ \
       git \
-      atlas-devel \
       pkgconfig \
       libconfig-devel \
       libffi-devel \
@@ -649,7 +627,8 @@ check_install_oai_software() {
       blas \
       blas-devel \
       vim-common \
-      zlib-devel
+      zlib-devel \
+      yaml-cpp-devel
   fi
 
     install_asn1c_from_source $1
@@ -666,7 +645,10 @@ install_asn1c_from_source(){
     # GIT_SSL_NO_VERIFY=true git clone https://gitlab.eurecom.fr/oai/asn1c.git /tmp/asn1c
     git clone https://github.com/mouse07410/asn1c /tmp/asn1c
     cd /tmp/asn1c
-    git checkout vlm_master
+    #git checkout vlm_master
+    # hotfix: current vlm_master (5fa129cf3161da9ff2d67341e6277e818c0f5d6a)
+    # breaks F1, NG, so use the one before.
+    git checkout 940dd5fa9f3917913fd487b13dfddfacd0ded06e
     # Showing which version is used
     git log -n1
     autoreconf -iv
@@ -691,13 +673,104 @@ install_simde_from_source(){
     if [[ -v SIMDE_VERSION ]]; then
       git checkout -f $SIMDE_VERSION
     else
-      # At time of writing, last working commit for OAI
-      git checkout 389f360a66d4a3bec62b7d71ad8be877487809ba
+      # At time of writing, last working commit for OAI: 1a09d3bc
+      git checkout 1a09d3bc9de47c4d9a5daa23eb753d5322748201
     fi
     # Showing which version is used
     git log -n1
     # brute force copy into /usr/include
     $SUDO \cp -rv ../simde /usr/include
+}
+
+install_lttng() {
+    if [[ "$OS_DISTRO" != "ubuntu" ]]; then
+      echo_info "LTTng is supported only for ubuntu at the moment."
+      echo_info $distribution
+      return
+    fi
+
+    set +e
+    $SUDO apt-add-repository ppa:lttng/stable-2.13 -y && apt-get update
+    $SUDO apt-get install -y lttng-tools lttng-modules-dkms liblttng-ust-dev
+    if [[ $? > 0 ]]; then
+      echo "Failed to install LTTng using apt. Installing from source"
+      install_lttng_deps
+      install_lttng_from_source
+    fi
+    set -e
+}
+
+install_lttng_deps() {
+  echo "installing dependencies of LTTng"
+  $SUDO apt-get install uuid-dev libxml2-dev -y
+}
+
+install_lttng_from_source() {
+    echo "installing LTTng from source"
+    install_popt_1_18_from_source
+    install_userspace_rcu
+    install_lttng_ust_2_13_from_source
+    install_lttng_tools_2_13_from_source
+}
+
+install_popt_1_18_from_source() {
+  $SUDO $INSTALLER -y install wget
+  echo_info "\nInstalling popt_1_18."
+  cd $(mktemp -d) &&
+  wget http://ftp.rpm.org/popt/releases/popt-1.x/popt-1.18.tar.gz
+  tar -xf popt-1.18.tar.gz && cd popt-1.18
+  ./configure && make -j16 && $SUDO make install
+}
+
+install_userspace_rcu() {
+    echo_info "\nInstalling U-RCU from source."
+    cd /tmp
+    $SUDO rm -rf /tmp/urcu
+    git clone https://github.com/urcu/userspace-rcu.git /tmp/urcu
+    cd /tmp/urcu
+    git checkout stable-0.12
+    ./bootstrap && ./configure && make
+    $SUDO make install
+    $SUDO ldconfig
+}
+
+
+install_lttng_modules_2_13_from_source() {
+    $SUDO $INSTALLER -y install wget
+    echo_info "\nInstalling LTTng Modules."
+    cd $(mktemp -d) &&
+    wget https://lttng.org/files/lttng-modules/lttng-modules-latest-2.13.tar.bz2 &&
+    tar -xf lttng-modules-latest-2.13.tar.bz2 &&
+    cd lttng-modules-2.13.* &&
+    make &&
+    $SUDO make modules_install &&
+    $SUDO depmod -a
+}
+
+install_lttng_ust_2_13_from_source() {
+    $SUDO $INSTALLER -y install wget
+    echo_info "\nInstalling LTTng UST."
+    cd $(mktemp -d) &&
+    wget https://lttng.org/files/lttng-ust/lttng-ust-latest-2.13.tar.bz2 &&
+    tar -xf lttng-ust-latest-2.13.tar.bz2 &&
+    cd lttng-ust-2.13.* &&
+    ./configure --disable-numa &&
+    make &&
+    $SUDO make install &&
+    $SUDO ldconfig
+}
+
+install_lttng_tools_2_13_from_source() {
+    $SUDO $INSTALLER -y install wget
+    echo_info "\nInstalling LTTng Tools."
+    cd $(mktemp -d) &&
+    wget https://lttng.org/files/lttng-tools/lttng-tools-latest-2.13.tar.bz2 &&
+    tar -xf lttng-tools-latest-2.13.tar.bz2 &&
+    cd lttng-tools-2.13.* &&
+    ./configure &&
+    make &&
+    $SUDO make install &&
+    $SUDO ldconfig
 }
 
 #################################################

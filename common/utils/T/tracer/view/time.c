@@ -122,8 +122,7 @@ static void *time_thread(void *_this)
     pixel_length = this->pixel_length;
 
     if (this->autoscroll) {
-      tnext = time_add(this->latest_time,
-          (struct timespec){tv_sec:0,tv_nsec:1});
+      tnext = time_add(this->latest_time, (struct timespec){.tv_sec = 0, .tv_nsec = 1});
       tstart = time_sub(tnext, nano_to_time(pixel_length * width));
       this->start_time = tstart;
     } else {

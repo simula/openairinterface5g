@@ -1,0 +1,39 @@
+Connecting to host 127.0.0.1, port 5002
+Reverse mode, remote host 127.0.0.1 is sending
+[  5] local 127.0.0.1 port 34141 connected to 127.0.0.1 port 5002
+[ ID] Interval           Transfer     Bitrate         Jitter    Lost/Total Datagrams
+[  5]   0.00-1.00   sec   128 KBytes  1.05 Mbits/sec  0.011 ms  0/4 (0%)  (omitted)
+[  5]   1.00-2.00   sec   128 KBytes  1.05 Mbits/sec  0.012 ms  0/4 (0%)  (omitted)
+[  5]   2.00-3.00   sec   128 KBytes  1.05 Mbits/sec  0.019 ms  0/4 (0%)  (omitted)
+[  5]   3.00-4.00   sec   128 KBytes  1.05 Mbits/sec  0.023 ms  0/4 (0%)  (omitted)
+[  5]   4.00-5.00   sec   128 KBytes  1.05 Mbits/sec  0.022 ms  0/4 (0%)  (omitted)
+[  5]   0.00-1.00   sec  96.0 KBytes   786 Kbits/sec  0.003 ms  0/3 (0%)
+[  5]   1.00-2.00   sec   128 KBytes  1.05 Mbits/sec  0.011 ms  0/4 (0%)
+[  5]   2.00-3.00   sec   128 KBytes  1.05 Mbits/sec  0.024 ms  0/4 (0%)
+[  5]   3.00-4.00   sec   128 KBytes  1.05 Mbits/sec  0.022 ms  0/4 (0%)
+[  5]   4.00-5.00   sec   128 KBytes  1.05 Mbits/sec  0.029 ms  0/4 (0%)
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate         Jitter    Lost/Total Datagrams
+[  5]   0.00-5.00   sec   608 KBytes   996 Kbits/sec  0.000 ms  0/19 (0%)  sender
+[  5]   0.00-5.00   sec   608 KBytes   996 Kbits/sec  0.029 ms  0/19 (0%)  receiver
+
+Server output:
+Accepted connection from 127.0.0.1, port 53711
+[  5] local 127.0.0.1 port 5002 connected to 127.0.0.1 port 34141
+[ ID] Interval           Transfer     Bitrate         Total Datagrams
+[  5]   0.00-1.00   sec   128 KBytes  1.05 Mbits/sec  4  (omitted)
+[  5]   1.00-2.00   sec   128 KBytes  1.05 Mbits/sec  4  (omitted)
+[  5]   2.00-3.00   sec   128 KBytes  1.05 Mbits/sec  4  (omitted)
+[  5]   3.00-4.00   sec   128 KBytes  1.05 Mbits/sec  4  (omitted)
+[  5]   4.00-5.00   sec   128 KBytes  1.05 Mbits/sec  4  (omitted)
+[  5]   0.00-1.00   sec  96.0 KBytes   786 Kbits/sec  3
+[  5]   1.00-2.00   sec   128 KBytes  1.05 Mbits/sec  4
+[  5]   2.00-3.00   sec   128 KBytes  1.05 Mbits/sec  4
+[  5]   3.00-4.00   sec   128 KBytes  1.05 Mbits/sec  4
+[  5]   4.00-5.00   sec   128 KBytes  1.05 Mbits/sec  4
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate         Jitter    Lost/Total Datagrams
+[  5]   0.00-5.00   sec   608 KBytes   996 Kbits/sec  0.000 ms  0/19 (0%)  sender
+
+
+iperf Done.

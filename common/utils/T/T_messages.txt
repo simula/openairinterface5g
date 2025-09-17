@@ -4,6 +4,16 @@ ID = ENB_MASTER_TICK
     GROUP = ALL:GENERAL:ENB
     FORMAT = int,eNB_ID : int,frame : int,subframe
 
+ID = USRP_RX_ANT0
+    DESC = RX IQ data as received by USRP driver on antenna 0
+    GROUP = ALL:HEAVY
+    FORMAT = int,timestap : buffer,data
+
+ID = USRP_TX_ANT0
+    DESC = TX IQ data as sent by USRP driver on antenna 0
+    GROUP = ALL:HEAVY
+    FORMAT = int,timestap : buffer,data
+
 #PHY logs
 ID = ENB_PHY_UL_TICK
     DESC = eNodeB uplink tick - one tick per ms at start of uplink processing

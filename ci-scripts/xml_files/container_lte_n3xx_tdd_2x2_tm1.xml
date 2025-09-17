@@ -25,12 +25,12 @@
   <htmlTabRef>TEST-LTE-2x2-N3XX-TM1</htmlTabRef>
   <htmlTabName>2.6 Ghz TDD LTE 2x2 TM1</htmlTabName>
   <htmlTabIcon>tasks</htmlTabIcon>
-  <repeatCount>1</repeatCount>
   <TestCaseRequestedList>
 
 111111
 100000
 010010
+800833
 030101
 010001
 000001
@@ -40,6 +40,7 @@
 070001
 010010
 030201
+333333
 
 </TestCaseRequestedList>
   <TestCaseExclusionList></TestCaseExclusionList>
@@ -64,7 +65,12 @@
     <node>obelix</node>
     <command>sudo cpupower idle-set -E</command>
   </testCase>
-
+  <testCase id="800833">
+    <class>Create_Workspace</class>
+    <desc>Create new Workspace</desc>
+    <eNB_instance>0</eNB_instance>
+    <eNB_serverId>0</eNB_serverId>
+  </testCase>
   <testCase id="030101">
     <class>Deploy_Object</class>
     <desc>Deploy eNB (TDD/Band38/2.6Ghz/N3XX) in a container</desc>
@@ -125,12 +131,14 @@
 
   <testCase id="010010">
     <class>Detach_UE</class>
+    <always_exec>true</always_exec>
     <desc>Detach UE</desc>
     <id>up2</id>
   </testCase>
 
   <testCase id="030201">
     <class>Undeploy_Object</class>
+    <always_exec>true</always_exec>
     <desc>Undeploy gNB</desc>
     <yaml_path>ci-scripts/yaml_files/lte_n3xx_tdd_2x2_tm1</yaml_path>
     <eNB_instance>0</eNB_instance>
@@ -140,6 +148,13 @@
 		    ?
     -->
   </testCase>
+
+    <testCase id="333333">
+        <class>Clean_Test_Server_Images</class>
+        <always_exec>true</always_exec>
+        <desc>Clean Test Images</desc>
+        <test_svr_id>0</test_svr_id>
+    </testCase>
 
 </testCaseList>
 

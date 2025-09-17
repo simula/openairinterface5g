@@ -1910,10 +1910,16 @@ schedule_ue_spec_fairRR(module_id_t module_idP,
           for (j=0; j<(TBS-sdu_length_total-offset); j++) {
             UE_info->DLSCH_pdu[CC_id][0][UE_id].payload[0][offset+sdu_length_total+j] = (char)(taus()&0xff);
           }
-
-          trace_pdu(DIRECTION_DOWNLINK, (uint8_t *)UE_info->DLSCH_pdu[CC_id][0][UE_id].payload[0],
-                    TBS, module_idP, WS_C_RNTI, UE_RNTI(module_idP, UE_id),
-                    eNB->frame, eNB->subframe,0,0);
+          ws_trace_t tmp = {.direction = DIRECTION_DOWNLINK,
+                            .pdu_buffer = UE_info->DLSCH_pdu[CC_id][0][UE_id].payload[0],
+                            .pdu_buffer_size = TBS,
+                            .ueid = module_idP,
+                            .rntiType = WS_C_RNTI,
+                            .rnti = UE_RNTI(module_idP, UE_id),
+                            .sysFrame = eNB->frame,
+                            .subframe = eNB->subframe,
+                            .harq_pid = harq_pid};
+          trace_pdu(&tmp);
           T(T_ENB_MAC_UE_DL_PDU_WITH_DATA, T_INT(module_idP), T_INT(CC_id), T_INT(rnti), T_INT(frameP), T_INT(subframeP),
             T_INT(harq_pid), T_BUFFER(UE_info->DLSCH_pdu[CC_id][0][UE_id].payload[0], TBS));
           UE_info->UE_template[CC_id][UE_id].nb_rb[harq_pid] = nb_rb;

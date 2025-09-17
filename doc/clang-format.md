@@ -64,3 +64,7 @@ When this is done, you are set up. How to use:
 
 6) Commit. It won't work if code is not properly formatted due to the
    pre-commit hook. Force committing with `git commit --no-verify`
+
+# Checking errors introduced by a branch
+
+Here is the script that can be used to detect any clang-format errors introduced by a branch [here](../tools/formatting/README.md)

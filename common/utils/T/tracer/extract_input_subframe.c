@@ -104,7 +104,7 @@ err:
   fd = open(file, O_RDONLY);
   if (fd == -1) { perror(file); exit(1); }
 
-  OBUF ebuf = { osize: 0, omaxsize: 0, obuf: NULL };
+  OBUF ebuf = {.osize = 0, .omaxsize = 0, .obuf = NULL};
 
   /* get wanted frame/subframe */
   while (1) {

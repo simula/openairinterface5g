@@ -47,16 +47,17 @@ uint32_t nr_get_G(uint16_t nb_rb,
   return(G);
 }
 
-uint32_t nr_get_E(uint32_t G, uint8_t C, uint8_t Qm, uint8_t Nl, uint8_t r) {
+uint32_t nr_get_E(uint32_t G, uint8_t C, uint8_t Qm, uint8_t Nl, uint8_t r)
+{
   uint32_t E;
   uint8_t Cprime = C; //assume CBGTI not present
 
-  AssertFatal(Nl>0,"Nl is 0\n");
-  AssertFatal(Qm>0,"Qm is 0\n");
-  if (r <= Cprime - ((G/(Nl*Qm))%Cprime) - 1)
-      E = Nl*Qm*(G/(Nl*Qm*Cprime));
+  AssertFatal(Nl > 0, "Nl is 0\n");
+  AssertFatal(Qm > 0, "Qm is 0\n");
+  if (r <= Cprime - ((G / (Nl * Qm)) % Cprime) - 1)
+      E = Nl * Qm * (G / (Nl * Qm * Cprime));
   else
-      E = Nl*Qm*((G/(Nl*Qm*Cprime))+1);
+      E = Nl * Qm * ((G / (Nl * Qm * Cprime)) + 1);
 
   LOG_D(PHY,"nr_get_E : (G %d, C %d, Qm %d, Nl %d, r %d), E %d\n",G, C, Qm, Nl, r, E);
   return E;

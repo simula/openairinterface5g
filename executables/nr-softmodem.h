@@ -17,7 +17,6 @@
 /*----------------------------------------------------------------------------------------------------------------------------------------------------------------------*/
 // clang-format off
 #define CMDLINE_PARAMS_DESC_GNB { \
-  {"single-thread-disable", CONFIG_HLP_NOSNGLT,        PARAMFLAG_BOOL,   .iptr=&single_thread_flag,           .defintval=1,                     TYPE_INT,    0},        \
   {"m" ,                    CONFIG_HLP_DLMCS_PHYTEST,  0,                .uptr=&target_dl_mcs,                .defintval=0,                     TYPE_UINT,   0},        \
   {"l" ,                    CONFIG_HLP_DLNL_PHYTEST,   0,                .uptr=&target_dl_Nl,                 .defintval=0,                     TYPE_UINT,   0},        \
   {"L" ,                    CONFIG_HLP_ULNL_PHYTEST,   0,                .uptr=&target_ul_Nl,                 .defintval=0,                     TYPE_UINT,   0},        \
@@ -42,7 +41,7 @@ extern uint64_t ulsch_slot_bitmap;
 extern char *uecap_file;
 
 // In nr-gnb.c
-extern void init_gNB(int single_thread_flag,int wait_for_sync);
+extern void init_gNB(int wait_for_sync);
 extern void stop_gNB(int);
 
 // In nr-ru.c
@@ -53,8 +52,6 @@ extern void stop_RU(int nb_ru);
 extern void kill_NR_RU_proc(int inst);
 extern void set_function_spec_param(RU_t *ru);
 
-extern void reset_opp_meas(void);
-extern void print_opp_meas(void);
 void init_gNB_afterRU(void);
 
 void init_pdcp(void);

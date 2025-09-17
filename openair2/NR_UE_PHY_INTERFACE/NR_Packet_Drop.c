@@ -23,6 +23,8 @@
 #include "executables/softmodem-common.h"
 #include "NR_MAC_UE/mac_proto.h"
 
+
+nr_bler_struct nr_bler_data[NR_NUM_MCS];
 slot_rnti_mcs_s slot_rnti_mcs[NUM_NFAPI_SLOT];
 void read_channel_param(const nfapi_nr_dl_tti_pdsch_pdu_rel15_t * pdu, int slot, int index)
 {
@@ -203,4 +205,58 @@ int get_mcs_from_sinr(nr_bler_struct *nr_bler_data, float sinr)
   }
   LOG_E(NR_MAC, "Unable to get an MCS value.\n");
   abort();
+}
+
+// Read in each MCS file and build BLER-SINR-TB table
+void init_nr_bler_table(const char *env_string)
+{
+  memset(nr_bler_data, 0, sizeof(nr_bler_data));
+
+  const char *awgn_results_dir = getenv(env_string);
+  if (!awgn_results_dir) {
+    LOG_W(NR_MAC, "No %s\n", env_string);
+    return;
+  }
+
+  for (unsigned int i = 0; i < NR_NUM_MCS; i++) {
+    char fName[1024];
+    snprintf(fName, sizeof(fName), "%s/mcs%u_awgn_5G.csv", awgn_results_dir, i);
+    FILE *pFile = fopen(fName, "r");
+    if (!pFile) {
+      LOG_E(NR_MAC, "%s: open %s: %s\n", __func__, fName, strerror(errno));
+      continue;
+    }
+    size_t bufSize = 1024;
+    char *line = NULL;
+    char *token;
+    char *temp = NULL;
+    int nlines = 0;
+    while (getline(&line, &bufSize, pFile) > 0) {
+      if (!strncmp(line, "SNR", 3)) {
+        continue;
+      }
+
+      if (nlines > NR_NUM_SINR) {
+        LOG_E(NR_MAC, "BLER FILE ERROR - num lines greater than expected - file: %s\n", fName);
+        abort();
+      }
+
+      token = strtok_r(line, ";", &temp);
+      int ncols = 0;
+      while (token != NULL) {
+        if (ncols > NUM_BLER_COL) {
+          LOG_E(NR_MAC, "BLER FILE ERROR - num of cols greater than expected\n");
+          abort();
+        }
+
+        nr_bler_data[i].bler_table[nlines][ncols] = strtof(token, NULL);
+        ncols++;
+
+        token = strtok_r(NULL, ";", &temp);
+      }
+      nlines++;
+    }
+    nr_bler_data[i].length = nlines;
+    fclose(pFile);
+  }
 }

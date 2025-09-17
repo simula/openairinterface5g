@@ -101,7 +101,7 @@ int LDPCencoder(uint8_t **test_input, uint8_t **channel_input, encoder_implempar
 
   if(impp->tinput != NULL) stop_meas(impp->tinput);
 
-  if ((BG==1 && Zc>=176) || (BG==2 && Zc>=64)) { 
+  if ((BG==1 && Zc>=176) || (BG==2 && Zc>=72)) {
     // extend matrix
     if(impp->tprep != NULL) start_meas(impp->tprep);
     if(impp->tprep != NULL) stop_meas(impp->tprep);

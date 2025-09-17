@@ -1,0 +1,169 @@
+<!--
+
+ Licensed to the OpenAirInterface (OAI) Software Alliance under one or more
+ contributor license agreements.  See the NOTICE file distributed with
+ this work for additional information regarding copyright ownership.
+ The OpenAirInterface Software Alliance licenses this file to You under
+ the OAI Public License, Version 1.1  (the "License"); you may not use this file
+ except in compliance with the License.
+ You may obtain a copy of the License at
+
+      http://www.openairinterface.org/?page_id=698
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+
+ For more information about the OpenAirInterface (OAI) Software Alliance:
+      contact@openairinterface.org
+
+-->
+<testCaseList>
+  <htmlTabRef>test-5g-fhi72-vvdn</htmlTabRef>
+  <htmlTabName>100 MHz TDD SA VVDN</htmlTabName>
+  <htmlTabIcon>tasks</htmlTabIcon>
+  <TestCaseRequestedList>
+    200000
+    110000
+    800813
+    120000
+    102000
+    102001
+    100100
+    100010
+    100020
+    100030
+    100040
+    103000
+    100002
+    130000
+    777777
+    888888
+  </TestCaseRequestedList>
+  <TestCaseExclusionList></TestCaseExclusionList>
+
+  <testCase id="200000">
+    <class>Custom_Script</class>
+    <desc>Setup sriov and network interfaces VVDN</desc>
+    <node>cacofonix</node>
+    <script>yaml_files/sa_fhi_7.2_vvdn_gnb/setup_sriov_vvdn.sh</script>
+    <command_fail>yes</command_fail>
+  </testCase>
+
+  <testCase id="110000">
+    <class>Pull_Cluster_Image</class>
+    <desc>Pull Images from Cluster</desc>
+    <oc_project>oaicicd-ran</oc_project>
+    <images_to_pull>oai-gnb-fhi72</images_to_pull>
+  </testCase>
+  <testCase id="800813">
+    <class>Create_Workspace</class>
+    <desc>Create new Workspace for server 0</desc>
+    <eNB_instance>0</eNB_instance>
+    <eNB_serverId>0</eNB_serverId>
+  </testCase>
+  <testCase id="120000">
+    <class>Deploy_Object</class>
+    <desc>Deploy gNB (TDD/Band78/100MHz/VVDN) in a container</desc>
+    <yaml_path>ci-scripts/yaml_files/sa_fhi_7.2_vvdn_gnb</yaml_path>
+    <eNB_instance>0</eNB_instance>
+    <eNB_serverId>0</eNB_serverId>
+  </testCase>
+
+  <testCase id="102001">
+    <class>Attach_UE</class>
+    <desc>Attach UE</desc>
+    <id>up2-fhi72</id>
+  </testCase>
+
+  <testCase id="100100">
+    <class>Ping</class>
+    <desc>Ping: 100 pings in 10 sec</desc>
+    <id>up2-fhi72</id>
+    <ping_args>-c 100 -i 0.1 172.21.6.104</ping_args>
+    <ping_packetloss_threshold>1</ping_packetloss_threshold>
+    <ping_rttavg_threshold>15</ping_rttavg_threshold>
+  </testCase>
+
+  <testCase id="100010">
+    <class>Iperf</class>
+    <desc>iperf (DL/300Mbps/UDP)(30 sec)(multi-ue profile)</desc>
+    <iperf_args>-u -b 300M -t 30 -R</iperf_args>
+    <id>up2-fhi72</id>
+    <iperf_packetloss_threshold>20</iperf_packetloss_threshold>
+    <iperf_bitrate_threshold>80</iperf_bitrate_threshold>
+    <iperf_profile>balanced</iperf_profile>
+    <svr_id>oc-cn5g-20897</svr_id>
+  </testCase>
+
+  <testCase id="100030">
+    <class>Iperf</class>
+    <desc>iperf (DL/TCP)(30 sec)(multi-ue profile)</desc>
+    <iperf_args>-t 30 -R</iperf_args>
+    <id>up2-fhi72</id>
+    <iperf_tcp_rate_target>40</iperf_tcp_rate_target>
+    <svr_id>oc-cn5g-20897</svr_id>
+  </testCase>
+
+  <testCase id="100020">
+    <class>Iperf</class>
+    <desc>iperf (UL/70Mbps/UDP)(30 sec)(multi-ue profile)</desc>
+    <iperf_args>-u -b 70M -t 30</iperf_args>
+    <id>up2-fhi72</id>
+    <iperf_packetloss_threshold>20</iperf_packetloss_threshold>
+    <iperf_bitrate_threshold>80</iperf_bitrate_threshold>
+    <iperf_profile>balanced</iperf_profile>
+    <svr_id>oc-cn5g-20897</svr_id>
+  </testCase>
+
+  <testCase id="100040">
+    <class>Iperf</class>
+    <desc>iperf (UL/TCP)(30 sec)(multi-ue profile)</desc>
+    <iperf_args>-t 30</iperf_args>
+    <id>up2-fhi72</id>
+    <iperf_tcp_rate_target>40</iperf_tcp_rate_target>
+    <svr_id>oc-cn5g-20897</svr_id>
+  </testCase>
+
+  <testCase id="103000">
+    <class>Detach_UE</class>
+    <always_exec>true</always_exec>
+    <desc>Detach UE</desc>
+    <id>up2-fhi72</id>
+  </testCase>
+
+  <testCase id="100002">
+    <class>IdleSleep</class>
+    <desc>Sleep</desc>
+    <idle_sleep_time_in_sec>5</idle_sleep_time_in_sec>
+  </testCase>
+
+  <testCase id="130000">
+    <class>Undeploy_Object</class>
+    <always_exec>true</always_exec>
+    <desc>Undeploy gNB</desc>
+    <yaml_path>ci-scripts/yaml_files/sa_fhi_7.2_vvdn_gnb</yaml_path>
+    <eNB_instance>0</eNB_instance>
+    <eNB_serverId>0</eNB_serverId>
+  </testCase>
+
+  <testCase id="777777">
+    <class>Clean_Test_Server_Images</class>
+    <always_exec>true</always_exec>
+    <desc>Clean Test Images on Test Server</desc>
+    <test_svr_id>0</test_svr_id>
+  </testCase>
+
+  <testCase id="888888">
+    <class>Custom_Script</class>
+    <always_exec>true</always_exec>
+    <desc>Set CPU to idle state, set kernel parameters to default values</desc>
+    <node>cacofonix</node>
+    <script>yaml_files/sa_fhi_7.2_vvdn_gnb/setup_cleanup.sh</script>
+    <command_fail>yes</command_fail>
+  </testCase>
+
+
+</testCaseList>

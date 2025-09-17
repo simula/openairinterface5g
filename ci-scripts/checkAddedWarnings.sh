@@ -106,11 +106,11 @@ echo "Merged Commit is    : $MERGE_COMMMIT"
 echo "Target Init   is    : $TARGET_INIT_COMMIT"
 
 # Retrieve the list of modified files since the latest develop commit
-MODIFIED_FILES=`git log $TARGET_INIT_COMMIT..$MERGE_COMMMIT --oneline --name-status | egrep "^M|^A" | sed -e "s@^M\t*@@" -e "s@^A\t*@@" | sort | uniq`
+MODIFIED_FILES=`git log $TARGET_INIT_COMMIT..$MERGE_COMMMIT --oneline --name-status | grep -E "^M|^A" | sed -e "s@^M\t*@@" -e "s@^A\t*@@" | sort | uniq`
 NB_WARNINGS_FILES=0
 
 # Retrieve list of warnings 
-LIST_WARNING_FILES=`egrep "error:|warning:" archives/*/*.txt | egrep -v "jobserver unavailable|Clock skew detected." | sed -e "s#^.*/home/ubuntu/tmp/##" -e "s#^.*/tmp/CI-eNB/##" -e "s#common/utils/.*/itti#common/utils/itti#" | awk -F ":" '{print $1}' | sort | uniq`
+LIST_WARNING_FILES=`grep -E "error:|warning:" archives/*/*.txt | grep -E -v "jobserver unavailable|Clock skew detected." | sed -e "s#^.*/home/ubuntu/tmp/##" -e "s#^.*/tmp/CI-eNB/##" -e "s#common/utils/.*/itti#common/utils/itti#" | awk -F ":" '{print $1}' | sort | uniq`
 
 echo ""
 echo "List of files that have been modified by the Merge Request AND"

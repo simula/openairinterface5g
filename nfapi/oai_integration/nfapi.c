@@ -40,23 +40,6 @@ typedef struct {
 
 static nfapi_params_t nfapi_params = {0};
 
-void set_thread_priority(int priority) {
-  set_priority(priority);
-
-  pthread_attr_t ptAttr;
-  if(pthread_attr_setschedpolicy(&ptAttr, SCHED_RR) != 0) {
-    printf("Failed to set pthread sched policy SCHED_RR\n");
-  }
-
-  pthread_attr_setinheritsched(&ptAttr, PTHREAD_EXPLICIT_SCHED);
-  struct sched_param thread_params;
-  thread_params.sched_priority = 20;
-
-  if(pthread_attr_setschedparam(&ptAttr, &thread_params) != 0) {
-    printf("failed to set sched param\n");
-  }
-}
-
 const char *nfapi_get_strmode(void) {
   if (nfapi_params.nfapi_mode > NFAPI_MODE_UNKNOWN)
     return nfapi_str_mode[NFAPI_MODE_UNKNOWN];

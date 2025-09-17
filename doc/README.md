@@ -19,10 +19,12 @@
 - [FEATURE_SET.md](./FEATURE_SET.md): lists supported features
 - [GET_SOURCES.md](./GET_SOURCES.md): how to download the sources
 - [BUILD.md](./BUILD.md): how to build the sources
+- [code-style-contrib.md](./code-style-contrib.md): overall working practices, code style, and review process
 - [cross-compile.md](./cross-compile.md): how to cross-compile OAI for ARM
 - [clang-format.md](./clang-format.md): how to format the code
 - [sanitizers.md](./dev_tools/sanitizers.md): how to run with ASan/UBSan/MemSAN/TSan
 - [environment-variables.md](./environment-variables.md): the environment variables used by OAI
+- [tuning_and_security.md](./tuning_and_security.md): performance and security considerations
 
 There is some general information in the [OpenAirInterface Gitlab Wiki](https://gitlab.eurecom.fr/oai/openairinterface5g/-/wikis/home)
 
@@ -49,23 +51,28 @@ There is some general information in the [OpenAirInterface Gitlab Wiki](https://
 - [How to use the positioning reference signal (PRS)](./RUN_NR_PRS.md)
 - [How to use device-to-device communication (D2D, 4G)](./d2d_emulator_setup.txt)
 - [How to run with E2 agent](../openair2/E2AP/README.md)
+- [How to run the physical simulators](./physical-simulators.md)
+- [How to setup OAI with Nvidia Aerial and Foxconn](./Aerial_FAPI_Split_Tutorial.md)
 
 Legacy unmaintained files:
-- `L2NFAPI_NOS1.md`, `L2NFAPI_S1.md`: old L2simulator, not valid anymore
-- `SystemX-tutorial-design.md`
-- `UL_MIMO.txt`
+- [`L2NFAPI_NOS1.md`](./L2NFAPI_NOS1.md), [`L2NFAPI_S1.md`](./L2NFAPI_S1.md):
+  old L2simulator, not valid anymore
+- [`SystemX-tutorial-design.md`](./SystemX-tutorial-design.md): old, high-level
+  documentation
+- [`UL_MIMO.txt`](./UL_MIMO.txt): UL-MIMO specific notes
 
 # Designs
 
 - General software architecture notes: [SW_archi.md](./SW_archi.md)
 - [Information on E1](./E1AP/E1-design.md)
-- [Information on F1](./F1-design.md)
+- [Information on F1](./F1AP/F1-design.md)
 - [Information on how NR nFAPI works](./NR_NFAPI_archi.md)
 - [Flow graph of the L1 in gNB](SW-archi-graph.md)
 - [L1 threads in NR-UE](./nr-ue-design.md)
+- [Information on gNB MAC](./MAC/mac-usage.md)
 
 Legacy unmaintained files:
-- 5Gnas.md
+- [`5Gnas.md`](./5Gnas.md)
 
 # Building and running from images
 
@@ -73,7 +80,7 @@ Legacy unmaintained files:
 - [How to run 5G with the RFsimulator from images](../ci-scripts/yaml_files/5g_rfsimulator/README.md)
 - [How to run 4G with the RFsimulator from images](../ci-scripts/yaml_files/4g_rfsimulator_fdd_05MHz/README.md)
 - [How to run 5G with the L2simulator from images](../ci-scripts/yaml_files/5g_l2sim_tdd/README.md)
-- [How to run images in OpenShift](../openshift/README.md)
+- [How to run physical simulators in OpenShift](../openshift/README.md)
 
 # Libraries
 
@@ -87,7 +94,7 @@ Legacy unmaintained files:
 - The [threadpool](../common/utils/threadPool/thread-pool.md) used in L1
 - The [LDPC implementation](../openair1/PHY/CODING/DOC/LDPCImplementation.md) is a shared library
 
-## SDRs
+## Radios
 
 Some directories under `radio` contain READMEs:
 
@@ -100,7 +107,7 @@ The other SDRs (AW2S, LimeSDR, ...) have no READMEs.
 
 ## Special-purpose libraries
 
-- OAI has two scopes, one based on Xforms, one on Qt5, described in [this README](../openair1/PHY/TOOLS/readme.md)
+- OAI has two scopes: one based on Xforms and one based on imgui, described in [this README](../openair1/PHY/TOOLS/readme.md)
 - OAI comes with an integrated [telnet server](../common/utils/telnetsrv/DOC/telnethelp.md) to monitor and control
 - OAI comes with an integrated [web server](../common/utils/websrv/DOC/websrv.md)
 
@@ -108,3 +115,8 @@ The other SDRs (AW2S, LimeSDR, ...) have no READMEs.
 
 - [UnitTests.md](./UnitTests.md) explains the unit testing setup
 - [TESTBenches.md](./TESTBenches.md) lists the CI setup and links to pipelines
+
+# Developer tools
+
+- [formatting](../tools/formatting/README.md) is a clang-format error detection tool
+- [iwyu](../tools/iwyu/README.md) is a tool to detect `#include` errors

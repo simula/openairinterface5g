@@ -68,9 +68,9 @@ static int get_single_ue_id(void)
  * @param prnt: Print function
  * @return 0 on success, -1 on failure
 */
-int rrc_gNB_trigger_release(char *buf, int debug, telnet_printfunc_t prnt) {
+int rrc_gNB_trigger_release(char *buf, int debug, telnet_printfunc_t prnt)
+{
   ue_id_t ue_id = -1;
-  protocol_ctxt_t ctxt;
 
   if (!buf) {
     ue_id = get_single_ue_id();
@@ -96,10 +96,8 @@ int rrc_gNB_trigger_release(char *buf, int debug, telnet_printfunc_t prnt) {
   }
   
   gNB_RRC_UE_t *UE = &ue_context_p->ue_context;
-  PROTOCOL_CTXT_SET_BY_INSTANCE(&ctxt, 0, GNB_FLAG_YES, UE->rrc_ue_id, 0, 0);
-  ctxt.eNB_index = 0;
 
-  rrc_gNB_generate_RRCRelease(&ctxt, ue_context_p);
+  rrc_gNB_generate_RRCRelease(rrc, UE);
   prnt("RRC Release triggered for UE %u\n", ue_id);
   
   return 0;
@@ -108,16 +106,14 @@ int rrc_gNB_trigger_release(char *buf, int debug, telnet_printfunc_t prnt) {
 /**
  * @brief Trigger RRC Release for all UEs
 */
-int rrc_gNB_trigger_release_all(char *buf, int debug, telnet_printfunc_t prnt) {
+int rrc_gNB_trigger_release_all(char *buf, int debug, telnet_printfunc_t prnt)
+{
   rrc_gNB_ue_context_t *ue_context_p = NULL;
-  protocol_ctxt_t ctxt; /* Not sure what exactly is this */
 
-  RB_FOREACH(ue_context_p, rrc_nr_ue_tree_s, &(RC.nrrrc[0]->rrc_ue_head)) {
+  gNB_RRC_INST *rrc = RC.nrrrc[0];
+  RB_FOREACH(ue_context_p, rrc_nr_ue_tree_s, &rrc->rrc_ue_head) {
     gNB_RRC_UE_t *UE = &ue_context_p->ue_context;
-    PROTOCOL_CTXT_SET_BY_INSTANCE(&ctxt, 0, GNB_FLAG_YES, UE->rrc_ue_id, 0, 0);
-    ctxt.eNB_index = 0;
-
-    rrc_gNB_generate_RRCRelease(&ctxt, ue_context_p);
+    rrc_gNB_generate_RRCRelease(rrc, UE);
     prnt("RRC Release triggered for UE %u\n", UE->rrc_ue_id);
   }
 

@@ -53,7 +53,7 @@ typedef struct {
 
   // Optional
   // only used to retreive MAC/RLC stats
-  NR_UE_info_t* ue_info_list;
+  NR_UE_info_t** ue_info_list;
 }arr_ue_id_t;
 
 static meas_data_lst_t fill_kpm_meas_data_item(const meas_info_format_1_lst_t* meas_info_lst, const size_t len, const uint32_t gran_period_ms, cudu_ue_info_pair_t ue_info, const size_t ue_idx)
@@ -114,14 +114,14 @@ static cudu_ue_info_pair_t fill_ue_related_info(arr_ue_id_t* arr_ue_id, const si
 
   if (arr_ue_id->ue_id[ue_idx].type == GNB_UE_ID_E2SM) {
     ue_info.rrc_ue_id = *arr_ue_id->ue_id[ue_idx].gnb.ran_ue_id;  // rrc_ue_id
-    ue_info.ue = &arr_ue_id->ue_info_list[ue_idx];
+    ue_info.ue = arr_ue_id->ue_info_list[ue_idx];
   } else if (arr_ue_id->ue_id[ue_idx].type == GNB_CU_UP_UE_ID_E2SM) {
     /* in OAI implementation, CU-UP ue id = CU-CP ue id
                            => CU-UP ue id = rrc_ue_id, but it should not be the case by the spec */
     ue_info.rrc_ue_id = *arr_ue_id->ue_id[ue_idx].gnb_cu_up.ran_ue_id;  // cucp_ue_id = rrc_ue_id
   } else if (arr_ue_id->ue_id[ue_idx].type == GNB_DU_UE_ID_E2SM) {
     ue_info.rrc_ue_id = *arr_ue_id->ue_id[ue_idx].gnb_du.ran_ue_id;  // rrc_ue_id
-    ue_info.ue = &arr_ue_id->ue_info_list[ue_idx];
+    ue_info.ue = arr_ue_id->ue_info_list[ue_idx];
   }
   
   return ue_info;
@@ -275,7 +275,7 @@ static arr_ue_id_t filter_ues_by_s_nssai_in_du_or_monolithic(const test_info_lst
   arr_ue_id.ue_id = calloc(MAX_MOBILES_PER_GNB, sizeof(ue_id_e2sm_t));
   assert(arr_ue_id.ue_id != NULL);
 
-  arr_ue_id.ue_info_list = calloc(MAX_MOBILES_PER_GNB, sizeof(NR_UE_info_t));
+  arr_ue_id.ue_info_list = calloc(MAX_MOBILES_PER_GNB, sizeof(*arr_ue_id.ue_info_list));
   assert(arr_ue_id.ue_info_list != NULL);
 
   const ngran_node_t node_type = get_e2_node_type();
@@ -284,9 +284,9 @@ static arr_ue_id_t filter_ues_by_s_nssai_in_du_or_monolithic(const test_info_lst
   UE_iterator (RC.nrmac[0]->UE_info.list, ue) {
     NR_UE_sched_ctrl_t *sched_ctrl = &ue->UE_sched_ctrl;
     // UE matches if any of its DRBs matches
-    for (int l = 0; l < sched_ctrl->dl_lc_num; ++l) {
-      long lcid = sched_ctrl->dl_lc_ids[l];
-      if (nssai_matches(sched_ctrl->dl_lc_nssai[lcid], sst, sd)) {
+    for (size_t l = 0; l < seq_arr_size(&sched_ctrl->lc_config); ++l) {
+      const nr_lc_config_t *c = seq_arr_at(&sched_ctrl->lc_config, l);
+      if (nssai_matches(c->nssai, sst, sd)) {
         if (node_type == ngran_gNB_DU) {
           f1_ue_data_t rrc_ue_id = du_get_f1_ue_data(ue->rnti); // gNB CU UE ID = rrc_ue_id
           arr_ue_id.ue_id[arr_ue_id.sz] = fill_ue_id_data[ngran_gNB_DU](NULL, rrc_ue_id.secondary_ue, 0);
@@ -296,7 +296,7 @@ static arr_ue_id_t filter_ues_by_s_nssai_in_du_or_monolithic(const test_info_lst
         }
 
         // store NR_UE_info_t
-        arr_ue_id.ue_info_list[arr_ue_id.sz] = *ue;
+        arr_ue_id.ue_info_list[arr_ue_id.sz] = ue;
 
         arr_ue_id.sz++;
         break;

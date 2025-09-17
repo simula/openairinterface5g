@@ -169,7 +169,7 @@ typedef enum {
 #define RU_NUM_INTERFACES             39
 #define RU_HALF_SLOT_PARALLELIZATION  40
 #define RU_RU_THREAD_CORE             41
-#define RU_GPIO_CONTROL 42
+#define RU_GPIO_CONTROL               42
 /*-----------------------------------------------------------------------------------------------------------------------------------------*/
 /*                                            RU configuration parameters                                                                  */
 /*   optname                                   helpstr   paramflags    XXXptr          defXXXval                   type      numelt        */

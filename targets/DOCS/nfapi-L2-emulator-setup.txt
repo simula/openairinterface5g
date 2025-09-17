@@ -13,9 +13,6 @@ cd cmake_targets
 #Execution instuctions (Currently running eNB (VNF) and UE side (PNF) on the same machine using the loopback interface)
 cd cmake_targets/tools
 
-# Loading nasmesh
-source init_nas_nos1
-
 # Add a new loopback interface address
 sudo ifconfig lo: 127.0.0.2 netmask 255.0.0.0 up
 

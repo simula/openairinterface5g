@@ -130,7 +130,7 @@ int main(int n, char **v)
   /* send the first message - activate selected traces */
   activate_traces(socket, is_on, number_of_events);
 
-  OBUF ebuf = { osize: 0, omaxsize: 0, obuf: NULL };
+  OBUF ebuf = {.osize = 0, .omaxsize = 0, .obuf = NULL};
 
   /* read messages */
   while (1) {

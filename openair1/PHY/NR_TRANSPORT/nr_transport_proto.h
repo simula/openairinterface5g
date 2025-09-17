@@ -40,7 +40,7 @@
 
 NR_gNB_PHY_STATS_t *get_phy_stats(PHY_VARS_gNB *gNB, uint16_t rnti);
 
-int nr_generate_prs(uint32_t **nr_gold_prs,
+int nr_generate_prs(int slot,
                     c16_t *txdataF,
                     int16_t amp,
                     prs_config_t *prs_cfg,
@@ -72,33 +72,30 @@ int nr_generate_sss(c16_t *txdataF,
                     NR_DL_FRAME_PARMS *frame_parms);
 
 /*!
-\fn int nr_generate_pbch_dmrs
+\fn void nr_generate_pbch_dmrs
 \brief Generation of the DMRS for the PBCH
 @param
-@returns 0 on success
  */
-int nr_generate_pbch_dmrs(uint32_t *gold_pbch_dmrs,
-                          c16_t *txdataF,
-                          int16_t amp,
-                          uint8_t ssb_start_symbol,
-                          nfapi_nr_config_request_scf_t *config,
-                          NR_DL_FRAME_PARMS *frame_parms);
+void nr_generate_pbch_dmrs(uint32_t *gold_pbch_dmrs,
+                           c16_t *txdataF,
+                           int16_t amp,
+                           uint8_t ssb_start_symbol,
+                           nfapi_nr_config_request_scf_t *config,
+                           NR_DL_FRAME_PARMS *frame_parms);
 
 /*!
-\fn int nr_generate_pbch
+\fn void nr_generate_pbch
 \brief Generation of the PBCH
 @param
-@returns 0 on success
  */
-int nr_generate_pbch(nfapi_nr_dl_tti_ssb_pdu *ssb_pdu,
-                     uint8_t *interleaver,
-                     c16_t *txdataF,
-                     int16_t amp,
-                     uint8_t ssb_start_symbol,
-                     uint8_t n_hf,
-                     int sfn,
-                     nfapi_nr_config_request_scf_t *config,
-                     NR_DL_FRAME_PARMS *frame_parms);
+void nr_generate_pbch(PHY_VARS_gNB *gNB,
+                      const nfapi_nr_dl_tti_ssb_pdu *ssb_pdu,
+                      c16_t *txdataF,
+                      uint8_t ssb_start_symbol,
+                      uint8_t n_hf,
+                      int sfn,
+                      nfapi_nr_config_request_scf_t *config,
+                      NR_DL_FRAME_PARMS *frame_parms);
 
 /*!
 \fn int nr_generate_pbch
@@ -107,6 +104,7 @@ int nr_generate_pbch(nfapi_nr_dl_tti_ssb_pdu *ssb_pdu,
 @returns the bit index of the output
  */
 void nr_init_pbch_interleaver(uint8_t *interleaver);
+uint32_t nr_pbch_extra_byte_generation(int sfn, int n_hf, int ssb_index, int ssb_sc_offset, int Lmax);
 
 NR_gNB_DLSCH_t new_gNB_dlsch(NR_DL_FRAME_PARMS *frame_parms, uint16_t N_RB);
 
@@ -129,7 +127,8 @@ int nr_rx_pusch_tp(PHY_VARS_gNB *gNB,
                    uint8_t ulsch_id,
                    uint32_t frame,
                    uint8_t slot,
-                   unsigned char harq_pid);
+                   unsigned char harq_pid,
+                   int beam_nb);
 
 /*!
 \brief This function implements the idft transform precoding in PUSCH
@@ -299,6 +298,7 @@ void nr_fill_srs(PHY_VARS_gNB *gNB,
                  nfapi_nr_srs_pdu_t *srs_pdu);
 
 int nr_get_srs_signal(PHY_VARS_gNB *gNB,
+                      c16_t **rxdataF,
                       frame_t frame,
                       slot_t slot,
                       nfapi_nr_srs_pdu_t *srs_pdu,
@@ -309,21 +309,6 @@ void init_prach_list(PHY_VARS_gNB *gNB);
 void init_prach_ru_list(RU_t *ru);
 void free_nr_ru_prach_entry(RU_t *ru, int prach_id);
 uint8_t get_nr_prach_duration(uint8_t prach_format);
-
-void nr_generate_csi_rs(const NR_DL_FRAME_PARMS *frame_parms,
-                        int32_t **dataF,
-                        const int16_t amp,
-                        nr_csi_info_t *nr_csi_info,
-                        const nfapi_nr_dl_tti_csi_rs_pdu_rel15_t *csi_params,
-                        const int slot,
-                        uint8_t *N_cdm_groups,
-                        uint8_t *CDM_group_size,
-                        uint8_t *k_prime,
-                        uint8_t *l_prime,
-                        uint8_t *N_ports,
-                        uint8_t *j_cdm,
-                        uint8_t *k_overline,
-                        uint8_t *l_overline);
 
 void free_nr_prach_entry(PHY_VARS_gNB *gNB, int prach_id);
 
@@ -343,12 +328,14 @@ void nr_decode_pucch1(c16_t **rxdataF,
                       uint8_t nr_bit);
 
 void nr_decode_pucch2(PHY_VARS_gNB *gNB,
+                      c16_t **rxdataF,
                       int frame,
                       int slot,
                       nfapi_nr_uci_pucch_pdu_format_2_3_4_t* uci_pdu,
                       nfapi_nr_pucch_pdu_t* pucch_pdu);
 
 void nr_decode_pucch0(PHY_VARS_gNB *gNB,
+                      c16_t **rxdataF,
                       int frame,
                       int slot,
                       nfapi_nr_uci_pucch_pdu_format_0_1_t* uci_pdu,

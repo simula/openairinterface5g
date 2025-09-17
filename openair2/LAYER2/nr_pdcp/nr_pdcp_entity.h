@@ -28,6 +28,7 @@
 
 #include "nr_pdcp_sdu.h"
 #include "openair2/RRC/NR/rrc_gNB_radio_bearers.h"
+#include "openair3/SECU/secu_defs.h"
 
 /* PDCP Formats according to clause 6.2 of 3GPP TS 38.323 */
 /* SN Size applicable to SRBs, UM DRBs and AM DRBs */
@@ -46,6 +47,13 @@ typedef enum {
   NR_PDCP_DRB_UM,
   NR_PDCP_SRB
 } nr_pdcp_entity_type_t;
+
+typedef struct {
+  int integrity_algorithm;
+  int ciphering_algorithm;
+  uint8_t integrity_key[NR_K_KEY_SIZE];
+  uint8_t ciphering_key[NR_K_KEY_SIZE];
+} nr_pdcp_entity_security_keys_and_algos_t;
 
 typedef struct {
   //nr_pdcp_entity_type_t mode;
@@ -90,19 +98,15 @@ typedef struct nr_pdcp_entity_t {
   void (*delete_entity)(struct nr_pdcp_entity_t *entity);
   void (*release_entity)(struct nr_pdcp_entity_t *entity);
   void (*suspend_entity)(struct nr_pdcp_entity_t *entity);
-  void (*reestablish_entity)(struct nr_pdcp_entity_t *entity);
+  void (*reestablish_entity)(struct nr_pdcp_entity_t *entity,
+                             const nr_pdcp_entity_security_keys_and_algos_t *parameters);
   void (*get_stats)(struct nr_pdcp_entity_t *entity, nr_pdcp_statistics_t *out);
 
-  /* set_security: pass -1 to integrity_algorithm / ciphering_algorithm
-   *               to keep the current algorithm
-   *               pass NULL to integrity_key / ciphering_key
-   *               to keep the current key
+  /* set_security: pass -1 to parameters->integrity_algorithm / parameters->ciphering_algorithm
+   *               to keep the corresponding current algorithm and key
    */
   void (*set_security)(struct nr_pdcp_entity_t *entity,
-                       int integrity_algorithm,
-                       char *integrity_key,
-                       int ciphering_algorithm,
-                       char *ciphering_key);
+                       const nr_pdcp_entity_security_keys_and_algos_t *parameters);
 
   /* check_integrity is used by RRC */
   bool (*check_integrity)(struct nr_pdcp_entity_t *entity,
@@ -147,20 +151,18 @@ typedef struct nr_pdcp_entity_t {
   /* security */
   int has_ciphering;
   int has_integrity;
-  int ciphering_algorithm;
-  int integrity_algorithm;
-  unsigned char ciphering_key[16];
-  unsigned char integrity_key[16];
-  void *security_context;
-  void (*cipher)(void *security_context,
+  nr_pdcp_entity_security_keys_and_algos_t security_keys_and_algos;
+  stream_security_context_t *security_context;
+  void (*cipher)(stream_security_context_t *security_context,
                  unsigned char *buffer, int length,
                  int bearer, int count, int direction);
-  void (*free_security)(void *security_context);
-  void *integrity_context;
-  void (*integrity)(void *integrity_context, unsigned char *out,
+  void (*free_security)(stream_security_context_t *security_context);
+  stream_security_context_t *integrity_context;
+  void (*integrity)(stream_security_context_t *integrity_context,
+                 unsigned char *out,
                  unsigned char *buffer, int length,
                  int bearer, int count, int direction);
-  void (*free_integrity)(void *integrity_context);
+  void (*free_integrity)(stream_security_context_t *integrity_context);
   /* security/integrity algorithms need to know uplink/downlink information
    * which is reverse for gnb and ue, so we need to know if this
    * pdcp entity is for a gnb or an ue
@@ -194,10 +196,7 @@ nr_pdcp_entity_t *new_nr_pdcp_entity(
     int sn_size,
     int t_reordering,
     int discard_timer,
-    int ciphering_algorithm,
-    int integrity_algorithm,
-    unsigned char *ciphering_key,
-    unsigned char *integrity_key);
+    const nr_pdcp_entity_security_keys_and_algos_t *security_parameters);
 
 /* Get maximum PDCP PDU size */
 int nr_max_pdcp_pdu_size(sdu_size_t sdu_size);

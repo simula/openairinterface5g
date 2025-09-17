@@ -50,6 +50,7 @@ MESSAGE_DEF(RRC_MAC_PCCH_DATA_REQ,      MESSAGE_PRIORITY_MED_PLUS, RrcMacPcchDat
 
 MESSAGE_DEF(NR_RRC_MAC_RA_IND,          MESSAGE_PRIORITY_MED_PLUS, NRRrcMacRaInd,               nr_rrc_mac_ra_ind)
 MESSAGE_DEF(NR_RRC_MAC_MSG3_IND,        MESSAGE_PRIORITY_MED_PLUS, NRRrcMacMsg3Ind,             nr_rrc_mac_msg3_ind)
+MESSAGE_DEF(NR_RRC_MAC_INAC_IND,        MESSAGE_PRIORITY_MED_PLUS, NRRrcMacInacInd,             nr_rrc_mac_inac_ind)
 
 /* RRC configures DRX context (MAC timers) of a UE */
 MESSAGE_DEF(RRC_MAC_DRX_CONFIG_REQ, MESSAGE_PRIORITY_MED, rrc_mac_drx_config_req_t, rrc_mac_drx_config_req)

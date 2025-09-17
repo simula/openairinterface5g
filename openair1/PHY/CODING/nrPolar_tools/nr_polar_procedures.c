@@ -232,47 +232,17 @@ uint32_t nr_polar_output_length(uint16_t K,
   n_2 = ceil(log2(K/R_min));
 
   int n = n_max;
-  if (n>n_1) n=n_1;
-  if (n>n_2) n=n_2;
-  if (n<n_min) n=n_min;
+  if (n > n_1)
+    n = n_1;
+  if (n > n_2)
+    n = n_2;
+  if (n < n_min)
+    n = n_min;
 
   /*printf("nr_polar_output_length: K %d, E %d, n %d (n_max %d,n_min %d, n_1 %d,n_2 %d)\n",
 	 K,E,n,n_max,n_min,n_1,n_2);
 	 exit(-1);*/
   return ((uint32_t) pow(2.0,n)); //=polar_code_output_length
-}
-
-void nr_polar_channel_interleaver_pattern(uint16_t *cip, const uint8_t I_BIL, const uint16_t E)
-{
-  if (I_BIL == 1) {
-    int T = E;
-    while( ((T/2)*(T+1)) < E ) T++;
-
-    int16_t v[T][T];
-    int k = 0;
-    for (int i = 0; i <= T-1; i++) {
-      for (int j = 0; j <= (T-1)-i; j++) {
-	if (k<E) {
-	  v[i][j] = k;
-	} else {
-	  v[i][j] = (-1);
-	}
-	k++;
-      }
-    }
-    
-    k=0;
-    for (int j = 0; j <= T-1; j++) {
-      for (int i = 0; i <= (T-1)-j; i++) {
-	if ( v[i][j] != (-1) ) {
-	  cip[k]=v[i][j];
-	  k++;
-	}
-      }
-    }
-  } else {
-    for (int i=0; i<=E-1; i++) cip[i]=i;
-  }
 }
 
 void nr_polar_info_bit_pattern(uint8_t *ibp,
@@ -282,43 +252,41 @@ void nr_polar_info_bit_pattern(uint8_t *ibp,
                                int16_t *Q_PC_N,
                                const uint16_t *J,
                                const uint16_t *Q_0_Nminus1,
-                               uint16_t K,
-                               uint16_t N,
+                               const uint16_t K,
+                               const uint16_t N,
                                const uint16_t E,
-                               uint8_t n_PC,
-                               uint8_t n_pc_wm)
+                               const uint8_t n_PC,
+                               const uint8_t n_pc_wm)
 {
   int Q_Ftmp_N[N + 1]; // Last element shows the final
   int Q_Itmp_N[N + 1]; // array index assigned a value.
-                       
+
   for (int i = 0; i <= N; i++) {
     Q_Ftmp_N[i] = -1; // Empty array.
     Q_Itmp_N[i] = -1;
   }
 
-  int limit;
-
   if (E < N) {
     if ((K / (double)E) <= (7.0 / 16)) { // puncturing
       for (int n = 0; n <= N - E - 1; n++) {
-  int ind = Q_Ftmp_N[N] + 1;
-  Q_Ftmp_N[ind] = J[n];
-  Q_Ftmp_N[N] = Q_Ftmp_N[N] + 1;
+        int ind = Q_Ftmp_N[N] + 1;
+        Q_Ftmp_N[ind] = J[n];
+        Q_Ftmp_N[N] = Q_Ftmp_N[N] + 1;
       }
 
       if ((E / (double)N) >= (3.0 / 4)) {
-        limit = ceil((double)(3 * N - 2 * E) / 4);
+        int limit = ceil((double)(3 * N - 2 * E) / 4);
         for (int n = 0; n <= limit - 1; n++) {
-    int ind = Q_Ftmp_N[N] + 1;
-    Q_Ftmp_N[ind] = n;
-    Q_Ftmp_N[N] = Q_Ftmp_N[N] + 1;
+          int ind = Q_Ftmp_N[N] + 1;
+          Q_Ftmp_N[ind] = n;
+          Q_Ftmp_N[N] = Q_Ftmp_N[N] + 1;
         }
       } else {
-        limit = ceil((double)(9 * N - 4 * E) / 16);
+        int limit = ceil((double)(9 * N - 4 * E) / 16);
         for (int n = 0; n <= limit - 1; n++) {
-    int ind = Q_Ftmp_N[N] + 1;
-    Q_Ftmp_N[ind] = n;
-    Q_Ftmp_N[N] = Q_Ftmp_N[N] + 1;
+          int ind = Q_Ftmp_N[N] + 1;
+          Q_Ftmp_N[ind] = n;
+          Q_Ftmp_N[N] = Q_Ftmp_N[N] + 1;
         }
       }
     } else { // shortening
@@ -332,15 +300,15 @@ void nr_polar_info_bit_pattern(uint8_t *ibp,
 
   // Q_I,tmp_N = Q_0_N-1 \ Q_F,tmp_N
   for (int n = 0; n <= N - 1; n++) {
-    bool flag = true;
-    for (int m = 0; m <= Q_Ftmp_N[N]; m++){
+    const int end = Q_Ftmp_N[N];
+    int m;
+    for (m = 0; m <= end; m++) {
       AssertFatal(m < N+1, "Buffer boundary overflow");
       if (Q_0_Nminus1[n] == Q_Ftmp_N[m]) {
-        flag = false;
         break;
       }
     }
-    if (flag) {
+    if (m > end) {
       Q_Itmp_N[Q_Itmp_N[N] + 1] = Q_0_Nminus1[n];
       Q_Itmp_N[N]++;
     }
@@ -361,14 +329,14 @@ void nr_polar_info_bit_pattern(uint8_t *ibp,
 
   // Q_F_N = Q_0_N-1 \ Q_I_N
   for (int n = 0; n <= N - 1; n++) {
-    bool flag = true;
-    for (int m = 0; m <= (K + n_PC) - 1; m++)
-      if (Q_0_Nminus1[n] == Q_I_N[m]) {
-        flag = false;
+    const int sz = (K + n_PC) - 1;
+    const int toCmp = Q_0_Nminus1[n];
+    int m;
+    for (m = 0; m <= sz; m++)
+      if (toCmp == Q_I_N[m])
         break;
-      }
-    if (flag) {
-      Q_F_N[Q_F_N[N] + 1] = Q_0_Nminus1[n];
+    if (m > sz) {
+      Q_F_N[Q_F_N[N] + 1] = toCmp;
       Q_F_N[N]++;
     }
   }
@@ -462,9 +430,11 @@ void nr_polar_rate_matching(double *input,
     }
   } else {
     if ( (K/(double)E) <= (7.0/16) ) { //puncturing
-      for (int i=0; i<=N-1; i++) output[i]=0;
+      for (int i = 0; i <= N - 1; i++)
+        output[i] = 0;
     } else { //shortening
-      for (int i=0; i<=N-1; i++) output[i]=INFINITY;
+      for (int i = 0; i <= N - 1; i++)
+        output[i] = INFINITY;
     }
 
     for (int i=0; i<=E-1; i++){

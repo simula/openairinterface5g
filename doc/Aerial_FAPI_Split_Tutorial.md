@@ -50,6 +50,7 @@ The UEs that have been tested and confirmed working with Aerial are the followin
 |-----------------|-------------------------------|
 | Sierra Wireless | EM9191                        |
 | Quectel         | RM500Q-GL                     |
+| Quectel         | RM520N-GL                     |
 | Apaltec         | Tributo 5G-Dongle             |
 | OnePlus         | Nord (AC2003)                 |
 | Apple iPhone    | 14 Pro (MQ0G3RX/A) (iOS 17.3) |
@@ -59,9 +60,9 @@ The UEs that have been tested and confirmed working with Aerial are the followin
 
 The first step is to obtain the NVIDIA Aerial SDK, you'll need to request access [here](https://catalog.ngc.nvidia.com/orgs/nvidia/containers/aerial-sdk).
 
-After obtaining access to the SDK, you can refer to [this instructions page](https://docs.nvidia.com/aerial/aerial-research-cloud/current/index.html) to setup the L1 components using NVIDIAs' SDK manager, or to [this instructions page](https://developer.nvidia.com/docs/gputelecom/aerial-sdk/aerial-sdk-archive/aerial-sdk-23-2/index.html) in order to setup and install the components manually.
+After obtaining access to the SDK, you can refer to [this instructions page](https://docs.nvidia.com/aerial/aerial-ran-colab-ota/current/index.html) to setup the L1 components using NVIDIAs' SDK manager, or to [this instructions page](https://docs.nvidia.com/aerial/cuda-accelerated-ran/index.html) in order to setup and install the components manually.
 
-The currently used Aerial Version is 23-2, which is also the one currently used by the SDK Manager.
+The currently used Aerial Version is 24-1, which is also the one currently used by the SDK Manager.
 
 
 ### CPU allocation
@@ -139,7 +140,7 @@ After=ptp4l.service
 Restart=always
 RestartSec=5s
 Type=simple
-ExecStart=/usr/sbin/phc2sys -a -r -r -n 24
+ExecStart=/usr/sbin/phc2sys -a -r -n 24
 
 [Install]
 WantedBy=multi-user.target
@@ -154,7 +155,6 @@ Clone OAI code base in a suitable repository, here we are cloning in `~/openairi
 ```bash
 git clone https://gitlab.eurecom.fr/oai/openairinterface5g.git ~/openairinterface5g
 cd ~/openairinterface5g/
-git checkout Aerial_Integration
 ```
 
 ## Get nvIPC sources from the L1 container 
@@ -174,27 +174,44 @@ If it is not running, you may start it and logging into the container by running
 ~$ docker start cuBB
 cuBB
 ~$ docker exec -it cuBB bash
-root@c_aerial_aerial:/opt/nvidia/cuBB# 
+aerial@c_aerial_aerial:/opt/nvidia/cuBB# 
 ```
 
-After logging into the container, we need to pack the nvIPC sources and copy them to the host ( the command creates a tar.gz file with the following name format: nvipc_src.yyyy.mm.dd.tar.gz)
+After logging into the container, we need to pack the nvIPC sources and copy them to the host ( the command creates a tar.gz file with the following name format: nvipc_src.YYYY.MM.DD.tar.gz)
 ```bash
 ~$ docker exec -it cuBB bash
-root@c_aerial_aerial:/opt/nvidia/cuBB# cd cuPHY-CP/gt_common_libs
-root@c_aerial_aerial:/opt/nvidia/cuBB/cuPHY-CP/gt_common_libs#./pack_nvipc.sh 
-nvipc_src.****.**.**/
+aerial@c_aerial_aerial:/opt/nvidia/cuBB# cd cuPHY-CP/gt_common_libs
+aerial@c_aerial_aerial:/opt/nvidia/cuBB/cuPHY-CP/gt_common_libs#./pack_nvipc.sh 
+nvipc_src.YYYY.MM.DD/
 ...
 ---------------------------------------------
 Pack nvipc source code finished:
-/opt/nvidia/cuBB/cuPHY-CP/gt_common_libs/nvipc_src.****.**.**.tar.gz
-root@c_aerial_aerial:/opt/nvidia/cuBB/cuPHY-CP/gt_common_libs# cp nvipc_src.****.**.**.tar.gz /opt/cuBB/share/
-root@c_aerial_aerial:/opt/nvidia/cuBB/cuPHY-CP/gt_common_libs# exit
+/opt/nvidia/cuBB/cuPHY-CP/gt_common_libs/nvipc_src.YYYY.MM.DD.tar.gz
+aerial@c_aerial_aerial:/opt/nvidia/cuBB/cuPHY-CP/gt_common_libs# sudo cp nvipc_src.yyyy.mm.dd.tar.gz /opt/cuBB/share/
+aerial@c_aerial_aerial:/opt/nvidia/cuBB/cuPHY-CP/gt_common_libs# exit
 ```
 
 The file should now be present in the `~/openairinterface5g/ci-scripts/yaml_files/sa_gnb_aerial/` directory, from where it is moved into `~/openairinterface5g`
 ```bash
-~$ mv ~/openairinterface5g/ci-scripts/yaml_files/sa_gnb_aerial/nvipc_src.****.**.**.tar.gz ~/openairinterface5g/
+~$ mv ~/openairinterface5g/ci-scripts/yaml_files/sa_gnb_aerial/nvipc_src.YYYY.MM.DD.tar.gz ~/openairinterface5g/
 ```
+
+Alternatively, after running `./pack_nvipc.sh` , you can exit the container and copy `nvipc_src.YYYY.MM.DD.tar.gz` using `docker cp`
+
+```bash
+~$ docker exec -it cuBB bash
+aerial@c_aerial_aerial:/opt/nvidia/cuBB# cd cuPHY-CP/gt_common_libs
+aerial@c_aerial_aerial:/opt/nvidia/cuBB/cuPHY-CP/gt_common_libs#./pack_nvipc.sh 
+nvipc_src.YYYY.MM.DD/
+...
+---------------------------------------------
+Pack nvipc source code finished:
+/opt/nvidia/cuBB/cuPHY-CP/gt_common_libs/nvipc_src.YYYY.MM.DD.tar.gz
+aerial@c_aerial_aerial:/opt/nvidia/cuBB/cuPHY-CP/gt_common_libs# exit
+~$ docker cp nv-cubb:/opt/nvidia/cuBB/cuPHY-CP/gt_common_libs/nvipc_src.YYYY.MM.DD.tar.gz ~/openairinterface5g
+```
+*Important note:* For using docker cp, make sure to copy the entire name of the created nvipc_src tar.gz file. 
+
 With the nvIPC sources in the project directory, the docker image can be built.
 
 ## Building OAI gNB docker image
@@ -202,8 +219,8 @@ With the nvIPC sources in the project directory, the docker image can be built.
 In order to build the final image, there is an intermediary image to be built (ran-base)
 ```bash
 ~$ cd ~/openairinterface5g/
-~/openairinterface5g$ docker build . -f docker/Dockerfile.base.ubuntu20 --tag ran-base:latest
-~/openairinterface5g$ docker build . -f docker/Dockerfile.gNB.aerial.ubuntu20 --tag oai-gnb-aerial:latest
+~/openairinterface5g$ docker build . -f docker/Dockerfile.base.ubuntu22 --tag ran-base:latest
+~/openairinterface5g$ docker build . -f docker/Dockerfile.gNB.aerial.ubuntu22 --tag oai-gnb-aerial:latest
 ```
 
 
@@ -213,11 +230,14 @@ The process of preparing the L1 is covered on NVIDIAs' documentation, and falls 
 
 ### Prepare the L1 image
 After preparing the L1 software, the container needs to be committed in order for an image in which the L1 is ready to be executed, and that can be referenced by a docker-compose.yaml file later:
+*Note:* In preparing the L1 image, the default L1 configuration file is cuphycontroller_P5G_FXN.yaml, located in `/opt/nvidia/cuBB/cuPHY-CP/cuphycontroller/config/`.
+This is the file where the RU MAC address needs to be applied before commiting the image
+
 ```bash
-~$ docker commit nv-cubb cubb-build:23-2
+~$ docker commit nv-cubb cubb-build:24-1
 ~$ docker image ls
 ..
-cubb-build                                    23-2                                           824156e0334c   2 weeks ago    40.1GB
+cubb-build                                    24-1                                           824156e0334c   2 weeks ago    40.1GB
 ..
 ```
 
@@ -237,8 +257,12 @@ Both 'GNB_IPV4_ADDRESS_FOR_NG_AMF' and 'GNB_IPV4_ADDRESS_FOR_NGU' need to be set
 
 ### Running docker compose
 #### Aerial L1 entrypoint script
-Before running docker-compose, we can check which L1 configuration file is to be used by cuphycontroller_scf, this is set in the script [`aerial_l1_entrypoint.sh`](../ci-scripts/yaml_files/sa_gnb_aerial/aerial_l1_entrypoint.sh), which is used by the L1 container in order to start the L1 software, this begins by installing a module 'gdrcopy', setting up some environment variables, restarting NVIDIA MPS, and finally running cuphycontroller with an argument that represent which L1 configuration file is to be used, this argument may be changed by providing an argument in docker-compose.yaml.
-When no argument is provided (this is the default behaviour), it uses "P5G_SCF_FXN" as a cuphycontroller_scf  argument.
+Before running docker-compose, we can check which L1 configuration file is to be used by cuphycontroller_scf.
+This is set in the script [`aerial_l1_entrypoint.sh`](../ci-scripts/yaml_files/sa_gnb_aerial/aerial_l1_entrypoint.sh), which is used by the L1 container in order to start the L1 software.
+The script begins by setting up some environment variables, restarting NVIDIA MPS, and finally running cuphycontroller_scf.
+The L1 software is run with an argument that indicates which configuration file is to be used.
+This argument may be changed by providing an argument to the [`aerial_l1_entrypoint.sh`](../ci-scripts/yaml_files/sa_gnb_aerial/aerial_l1_entrypoint.sh) call in [`docker-compose.yaml`](../ci-scripts/yaml_files/sa_gnb_aerial/docker-compose.yaml).
+When no argument is provided (this is the default behaviour), it uses "P5G_FXN" as the cuphycontroller_scf argument.
 
 After building the gNB image, and preparing the configuration file, the setup can be run with the following command:
 
@@ -254,6 +278,16 @@ The gNB logs can be followed with:
 ```bash
 docker logs -f oai-gnb-aerial
 ```
+#### Running with multiple L2s
+One L1 instance can support multiple L2 instances. See also the [aerial documentation](https://developer.nvidia.com/docs/gputelecom/aerial-sdk/text/cubb_quickstart/running_cubb-end-to-end.html#run-multiple-l2-instances-with-single-l1-instance) for more details.
+
+In OAI the share memory prefix must be configured in the configuration file.
+
+```bash
+        tr_s_preference = "aerial";
+	tr_s_shm_prefix = "nvipc";
+```
+
 
 ### Stopping the setup
 

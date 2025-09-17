@@ -1,8 +1,6 @@
-version: '3.8'
-
 services:
     enb_mono_tdd:
-        image: oai-enb:latest
+        image: ${REGISTRY:-oaisoftwarealliance}/oai-enb:${TAG:-develop}
         privileged: true
         container_name: lte-b200-enb-tdd-10Mhz-tm1
         environment:

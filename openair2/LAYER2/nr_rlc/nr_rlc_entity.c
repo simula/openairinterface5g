@@ -30,6 +30,7 @@
 #include "LOG/log.h"
 
 #include "common/utils/time_stat.h"
+#include "common/utils/assertions.h"
 
 static void nr_rlc_entity_get_stats(
     nr_rlc_entity_t *entity,
@@ -110,11 +111,8 @@ nr_rlc_entity_t *new_nr_rlc_entity_am(
   ret->max_retx_threshold = max_retx_threshold;
   ret->sn_field_length    = sn_field_length;
 
-  if (!(sn_field_length == 12 || sn_field_length == 18)) {
-    LOG_E(RLC, "%s:%d:%s: wrong SN field_lenght (%d), must be 12 or 18\n",
-          __FILE__, __LINE__, __FUNCTION__, sn_field_length);
-    exit(1);
-  }
+  AssertFatal(sn_field_length == 12 || sn_field_length == 18, "Wrong SN field_length (%d), must be 12 or 18\n", sn_field_length);
+
   ret->sn_modulus = 1 << ret->sn_field_length;
   ret->window_size = ret->sn_modulus / 2;
 
@@ -172,11 +170,8 @@ nr_rlc_entity_t *new_nr_rlc_entity_um(
   ret->t_reassembly    = t_reassembly;
   ret->sn_field_length = sn_field_length;
 
-  if (!(sn_field_length == 6 || sn_field_length == 12)) {
-    LOG_E(RLC, "%s:%d:%s: wrong SN field_lenght (%d), must be 6 or 12\n",
-          __FILE__, __LINE__, __FUNCTION__, sn_field_length);
-    exit(1);
-  }
+  AssertFatal(sn_field_length == 6 || sn_field_length == 12, "Wrong SN field_length (%d), must be 6 or 12\n", sn_field_length);
+
   ret->sn_modulus = 1 << ret->sn_field_length;
   ret->window_size = ret->sn_modulus / 2;
 

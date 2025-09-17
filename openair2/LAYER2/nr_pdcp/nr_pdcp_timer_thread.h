@@ -26,6 +26,7 @@
 
 #include <stdint.h>
 
+void nr_pdcp_init_tick_thread();
 void nr_pdcp_init_timer_thread(nr_pdcp_ue_manager_t *nr_pdcp_ue_manager);
 void nr_pdcp_wakeup_timer_thread(uint64_t time);
 

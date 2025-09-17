@@ -1,0 +1,12 @@
+services:
+  test:
+    image: ubuntu:${TAG:-jammy}
+    container_name: test_container
+    cap_drop:
+      - ALL
+    entrypoint: /bin/bash -c "sleep infinity"
+    healthcheck:
+      test: /bin/bash -c "true"
+      interval: 1s
+      timeout: 1s
+      retries: 1

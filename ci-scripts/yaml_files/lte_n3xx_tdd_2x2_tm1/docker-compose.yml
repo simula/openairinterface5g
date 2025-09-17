@@ -1,7 +1,6 @@
-version: '3.8'
 services:
     oai-enb:
-        image: oai-enb:latest
+        image: ${REGISTRY:-oaisoftwarealliance}/oai-enb:${TAG:-develop}
         privileged: true
         container_name: oai-enb
         environment:

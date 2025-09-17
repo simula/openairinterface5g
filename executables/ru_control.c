@@ -62,13 +62,11 @@
 #include "SCHED/sched_eNB.h"
 #include "PHY/LTE_ESTIMATION/lte_estimation.h"
 #include "PHY/INIT/phy_init.h"
+#include "executables/softmodem-common.h"
 
 #include "common/utils/LOG/log.h"
 
-
 int attach_rru(RU_t *ru);
-void configure_ru(RU_t *ru, void *arg);
-void configure_rru(RU_t *ru, void *arg);
 void fill_rf_config(RU_t *ru, char *rf_config_file);
 void* ru_thread_control( void* param );
 
@@ -372,9 +370,9 @@ int check_capabilities(RU_t *ru,
   return(-1);
 }
 
-void configure_ru(RU_t *ru,
-                  void *arg)
+void configure_ru(void *ruu, void *arg)
 {
+  RU_t *ru = (RU_t *)ruu;
   RRU_config_t       *config       = (RRU_config_t *)arg;
   RRU_capabilities_t *capabilities = (RRU_capabilities_t*)arg;
   int ret;
@@ -423,9 +421,9 @@ void configure_ru(RU_t *ru,
   phy_init_RU(ru);
 }
 
-void configure_rru(RU_t *ru,
-                   void *arg)
+void configure_rru(void *ruu, void *arg)
 {
+  RU_t *ru = (RU_t *)ruu;
   RRU_config_t *config = (RRU_config_t *)arg;
 
   ru->frame_parms->eutra_band                                               = config->band_list[0];

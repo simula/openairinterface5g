@@ -24,7 +24,6 @@
 #include <stdio.h>
 #include "PHY/TOOLS/tools_defs.h"
 #include "rf.h"
-#include "common/utils/LOG/log.h"
 
 
 void dac(double *s_re[2],

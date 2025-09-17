@@ -26,47 +26,62 @@
   <htmlTabIcon>tasks</htmlTabIcon>
   <repeatCount>1</repeatCount>
   <TestCaseRequestedList>
-    010000
-    001000
-    020000
-    002000
-    002001
-    002002
-    002003
-    002004
-    002005
-    002006
-    002007
-    002008
-    002009
-    002010
-    002011
-    002012
-    002013
-    002014
-    002015
-    000100
-    000010
-    000020
-    002016
-    000030
-    000040
-    000200
-    003000
-    004000
-    000002
-    030000
+    110000
+    101000
+    100813
+    120000
+    102000
+    102001
+    102002
+    102003
+    102004
+    102005
+    102006
+    102007
+    102008
+    102009
+    102010
+    102011
+    102012
+    102013
+    102014
+    102015
+    100100
+    100010
+    100020
+    100030
+    100040
+    102016
+    100200
+    103000
+    104000
+    100002
+    130000
+    444444
   </TestCaseRequestedList>
   <TestCaseExclusionList></TestCaseExclusionList>
 
-  <testCase id="010000">
+  <testCase id="110000">
     <class>Pull_Cluster_Image</class>
     <desc>Pull Images from Cluster</desc>
     <oc_project>oaicicd-ran</oc_project>
     <images_to_pull>oai-gnb-aw2s</images_to_pull>
   </testCase>
 
-  <testCase id="020000">
+  <testCase id="101000">
+    <class>Initialize_UE</class>
+    <desc>Initialize Amarisoft UE</desc>
+    <id>amarisoft_ue</id>
+  </testCase>
+
+  <testCase id="100813">
+    <class>Create_Workspace</class>
+    <desc>Creating new Workspace</desc>
+    <eNB_instance>0</eNB_instance>
+    <eNB_serverId>0</eNB_serverId>
+  </testCase>
+
+  <testCase id="120000">
     <class>Deploy_Object</class>
     <desc>Deploy gNB (TDD/Band78/20MHz/aw2s) in a container</desc>
     <yaml_path>ci-scripts/yaml_files/sa_aw2s_gnb</yaml_path>
@@ -74,106 +89,100 @@
     <eNB_serverId>0</eNB_serverId>
   </testCase>
 
-  <testCase id="001000">
-    <class>Initialize_UE</class>
-    <desc>Initialize Amarisoft UE</desc>
-    <id>amarisoft_ue</id>
-  </testCase>
-
-  <testCase id="002001">
+  <testCase id="102001">
     <class>Attach_UE</class>
     <desc>Attach UE</desc>
     <id>amarisoft_ue_1</id>
   </testCase>
 
-  <testCase id="002002">
+  <testCase id="102002">
     <class>Attach_UE</class>
     <desc>Attach UE</desc>
     <id>amarisoft_ue_2</id>
   </testCase>
 
-  <testCase id="002003">
+  <testCase id="102003">
     <class>Attach_UE</class>
     <desc>Attach UE</desc>
     <id>amarisoft_ue_3</id>
   </testCase>
 
-  <testCase id="002004">
+  <testCase id="102004">
     <class>Attach_UE</class>
     <desc>Attach UE</desc>
     <id>amarisoft_ue_4</id>
   </testCase>
 
-  <testCase id="002005">
+  <testCase id="102005">
     <class>Attach_UE</class>
     <desc>Attach UE</desc>
     <id>amarisoft_ue_5</id>
   </testCase>
 
-  <testCase id="002006">
+  <testCase id="102006">
     <class>Attach_UE</class>
     <desc>Attach UE</desc>
     <id>amarisoft_ue_6</id>
   </testCase>
 
-  <testCase id="002007">
+  <testCase id="102007">
     <class>Attach_UE</class>
     <desc>Attach UE</desc>
     <id>amarisoft_ue_7</id>
   </testCase>
 
-  <testCase id="002008">
+  <testCase id="102008">
     <class>Attach_UE</class>
     <desc>Attach UE</desc>
     <id>amarisoft_ue_8</id>
   </testCase>
 
-  <testCase id="002009">
+  <testCase id="102009">
     <class>Attach_UE</class>
     <desc>Attach UE</desc>
     <id>amarisoft_ue_9</id>
   </testCase>
 
-  <testCase id="002010">
+  <testCase id="102010">
     <class>Attach_UE</class>
     <desc>Attach UE</desc>
     <id>amarisoft_ue_10</id>
   </testCase>
 
-  <testCase id="002011">
+  <testCase id="102011">
     <class>Attach_UE</class>
     <desc>Attach UE</desc>
     <id>amarisoft_ue_11</id>
   </testCase>
 
-  <testCase id="002012">
+  <testCase id="102012">
     <class>Attach_UE</class>
     <desc>Attach UE</desc>
     <id>amarisoft_ue_12</id>
   </testCase>
 
-  <testCase id="002013">
+  <testCase id="102013">
     <class>Attach_UE</class>
     <desc>Attach UE</desc>
     <id>amarisoft_ue_13</id>
   </testCase>
 
-  <testCase id="002014">
+  <testCase id="102014">
     <class>Attach_UE</class>
     <desc>Attach UE</desc>
     <id>amarisoft_ue_14</id>
   </testCase>
 
-  <testCase id="002015">
+  <testCase id="102015">
     <class>Attach_UE</class>
     <desc>Attach UE</desc>
     <id>amarisoft_ue_15</id>
   </testCase>
 
-  <testCase id="000010">
+  <testCase id="100010">
     <class>Iperf</class>
-    <desc>iperf (DL/7Mbps/UDP)(30 sec)(multi-ue profile)</desc>
-    <iperf_args>-u -b 70M -t 30 -R</iperf_args>
+    <desc>iperf (DL/3Mbps/UDP)(30 sec)(multi-ue profile)</desc>
+    <iperf_args>-u -b 45M -t 30 -R</iperf_args>
     <id>amarisoft_ue_1 amarisoft_ue_2 amarisoft_ue_3 amarisoft_ue_4 amarisoft_ue_5 amarisoft_ue_6 amarisoft_ue_7 amarisoft_ue_8 amarisoft_ue_9 amarisoft_ue_10 amarisoft_ue_11 amarisoft_ue_12 amarisoft_ue_13 amarisoft_ue_14 amarisoft_ue_15</id>
     <iperf_packetloss_threshold>25</iperf_packetloss_threshold>
     <iperf_bitrate_threshold>80</iperf_bitrate_threshold>
@@ -181,19 +190,19 @@
     <svr_id>oc-cn5g</svr_id>
   </testCase>
 
-  <testCase id="000030">
+  <testCase id="100030">
     <class>Iperf</class>
     <desc>iperf (DL/TCP)(30 sec)(multi-ue profile)</desc>
     <iperf_args>-t 30 -R</iperf_args>
     <id>amarisoft_ue_1 amarisoft_ue_2 amarisoft_ue_3 amarisoft_ue_4 amarisoft_ue_5 amarisoft_ue_6 amarisoft_ue_7 amarisoft_ue_8 amarisoft_ue_9 amarisoft_ue_10 amarisoft_ue_11 amarisoft_ue_12 amarisoft_ue_13 amarisoft_ue_14 amarisoft_ue_15</id>
-    <iperf_tcp_rate_target>4</iperf_tcp_rate_target>
+    <iperf_tcp_rate_target>2</iperf_tcp_rate_target>
     <svr_id>oc-cn5g</svr_id>
   </testCase>
 
-  <testCase id="000020">
+  <testCase id="100020">
     <class>Iperf</class>
-    <desc>iperf (UL/3.6Mbps/UDP)(30 sec)(multi-ue profile)</desc>
-    <iperf_args>-u -b 36M -t 30</iperf_args>
+    <desc>iperf (UL/1Mbps/UDP)(30 sec)(multi-ue profile)</desc>
+    <iperf_args>-u -b 15M -t 30</iperf_args>
     <id>amarisoft_ue_1 amarisoft_ue_2 amarisoft_ue_3 amarisoft_ue_4 amarisoft_ue_5 amarisoft_ue_6 amarisoft_ue_7 amarisoft_ue_8 amarisoft_ue_9 amarisoft_ue_10 amarisoft_ue_11 amarisoft_ue_12 amarisoft_ue_13 amarisoft_ue_14 amarisoft_ue_15</id>
     <iperf_packetloss_threshold>25</iperf_packetloss_threshold>
     <iperf_bitrate_threshold>80</iperf_bitrate_threshold>
@@ -201,7 +210,7 @@
     <svr_id>oc-cn5g</svr_id>
   </testCase>
 
-  <testCase id="000040">
+  <testCase id="100040">
     <class>Iperf</class>
     <desc>iperf (UL/TCP)(30 sec)(multi-ue profile)</desc>
     <iperf_args>-t 30</iperf_args>
@@ -211,54 +220,64 @@
     <svr_id>oc-cn5g</svr_id>
   </testCase>
 
-  <testCase id="000100">
+  <testCase id="100100">
     <class>Ping</class>
-    <desc>Ping: 20pings in 20sec, multi-ue</desc>
+    <desc>Ping: 50 pings in 10sec, multi-ue</desc>
     <id>amarisoft_ue_1 amarisoft_ue_2 amarisoft_ue_3 amarisoft_ue_4 amarisoft_ue_5 amarisoft_ue_6 amarisoft_ue_7 amarisoft_ue_8 amarisoft_ue_9 amarisoft_ue_10 amarisoft_ue_11 amarisoft_ue_12 amarisoft_ue_13 amarisoft_ue_14 amarisoft_ue_15</id>
-    <ping_args>-c 20 %cn_ip%</ping_args>
-    <ping_packetloss_threshold>1</ping_packetloss_threshold>
+    <ping_args>-c 50 -i 0.2 %cn_ip%</ping_args>
+    <ping_packetloss_threshold>5</ping_packetloss_threshold>
     <ping_rttavg_threshold>25</ping_rttavg_threshold>
   </testCase>
 
-  <testCase id="002016">
+  <testCase id="102016">
     <class>Attach_UE</class>
     <desc>Attach UE</desc>
     <id>amarisoft_ue_16</id>
   </testCase>
 
-  <testCase id="000200">
+  <testCase id="100200">
     <class>Ping</class>
     <desc>Ping: 50pings in 10sec, multi-ue</desc>
     <id>amarisoft_ue_16</id>
     <ping_args>-c 50 -i 0.2 %cn_ip%</ping_args>
-    <ping_packetloss_threshold>1</ping_packetloss_threshold>
+    <ping_packetloss_threshold>5</ping_packetloss_threshold>
     <ping_rttavg_threshold>30</ping_rttavg_threshold>
   </testCase>
 
-  <testCase id="003000">
+  <testCase id="103000">
     <class>Detach_UE</class>
+    <always_exec>true</always_exec>
     <desc>Detach UE</desc>
     <id>amarisoft_ue_1 amarisoft_ue_2 amarisoft_ue_3 amarisoft_ue_4 amarisoft_ue_5 amarisoft_ue_6 amarisoft_ue_7 amarisoft_ue_8 amarisoft_ue_9 amarisoft_ue_10 amarisoft_ue_11 amarisoft_ue_12 amarisoft_ue_13 amarisoft_ue_14 amarisoft_ue_15 amarisoft_ue_16</id>
   </testCase>
 
-  <testCase id="004000">
+  <testCase id="104000">
     <class>Terminate_UE</class>
+    <always_exec>true</always_exec>
     <desc>Terminate UE</desc>
     <id>amarisoft_ue</id>
   </testCase>
 
-  <testCase id="000002">
+  <testCase id="100002">
     <class>IdleSleep</class>
     <desc>Sleep</desc>
     <idle_sleep_time_in_sec>5</idle_sleep_time_in_sec>
   </testCase>
 
-  <testCase id="030000">
+  <testCase id="130000">
     <class>Undeploy_Object</class>
+    <always_exec>true</always_exec>
     <desc>Undeploy gNB</desc>
     <yaml_path>ci-scripts/yaml_files/sa_aw2s_gnb</yaml_path>
     <eNB_instance>0</eNB_instance>
     <eNB_serverId>0</eNB_serverId>
+  </testCase>
+
+  <testCase id="444444">
+    <class>Clean_Test_Server_Images</class>
+    <always_exec>true</always_exec>
+    <desc>Clean Test Images on Test Server</desc>
+    <test_svr_id>0</test_svr_id>
   </testCase>
 
 </testCaseList>

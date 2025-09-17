@@ -54,7 +54,8 @@ bool read_mac_sm(void* data)
     mac_ue_stats_impl_t* rd = &mac->msg.ue_stats[i];
 
     rd->frame = RC.nrmac[mod_id]->frame;
-    rd->slot = RC.nrmac[mod_id]->slot;
+    rd->slot = 0; // previously had slot info, but the gNB runs multiple slots
+                  // in parallel, so this has no real meaning
 
     rd->dl_aggr_tbs = UE->mac_stats.dl.total_bytes;
     rd->ul_aggr_tbs = UE->mac_stats.ul.total_bytes;

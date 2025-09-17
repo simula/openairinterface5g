@@ -33,5 +33,6 @@
 	<testCase id="000100">
 		<class>Initialize_5GCN</class>
 		<desc>Initialize 5G Core</desc>
+		<cn_id>oc-cn5g</cn_id>
 	</testCase>
 </testCaseList>

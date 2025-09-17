@@ -86,7 +86,7 @@ int main(int n, char **v)
       socket_send(socket, is_on, number_of_events * sizeof(int)) == -1)
     abort();
 
-  OBUF ebuf = { osize: 0, omaxsize: 0, obuf: NULL };
+  OBUF ebuf = {.osize = 0, .omaxsize = 0, .obuf = NULL};
 
   while (1) {
     event e;

@@ -52,8 +52,8 @@
 extern "C" {
 #endif
 
-#define CEILIDIV(a,b) ((a+b-1)/b)
-#define ROUNDIDIV(a,b) (((a<<1)+b)/(b<<1))
+#define ALIGNARRAYSIZE(a, b) (((a + b - 1) / b) * b)
+#define ALNARS_16_4(a) ALIGNARRAYSIZE(a, 4)
 
   typedef struct complexd {
     double r;
@@ -758,10 +758,10 @@ int32_t signal_energy_amp_shift(int32_t *input, uint32_t length);
 int32_t subcarrier_energy(int32_t *,uint32_t, int32_t *subcarrier_energy, uint16_t rx_power_correction);
 #endif
 
-/*!\fn int32_t signal_energy_nodc(int32_t *,uint32_t);
+/*!\fn uint32_t signal_energy_nodc(c16_t *,uint32_t);
 \brief Computes the signal energy per subcarrier, without DC removal
 */
-int32_t signal_energy_nodc(int32_t *,uint32_t);
+uint32_t signal_energy_nodc(const c16_t *input, uint32_t length);
 
 int32_t signal_power(int32_t *,uint32_t);
 int32_t interference_power(int32_t *,uint32_t);

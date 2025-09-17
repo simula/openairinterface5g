@@ -34,7 +34,7 @@
     TYPE *tmp = ORIGIN;                          \
     ORIGIN = DESTINATION;                        \
     DESTINATION = tmp;                           \
-  } while(0);                                    \
+  } while (0)                                    \
 
 // Same as above but swapping ASN1 elements that are not pointers
 #define UPDATE_NP_IE(DESTINATION, ORIGIN, TYPE)     \
@@ -42,7 +42,7 @@
     TYPE tmp = ORIGIN;                              \
     ORIGIN = DESTINATION;                           \
     DESTINATION = tmp;                              \
-  } while(0);                                       \
+  } while (0)                                       \
 
 // Macro handles reception of SetupRelease element ORIGIN (see NR_SetupRelease.h)
 // If release (NR_SetupRelease_xxx_PR_release equivalent to 1), removing structure from DESTINATION
@@ -55,7 +55,7 @@
     }                                                                  \
     if (ORIGIN->present == 2)                                          \
       UPDATE_IE(DESTINATION, ORIGIN->choice.setup, TYPE);              \
-  } while(0);                                                          \
+  } while (0)                                                          \
 
 // Macro handles reception of SetupRelease element ORIGIN (see NR_SetupRelease.h)
 // If release (NR_SetupRelease_xxx_PR_release equivalent to 1), removing structure from DESTINATION
@@ -72,7 +72,7 @@
       DESTINATION->present = ORIGIN->present;                               \
       UPDATE_IE(DESTINATION->choice.setup, ORIGIN->choice.setup, TYPE);     \
     }                                                                       \
-  } while(0);                                                               \
+  } while (0)                                                               \
 
 // Macro releases entries in list TARGET if the corresponding ID is found in list SOURCE.
 // Prints an error if ID not found in list.
@@ -85,7 +85,7 @@
         if (eL == TARGET->list.array[iJ]->FIELD)                                   \
           break;                                                                   \
       }                                                                            \
-      if (iJ == TARGET->list.count)                                                \
+      if (iJ < TARGET->list.count)                                                 \
         asn_sequence_del(&TARGET->list, iJ, 1);                                    \
       else                                                                         \
         LOG_E(NR_MAC, "Element not present in the list, impossible to release\n"); \
@@ -154,17 +154,10 @@ static inline uint16_t BIT_STRING_to_uint16(const BIT_STRING_t *asn) {
 
   DevCheck ((asn->size > 0) && (asn->size <= 2), asn->size, 0, 0);
 
-  switch (asn->size) {
-    case 2:
-      result |= asn->buf[index++] << (8 - asn->bits_unused);
-
-    case 1:
-      result |= asn->buf[index] >> asn->bits_unused;
-      break;
-
-    default:
-      break;
+  if (asn->size == 2) {
+    result |= asn->buf[index++] << (8 - asn->bits_unused);
   }
+  result |= asn->buf[index] >> asn->bits_unused;
 
   return result;
 }
@@ -216,7 +209,10 @@ static inline uint64_t BIT_STRING_to_uint64(const BIT_STRING_t *asn) {
 
 #define asn1cSeqAdd(VaR, PtR) if (ASN_SEQUENCE_ADD(VaR,PtR)!=0) AssertFatal(false, "ASN.1 encoding error " #VaR "\n")
 #define asn1cCallocOne(VaR, VaLue) \
-  VaR = calloc(1,sizeof(*VaR)); *VaR=VaLue
+  do {                             \
+    VaR = calloc(1,sizeof(*VaR));  \
+    *VaR = VaLue;                  \
+  } while (0)
 #define asn1cCalloc(VaR, lOcPtr) \
   typeof(VaR) lOcPtr = VaR = calloc(1,sizeof(*VaR))
 #define asn1cSequenceAdd(VaR, TyPe, lOcPtr) \

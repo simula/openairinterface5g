@@ -488,7 +488,6 @@ typedef struct PHY_VARS_eNB_NB_IoT_s {
   eth_params_t         eth_params_n;
   /// Ethernet parameters for fronthaul interface (upper L1 to Radio head)
   eth_params_t         eth_params;
-  int                           single_thread_flag;
   openair0_rf_map               rf_map;
   int                           abstraction_flag;
   openair0_timestamp            ts_offset;

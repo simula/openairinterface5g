@@ -12,7 +12,7 @@
   </tr>
 </table>
 
-This page is only valid for an `Ubuntu18` host.
+This page is only valid for an `Ubuntu 22` host.
 
 **Table of Contents**
 

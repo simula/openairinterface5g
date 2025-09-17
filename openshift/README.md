@@ -27,34 +27,33 @@ the ran-build image. If you reinstalled dependencies, you have to restart from
 ran-base.
 
 You first need to login. Do:
+
 ```bash
 oc login -u <username> -p <password> --server <url>
 ```
 
-## RHEL8 Entitlements
-
-To build the RAN images, we use the `codeready-builder-for-rhel-8-x86_64-rpms` repository with all the proper development libraries.
-This repository is not directly accessible from the UBI RHEL8 image (`registry.access.redhat.com/ubi8/ubi:latest`).
-Therefore, we need to copy certificates and subscription manager configuration files from a registered RHEL8 machine.
-
-on a `RHEL8` physical machine (or a virtual machine) connected to the OpenShift Cluster, recover the entitlement and the RH subscription manager configs:
+Create a project/namespace where you will create your images
 
 ```bash
-oc create configmap rhsm-conf --from-file /etc/rhsm/rhsm.conf
-oc create configmap rhsm-ca --from-file /etc/rhsm/ca/redhat-uep.pem
-
-oc create secret generic etc-pki-entitlement --from-file /etc/pki/entitlement/{NUMBER_ON_YOUR_COMPUTER}.pem --from-file /etc/pki/entitlement/{NUMBER_ON_YOUR_COMPUTER}-key.pem
+oc new-project oaicicd-ran
 ```
 
-These configmaps and secret will be shared by all the build configs in your OC
-project. No need to do it each time.  However, these files expire every month
-or so. If you have done a build on your OC project and try again a few weeks
-later, you may need to re-copy them. (The CI recopies them every time.)
+**NOTE**: If you change the project name then you have to change it in all the `yaml` files.
+
+## RHEL9 Entitlements
+
+To build the RAN images, we use the `codeready-builder-for-rhel-9-x86_64-rpms`
+repository with all the proper development libraries. To access the library you
+will need `etc-pki-entitlement` inside the container image.
+
+To import `etc-pki-entitlement` in your project follow this
+[guide](https://docs.openshift.com/container-platform/4.14/cicd/builds/running-entitled-builds.html#builds-source-secrets-entitlements_running-entitled-builds)
+
+In case you have difficulties in following it then you can copy the
+certificates from an RHEL9 host
 
 ```bash
-oc delete secret etc-pki-entitlement
-oc delete cm rhsm-conf
-oc delete cm rhsm-ca
+oc create secret generic etc-pki-entitlement --from-file /etc/pki/entitlement/{NUMBER_ON_YOUR_COMPUTER}.pem --from-file /etc/pki/entitlement/{NUMBER_ON_YOUR_COMPUTER}-key.pem
 ```
 
 # 2. Build of `base` shared image

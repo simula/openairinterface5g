@@ -808,7 +808,7 @@ int main(int n, char **v)
   d.to.sin_port = htons(port);
   d.to.sin_addr.s_addr = inet_addr(ip);
   new_thread(receiver, &d);
-  OBUF ebuf = { osize: 0, omaxsize: 0, obuf: NULL };
+  OBUF ebuf = {.osize = 0, .omaxsize = 0, .obuf = NULL};
 
   /* read messages */
   while (1) {

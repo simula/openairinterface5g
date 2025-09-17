@@ -99,46 +99,58 @@ Use a recent version of wireshark. The steps below were done using
 version 3.3.2. Maybe some options are different for your version
 of wireshark. Adapt as necessary.
 
-First, do the previous steps for LTE.
+1) First, do the previous steps for LTE.
+2) Then, in the menu, choose `Edit->Preferences`.
+3) In the preference window, unroll `Protocols` and configure the following:
 
-Then, in the menu, choose `Edit->Preferences`.
+**MAC-NR**
 
-In the preference window, unroll `Protocols`.
+Go to `MAC-NR`. Select:
 
-Go to `MAC-NR`. Select both options (`Attempt to decode BCCH, PCCH and CCCH data using NR RRC dissector`
-and `Attempt to dissect LCID 1-3 as srb1-3`).
+* `Attempt to decode BCCH, PCCH and CCCH data using NR RRC dissector`
+* `Attempt to dissect LCID 1-3 as srb1-3`
 
-For `Source of LCID -> drb channel settings` choose option `From static table`.
-Then click the `Edit...` button of `LCID -> DRB Mappings Table`.
-
-In the new window, click on `+`. Choose LCID `4`, DRBID `1`, UL RLC Bearer
+For `Source of LCID -> drb channel settings`:
+* choose option `From static table`.
+* click the `Edit...` button of `LCID -> DRB Mappings Table`.
+* In the new window, click on `+`. Choose LCID `4`, DRBID `1`, UL RLC Bearer
 Type `AM, SN Len=18`, same thing for DL RLC Bearer Type.
+* Click OK.
 
-Then click OK.
+**RLC-NR**
 
-Now, go to `RLC-NR`. Select `Call PDCP dissector for SRB PDUs`.
+Now, go to `RLC-NR`. Select:
 
-For `Call PDCP dissector for UL DRB PDUs` choose `18-bit SN`. Same
-for DL.
-
-Select `Call RRC dissector for CCCH PDUs`.
+* `Call PDCP dissector for SRB PDUs`.
+* `Call PDCP dissector for UL DRB PDUs` choose `18-bit SN`. Same for DL.
+* `Call RRC dissector for CCCH PDUs`.
+* `Try to reassemble AM frames`.
 
 You don't need to select `May see RLC headers only` and
 `Try to reassemble UM frames`.
 
-Now, go to `PDCP-NR`. Select what you want in there. It's good
-to select `Show uncompressed User-Plane data as IP`. Also good
-to select `Show unciphered Signalling-Plane data as RRC`.
-For `Do sequence number analysis` it can be good to use
-`Only-RLC-frames` but anything will do. We don't use ROHC so you
-don't need to select `Attempt to decode ROHC data`. And the
-layer info to show depends on what you want to analyse.
-`Traffic Info` is a good choice.
+**PDCP-NR**
+
+Now, go to `PDCP-NR`. Select what you need in there.
+
+It's good to select:
+* `Show uncompressed User-Plane data as IP`
+* `Show unciphered Signalling-Plane data as RRC`.
+* `Only-RLC-frames` in `Do sequence number analysis`, but anything will do.
+* `Traffic Info` as layer info to show, depending on what you want to analyse.
+
+We don't use ROHC so you don't need to select `Attempt to decode ROHC data`.
 
 You are done with the preferences. You can click OK.
 
-Then, in the menu `Analyze`, choose `Enabled Protocols...`. In the new window
-search for `nr` and select `mac_nr_udp` to have `MAC-NR over UDP`.
+4) Then, in the menu `Analyze`, choose `Enabled Protocols...`.
+5) In the new window search for `nr` and select `mac_nr_udp` to have `MAC-NR over UDP`.
+
+**NAS-5GS**
+
+Under `NAS-5GS`, select:
+
+* `Try to detect and decode 5G-EA0 ciphered messages`
 
 And that's it. Maybe other settings can be changed, but those steps should be
 enough for a start.

@@ -27,7 +27,7 @@ metadata:
 spec:
     runPolicy: "Serial"
     nodeSelector:
-        kubernetes.io/hostname: theseus
+        kubernetes.io/hostname: demophon
     source:
         type: "Binary"
     strategy:

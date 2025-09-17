@@ -12,15 +12,15 @@
                               (Test 10b: 5 MHz, R6-1.FDD (MCS 24,18 PRB), EVA5, 17.5dB (70%)),
                               (Test 11: 10 MHz, R7.FDD (MCS 25), EVA5, 17.7dB (70%))</desc>
       <main_exec>dlsim</main_exec>
-      <main_exec_args> -m=5 -g=F -s=-1 -w=1.0 -f=.2 -n=500 -B=50 -c=2 -z=2 -O=60
-                       -m=4 -g=F -s=0 -w=1.0 -f=.2 -n=500 -B=6 -c=4 -z=2 -O=60
-                       -m=15 -g=F -s=6.7 -w=1.0 -f=.2 -n=500 -B=50 -c=2 -z=2 -O=60
-                       -m=15 -g=F -s=6.7 -w=1.0 -f=.2 -n=500 -B=25 -c=2 -z=2 -O=60
-                       -m=15 -g=G -s=1.4 -w=1.0 -f=.2 -n=500 -B=50 -c=2 -z=2 -O=25
-                       -m=15 -g=G -s=1.4 -w=1.0 -f=.2 -n=500 -B=25 -c=2 -z=2 -O=25
-                       -m=25 -g=F -s=17.4 -w=1.0 -f=.2 -n=500 -B=25 -c=3 -z=2 -O=60
-                       -m=25 -g=F -s=17.5 -w=1.0 -f=.2 -n=500 -B=25 -c=3 -z=2 -r=1022 -O=60
-                       -m=26 -g=F -s=17.7 -w=1.0 -f=.2 -n=500 -B=50 -c=2 -z=2 -O=60</main_exec_args>
+      <main_exec_args> -m=5 -g=F -s=-1 -w=1.0 -f=.2 -n=500 -B=50 -c=2 -z=2 -Tperf=60
+                       -m=4 -g=F -s=0 -w=1.0 -f=.2 -n=500 -B=6 -c=4 -z=2 -Tperf=60
+                       -m=15 -g=F -s=6.7 -w=1.0 -f=.2 -n=500 -B=50 -c=2 -z=2 -Tperf=60
+                       -m=15 -g=F -s=6.7 -w=1.0 -f=.2 -n=500 -B=25 -c=2 -z=2 -Tperf=60
+                       -m=15 -g=G -s=1.4 -w=1.0 -f=.2 -n=500 -B=50 -c=2 -z=2 -Tperf=25
+                       -m=15 -g=G -s=1.4 -w=1.0 -f=.2 -n=500 -B=25 -c=2 -z=2 -Tperf=25
+                       -m=25 -g=F -s=17.4 -w=1.0 -f=.2 -n=500 -B=25 -c=3 -z=2 -Tperf=60
+                       -m=25 -g=F -s=17.5 -w=1.0 -f=.2 -n=500 -B=25 -c=3 -z=2 -r=1022 -Tperf=60
+                       -m=26 -g=F -s=17.7 -w=1.0 -f=.2 -n=500 -B=50 -c=2 -z=2 -Tperf=60</main_exec_args>
       <tags>test1 test5 test6 test6b test7 test7b test10 test10b test11</tags>
       <search_expr_true>"passed"</search_expr_true>
       <search_expr_false>segmentation fault|assertion|exiting|fatal</search_expr_false>
@@ -34,11 +34,11 @@
                               (TM2 Test 1: 10 MHz, R.11 FDD (MCS 14), EVA5, 6.8 dB (70%)),
                               (TM2 Test 1b: 5 MHz, R.11-2 FDD (MCS 13), EVA5, 5.9 dB (70%))</desc>
       <main_exec>dlsim</main_exec>
-      <main_exec_args> -m=26 -g=F -s=17.6 -w=1.0 -f=.2 -n=500 -B=100 -c=2 -z=2 -O=60
-                       -m=26 -g=F -s=17.3 -w=1.0 -f=.2 -n=500 -B=100 -c=2 -z=2 -r=1600 -O=60
-                       -m=26 -g=F -s=16.6 -w=1.0 -f=.2 -n=500 -B=100 -c=2 -z=2 -r=1899 -O=60
-                       -m=14 -g=F -s=6.8  -w=1.0 -f=.2 -n=500 -B=50 -c=2 -x=2 -y=2 -z=2 -O=60
-                       -m=13 -g=F -s=5.9  -w=1.0 -f=.2 -n=500 -B=25 -c=3 -x=2 -y=2 -z=2 -O=60</main_exec_args>
+      <main_exec_args> -m=26 -g=F -s=17.6 -w=1.0 -f=.2 -n=500 -B=100 -c=2 -z=2 -Tperf=60
+                       -m=26 -g=F -s=17.3 -w=1.0 -f=.2 -n=500 -B=100 -c=2 -z=2 -r=1600 -Tperf=60
+                       -m=26 -g=F -s=16.6 -w=1.0 -f=.2 -n=500 -B=100 -c=2 -z=2 -r=1899 -Tperf=60
+                       -m=14 -g=F -s=6.8  -w=1.0 -f=.2 -n=500 -B=50 -c=2 -x=2 -y=2 -z=2 -Tperf=60
+                       -m=13 -g=F -s=5.9  -w=1.0 -f=.2 -n=500 -B=25 -c=3 -x=2 -y=2 -z=2 -Tperf=60</main_exec_args>
       <tags>test15 test15b test15c TM2_test1 TM2_test1b</tags>
       <search_expr_true>"passed"</search_expr_true>
       <search_expr_false>segmentation fault|assertion|exiting|fatal</search_expr_false>
@@ -53,12 +53,12 @@
              (Test 5: 20 MHz, FDD (MCS 5), AWGN, 6dB (70%)),
              (Test 6: 20 MHz, FDD (MCS 16), AWGN, 12 dB (70%))</desc>
       <main_exec>ulsim</main_exec>
-      <main_exec_args> -BnbRBs=25 -mcs=5 -yN_rx=1 -gchannel=N -xTransmission=1 -snr=6 -wsnrInterrupt=1.0 -e_snr_step=.1 -P -nb_frame=500 -Operf=70 
-                       -BnbRBs=25 -mcs=16 -yN_rx=1 -gchannel=N -xTransmission=1 -snr=12 -wsnrInterrupt=1.0 -e_snr_step=.1 -P -nb_frame=500 -Operf=70 
-                       -BnbRBs=50 -mcs=5 -yN_rx=1 -gchannel=N -xTransmission=1 -snr=6 -wsnrInterrupt=1.0 -e_snr_step=.1 -P -nb_frame=500 -Operf=70  
-                       -BnbRBs=50 -mcs=16 -yN_rx=1 -gchannel=N -xTransmission=1 -snr=12 -wsnrInterrupt=1.0 -e_snr_step=.1 -P -nb_frame=500 -Operf=70 
-                       -BnbRBs=100 -mcs=5 -yN_rx=1 -gchannel=N -xTransmission=1 -snr=6 -wsnrInterrupt=1.0 -e_snr_step=.1 -P -nb_frame=500 -Operf=70 
-                       -BnbRBs=100 -mcs=16 -yN_rx=1 -gchannel=N -xTransmission=1 -snr=12 -wsnrInterrupt=1.0 -e_snr_step=.1 -P -nb_frame=500 -Operf=70 </main_exec_args>
+      <main_exec_args> -BnbRBs=25 -mcs=5 -yN_rx=1 -gchannel=N -xTransmission=1 -snr=6 -wsnrInterrupt=1.0 -e_snr_step=.1 -P -nb_frame=500 -Tperf=70
+                       -BnbRBs=25 -mcs=16 -yN_rx=1 -gchannel=N -xTransmission=1 -snr=12 -wsnrInterrupt=1.0 -e_snr_step=.1 -P -nb_frame=500 -Tperf=70
+                       -BnbRBs=50 -mcs=5 -yN_rx=1 -gchannel=N -xTransmission=1 -snr=6 -wsnrInterrupt=1.0 -e_snr_step=.1 -P -nb_frame=500 -Tperf=70
+                       -BnbRBs=50 -mcs=16 -yN_rx=1 -gchannel=N -xTransmission=1 -snr=12 -wsnrInterrupt=1.0 -e_snr_step=.1 -P -nb_frame=500 -Tperf=70
+                       -BnbRBs=100 -mcs=5 -yN_rx=1 -gchannel=N -xTransmission=1 -snr=6 -wsnrInterrupt=1.0 -e_snr_step=.1 -P -nb_frame=500 -Tperf=70
+                       -BnbRBs=100 -mcs=16 -yN_rx=1 -gchannel=N -xTransmission=1 -snr=12 -wsnrInterrupt=1.0 -e_snr_step=.1 -P -nb_frame=500 -Tperf=70</main_exec_args>
       <tags>test1 test2 test3 test4 test5 test6</tags>
       <search_expr_true>"passed"</search_expr_true>
       <search_expr_false>segmentation fault|assertion|exiting|fatal</search_expr_false>
@@ -79,17 +79,19 @@
       <main_exec>ldpctest</main_exec>
       <main_exec_args>-l3872 -s10 -n100
                       -l4224 -s10 -n100
-		              -l4576 -s10 -n100
-	        	      -l4928 -s10 -n100
-	        	      -l5280 -s10 -n100
-	        	      -l5632 -s10 -n100
-	        	      -l6336 -s10 -n100
-	        	      -l7040 -s10 -n100
-	        	      -l7744 -s10 -n100
-	        	      -l8448 -s10 -n100</main_exec_args>
+                      -l4576 -s10 -n100
+                      -l4928 -s10 -n100
+                      -l5280 -s10 -n100
+                      -l5632 -s10 -n100
+                      -l6336 -s10 -n100
+                      -l7040 -s10 -n100
+                      -l7744 -s10 -n100
+                      -l8448 -s10 -n100
+                      -l561 -s10 -n1
+                      -l500 -s10 -n1</main_exec_args>
       <tags>test1 test2 test3 test4 test5 test6 test7 test8 test9 test10</tags>
       <search_expr_true>BLER 0.000000</search_expr_true>
-      <search_expr_false>segmentation fault|assertion|exiting|fatal</search_expr_false>
+      <search_expr_false>segmentation fault|assertion|exiting|fatal|differ</search_expr_false>
       <nruns>3</nruns>
     </testCase>
 
@@ -116,7 +118,7 @@
       <main_exec>nr_pbchsim</main_exec>
       <main_exec_args>-s-11 -S-8 -n10 -R106 -N2
                       -s-11 -S-8 -n10 -o8000 -I -R106
-                      -s-11 -S-8 -n10 -R106 -O6</main_exec_args>
+                      -s-11 -S-8 -n10 -R106 -c6</main_exec_args>
       <tags>test1 test2 test3</tags>
       <search_expr_true>PBCH test OK</search_expr_true>
       <search_expr_false>segmentation fault|assertion|exiting|fatal</search_expr_false>
@@ -328,7 +330,7 @@
                       -R 273 -z8 -i 1 -P 0 -b 1 -s-2 -n1000
                       -R 273 -z8 -i 1 -P 0 -b 2 -s-2 -n1000
                       -R 273 -z8 -i 1 -P 0 -b 2 -s-2 -c -n1000
-                      -R 273 -z8 -i 1 -P 2 -b 4 -s0 -n1000
+                      -R 273 -z8 -i 1 -P 2 -b 4 -s-10 -n1000
                       -R 273 -z8 -i 1 -P 2 -b 7 -s3 -n1000
                       -R 273 -z8 -i 1 -P 2 -b 11 -s6 -n1000
                       -R 273 -z8 -i 1 -P 2 -q8 -b 12 -s-3 -n1000
@@ -385,7 +387,8 @@
                                  (Test10: PUSCH Type B, 3 DMRS, 2 PTRS, 3 Interpolated Symbols),
                                  (Test11: 25 PRBs, 15 kHz SCS),
                                  (Test12: MCS 0, low SNR performance)
-                                 (Test13: MCS 28, 106 PRBs, Time shift 8)</desc>
+                                 (Test13: MCS 28, 106 PRBs, Time shift 8)
+                                 (Test14: SRS, SNR 40 dB)</desc>
       <main_exec>nr_ulsim</main_exec>
       <main_exec_args>-n100 -m9 -r106 -s5
                       -n100 -m16 -s10
@@ -399,8 +402,9 @@
                       -n100 -s5 -a4 -b8 -T 1,2 -U 1,3,1,1
                       -n100 -u0 -m0 -R25 -r25 -i 1,0
                       -n100 -m0 -S -0.6 -i 1,0
-                      -n100 -m 28 -R106 -r106 -t90 -s24 -S24 -d 8</main_exec_args>
-      <tags>test1 test2 test3 test4 test5 test6 test7 test8 test9 test10 test11 test12 test13</tags>
+                      -n100 -m 28 -R106 -r106 -t90 -s24 -S24 -d 8
+                      -n100 -s40 -E 1</main_exec_args>
+      <tags>test1 test2 test3 test4 test5 test6 test7 test8 test9 test10 test11 test12 test13 test14</tags>
       <search_expr_true>PUSCH test OK</search_expr_true>
       <search_expr_false>segmentation fault|assertion|exiting|fatal</search_expr_false>
       <nruns>3</nruns>

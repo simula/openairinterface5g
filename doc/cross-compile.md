@@ -5,7 +5,7 @@
 
 ## Environment
 
-- OS: ubuntu 20.04
+- OS: ubuntu 22.04
 
 ### Set up the environment
 
@@ -15,21 +15,21 @@ Set up for install the package for aarch64.
 sudo dpkg --add-architecture arm64
 
 echo -e \
-        "deb [arch=arm64] http://ports.ubuntu.com/ focal main restricted\n"\
-        "deb [arch=arm64] http://ports.ubuntu.com/ focal-updates main restricted\n"\
-        "deb [arch=arm64] http://ports.ubuntu.com/ focal universe\n"\
-        "deb [arch=arm64] http://ports.ubuntu.com/ focal-updates universe\n"\
-        "deb [arch=arm64] http://ports.ubuntu.com/ focal multiverse\n"\
-        "deb [arch=arm64] http://ports.ubuntu.com/ focal-updates multiverse\n"\
-        "deb [arch=arm64] http://ports.ubuntu.com/ focal-backports main restricted universe multiverse"\
+        "deb [arch=arm64] http://ports.ubuntu.com/ jammy main restricted\n"\
+        "deb [arch=arm64] http://ports.ubuntu.com/ jammy-updates main restricted\n"\
+        "deb [arch=arm64] http://ports.ubuntu.com/ jammy universe\n"\
+        "deb [arch=arm64] http://ports.ubuntu.com/ jammy-updates universe\n"\
+        "deb [arch=arm64] http://ports.ubuntu.com/ jammy multiverse\n"\
+        "deb [arch=arm64] http://ports.ubuntu.com/ jammy-updates multiverse\n"\
+        "deb [arch=arm64] http://ports.ubuntu.com/ jammy-backports main restricted universe multiverse"\
     | sudo tee /etc/apt/sources.list.d/arm-cross-compile-sources.list
 
 sudo cp /etc/apt/sources.list "/etc/apt/sources.list.`date`.backup"
 sudo sed -i -E "s/(deb)\ (http:.+)/\1\ [arch=amd64]\ \2/" /etc/apt/sources.list
 
 sudo apt update
-sudo apt install -y gcc-9-aarch64-linux-gnu \
-                    g++-9-aarch64-linux-gnu
+sudo apt install -y gcc-11-aarch64-linux-gnu \
+                    g++-11-aarch64-linux-gnu
 
 sudo apt-get install -y \
     libatlas-base-dev:arm64 \
@@ -46,11 +46,15 @@ sudo apt-get install -y \
     zlib1g-dev:arm64
 ```
 
+The above enables apt to download packages for arm64. It also installs
+gcc cross-compilers for aarch64 in version 11. This version needs to match the
+versions of gcc defined in the cmake cross-compilation file (`cross-arm.cmake`).
+
 ## Install and Build
 
 ### Install required packages
 
-Use the host compiler to install some dependencies.
+Use the host compiler to install its dependencies.
 
 ```shell
 cd cmake_targets
@@ -85,9 +89,9 @@ be defined in order to tell cmake where the host tools have been built.
 
 ```shell
 cd ../build-cross
-cmake ../../.. -DCMAKE_TOOLCHAIN_FILE=../../../cmake_targets/cross-arm.cmake -DNATIVE_DIR=../build
+cmake ../../.. -GNinja -DCMAKE_TOOLCHAIN_FILE=../../../cmake_targets/cross-arm.cmake -DNATIVE_DIR=../build
 
-make -j`nproc` dlsim ulsim ldpctest polartest smallblocktest nr_pbchsim nr_dlschsim nr_ulschsim nr_dlsim nr_ulsim nr_pucchsim nr_prachsim
-make -j`nproc` lte-softmodem nr-softmodem nr-cuup oairu lte-uesoftmodem nr-uesoftmodem
-make -j`nproc` params_libconfig coding rfsimulator
+ninja -j`nproc` dlsim ulsim ldpctest polartest smallblocktest nr_pbchsim nr_dlschsim nr_ulschsim nr_dlsim nr_ulsim nr_pucchsim nr_prachsim
+ninja -j`nproc` lte-softmodem nr-softmodem nr-cuup oairu lte-uesoftmodem nr-uesoftmodem
+ninja -j`nproc` params_libconfig coding rfsimulator
 ```

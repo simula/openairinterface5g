@@ -40,7 +40,7 @@ elm_arr_t find_if_arr_it(seq_arr_t* arr, void* start_it, void* end_it, void* val
   return (elm_arr_t){.found = false, .it = NULL};
 }
 
-elm_arr_t find_if_arr(seq_arr_t* arr, void* value, bool (*f)(const void*, const void*))
+elm_arr_t find_if(seq_arr_t* arr, void* value, bool (*f)(const void*, const void*))
 {
   assert(arr != NULL);
   void* start_it = seq_arr_front(arr);

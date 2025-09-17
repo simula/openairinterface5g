@@ -124,7 +124,7 @@ void nr_pdcp_manager_remove_ue(nr_pdcp_ue_manager_t *_m, ue_id_t UEid)
       break;
 
   if (i == m->ue_count) {
-    LOG_D(PDCP, "%s:%d:%s: warning: UE ID/RNTI 0x%" PRIx64 " not found\n", __FILE__, __LINE__, __FUNCTION__, UEid);
+    LOG_W(PDCP, "%s:%d:%s: warning: UE ID/RNTI 0x%" PRIx64 " not found\n", __FILE__, __LINE__, __FUNCTION__, UEid);
     return;
   }
 

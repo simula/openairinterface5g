@@ -1,0 +1,11 @@
+add_executable(test_yaml_config test_yaml_config.cpp)
+target_link_libraries(test_yaml_config PRIVATE params_yaml_static GTest::gtest)
+add_dependencies(tests test_yaml_config)
+add_test(NAME test_yaml_config
+  COMMAND ./test_yaml_config)
+configure_file(test1.yaml test1.yaml COPYONLY)
+configure_file(test_recursion.yaml test_recursion.yaml COPYONLY)
+configure_file(test_list.yaml test_list.yaml COPYONLY)
+configure_file(test_string.yaml test_string.yaml COPYONLY)
+configure_file(test_list_of_mappings.yml test_list_of_mappings.yml COPYONLY)
+configure_file(test_int_array.yaml test_int_array.yaml COPYONLY)

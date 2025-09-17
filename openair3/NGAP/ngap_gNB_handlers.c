@@ -740,37 +740,38 @@ static int ngap_gNB_handle_initial_context_request(sctp_assoc_t assoc_id, uint32
   NGAP_FIND_PROTOCOLIE_BY_ID(NGAP_InitialContextSetupRequestIEs_t, ie, container,
                              NGAP_ProtocolIE_ID_id_GUAMI, true);
 
-    TBCD_TO_MCC_MNC(&ie->value.choice.GUAMI.pLMNIdentity, msg->guami.mcc,
-                    msg->guami.mnc, msg->guami.mnc_len);
+  TBCD_TO_MCC_MNC(&ie->value.choice.GUAMI.pLMNIdentity, msg->guami.mcc,
+                  msg->guami.mnc, msg->guami.mnc_len);
     
-    OCTET_STRING_TO_INT8(&ie->value.choice.GUAMI.aMFRegionID, msg->guami.amf_region_id);
-    OCTET_STRING_TO_INT16(&ie->value.choice.GUAMI.aMFSetID, msg->guami.amf_set_id);
-    OCTET_STRING_TO_INT8(&ie->value.choice.GUAMI.aMFPointer, msg->guami.amf_pointer);
+  msg->guami.amf_region_id = BIT_STRING_to_uint8(&ie->value.choice.GUAMI.aMFRegionID);
+  msg->guami.amf_set_id = BIT_STRING_to_uint16(&ie->value.choice.GUAMI.aMFSetID);
+  msg->guami.amf_pointer = BIT_STRING_to_uint8(&ie->value.choice.GUAMI.aMFPointer);
 
-    NGAP_FIND_PROTOCOLIE_BY_ID(NGAP_InitialContextSetupRequestIEs_t, ie, container, NGAP_ProtocolIE_ID_id_PDUSessionResourceSetupListCxtReq, false);
-    if (ie != NULL) {
-      msg->nb_of_pdusessions = ie->value.choice.PDUSessionResourceSetupListCxtReq.list.count;
 
-      for (i = 0; i < ie->value.choice.PDUSessionResourceSetupListCxtReq.list.count; i++) {
-        NGAP_PDUSessionResourceSetupItemCxtReq_t *item_p = ie->value.choice.PDUSessionResourceSetupListCxtReq.list.array[i];
-        msg->pdusession_param[i].pdusession_id = item_p->pDUSessionID;
+  NGAP_FIND_PROTOCOLIE_BY_ID(NGAP_InitialContextSetupRequestIEs_t, ie, container, NGAP_ProtocolIE_ID_id_PDUSessionResourceSetupListCxtReq, false);
+  if (ie != NULL) {
+    msg->nb_of_pdusessions = ie->value.choice.PDUSessionResourceSetupListCxtReq.list.count;
 
-        OCTET_STRING_TO_INT8(&item_p->s_NSSAI.sST, msg->pdusession_param[i].nssai.sst);
-        if (item_p->s_NSSAI.sD != NULL) {
-          uint8_t *sd_p = (uint8_t *)&msg->pdusession_param[i].nssai.sd;
-          sd_p[0] = item_p->s_NSSAI.sD->buf[0];
-          sd_p[1] = item_p->s_NSSAI.sD->buf[1];
-          sd_p[2] = item_p->s_NSSAI.sD->buf[2];
-        } else {
-          msg->pdusession_param[i].nssai.sd = 0xffffff;
-        }
+    for (i = 0; i < ie->value.choice.PDUSessionResourceSetupListCxtReq.list.count; i++) {
+      NGAP_PDUSessionResourceSetupItemCxtReq_t *item_p = ie->value.choice.PDUSessionResourceSetupListCxtReq.list.array[i];
+      msg->pdusession_param[i].pdusession_id = item_p->pDUSessionID;
 
-        if (item_p->nAS_PDU) {
-          allocCopy(&msg->pdusession_param[i].nas_pdu, *item_p->nAS_PDU);
-        }
-        allocCopy(&msg->pdusession_param[i].pdusessionTransfer, item_p->pDUSessionResourceSetupRequestTransfer);
+      OCTET_STRING_TO_INT8(&item_p->s_NSSAI.sST, msg->pdusession_param[i].nssai.sst);
+      if (item_p->s_NSSAI.sD != NULL) {
+        uint8_t *sd_p = (uint8_t *)&msg->pdusession_param[i].nssai.sd;
+        sd_p[0] = item_p->s_NSSAI.sD->buf[0];
+        sd_p[1] = item_p->s_NSSAI.sD->buf[1];
+        sd_p[2] = item_p->s_NSSAI.sD->buf[2];
+      } else {
+        msg->pdusession_param[i].nssai.sd = 0xffffff;
       }
+
+      if (item_p->nAS_PDU) {
+        allocCopy(&msg->pdusession_param[i].nas_pdu, *item_p->nAS_PDU);
+      }
+      allocCopy(&msg->pdusession_param[i].pdusessionTransfer, item_p->pDUSessionResourceSetupRequestTransfer);
     }
+  }
 
   /* id-AllowedNSSAI */
   NGAP_FIND_PROTOCOLIE_BY_ID(NGAP_InitialContextSetupRequestIEs_t, ie, container,

@@ -53,6 +53,8 @@ void set_ptrs_symb_idx(uint16_t *ptrs_symbols,
                        uint8_t L_ptrs,
                        uint16_t dmrs_symb_pos);
 
+unsigned int get_first_ptrs_re(const rnti_t rnti, const uint8_t K_ptrs, const uint16_t nRB, const uint8_t k_RE_ref);
+
 uint8_t is_ptrs_subcarrier(uint16_t k,
                            uint16_t n_rnti,
                            uint8_t K_ptrs,
@@ -95,7 +97,7 @@ void nr_ptrs_cpe_estimation(uint8_t K_ptrs,
                             unsigned char symbol,
                             uint16_t ofdm_symbol_size,
                             int16_t *rxF_comp,
-                            uint32_t *gold_seq,
+                            const uint32_t *gold_seq,
                             int16_t *error_est,
                             int32_t *ptrs_sc);
 

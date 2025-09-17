@@ -1,5 +1,5 @@
 ## configuring the logging facility
-The logging facility is fully configurable and it uses the [config module](../../../config/config.md) to get its parameters at init time. The [telnet server](../../telnetsrv/DOC/telnetsrv.md) includes a set of commands which can be used to dynamically modify the logging facility behavior
+The logging facility is fully configurable and it uses the [config module](../../../../common/config/DOC/config.md) to get its parameters at init time. The [telnet server](../../telnetsrv/DOC/telnetsrv.md) includes a set of commands which can be used to dynamically modify the logging facility behavior
 
 All logging facility parameters are defined in the log_config section. Some parameters are global to the logging facility, they modify the way messages are printed to stdout. Conversely, some parameters are specific to a component and  only modify the behavior for messages issued by a given component. A third type of parameters can be used to activate conditional debug code or dump messages or buffers.
 

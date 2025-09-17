@@ -29,7 +29,7 @@
 #include "common/config/config_userapi.h"
 #include <common/utils/threadPool/thread-pool.h>
 // global var for openair performance profiler
-int opp_enabled = 0;
+int cpu_meas_enabled = 0;
 double cpu_freq_GHz  __attribute__ ((aligned(32)));
 
 double cpu_freq_GHz  __attribute__ ((aligned(32)))=0.0;
@@ -56,7 +56,7 @@ void print_meas_now(time_stats_t *ts,
                     const char *name,
                     FILE *file_name)
 {
-  if (opp_enabled) {
+  if (cpu_meas_enabled) {
     //static double cpu_freq_GHz = 3.2;
 
     //if (cpu_freq_GHz == 0.0)
@@ -73,7 +73,7 @@ void print_meas(time_stats_t *ts,
                 time_stats_t *total_exec_time,
                 time_stats_t *sf_exec_time)
 {
-  if (opp_enabled) {
+  if (cpu_meas_enabled) {
     static int first_time = 0;
     static double cpu_freq_GHz = 0.0;
 

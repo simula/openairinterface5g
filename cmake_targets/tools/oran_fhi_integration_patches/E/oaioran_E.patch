@@ -1,5 +1,5 @@
 diff --git a/fhi_lib/app/src/common.h b/fhi_lib/app/src/common.h
-index 7508117..0dbe0bd 100644
+index 7508117..ce17ebd 100644
 --- a/fhi_lib/app/src/common.h
 +++ b/fhi_lib/app/src/common.h
 @@ -28,7 +28,7 @@
@@ -7,7 +7,7 @@ index 7508117..0dbe0bd 100644
  #include <rte_mbuf.h>
  
 -#define VERSIONX                "oran_e_maintenance_release_v1.0"
-+#define VERSIONX                "oran_e_maintenance_release_v1.2"
++#define VERSIONX                "oran_e_maintenance_release_v1.4"
  
  #define APP_O_DU  0
  #define APP_O_RU  1
@@ -114,7 +114,7 @@ index 7419ae1..a85f973 100644
   * @ingroup xran
   *
 diff --git a/fhi_lib/lib/api/xran_up_api.h b/fhi_lib/lib/api/xran_up_api.h
-index 7d3afc5..3e00c5a 100644
+index 7d3afc5..e2f1f21 100644
 --- a/fhi_lib/lib/api/xran_up_api.h
 +++ b/fhi_lib/lib/api/xran_up_api.h
 @@ -80,6 +80,7 @@ int32_t xran_extract_iq_samples(struct rte_mbuf *mbuf,
@@ -125,10 +125,31 @@ index 7d3afc5..3e00c5a 100644
      union ecpri_seq_id *seq_id,
      uint16_t *num_prbu,
      uint16_t *start_prbu,
+@@ -89,7 +90,8 @@ int32_t xran_extract_iq_samples(struct rte_mbuf *mbuf,
+     int8_t   expect_comp,
+     enum xran_comp_hdr_type staticComp,
+     uint8_t *compMeth,
+-    uint8_t *iqWidth);
++    uint8_t *iqWidth,
++    uint8_t *is_prach);
+ 
+ inline int xran_prepare_iq_symbol_portion(
+                         struct rte_mbuf *mbuf,
 diff --git a/fhi_lib/lib/ethernet/ethdi.c b/fhi_lib/lib/ethernet/ethdi.c
-index b6ba257..b53325f 100644
+index b6ba257..1618f65 100644
 --- a/fhi_lib/lib/ethernet/ethdi.c
 +++ b/fhi_lib/lib/ethernet/ethdi.c
+@@ -326,8 +326,8 @@ xran_ethdi_init_dpdk_io(char *name, const struct xran_io_cfg *io_cfg,
+     char bbdev_wdev[32]   = "";
+     char bbdev_vdev[32]   = "";
+     char iova_mode[32]    = "--iova-mode=pa";
+-    char socket_mem[32]   = "--socket-mem=8192";
+-    char socket_limit[32] = "--socket-limit=8192";
++    char socket_mem[32]   = "--socket-mem=0";
++    char socket_limit[32] = "--socket-limit=0";
+     char ring_name[32]    = "";
+     int32_t xran_port = -1;
+     portid_t port_id;
 @@ -335,6 +335,7 @@ xran_ethdi_init_dpdk_io(char *name, const struct xran_io_cfg *io_cfg,
      uint16_t count;
  
@@ -173,9 +194,18 @@ index e6d3067..8e0abee 100644
  static int16_t saturateAbs(int16_t inVal)
  {
 diff --git a/fhi_lib/lib/src/xran_bfp_uplane.cpp b/fhi_lib/lib/src/xran_bfp_uplane.cpp
-index a345df4..7831fa0 100644
+index a345df4..2a94e01 100644
 --- a/fhi_lib/lib/src/xran_bfp_uplane.cpp
 +++ b/fhi_lib/lib/src/xran_bfp_uplane.cpp
+@@ -90,7 +90,7 @@ namespace BFP_UPlane
+   {
+     const __m512i* rawData = reinterpret_cast<const __m512i*>(dataIn.dataExpanded);
+     /// Abs
+-    const auto rawDataAbs = _mm512_abs_epi16(rawData[0]);
++    const auto rawDataAbs = _mm512_abs_epi16(_mm512_loadu_epi16(rawData));
+     /// No need to do a full horizontal max operation here, just do a max IQ step,
+     /// compute the exponents and then use a reduce max over all exponent values. This
+     /// is the fastest way to handle a single RB.
 @@ -116,7 +116,7 @@ namespace BFP_UPlane
      /// Get AVX512 pointer aligned to desired RB
      const __m512i* rawDataIn = reinterpret_cast<const __m512i*>(dataIn.dataExpanded + numREOffset);
@@ -195,10 +225,18 @@ index a345df4..7831fa0 100644
      dataOut->dataCompressed[thisRBExpAddr] = thisExp;
      /// Now have 1 RB worth of bytes separated into 3 chunks (1 per lane)
 diff --git a/fhi_lib/lib/src/xran_common.c b/fhi_lib/lib/src/xran_common.c
-index baa673f..edd4ecb 100644
+index baa673f..00bfdf2 100644
 --- a/fhi_lib/lib/src/xran_common.c
 +++ b/fhi_lib/lib/src/xran_common.c
-@@ -656,6 +656,7 @@ process_mbuf(struct rte_mbuf *pkt, void* handle, struct xran_eaxc_info *p_cid)
+@@ -650,12 +650,15 @@ process_mbuf(struct rte_mbuf *pkt, void* handle, struct xran_eaxc_info *p_cid)
+     uint8_t compMeth = 0;
+     uint8_t iqWidth = 0;
+ 
++    uint8_t is_prach = 0;
++
+     void *pHandle = NULL;
+     int ret = MBUF_FREE;
+     uint32_t mb_free = 0;
      int32_t valid_res = 0;
      int expect_comp  = (p_dev_ctx->fh_cfg.ru_conf.compMeth != XRAN_COMPMETHOD_NONE);
      enum xran_comp_hdr_type staticComp = p_dev_ctx->fh_cfg.ru_conf.xranCompHdrType;
@@ -206,7 +244,7 @@ index baa673f..edd4ecb 100644
  
      if (staticComp == XRAN_COMP_HDR_TYPE_STATIC)
      {
-@@ -674,6 +675,7 @@ process_mbuf(struct rte_mbuf *pkt, void* handle, struct xran_eaxc_info *p_cid)
+@@ -674,6 +677,7 @@ process_mbuf(struct rte_mbuf *pkt, void* handle, struct xran_eaxc_info *p_cid)
                                          &subframe_id,
                                          &slot_id,
                                          &symb_id,
@@ -214,7 +252,14 @@ index baa673f..edd4ecb 100644
                                          &seq,
                                          &num_prbu,
                                          &start_prbu,
-@@ -688,23 +690,9 @@ process_mbuf(struct rte_mbuf *pkt, void* handle, struct xran_eaxc_info *p_cid)
+@@ -683,28 +687,15 @@ process_mbuf(struct rte_mbuf *pkt, void* handle, struct xran_eaxc_info *p_cid)
+                                         expect_comp,
+                                         staticComp,
+                                         &compMeth,
+-                                        &iqWidth);
++                                        &iqWidth,
++                                        &is_prach);
+     if (num_bytes <= 0){
          print_err("num_bytes is wrong [%d]\n", num_bytes);
          return MBUF_FREE;
      }
@@ -241,7 +286,16 @@ index baa673f..edd4ecb 100644
  #ifndef FCN_ADAPT
      if(valid_res != 0) {
          print_dbg("valid_res is wrong [%d] ant %u (%u : %u : %u : %u) seq %u num_bytes %d\n", valid_res, Ant_ID, frame_id, subframe_id, slot_id, symb_id, seq.seq_id, num_bytes);
-@@ -1189,7 +1177,7 @@ int generate_cpmsg_prach(void *pHandle, struct xran_cp_gen_params *params, struc
+@@ -756,7 +747,7 @@ process_mbuf(struct rte_mbuf *pkt, void* handle, struct xran_eaxc_info *p_cid)
+             print_dbg("Transport layer fragmentation (eCPRI) is not supported\n");
+         }
+ 
+-    } else if (Ant_ID >= p_dev_ctx->PrachCPConfig.eAxC_offset && p_dev_ctx->fh_cfg.prachEnable) {
++    } else if (/*Ant_ID >= p_dev_ctx->PrachCPConfig.eAxC_offset && */p_dev_ctx->fh_cfg.prachEnable && is_prach) {
+         /* PRACH packet has ruportid = num_eAxc + ant_id */
+         Ant_ID -= p_dev_ctx->PrachCPConfig.eAxC_offset;
+         symbol_total_bytes[p_dev_ctx->xran_port_id][CC_ID][Ant_ID] += num_bytes;
+@@ -1189,7 +1180,7 @@ int generate_cpmsg_prach(void *pHandle, struct xran_cp_gen_params *params, struc
          timeOffset += startSymId * (2048 + 144);
      }
      timeOffset = timeOffset >> nNumerology; //original number is Tc, convert to Ts based on mu
@@ -250,7 +304,7 @@ index baa673f..edd4ecb 100644
          timeOffset += 16;
  
      params->dir                  = XRAN_DIR_UL;
-@@ -1295,8 +1283,7 @@ int32_t ring_processing_func(void* args)
+@@ -1295,8 +1286,7 @@ int32_t ring_processing_func(void* args)
  
      for (i = 0; i < ctx->io_cfg.num_vfs && i < XRAN_VF_MAX; i++){
          for(qi = 0; qi < ctx->rxq_per_port[i]; qi++) {
@@ -430,7 +484,7 @@ index 36bd72c..f7f5678 100644
                  int idx = 0;
                  uint16_t *psrc = (uint16_t *)iq_data_start;
 diff --git a/fhi_lib/lib/src/xran_up_api.c b/fhi_lib/lib/src/xran_up_api.c
-index 397853a..4a714b5 100644
+index 397853a..8977e3d 100644
 --- a/fhi_lib/lib/src/xran_up_api.c
 +++ b/fhi_lib/lib/src/xran_up_api.c
 @@ -329,6 +329,7 @@ int32_t xran_extract_iq_samples(struct rte_mbuf *mbuf,
@@ -441,7 +495,26 @@ index 397853a..4a714b5 100644
      union ecpri_seq_id *seq_id,
      uint16_t *num_prbu,
      uint16_t *start_prbu,
-@@ -387,6 +388,8 @@ int32_t xran_extract_iq_samples(struct rte_mbuf *mbuf,
+@@ -338,7 +339,8 @@ int32_t xran_extract_iq_samples(struct rte_mbuf *mbuf,
+     int8_t   expect_comp,
+     enum xran_comp_hdr_type staticComp,
+     uint8_t *compMeth,
+-    uint8_t *iqWidth)
++    uint8_t *iqWidth,
++    uint8_t *is_prach)
+ {
+ #if XRAN_MLOG_VAR
+     uint32_t mlogVar[10];
+@@ -374,6 +376,8 @@ int32_t xran_extract_iq_samples(struct rte_mbuf *mbuf,
+         return 0;       /* packet too short */
+ 
+     radio_hdr->sf_slot_sym.value = rte_be_to_cpu_16(radio_hdr->sf_slot_sym.value);
++    if (radio_hdr->data_feature.filter_id > 0) *is_prach = 1;
++    else *is_prach = 0;
+ 
+     if (frame_id)
+         *frame_id    = radio_hdr->frame_id;
+@@ -387,6 +391,8 @@ int32_t xran_extract_iq_samples(struct rte_mbuf *mbuf,
      if (symb_id)
          *symb_id = radio_hdr->sf_slot_sym.symb_id;
  
@@ -450,7 +523,7 @@ index 397853a..4a714b5 100644
      /* Process data section hdr */
      struct data_section_hdr *data_hdr =
          (void *)rte_pktmbuf_adj(mbuf, sizeof(*radio_hdr));
-@@ -401,6 +404,7 @@ int32_t xran_extract_iq_samples(struct rte_mbuf *mbuf,
+@@ -401,6 +407,7 @@ int32_t xran_extract_iq_samples(struct rte_mbuf *mbuf,
      *sym_inc    = data_hdr->fields.sym_inc;
      *rb         = data_hdr->fields.rb;
      *sect_id    = data_hdr->fields.sect_id;

@@ -24,11 +24,11 @@
   <htmlTabRef>TEST-SA-FR1-N310-2x2-100MHz</htmlTabRef>
   <htmlTabName>100 MHz TDD SA 2x2</htmlTabName>
   <htmlTabIcon>tasks</htmlTabIcon>
-  <repeatCount>1</repeatCount>
   <TestCaseRequestedList>
     100000
     111111
     010010
+    800813
     040101
     010001
     051001
@@ -39,6 +39,7 @@
     000001
     040201
     200000
+    033333
   </TestCaseRequestedList>
   <TestCaseExclusionList></TestCaseExclusionList>
 
@@ -58,6 +59,7 @@
 
   <testCase id="200000">
     <class>Custom_Command</class>
+    <always_exec>true</always_exec>
     <desc>Enable Sleep States</desc>
     <node>matix</node>
     <command>sudo cpupower idle-set -E</command>
@@ -71,10 +73,16 @@
 
   <testCase id="010010">
     <class>Detach_UE</class>
+    <always_exec>true</always_exec>
     <desc>Detach UE</desc>
     <id>up2</id>
   </testCase>
-
+  <testCase id="800813">
+    <class>Create_Workspace</class>
+    <desc>Create new Workspace</desc>
+    <eNB_instance>0</eNB_instance>
+    <eNB_serverId>0</eNB_serverId>
+  </testCase>
   <testCase id="040101">
     <class>Deploy_Object</class>
     <desc>Deploy gNB (TDD/Band77/100MHz/N310) in a container</desc>
@@ -106,22 +114,22 @@
 
   <testCase id="071100">
     <class>Iperf</class>
-    <desc>iperf (DL/500Mbps/UDP)(30 sec)(single-ue profile)</desc>
-    <iperf_args>-u -b 500M -t 30 -R -O 10 -l 9000</iperf_args>
+    <desc>iperf (DL/650Mbps/UDP)(30 sec)(single-ue profile)</desc>
+    <iperf_args>-u -b 650M -t 30 -R -O 10 -l 9000</iperf_args>
     <svr_id>matix-cn5g</svr_id>
     <id>up2</id>
     <iperf_packetloss_threshold>25</iperf_packetloss_threshold>
-    <iperf_bitrate_threshold>50</iperf_bitrate_threshold>
+    <iperf_bitrate_threshold>70</iperf_bitrate_threshold>
   </testCase>
 
   <testCase id="071101">
     <class>Iperf</class>
-    <desc>iperf (UL/40Mbps/UDP)(30 sec)(single-ue profile)</desc>
-    <iperf_args>-u -b 40M -t 30 -O 10</iperf_args>
+    <desc>iperf (UL/130Mbps/UDP)(30 sec)(single-ue profile)</desc>
+    <iperf_args>-u -b 130M -t 30 -O 10</iperf_args>
     <svr_id>matix-cn5g</svr_id>
     <id>up2</id>
-    <iperf_packetloss_threshold>10</iperf_packetloss_threshold>
-    <iperf_bitrate_threshold>80</iperf_bitrate_threshold>
+    <iperf_packetloss_threshold>25</iperf_packetloss_threshold>
+    <iperf_bitrate_threshold>70</iperf_bitrate_threshold>
   </testCase>
 
   <testCase id="071002">
@@ -134,6 +142,7 @@
 
   <testCase id="040201">
     <class>Undeploy_Object</class>
+    <always_exec>true</always_exec>
     <desc>Undeploy gNB</desc>
     <yaml_path>ci-scripts/yaml_files/5g_sa_n310_2x2_100MHz</yaml_path>
     <eNB_instance>0</eNB_instance>
@@ -141,6 +150,13 @@
     <services>oai-gnb</services>
     <d_retx_th>10,100,100,100</d_retx_th>
     <u_retx_th>10,100,100,100</u_retx_th>
+  </testCase>
+
+  <testCase id="033333">
+    <class>Clean_Test_Server_Images</class>
+    <always_exec>true</always_exec>
+    <desc>Clean Test Images on Test Server</desc>
+    <test_svr_id>0</test_svr_id>
   </testCase>
 
 </testCaseList>

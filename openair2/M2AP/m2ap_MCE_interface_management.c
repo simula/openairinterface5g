@@ -1376,7 +1376,7 @@ int MCE_handle_MBMS_SESSION_COUNTING_FAILURE(instance_t instance,  module_id_t d
 
   /* mandatory */
   /* c1. MCCH_Update_Time */ //long
-  ie=(M2AP_MbmsServiceCountingRequest_Ies_t *)calloc(1,sizeof(M2AP_MbmsSchedulingInformation_Ies_t));
+  ie = calloc(1, sizeof(*ie));
   ie->id                        = M2AP_ProtocolIE_ID_id_MCCH_Update_Time;
   ie->criticality               = M2AP_Criticality_reject;
   ie->value.present             = M2AP_MbmsServiceCountingRequest_Ies__value_PR_MCCH_Update_Time;
@@ -1388,7 +1388,7 @@ int MCE_handle_MBMS_SESSION_COUNTING_FAILURE(instance_t instance,  module_id_t d
 
   /* mandatory */
   /* c1. MCE_MBMS_M2AP_ID (integer value) */ //long
-  ie = (M2AP_MbmsServiceCountingRequest_Ies_t *)calloc(1, sizeof(M2AP_MbmsServiceCountingRequest_Ies_t));
+  ie = calloc(1, sizeof(*ie));
   ie->id                        = M2AP_ProtocolIE_ID_id_MBSFN_Area_ID;
   ie->criticality               = M2AP_Criticality_reject;
   ie->value.present             = M2AP_MbmsServiceCountingRequest_Ies__value_PR_MBSFN_Area_ID;
@@ -1397,7 +1397,7 @@ int MCE_handle_MBMS_SESSION_COUNTING_FAILURE(instance_t instance,  module_id_t d
 
   /* mandatory */
   /* c2. TMGI (integrer value) */
-  ie = (M2AP_MbmsServiceCountingRequest_Ies_t *)calloc(1, sizeof(M2AP_MbmsServiceCountingRequest_Ies_t ));
+  ie = calloc(1, sizeof(*ie));
   ie->id                        = M2AP_ProtocolIE_ID_id_MBMS_Counting_Request_Session;
   ie->criticality               = M2AP_Criticality_reject;
   ie->value.present             = M2AP_MbmsServiceCountingRequest_Ies__value_PR_MBMS_Counting_Request_Session;

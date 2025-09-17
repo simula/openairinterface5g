@@ -1,0 +1,4 @@
+Sender Bitrate  : 1.03  Mbps
+Receiver Bitrate: 0.00  Mbps (too low! < 99%)
+Jitter          : 0.000 ms
+Packet Loss     : 0 %

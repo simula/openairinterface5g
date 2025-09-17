@@ -35,7 +35,7 @@
 #include "radio/COMMON/common_lib.h"
 //#undef MALLOC
 #include "assertions.h"
-#include "executables/softmodem-common.h"
+#include "executables/nr-uesoftmodem.h"
 #include "nr_rlc/nr_rlc_oai_api.h"
 #include "RRC/NR_UE/rrc_proto.h"
 #include <pthread.h>
@@ -59,7 +59,6 @@ void nr_ue_init_mac(NR_UE_MAC_INST_t *mac)
   nr_ue_reset_sync_state(mac);
   mac->get_sib1 = false;
   mac->get_otherSI = false;
-  mac->phy_config_request_sent = false;
   memset(&mac->phy_config, 0, sizeof(mac->phy_config));
   mac->si_window_start = -1;
   mac->servCellIndex = 0;
@@ -70,6 +69,7 @@ void nr_ue_init_mac(NR_UE_MAC_INST_t *mac)
   mac->uecap_maxMIMO_PUSCH_layers_nocb = 0;
   mac->p_Max = INT_MIN;
   mac->p_Max_alt = INT_MIN;
+  mac->n_ta_offset = -1;
   reset_mac_inst(mac);
 
   // need to inizialize because might not been setup (optional timer)
@@ -82,6 +82,32 @@ void nr_ue_init_mac(NR_UE_MAC_INST_t *mac)
 
   for (int i = 0; i < NR_MAX_SR_ID; i++)
     memset(&mac->scheduling_info.sr_info[i], 0, sizeof(mac->scheduling_info.sr_info[i]));
+
+  mac->pucch_power_control_initialized = false;
+  mac->pusch_power_control_initialized = false;
+
+  // Fake SIB19 reception for NTN
+  // TODO: remove this and implement the actual SIB19 reception instead!
+  if (get_nrUE_params()->ntn_koffset || get_nrUE_params()->ntn_ta_common || get_nrUE_params()->ntn_ta_commondrift) {
+    NR_SIB19_r17_t *sib19_r17 = calloc(1, sizeof(*sib19_r17));
+    sib19_r17->ntn_Config_r17 = calloc(1, sizeof(*sib19_r17->ntn_Config_r17));
+
+    // NTN cellSpecificKoffset-r17
+    if (get_nrUE_params()->ntn_koffset) {
+      asn1cCallocOne(sib19_r17->ntn_Config_r17->cellSpecificKoffset_r17, get_nrUE_params()->ntn_koffset);
+    }
+
+    // NTN ta-Common-r17
+    if (get_nrUE_params()->ntn_ta_common || get_nrUE_params()->ntn_ta_commondrift) {
+      sib19_r17->ntn_Config_r17->ta_Info_r17 = calloc(1, sizeof(*sib19_r17->ntn_Config_r17->ta_Info_r17));
+      sib19_r17->ntn_Config_r17->ta_Info_r17->ta_Common_r17 = get_nrUE_params()->ntn_ta_common / 4.072e-6; // ta-Common-r17 is in units of 4.072e-3 µs, ntn_ta_common is in ms
+      if (get_nrUE_params()->ntn_ta_commondrift)
+        asn1cCallocOne(sib19_r17->ntn_Config_r17->ta_Info_r17->ta_CommonDrift_r17, get_nrUE_params()->ntn_ta_commondrift / 0.2e-3); // is in units of 0.2e-3 µs/s, ntn_ta_commondrift is in µs/s
+    }
+
+    nr_rrc_mac_config_req_sib19_r17(mac->ue_id, sib19_r17);
+    asn1cFreeStruc(asn_DEF_NR_SIB19_r17, sib19_r17);
+  }
 }
 
 void nr_ue_mac_default_configs(NR_UE_MAC_INST_t *mac)
@@ -94,16 +120,18 @@ void nr_ue_mac_default_configs(NR_UE_MAC_INST_t *mac)
   nr_timer_setup(&mac->scheduling_info.retxBSR_Timer, 80 * subframes_per_slot, 1); // 1 slot update rate
   nr_timer_setup(&mac->scheduling_info.periodicBSR_Timer, 10 * subframes_per_slot, 1); // 1 slot update rate
 
-  mac->scheduling_info.periodicPHR_Timer = NR_PHR_Config__phr_PeriodicTimer_sf10;
-  mac->scheduling_info.prohibitPHR_Timer = NR_PHR_Config__phr_ProhibitTimer_sf10;
+  mac->scheduling_info.phr_info.is_configured = true;
+  mac->scheduling_info.phr_info.PathlossChange_db = 1;
+  nr_timer_setup(&mac->scheduling_info.phr_info.periodicPHR_Timer, 10 * subframes_per_slot, 1);
+  nr_timer_setup(&mac->scheduling_info.phr_info.prohibitPHR_Timer, 10 * subframes_per_slot, 1);
 }
 
-void nr_ue_send_synch_request(NR_UE_MAC_INST_t *mac, module_id_t module_id, int cc_id, int cell_id)
+void nr_ue_send_synch_request(NR_UE_MAC_INST_t *mac, module_id_t module_id, int cc_id, const fapi_nr_synch_request_t *sync_req)
 {
   // Sending to PHY a request to resync
   mac->synch_request.Mod_id = module_id;
   mac->synch_request.CC_id = cc_id;
-  mac->synch_request.synch_req.target_Nid_cell = cell_id;
+  mac->synch_request.synch_req = *sync_req;
   mac->if_module->synch_request(&mac->synch_request);
 }
 
@@ -128,7 +156,7 @@ NR_UE_MAC_INST_t *nr_l2_init_ue(int nb_inst)
   AssertFatal(nr_ue_mac_inst, "Couldn't allocate %d instances of MAC module\n", nb_inst);
 
   for (int j = 0; j < nb_inst; j++) {
-    NR_UE_MAC_INST_t *mac = get_mac_inst(j);
+    NR_UE_MAC_INST_t *mac = &nr_ue_mac_inst[j];
     mac->ue_id = j;
     nr_ue_init_mac(mac);
     nr_ue_mac_default_configs(mac);
@@ -172,6 +200,9 @@ void reset_mac_inst(NR_UE_MAC_INST_t *nr_mac)
     nr_mac->scheduling_info.lc_sched_info[i].Bj = 0;
     nr_timer_stop(&nr_mac->scheduling_info.lc_sched_info[i].Bj_timer);
   }
+  if (nr_mac->data_inactivity_timer)
+    nr_timer_stop(nr_mac->data_inactivity_timer);
+  nr_timer_stop(&nr_mac->time_alignment_timer);
   nr_timer_stop(&nr_mac->ra.contention_resolution_timer);
   nr_timer_stop(&nr_mac->scheduling_info.sr_DelayTimer);
   nr_timer_stop(&nr_mac->scheduling_info.retxBSR_Timer);
@@ -179,7 +210,7 @@ void reset_mac_inst(NR_UE_MAC_INST_t *nr_mac)
     nr_timer_stop(&nr_mac->scheduling_info.sr_info[i].prohibitTimer);
 
   // consider all timeAlignmentTimers as expired and perform the corresponding actions in clause 5.2
-  // TODO
+  handle_time_alignment_timer_expired(nr_mac);
 
   // set the NDIs for all uplink HARQ processes to the value 0
   for (int k = 0; k < NR_MAX_HARQ_PROCESSES; k++)
@@ -205,7 +236,8 @@ void reset_mac_inst(NR_UE_MAC_INST_t *nr_mac)
   nr_mac->scheduling_info.BSR_reporting_active = NR_BSR_TRIGGER_NONE;
 
   // cancel any triggered Power Headroom Reporting procedure
-  // TODO PHR not implemented yet
+  nr_mac->scheduling_info.phr_info.phr_reporting = 0;
+  nr_mac->scheduling_info.phr_info.was_mac_reset = true;
 
   // flush the soft buffers for all DL HARQ processes
   for (int k = 0; k < NR_MAX_HARQ_PROCESSES; k++)
@@ -222,8 +254,7 @@ void reset_mac_inst(NR_UE_MAC_INST_t *nr_mac)
   // TODO beam failure procedure not implemented
 }
 
-void release_mac_configuration(NR_UE_MAC_INST_t *mac,
-                               NR_UE_MAC_reset_cause_t cause)
+void release_mac_configuration(NR_UE_MAC_INST_t *mac, NR_UE_MAC_reset_cause_t cause)
 {
   NR_UE_ServingCell_Info_t *sc = &mac->sc_info;
   // if cause is Re-establishment, release spCellConfig only
@@ -244,8 +275,12 @@ void release_mac_configuration(NR_UE_MAC_INST_t *mac,
   asn1cFreeStruc(asn_DEF_NR_PUSCH_CodeBlockGroupTransmission, sc->pusch_CGB_Transmission);
   asn1cFreeStruc(asn_DEF_NR_CSI_MeasConfig, sc->csi_MeasConfig);
   asn1cFreeStruc(asn_DEF_NR_CSI_AperiodicTriggerStateList, sc->aperiodicTriggerStateList);
+  asn1cFreeStruc(asn_DEF_NR_NTN_Config_r17, sc->ntn_Config_r17);
+  asn1cFreeStruc(asn_DEF_NR_DownlinkHARQ_FeedbackDisabled_r17, sc->downlinkHARQ_FeedbackDisabled_r17);
   free(sc->xOverhead_PDSCH);
   free(sc->nrofHARQ_ProcessesForPDSCH);
+  free(sc->nrofHARQ_ProcessesForPDSCH_v1700);
+  free(sc->nrofHARQ_ProcessesForPUSCH_r17);
   free(sc->rateMatching_PUSCH);
   free(sc->xOverhead_PUSCH);
   free(sc->maxMIMO_Layers_PDSCH);
@@ -287,6 +322,8 @@ void release_mac_configuration(NR_UE_MAC_INST_t *mac,
   memset(&mac->ssb_measurements, 0, sizeof(mac->ssb_measurements));
   memset(&mac->csirs_measurements, 0, sizeof(mac->csirs_measurements));
   memset(&mac->ul_time_alignment, 0, sizeof(mac->ul_time_alignment));
+  for (int i = mac->TAG_list.count; i > 0 ; i--)
+    asn_sequence_del(&mac->TAG_list, i - 1, 1);
 }
 
 void free_rach_structures(NR_UE_MAC_INST_t *nr_mac, int bwp_id)
@@ -299,14 +336,14 @@ void free_rach_structures(NR_UE_MAC_INST_t *nr_mac, int bwp_id)
   free(nr_mac->ssb_list[bwp_id].tx_ssb);
 }
 
-void reset_ra(NR_UE_MAC_INST_t *nr_mac, NR_UE_MAC_reset_cause_t cause)
+void reset_ra(NR_UE_MAC_INST_t *nr_mac, bool free_prach)
 {
   RA_config_t *ra = &nr_mac->ra;
   if(ra->rach_ConfigDedicated)
     asn1cFreeStruc(asn_DEF_NR_RACH_ConfigDedicated, ra->rach_ConfigDedicated);
   memset(ra, 0, sizeof(RA_config_t));
 
-  if (cause == T300_EXPIRY)
+  if (!free_prach)
     return;
 
   for (int i = 0; i < MAX_NUM_BWP_UE; i++)

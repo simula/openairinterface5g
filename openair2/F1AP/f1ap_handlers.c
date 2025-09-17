@@ -42,13 +42,14 @@
 /* Handlers matrix. Only f1 related procedure present here */
 static const f1ap_message_processing_t f1ap_messages_processing[][3] = {
 
-    {0, 0, 0}, /* Reset */
+    // TODO: How to handle RESET if CU/DU has their respective handlers? 
+    // We need to check node type and call the right handler.
+    {DU_handle_RESET, CU_handle_RESET_ACKNOWLEDGE, 0}, /* Reset */ 
+    // {CU_handle_RESET, DU_handle_RESET_ACKNOWLEDGE, 0}, /* Reset */ 
     {CU_handle_F1_SETUP_REQUEST, DU_handle_F1_SETUP_RESPONSE, DU_handle_F1_SETUP_FAILURE}, /* F1Setup */
     {0, 0, 0}, /* ErrorIndication */
-    {0, 0, 0}, /* gNBDUConfigurationUpdate */
-    {DU_handle_gNB_CU_CONFIGURATION_UPDATE,
-     CU_handle_gNB_CU_CONFIGURATION_UPDATE_ACKNOWLEDGE,
-     CU_handle_gNB_CU_CONFIGURATION_UPDATE_FAILURE}, /* gNBCUConfigurationUpdate */
+    {CU_handle_gNB_DU_CONFIGURATION_UPDATE, DU_handle_gNB_DU_CONFIGURATION_UPDATE_ACKNOWLEDGE, 0}, /* gNBDUConfigurationUpdate */
+    {DU_handle_gNB_CU_CONFIGURATION_UPDATE, CU_handle_gNB_CU_CONFIGURATION_UPDATE_ACKNOWLEDGE, 0}, /* gNBCUConfigurationUpdate */
     {DU_handle_UE_CONTEXT_SETUP_REQUEST, CU_handle_UE_CONTEXT_SETUP_RESPONSE, 0}, /* UEContextSetup */
     {DU_handle_UE_CONTEXT_RELEASE_COMMAND, CU_handle_UE_CONTEXT_RELEASE_COMPLETE, 0}, /* UEContextRelease */
     {DU_handle_UE_CONTEXT_MODIFICATION_REQUEST, CU_handle_UE_CONTEXT_MODIFICATION_RESPONSE, 0}, /* UEContextModification */

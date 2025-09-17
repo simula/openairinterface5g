@@ -374,7 +374,7 @@ bool dlsch_procedures(PHY_VARS_eNB *eNB,
     dlsch_encoding(eNB, proc, dlsch_harq->pdu, dlsch_harq->pdsch_start, dlsch, frame, subframe, &eNB->dlsch_rate_matching_stats, &eNB->dlsch_turbo_encoding_stats, &eNB->dlsch_interleaving_stats);
     stop_meas(&eNB->dlsch_encoding_stats);
 
-    if(eNB->dlsch_encoding_stats.p_time>500*3000 && opp_enabled == 1) {
+    if (eNB->dlsch_encoding_stats.p_time > 500 * 3000 && cpu_meas_enabled) {
       print_meas_now(&eNB->dlsch_encoding_stats,"total coding",stderr);
     }
 

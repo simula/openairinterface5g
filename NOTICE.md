@@ -4,15 +4,6 @@ For more details of the license, refer to [LICENSE](LICENSE) file in the same di
 
 However, the source code also contains third party software that is acknowledged here for reference.
 
-## Credits for LFDS user space source code located in folder openair2/UTILS/LFDS/ ##
-
-See on [liblfds website](https://liblfds.org/) the license section.
-
-<pre>
-"There is no license. You are free to use this software in any way, for any purpose. Go forth and create wealth!
-If however for legal reasons a licence is required, the license of your choice will be granted."
-</pre>
-
 ## Credits for source code common/utils/collection/queue.h: ##
 
 The Regents of the University of California: BSD 3-Clause Licence.

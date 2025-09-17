@@ -60,9 +60,6 @@ static int      nr_pdcp_current_time_last_subframe;
 hash_table_t  *pdcp_coll_p;
 static uint64_t pdcp_optmask;
 
-uint8_t first_dcch = 0;
-uint8_t proto_agent_flag = 0;
-
 static ngran_node_t node_type;
 
 nr_pdcp_entity_t *nr_pdcp_get_rb(nr_pdcp_ue_t *ue, int rb_id, bool srb_flag)
@@ -370,14 +367,14 @@ static void enqueue_pdcp_data_ind(const protocol_ctxt_t *const ctxt_pP,
   if (pthread_mutex_unlock(&pq.m) != 0) abort();
 }
 
-bool pdcp_data_ind(const protocol_ctxt_t *const ctxt_pP,
-                   const srb_flag_t srb_flagP,
-                   const MBMS_flag_t MBMS_flagP,
-                   const rb_id_t rb_id,
-                   const sdu_size_t sdu_buffer_size,
-                   uint8_t *const sdu_buffer,
-                   const uint32_t *const srcID,
-                   const uint32_t *const dstID)
+bool nr_pdcp_data_ind(const protocol_ctxt_t *const ctxt_pP,
+                      const srb_flag_t srb_flagP,
+                      const MBMS_flag_t MBMS_flagP,
+                      const rb_id_t rb_id,
+                      const sdu_size_t sdu_buffer_size,
+                      uint8_t *const sdu_buffer,
+                      const uint32_t *const srcID,
+                      const uint32_t *const dstID)
 {
   enqueue_pdcp_data_ind(ctxt_pP,
                         srb_flagP,
@@ -406,8 +403,7 @@ static void reblock_tun_socket(void)
   f = fcntl(nas_sock_fd[0], F_GETFL, 0);
   f &= ~(O_NONBLOCK);
   if (fcntl(nas_sock_fd[0], F_SETFL, f) == -1) {
-    LOG_E(PDCP, "reblock_tun_socket failed\n");
-    exit(1);
+    LOG_E(PDCP, "fcntl(F_SETFL) failed on fd %d: errno %d, %s\n", nas_sock_fd[0], errno, strerror(errno));
   }
 }
 
@@ -425,8 +421,8 @@ static void *enb_tun_read_thread(void *_)
   while (1) {
     len = read(nas_sock_fd[0], &rx_buf, NL_MAX_PAYLOAD);
     if (len == -1) {
-      LOG_E(PDCP, "%s:%d:%s: fatal\n", __FILE__, __LINE__, __FUNCTION__);
-      exit(1);
+      LOG_E(PDCP, "could not read(): errno %d %s\n", errno, strerror(errno));
+      return NULL;
     }
 
     LOG_D(PDCP, "%s(): nas_sock_fd read returns len %d\n", __func__, len);
@@ -483,8 +479,8 @@ static void *ue_tun_read_thread(void *_)
   while (1) {
     len = read(nas_sock_fd[0], &rx_buf, NL_MAX_PAYLOAD);
     if (len == -1) {
-      LOG_E(PDCP, "%s:%d:%s: fatal\n", __FILE__, __LINE__, __FUNCTION__);
-      exit(1);
+      LOG_E(PDCP, "error: cannot read() from fd %d: errno %d, %s\n", nas_sock_fd[0], errno, strerror(errno));
+      return NULL; /* exit thread */
     }
 
     LOG_D(PDCP, "%s(): nas_sock_fd read returns len %d\n", __func__, len);
@@ -570,7 +566,7 @@ void pdcp_layer_init(void)
   abort();
 }
 
-void nr_pdcp_layer_init(bool uses_e1)
+void nr_pdcp_layer_init(void)
 {
   /* hack: be sure to initialize only once */
   static pthread_mutex_t m = PTHREAD_MUTEX_INITIALIZER;
@@ -590,15 +586,17 @@ void nr_pdcp_layer_init(bool uses_e1)
   if ((RC.nrrrc == NULL) || (!NODE_IS_CU(node_type))) {
     init_nr_rlc_data_req_queue();
   }
-
-  nr_pdcp_e1_if_init(uses_e1);
+  nr_pdcp_e1_if_init(node_type == ngran_gNB_CUUP || node_type == ngran_gNB_CUCP);
   init_nr_pdcp_data_ind_queue();
   nr_pdcp_init_timer_thread(nr_pdcp_ue_manager);
+  if (NODE_IS_CU(node_type)) {
+    nr_pdcp_init_tick_thread();
+  }
 }
 
 #include "nfapi/oai_integration/vendor_ext.h"
 #include "executables/lte-softmodem.h"
-#include "openair2/RRC/NAS/nas_config.h"
+#include "common/utils/tun_if.h"
 
 uint64_t nr_pdcp_module_init(uint64_t _pdcp_optmask, int id)
 {
@@ -612,48 +610,29 @@ uint64_t nr_pdcp_module_init(uint64_t _pdcp_optmask, int id)
   initialized = 1;
   if (pthread_mutex_unlock(&m) != 0) abort();
 
-#if 0
-  pdcp_optmask = _pdcp_optmask;
-  return pdcp_optmask;
-#endif
-  /* temporary enforce netlink when UE_NAS_USE_TUN is set,
-     this is while switching from noS1 as build option
-     to noS1 as config option                               */
-  if ( _pdcp_optmask & UE_NAS_USE_TUN_BIT) {
-    pdcp_optmask = pdcp_optmask | PDCP_USE_NETLINK_BIT ;
-  }
-
   pdcp_optmask = pdcp_optmask | _pdcp_optmask ;
-  LOG_I(PDCP, "pdcp init,%s %s\n",
-        ((LINK_ENB_PDCP_TO_GTPV1U)?"usegtp":""),
-        ((PDCP_USE_NETLINK)?"usenetlink":""));
 
-  if (PDCP_USE_NETLINK) {
-    nas_getparams();
-
-    if(UE_NAS_USE_TUN) {
-      char *ifsuffix_ue = get_softmodem_params()->nsa ? "nrue" : "ue";
-      int num_if = (NFAPI_MODE == NFAPI_UE_STUB_PNF || IS_SOFTMODEM_SIML1 || NFAPI_MODE == NFAPI_MODE_STANDALONE_PNF)? MAX_MOBILES_PER_ENB : 1;
-      netlink_init_tun(ifsuffix_ue, num_if, id);
-      //Add --nr-ip-over-lte option check for next line
-      if (IS_SOFTMODEM_NOS1){
-        nas_config(1, 1, !get_softmodem_params()->nsa ? 2 : 3, ifsuffix_ue);
-        set_qfi_pduid(7, 10);
-      }
-      LOG_I(PDCP, "UE pdcp will use tun interface\n");
-      start_pdcp_tun_ue();
-    } else if(ENB_NAS_USE_TUN) {
-      char *ifsuffix_base_s = get_softmodem_params()->nsa ? "gnb" : "enb";
-      netlink_init_tun(ifsuffix_base_s, 1, id);
-      nas_config(1, 1, 1, ifsuffix_base_s);
-      LOG_I(PDCP, "ENB pdcp will use tun interface\n");
-      start_pdcp_tun_enb();
-    } else {
-      LOG_I(PDCP, "pdcp will use kernel modules\n");
-      abort();
-      netlink_init();
+  if (UE_NAS_USE_TUN) {
+    char *ifprefix = get_softmodem_params()->nsa ? "oaitun_nrue" : "oaitun_ue";
+    int num_if = (NFAPI_MODE == NFAPI_UE_STUB_PNF || IS_SOFTMODEM_SIML1 || NFAPI_MODE == NFAPI_MODE_STANDALONE_PNF)
+                     ? MAX_MOBILES_PER_ENB
+                     : 1;
+    tun_init(ifprefix, num_if, id);
+    if (IS_SOFTMODEM_NOS1) {
+      const char *ip = !get_softmodem_params()->nsa ? "10.0.1.2" : "10.0.1.3";
+      tun_config(1, ip, NULL, ifprefix);
+      set_qfi_pduid(7, 10);
     }
+    LOG_I(PDCP, "UE pdcp will use tun interface\n");
+    start_pdcp_tun_ue();
+  } else if (ENB_NAS_USE_TUN) {
+    char *ifprefix = get_softmodem_params()->nsa ? "oaitun_gnb" : "oaitun_enb";
+    tun_init(ifprefix, 1, id);
+    tun_config(1, "10.0.1.1", NULL, ifprefix);
+    LOG_I(PDCP, "ENB pdcp will use tun interface\n");
+    start_pdcp_tun_enb();
   }
+
   return pdcp_optmask ;
 }
 
@@ -802,10 +781,7 @@ void deliver_pdu_srb_rlc(void *deliver_pdu_data, ue_id_t ue_id, int srb_id,
 void add_srb(int is_gnb,
              ue_id_t UEid,
              struct NR_SRB_ToAddMod *s,
-             int ciphering_algorithm,
-             int integrity_algorithm,
-             unsigned char *ciphering_key,
-             unsigned char *integrity_key)
+             const nr_pdcp_entity_security_keys_and_algos_t *security_parameters)
 {
   nr_pdcp_entity_t *pdcp_srb;
   nr_pdcp_ue_t *ue;
@@ -833,10 +809,7 @@ void add_srb(int is_gnb,
                                   SHORT_SN_SIZE,
                                   t_Reordering,
                                   -1,
-                                  ciphering_algorithm,
-                                  integrity_algorithm,
-                                  ciphering_key,
-                                  integrity_key);
+                                  security_parameters);
     nr_pdcp_ue_add_srb_pdcp_entity(ue, srb_id, pdcp_srb);
 
     LOG_D(PDCP, "added srb %d to UE ID %ld\n", srb_id, UEid);
@@ -847,10 +820,7 @@ void add_srb(int is_gnb,
 void add_drb(int is_gnb,
              ue_id_t UEid,
              struct NR_DRB_ToAddMod *s,
-             int ciphering_algorithm,
-             int integrity_algorithm,
-             unsigned char *ciphering_key,
-             unsigned char *integrity_key)
+             const nr_pdcp_entity_security_keys_and_algos_t *security_parameters)
 {
   nr_pdcp_entity_t *pdcp_drb;
   nr_pdcp_ue_t *ue;
@@ -914,6 +884,10 @@ void add_drb(int is_gnb,
     exit(1);
   }
 
+  /* get actual ciphering and integrity algorithm based on pdcp_Config */
+  nr_pdcp_entity_security_keys_and_algos_t actual_security_parameters = *security_parameters;
+  actual_security_parameters.ciphering_algorithm = has_ciphering ? security_parameters->ciphering_algorithm : 0;
+  actual_security_parameters.integrity_algorithm = has_integrity ? security_parameters->integrity_algorithm : 0;
 
   nr_pdcp_manager_lock(nr_pdcp_ue_manager);
   ue = nr_pdcp_manager_get_ue(nr_pdcp_ue_manager, UEid);
@@ -926,10 +900,7 @@ void add_drb(int is_gnb,
                                     deliver_pdu_drb_gnb : deliver_pdu_drb_ue,
                                   ue,
                                   sn_size_dl, t_reordering, discard_timer,
-                                  has_ciphering ? ciphering_algorithm : 0,
-                                  has_integrity ? integrity_algorithm : 0,
-                                  has_ciphering ? ciphering_key : NULL,
-                                  has_integrity ? integrity_key : NULL);
+                                  &actual_security_parameters);
     nr_pdcp_ue_add_drb_pdcp_entity(ue, drb_id, pdcp_drb);
 
     LOG_I(PDCP, "added drb %d to UE ID %ld\n", drb_id, UEid);
@@ -950,13 +921,11 @@ void add_drb(int is_gnb,
 void nr_pdcp_add_srbs(eNB_flag_t enb_flag,
                       ue_id_t UEid,
                       NR_SRB_ToAddModList_t *const srb2add_list,
-                      const uint8_t security_modeP,
-                      uint8_t *const kRRCenc,
-                      uint8_t *const kRRCint)
+                      const nr_pdcp_entity_security_keys_and_algos_t *security_parameters)
 {
   if (srb2add_list != NULL) {
     for (int i = 0; i < srb2add_list->list.count; i++) {
-      add_srb(enb_flag, UEid, srb2add_list->list.array[i], security_modeP & 0x0f, (security_modeP >> 4) & 0x0f, kRRCenc, kRRCint);
+      add_srb(enb_flag, UEid, srb2add_list->list.array[i], security_parameters);
     }
   } else
     LOG_W(PDCP, "nr_pdcp_add_srbs() with void list\n");
@@ -965,19 +934,14 @@ void nr_pdcp_add_srbs(eNB_flag_t enb_flag,
 void nr_pdcp_add_drbs(eNB_flag_t enb_flag,
                       ue_id_t UEid,
                       NR_DRB_ToAddModList_t *const drb2add_list,
-                      const uint8_t security_modeP,
-                      uint8_t *const kUPenc,
-                      uint8_t *const kUPint)
+                      const nr_pdcp_entity_security_keys_and_algos_t *security_parameters)
 {
   if (drb2add_list != NULL) {
     for (int i = 0; i < drb2add_list->list.count; i++) {
       add_drb(enb_flag,
               UEid,
               drb2add_list->list.array[i],
-              security_modeP & 0x0f,
-              (security_modeP >> 4) & 0x0f,
-              kUPenc,
-              kUPint);
+              security_parameters);
     }
   } else
     LOG_W(PDCP, "nr_pdcp_add_drbs() with void list\n");
@@ -1030,35 +994,26 @@ void pdcp_config_set_security(const protocol_ctxt_t *const ctxt_pP,
 }
 
 void nr_pdcp_config_set_security(ue_id_t ue_id,
-                                 const rb_id_t rb_id,
-                                 const uint8_t security_modeP,
-                                 uint8_t *const kRRCenc_pP,
-                                 uint8_t *const kRRCint_pP,
-                                 uint8_t *const kUPenc_pP)
+                                 rb_id_t rb_id,
+                                 bool is_srb,
+                                 const nr_pdcp_entity_security_keys_and_algos_t *parameters)
 {
   nr_pdcp_ue_t *ue;
   nr_pdcp_entity_t *rb;
-  int integrity_algorithm;
-  int ciphering_algorithm;
 
   nr_pdcp_manager_lock(nr_pdcp_ue_manager);
 
   ue = nr_pdcp_manager_get_ue(nr_pdcp_ue_manager, ue_id);
 
-  /* TODO: proper handling of DRBs, for the moment only SRBs are handled */
-
-  rb = nr_pdcp_get_rb(ue, rb_id, true);
+  rb = nr_pdcp_get_rb(ue, rb_id, is_srb);
 
   if (rb == NULL) {
     nr_pdcp_manager_unlock(nr_pdcp_ue_manager);
-    LOG_E(PDCP, "no SRB found (ue_id %ld, rb_id %ld)\n", ue_id, rb_id);
+    LOG_E(PDCP, "no %s found (ue_id %ld, rb_id %ld)\n", is_srb ? "SRB" : "DRB", ue_id, rb_id);
     return;
   }
 
-  integrity_algorithm = (security_modeP>>4) & 0xf;
-  ciphering_algorithm = security_modeP & 0x0f;
-  rb->set_security(rb, integrity_algorithm, (char *)kRRCint_pP,
-                   ciphering_algorithm, (char *)kRRCenc_pP);
+  rb->set_security(rb, parameters);
 
   nr_pdcp_manager_unlock(nr_pdcp_ue_manager);
 }
@@ -1244,7 +1199,10 @@ void nr_pdcp_release_drb(ue_id_t ue_id, int drb_id)
   nr_pdcp_manager_unlock(nr_pdcp_ue_manager);
 }
 
-void nr_pdcp_reestablishment(ue_id_t ue_id, int rb_id, bool srb_flag)
+void nr_pdcp_reestablishment(ue_id_t ue_id,
+                             int rb_id,
+                             bool srb_flag,
+                             const nr_pdcp_entity_security_keys_and_algos_t *security_parameters)
 {
   nr_pdcp_ue_t     *ue;
   nr_pdcp_entity_t *rb;
@@ -1255,7 +1213,7 @@ void nr_pdcp_reestablishment(ue_id_t ue_id, int rb_id, bool srb_flag)
 
   if (rb != NULL) {
     LOG_D(PDCP, "UE %4.4lx re-establishment of %sRB %d\n", ue_id, srb_flag ? "S" : "D", rb_id);
-    rb->reestablish_entity(rb);
+    rb->reestablish_entity(rb, security_parameters);
     LOG_I(PDCP, "%s %d re-established\n", srb_flag ? "SRB" : "DRB" , rb_id);
   } else {
     LOG_W(PDCP, "UE %4.4lx cannot re-establish %sRB %d, RB not found\n", ue_id, srb_flag ? "S" : "D", rb_id);
@@ -1338,7 +1296,7 @@ bool cu_f1u_data_req(protocol_ctxt_t  *ctxt_pP,
     exit(1);
   }
   memcpy(memblock, sdu_buffer, sdu_buffer_size);
-  int ret=pdcp_data_ind(ctxt_pP,srb_flagP, false, rb_id, sdu_buffer_size, memblock, NULL, NULL);
+  int ret = nr_pdcp_data_ind(ctxt_pP, srb_flagP, false, rb_id, sdu_buffer_size, memblock, NULL, NULL);
   if (!ret) {
     LOG_E(RLC, "%s:%d:%s: ERROR: pdcp_data_ind failed\n", __FILE__, __LINE__, __FUNCTION__);
     /* what to do in case of failure? for the moment: nothing */
@@ -1360,16 +1318,6 @@ bool pdcp_data_req(protocol_ctxt_t  *ctxt_pP,
 {
   abort();
   return false;
-}
-
-void pdcp_set_pdcp_data_ind_func(pdcp_data_ind_func_t pdcp_data_ind)
-{
-  /* nothing to do */
-}
-
-void pdcp_set_rlc_data_req_func(send_rlc_data_req_func_t send_rlc_data_req)
-{
-  /* nothing to do */
 }
 
 //Dummy function needed due to LTE dependencies

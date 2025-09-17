@@ -575,9 +575,16 @@ void nr_rlc_entity_um_recv_sdu(nr_rlc_entity_t *_entity,
     exit(1);
   }
 
+  /* log SDUs rejected, at most once per second */
+  if (entity->sdu_rejected != 0
+      && entity->t_current > entity->t_log_buffer_full + 1000) {
+    LOG_E(RLC, "%d SDU rejected, SDU buffer full\n", entity->sdu_rejected);
+    entity->sdu_rejected = 0;
+    entity->t_log_buffer_full = entity->t_current;
+  }
+
   if (entity->tx_size + size > entity->tx_maxsize) {
-    LOG_W(RLC, "%s:%d:%s: warning: SDU rejected, SDU buffer full\n",
-          __FILE__, __LINE__, __FUNCTION__);
+    entity->sdu_rejected++;
 
     entity->common.stats.rxsdu_dd_pkts++;
     entity->common.stats.rxsdu_dd_bytes += size;
@@ -712,10 +719,12 @@ static void clear_entity(nr_rlc_entity_um_t *entity)
   entity->rx_next_reassembly = 0;
   entity->rx_timer_trigger   = 0;
 
-
   entity->tx_next           = 0;
 
   entity->t_current = 0;
+
+  entity->t_log_buffer_full = 0;
+  entity->sdu_rejected      = 0;
 
   entity->t_reassembly_start      = 0;
 

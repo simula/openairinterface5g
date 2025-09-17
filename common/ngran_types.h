@@ -55,5 +55,4 @@ typedef enum { CPtype = 0, UPtype } E1_t;
 #define NODE_IS_MBMS(nOdE_TyPe)       ((nOdE_TyPe) == ngran_eNB_MBMS_STA)
 #define GTPV1_U_PORT_NUMBER (2152)
 
-typedef enum { non_dynamic, dynamic } fiveQI_type_t;
 #endif

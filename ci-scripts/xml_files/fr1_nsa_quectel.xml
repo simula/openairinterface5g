@@ -24,7 +24,6 @@
 	<htmlTabRef>TEST-NSA-FR1-TM1</htmlTabRef>
 	<htmlTabName>NSA Ping DL UL with QUECTEL</htmlTabName>
 	<htmlTabIcon>tasks</htmlTabIcon>
-	<repeatCount>1</repeatCount>
 	<TestCaseRequestedList>
  100000
  200000
@@ -92,6 +91,7 @@
 	</testCase>
 	<testCase id="010002">
 		<class>Terminate_UE</class>
+    <always_exec>true</always_exec>
 		<desc>Terminate Quectel</desc>
 		<id>idefix</id>
 	</testCase>
@@ -102,6 +102,7 @@
 	</testCase>
 	<testCase id="010011">
 		<class>Detach_UE</class>
+    <always_exec>true</always_exec>
 		<desc>Detach Quectel</desc>
 		<id>idefix</id>
 	</testCase>
@@ -175,6 +176,7 @@
 
 	<testCase id="080000">
 		<class>Terminate_eNB</class>
+    <always_exec>true</always_exec>
 		<desc>Terminate eNB</desc>
 		<eNB_instance>0</eNB_instance>
 		<eNB_serverId>0</eNB_serverId>
@@ -183,6 +185,7 @@
 
 	<testCase id="080001">
 		<class>Terminate_eNB</class>
+    <always_exec>true</always_exec>
 		<desc>Terminate gNB</desc>
 		<eNB_instance>1</eNB_instance>
 		<eNB_serverId>1</eNB_serverId>

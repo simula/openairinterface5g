@@ -1,4 +1,3 @@
-version: '3.8'
 services:
     mysql:
         container_name: "rfsim5g-mysql"
@@ -82,9 +81,10 @@ services:
             timeout: 5s
             retries: 5
     oai-gnb:
-        image: oaisoftwarealliance/oai-gnb:develop
-        privileged: true
+        image: ${REGISTRY:-oaisoftwarealliance}/${GNB_IMG:-oai-gnb}:${TAG:-develop}
         container_name: rfsim5g-oai-gnb
+        cap_drop:
+            - ALL
         environment:
             USE_ADDITIONAL_OPTIONS: --sa --rfsim --log_config.global_log_options level,nocolor,time
             ASAN_OPTIONS: detect_leaks=0
@@ -101,9 +101,13 @@ services:
             timeout: 5s
             retries: 5
     oai-nr-ue:
-        image: oaisoftwarealliance/oai-nr-ue:develop
-        privileged: true
+        image: ${REGISTRY:-oaisoftwarealliance}/${NRUE_IMG:-oai-nr-ue}:${TAG:-develop}
         container_name: rfsim5g-oai-nr-ue
+        cap_drop:
+            - ALL
+        cap_add:
+            - NET_ADMIN  # for interface bringup
+            - NET_RAW    # for ping
         environment:
             USE_ADDITIONAL_OPTIONS: --sa --rfsim -r 24 --ssb 24 --numerology 1 -C 3604800000 --uicc0.imsi 208990100001100 --rfsimulator.serveraddr 192.168.71.140 --log_config.global_log_options level,nocolor,time
         depends_on:
@@ -111,6 +115,8 @@ services:
         networks:
             public_net:
                 ipv4_address: 192.168.71.150
+        devices:
+             - /dev/net/tun:/dev/net/tun
         volumes:
             - ../../conf_files/nrue.uicc.conf:/opt/oai-nr-ue/etc/nr-ue.conf
         healthcheck:

@@ -1,4 +1,3 @@
-version: '3.8'
 services:
     mysql:
         container_name: "rfsim5g-mysql"
@@ -84,9 +83,10 @@ services:
             retries: 5
 
     oai-cu:
-        image: oaisoftwarealliance/oai-gnb:develop
-        privileged: true
+        image: ${REGISTRY:-oaisoftwarealliance}/${GNB_IMG:-oai-gnb}:${TAG:-develop}
         container_name: rfsim5g-oai-cu
+        cap_drop:
+            - ALL
         environment: 
             USE_ADDITIONAL_OPTIONS: --sa --log_config.global_log_options level,nocolor,time
             ASAN_OPTIONS: detect_leaks=0
@@ -104,15 +104,16 @@ services:
             retries: 5
 
     oai-du:
-        image: oaisoftwarealliance/oai-gnb:develop
-        privileged: true
+        image: ${REGISTRY:-oaisoftwarealliance}/${GNB_IMG:-oai-gnb}:${TAG:-develop}
         container_name: rfsim5g-oai-du
+        cap_drop:
+            - ALL
         environment:
             USE_ADDITIONAL_OPTIONS: --sa --rfsim
                                     --log_config.global_log_options level,nocolor,time
                                     --rfsimulator.options chanmod
                                     --telnetsrv --telnetsrv.listenaddr 192.168.71.171
-            ASAN_OPTIONS: detect_leaks=0
+            ASAN_OPTIONS: detect_leaks=0:detect_odr_violation=0
         depends_on:
             - oai-cu
         networks:
@@ -128,9 +129,13 @@ services:
             retries: 5
 
     oai-nr-ue:
-        image: oaisoftwarealliance/oai-nr-ue:develop
-        privileged: true
+        image: ${REGISTRY:-oaisoftwarealliance}/${NRUE_IMG:-oai-nr-ue}:${TAG:-develop}
         container_name: rfsim5g-oai-nr-ue
+        cap_drop:
+            - ALL
+        cap_add:
+            - NET_ADMIN  # for interface bringup
+            - NET_RAW    # for ping
         environment:
             USE_ADDITIONAL_OPTIONS: --sa --rfsim --log_config.global_log_options level,nocolor,time
                                     -r 106 --numerology 1 -C 3619200000
@@ -138,11 +143,14 @@ services:
                                     --rfsimulator.serveraddr 192.168.71.171
                                     --rfsimulator.options chanmod
                                     --telnetsrv --telnetsrv.shrmod ciUE --telnetsrv.listenaddr 192.168.71.181 --telnetsrv.listenport 8091
+            ASAN_OPTIONS: detect_odr_violation=0
         depends_on:
             - oai-du
         networks:
             public_net:
                 ipv4_address: 192.168.71.181
+        devices:
+             - /dev/net/tun:/dev/net/tun
         volumes:
             - ../../conf_files/nrue.uicc.conf:/opt/oai-nr-ue/etc/nr-ue.conf
             - ../../conf_files/rfsim_channel_ci.conf:/opt/oai-nr-ue/etc/rfsim_channel_ci.conf

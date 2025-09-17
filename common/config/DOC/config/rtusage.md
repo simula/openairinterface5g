@@ -58,7 +58,6 @@ To get help on supported parameters you can use specific options:
     --emulate-rf: Emulated RF enabled(disable by defult)
     --clock: tells hardware to use a clock reference (0:internal, 1:external, 2:gpsdo)
     --wait-for-sync: Help string not specified
-    --single-thread-enable: Disables single-thread mode in lte-softmodem
     -C: Set the downlink frequency for all component carriers
     -a: Channel id offset
     -d: Enable soft scope and L1 and L2 stats (Xforms)
@@ -69,7 +68,6 @@ To get help on supported parameters you can use specific options:
     --worker-config: two option for worker 'WORKER_DISABLE' or 'WORKER_ENABLE'
     --nbiot-disable: disable nb-iot, even if defined in config
     --noS1: Disable s1 interface
-    --nokrnmod: (noS1 only): Use tun instead of namesh module
 --------------------------------------------------------------------
 
 [LIBCONFIG] (root): 4/4 parameters successfully set, (4 to default value)

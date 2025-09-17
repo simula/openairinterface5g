@@ -937,75 +937,58 @@ void pnf_handle_stop_request(pnf_t* pnf, void *pRecvMsg, int recvMsgLen)
 	}
 }
 
-void pnf_nr_handle_stop_request(pnf_t* pnf, void *pRecvMsg, int recvMsgLen)
+void pnf_nr_handle_stop_request(pnf_t* pnf, void* pRecvMsg, int recvMsgLen)
 {
-	// ensure it's valid
-	if (pRecvMsg == NULL || pnf == NULL)
-	{
-		NFAPI_TRACE(NFAPI_TRACE_ERROR, "%s: NULL parameters\n", __FUNCTION__);
-	}
-	else
-	{
-		nfapi_nr_stop_request_t req;
+  // ensure it's valid
+  if (pRecvMsg == NULL || pnf == NULL) {
+    NFAPI_TRACE(NFAPI_TRACE_ERROR, "%s: NULL parameters\n", __FUNCTION__);
+  } else {
+    nfapi_nr_stop_request_scf_t req;
 
-		NFAPI_TRACE(NFAPI_TRACE_INFO, "STOP.request received\n");
+    NFAPI_TRACE(NFAPI_TRACE_INFO, "STOP.request received\n");
 
-		nfapi_pnf_config_t* config = &(pnf->_public);
+    nfapi_pnf_config_t* config = &(pnf->_public);
 
-		// unpack the message
-		if (nfapi_nr_p5_message_unpack(pRecvMsg, recvMsgLen, &req, sizeof(req), &config->codec_config) >= 0)
-		{
-			if(config->state == NFAPI_PNF_RUNNING)
-			{
-				nfapi_pnf_phy_config_t* phy = nfapi_pnf_phy_config_find(config, req.header.phy_id);
-				if(phy)
-				{
-					if(phy->state != NFAPI_PNF_PHY_RUNNING)
-					{
-						if(config->nr_stop_req)
-						{
-							(config->nr_stop_req)(config, phy, &req);
-						}
-					}
-					else
-					{
-						nfapi_stop_response_t resp;
-						memset(&resp, 0, sizeof(resp));
-						resp.header.message_id = NFAPI_NR_PHY_MSG_TYPE_STOP_RESPONSE;
-						resp.header.phy_id = req.header.phy_id;
-						resp.error_code = NFAPI_MSG_INVALID_STATE;
-						nfapi_pnf_stop_resp(config, &resp);
-					}
-				}
-				else
-				{
-					nfapi_stop_response_t resp;
-					memset(&resp, 0, sizeof(resp));
-					resp.header.message_id = NFAPI_NR_PHY_MSG_TYPE_STOP_RESPONSE;
-					resp.header.phy_id = req.header.phy_id;
-					resp.error_code = NFAPI_MSG_INVALID_CONFIG;
-					nfapi_pnf_stop_resp(config, &resp);
-				}
-			}
-			else
-			{
-				nfapi_stop_response_t resp;
-				memset(&resp, 0, sizeof(resp));
-				resp.header.message_id = NFAPI_NR_PHY_MSG_TYPE_STOP_RESPONSE;
-				resp.header.phy_id = req.header.phy_id;
-				resp.error_code = NFAPI_MSG_INVALID_STATE;
-				nfapi_pnf_stop_resp(config, &resp);
-			}
-		}
-		else
-		{
-			NFAPI_TRACE(NFAPI_TRACE_ERROR, "%s: Unpack message failed, ignoring\n", __FUNCTION__);
-		}
+    // unpack the message
+    if (nfapi_nr_p5_message_unpack(pRecvMsg, recvMsgLen, &req, sizeof(req), &config->codec_config) >= 0) {
+      if (config->state == NFAPI_PNF_RUNNING) {
+        nfapi_pnf_phy_config_t* phy = nfapi_pnf_phy_config_find(config, req.header.phy_id);
+        if (phy) {
+          if (phy->state != NFAPI_PNF_PHY_RUNNING) {
+            if (config->nr_stop_req) {
+              (config->nr_stop_req)(config, phy, &req);
+            }
+          } else {
+            nfapi_stop_response_t resp;
+            memset(&resp, 0, sizeof(resp));
+            resp.header.message_id = NFAPI_NR_PHY_MSG_TYPE_STOP_RESPONSE;
+            resp.header.phy_id = req.header.phy_id;
+            resp.error_code = NFAPI_MSG_INVALID_STATE;
+            nfapi_pnf_stop_resp(config, &resp);
+          }
+        } else {
+          nfapi_stop_response_t resp;
+          memset(&resp, 0, sizeof(resp));
+          resp.header.message_id = NFAPI_NR_PHY_MSG_TYPE_STOP_RESPONSE;
+          resp.header.phy_id = req.header.phy_id;
+          resp.error_code = NFAPI_MSG_INVALID_CONFIG;
+          nfapi_pnf_stop_resp(config, &resp);
+        }
+      } else {
+        nfapi_stop_response_t resp;
+        memset(&resp, 0, sizeof(resp));
+        resp.header.message_id = NFAPI_NR_PHY_MSG_TYPE_STOP_RESPONSE;
+        resp.header.phy_id = req.header.phy_id;
+        resp.error_code = NFAPI_MSG_INVALID_STATE;
+        nfapi_pnf_stop_resp(config, &resp);
+      }
+    } else {
+      NFAPI_TRACE(NFAPI_TRACE_ERROR, "%s: Unpack message failed, ignoring\n", __FUNCTION__);
+    }
 
-		if(req.vendor_extension)
-			pnf->_public.codec_config.deallocate(req.vendor_extension);
-
-	}
+    if (req.vendor_extension)
+      pnf->_public.codec_config.deallocate(req.vendor_extension);
+  }
 }
 
 void pnf_handle_measurement_request(pnf_t* pnf, void *pRecvMsg, int recvMsgLen)

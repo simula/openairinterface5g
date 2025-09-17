@@ -26,7 +26,7 @@
         <htmlTabIcon>wrench</htmlTabIcon>
         <TestCaseRequestedList>
  111111
- 100011
+800813
  000013
  000002
  000014
@@ -36,6 +36,7 @@
  030011
  030012
  100011
+ 222222
         </TestCaseRequestedList>
         <TestCaseExclusionList></TestCaseExclusionList>
 
@@ -45,7 +46,12 @@
                 <test_svr_id>0</test_svr_id>
                 <images_to_pull>oai-enb oai-lte-ue</images_to_pull>
         </testCase>
-
+        <testCase id="800813">
+                <class>Create_Workspace</class>
+                <desc>Create new Workspace</desc>
+                <eNB_instance>0</eNB_instance>
+                <eNB_serverId>0</eNB_serverId>
+        </testCase>
         <testCase id="000001">
                 <class>IdleSleep</class>
                 <desc>Sleep</desc>
@@ -59,25 +65,28 @@
         </testCase>
 
         <testCase id="000013">
-                <class>DeployGenObject</class>
+                <class>Deploy_Object</class>
                 <desc>Deploy OAI 4G eNB RF sim (FDD 05MHz)</desc>
-                <yaml_path>yaml_files/4g_rfsimulator_fdd_05MHz_noS1</yaml_path>
+                <yaml_path>ci-scripts/yaml_files/4g_rfsimulator_fdd_05MHz_noS1</yaml_path>
                 <services>oai_enb0</services>
-                <nb_healthy>1</nb_healthy>
+                <eNB_instance>0</eNB_instance>
+                <eNB_serverId>0</eNB_serverId>
         </testCase>
 
         <testCase id="000014">
-                <class>DeployGenObject</class>
+                <class>Deploy_Object</class>
                 <desc>Deploy OAI 4G LTE-UE RF sim (FDD 05MHz)</desc>
-                <yaml_path>yaml_files/4g_rfsimulator_fdd_05MHz_noS1</yaml_path>
+                <yaml_path>ci-scripts/yaml_files/4g_rfsimulator_fdd_05MHz_noS1</yaml_path>
                 <services>oai_ue0</services>
-                <nb_healthy>2</nb_healthy>
+                <eNB_instance>0</eNB_instance>
+                <eNB_serverId>0</eNB_serverId>
         </testCase>
 
         <testCase id="020011">
                 <class>Ping</class>
                 <desc>Ping Traffic-Gen from LTE-UE</desc>
                 <id>rfsim4g_ue</id>
+                <nodes>cacofonix</nodes>
                 <ping_args> -c 20 10.0.1.1</ping_args>
                 <ping_packetloss_threshold>5</ping_packetloss_threshold>
         </testCase>
@@ -86,6 +95,7 @@
                 <class>Ping</class>
                 <desc>Ping LTE-UE from eNB</desc>
                 <id>rfsim4g_enb_nos1</id>
+                <nodes>cacofonix</nodes>
                 <ping_args> -c 20 10.0.1.2</ping_args>
                 <ping_packetloss_threshold>5</ping_packetloss_threshold>
         </testCase>
@@ -94,7 +104,9 @@
                 <class>Iperf</class>
                 <desc>Iperf UDP DL</desc>
                 <id>rfsim4g_ue</id>
+                <nodes>cacofonix</nodes>
                 <svr_id>rfsim4g_enb_nos1</svr_id>
+                <svr_node>cacofonix</svr_node>
                 <iperf_args>-u -t 30 -b 2M -R</iperf_args>
                 <iperf_packetloss_threshold>25</iperf_packetloss_threshold>
                 <iperf_bitrate_threshold>80</iperf_bitrate_threshold>
@@ -104,16 +116,28 @@
                 <class>Iperf</class>
                 <desc>Iperf UDP UL</desc>
                 <id>rfsim4g_ue</id>
+                <nodes>cacofonix</nodes>
                 <svr_id>rfsim4g_enb_nos1</svr_id>
+                <svr_node>cacofonix</svr_node>
                 <iperf_args>-u -t 30 -b 1M</iperf_args>
                 <iperf_packetloss_threshold>25</iperf_packetloss_threshold>
                 <iperf_bitrate_threshold>80</iperf_bitrate_threshold>
         </testCase>
 
         <testCase id="100011">
-                <class>UndeployGenObject</class>
+                <class>Undeploy_Object</class>
+                <always_exec>true</always_exec>
                 <desc>Undeploy all OAI 4G stack</desc>
-                <yaml_path>yaml_files/4g_rfsimulator_fdd_05MHz_noS1</yaml_path>
+                <yaml_path>ci-scripts/yaml_files/4g_rfsimulator_fdd_05MHz_noS1</yaml_path>
+                <eNB_instance>0</eNB_instance>
+                <eNB_serverId>0</eNB_serverId>
+        </testCase>
+
+        <testCase id="222222">
+                <class>Clean_Test_Server_Images</class>
+                <always_exec>true</always_exec>
+                <desc>Clean Test Images on Test Server</desc>
+                <test_svr_id>0</test_svr_id>
         </testCase>
 
 </testCaseList>

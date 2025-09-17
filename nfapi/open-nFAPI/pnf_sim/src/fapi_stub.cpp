@@ -137,25 +137,6 @@ extern "C"
   } fapi_internal_t;
 }
 
-extern void set_thread_priority(int);
-/*
-{
-  pthread_attr_t ptAttr;
-
-  struct sched_param schedParam;
-  schedParam.__sched_priority = 79;
-  sched_setscheduler(0, SCHED_RR, &schedParam);
-
-  pthread_attr_setschedpolicy(&ptAttr, SCHED_RR);
-
-  pthread_attr_setinheritsched(&ptAttr, PTHREAD_EXPLICIT_SCHED);
-
-  struct sched_param thread_params;
-  thread_params.sched_priority = 20;
-  pthread_attr_setschedparam(&ptAttr, &thread_params);
-}
-*/
-
 void send_uplink_indications(fapi_internal_t *instance, uint16_t sfn_sf) {
   fapi_harq_ind_t harq_ind;
   (instance->callbacks.fapi_harq_ind)(&(instance->_public), &harq_ind);

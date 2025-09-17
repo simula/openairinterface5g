@@ -51,10 +51,12 @@
 *
 *********************************************************************/
 
-int set_tdd_config_nr( nfapi_nr_config_request_scf_t *cfg,
-                       int mu,
-                       int nrofDownlinkSlots, int nrofDownlinkSymbols,
-                       int nrofUplinkSlots,   int nrofUplinkSymbols)
+int set_tdd_config_nr(nfapi_nr_config_request_scf_t *cfg,
+                      int mu,
+                      int nrofDownlinkSlots,
+                      int nrofDownlinkSymbols,
+                      int nrofUplinkSlots,
+                      int nrofUplinkSymbols)
 {
 
   int slot_number = 0;

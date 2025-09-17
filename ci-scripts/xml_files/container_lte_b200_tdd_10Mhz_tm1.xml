@@ -30,10 +30,12 @@ Replaces xml_files/enb_usrp210_band40_test_10mhz_tm1.xml
 100000
 111110
 040101
+800813
 030114
 040301 040511 040612 040611 040613 040614 040615 040652 040651 040653 040654 040655 040401 040201
 030214
 200000
+222222
     </TestCaseRequestedList>
     <TestCaseExclusionList></TestCaseExclusionList>
 
@@ -51,9 +53,16 @@ Replaces xml_files/enb_usrp210_band40_test_10mhz_tm1.xml
     </testCase>
     <testCase id="200000">
         <class>Custom_Command</class>
+        <always_exec>true</always_exec>
         <desc>Enable Sleep States</desc>
         <node>starsky</node>
         <command>sudo cpupower idle-set -E</command>
+    </testCase>
+    <testCase id="800813">
+        <class>Create_Workspace</class>
+        <desc>Create new Workspace for server 0</desc>
+        <eNB_instance>0</eNB_instance>
+        <eNB_serverId>0</eNB_serverId>
     </testCase>
     <testCase id="030114">
         <class>Deploy_Object</class>
@@ -71,6 +80,7 @@ Replaces xml_files/enb_usrp210_band40_test_10mhz_tm1.xml
 
     <testCase id="030214">
         <class>Undeploy_Object</class>
+        <always_exec>true</always_exec>
         <desc>Undeploy eNB</desc>
         <yaml_path>ci-scripts/yaml_files/lte_b200_tdd_10Mhz_tm1</yaml_path>
         <eNB_instance>0</eNB_instance>
@@ -84,6 +94,7 @@ Replaces xml_files/enb_usrp210_band40_test_10mhz_tm1.xml
     </testCase>
     <testCase id="040201">
         <class>Terminate_UE</class>
+        <always_exec>true</always_exec>
         <desc>Terminate UE</desc>
         <id>adb_ue_1 adb_ue_2</id>
     </testCase>
@@ -94,6 +105,7 @@ Replaces xml_files/enb_usrp210_band40_test_10mhz_tm1.xml
     </testCase>
     <testCase id="040401">
         <class>Detach_UE</class>
+        <always_exec>true</always_exec>
         <desc>Detach UE</desc>
         <id>adb_ue_1 adb_ue_2</id>
     </testCase>
@@ -196,6 +208,13 @@ Replaces xml_files/enb_usrp210_band40_test_10mhz_tm1.xml
         <iperf_args>-t 30</iperf_args>
         <id>adb_ue_1 adb_ue_2</id>
         <svr_id>ltebox-nano</svr_id>
+    </testCase>
+
+    <testCase id="222222">
+        <class>Clean_Test_Server_Images</class>
+        <always_exec>true</always_exec>
+        <desc>Clean Test Images on Test Server</desc>
+        <test_svr_id>0</test_svr_id>
     </testCase>
 
 </testCaseList>

@@ -26,6 +26,7 @@
 #include <string.h>
 
 #include "nr_pdcp_security_nea2.h"
+#include "nr_pdcp_security_nea1.h"
 #include "nr_pdcp_integrity_nia2.h"
 #include "nr_pdcp_integrity_nia1.h"
 #include "nr_pdcp_sdu.h"
@@ -57,7 +58,10 @@ static void nr_pdcp_entity_recv_pdu(nr_pdcp_entity_t *entity,
   uint32_t         rx_deliv_hfn;
 
   if (entity->entity_suspended) {
-    LOG_W(PDCP, "PDCP entity %d is suspended. Quit RX procedure.\n", entity->rb_id);
+    LOG_W(PDCP,
+          "PDCP entity (%s) %d is suspended. Quit RX procedure.\n",
+          entity->type > NR_PDCP_DRB_UM ? "SRB" : "DRB",
+          entity->rb_id);
     return;
   }
 
@@ -190,6 +194,13 @@ static void nr_pdcp_entity_recv_pdu(nr_pdcp_entity_t *entity,
       count++;
     }
     entity->rx_deliv = count;
+    LOG_D(PDCP,
+          "%s: entity (%s) %d - rx_deliv = %d, rcvd_sn = %d \n",
+          __func__,
+          entity->type == NR_PDCP_DRB_AM ? "DRB" : "SRB",
+          entity->rb_id,
+          entity->rx_deliv,
+          rcvd_sn);
   }
 
   if (entity->t_reordering_start != 0 && entity->rx_deliv >= entity->rx_reord) {
@@ -220,7 +231,10 @@ static int nr_pdcp_entity_process_sdu(nr_pdcp_entity_t *entity,
   int      dc_bit;
 
   if (entity->entity_suspended) {
-    LOG_W(PDCP, "PDCP entity %d is suspended. Quit SDU processing.\n", entity->rb_id);
+    LOG_W(PDCP,
+          "PDCP entity (%s) %d is suspended. Quit SDU processing.\n",
+          entity->type > NR_PDCP_DRB_UM ? "SRB" : "DRB",
+          entity->rb_id);
     return -1;
   }
 
@@ -315,38 +329,35 @@ static bool nr_pdcp_entity_check_integrity(struct nr_pdcp_entity_t *entity,
 }
 
 /* may be called several times, take care to clean previous settings */
-static void nr_pdcp_entity_set_security(nr_pdcp_entity_t *entity,
-                                        int integrity_algorithm,
-                                        char *integrity_key,
-                                        int ciphering_algorithm,
-                                        char *ciphering_key)
+static void nr_pdcp_entity_set_security(struct nr_pdcp_entity_t *entity,
+                                        const nr_pdcp_entity_security_keys_and_algos_t *parameters)
 {
-  if (integrity_algorithm != -1)
-    entity->integrity_algorithm = integrity_algorithm;
-  if (ciphering_algorithm != -1)
-    entity->ciphering_algorithm = ciphering_algorithm;
-  if (integrity_key != NULL)
-    memcpy(entity->integrity_key, integrity_key, 16);
-  if (ciphering_key != NULL)
-    memcpy(entity->ciphering_key, ciphering_key, 16);
+  if (parameters->integrity_algorithm != -1) {
+    entity->security_keys_and_algos.integrity_algorithm = parameters->integrity_algorithm;
+    memcpy(entity->security_keys_and_algos.integrity_key, parameters->integrity_key, NR_K_KEY_SIZE);
+  }
+  if (parameters->ciphering_algorithm != -1) {
+    entity->security_keys_and_algos.ciphering_algorithm = parameters->ciphering_algorithm;
+    memcpy(entity->security_keys_and_algos.ciphering_key, parameters->ciphering_key, NR_K_KEY_SIZE);
+  }
 
-  if (integrity_algorithm == 0) {
+  if (parameters->integrity_algorithm == 0) {
     entity->has_integrity = 0;
     if (entity->free_integrity != NULL)
       entity->free_integrity(entity->integrity_context);
     entity->free_integrity = NULL;
   }
 
-  if (integrity_algorithm != 0 && integrity_algorithm != -1) {
+  if (parameters->integrity_algorithm != 0 && parameters->integrity_algorithm != -1) {
     entity->has_integrity = 1;
     if (entity->free_integrity != NULL)
       entity->free_integrity(entity->integrity_context);
-    if (integrity_algorithm == 2) {
-      entity->integrity_context = nr_pdcp_integrity_nia2_init(entity->integrity_key);
+    if (parameters->integrity_algorithm == 2) {
+      entity->integrity_context = nr_pdcp_integrity_nia2_init(entity->security_keys_and_algos.integrity_key);
       entity->integrity = nr_pdcp_integrity_nia2_integrity;
       entity->free_integrity = nr_pdcp_integrity_nia2_free_integrity;
-    } else if (integrity_algorithm == 1) {
-      entity->integrity_context = nr_pdcp_integrity_nia1_init(entity->integrity_key);
+    } else if (parameters->integrity_algorithm == 1) {
+      entity->integrity_context = nr_pdcp_integrity_nia1_init(entity->security_keys_and_algos.integrity_key);
       entity->integrity = nr_pdcp_integrity_nia1_integrity;
       entity->free_integrity = nr_pdcp_integrity_nia1_free_integrity;
     } else {
@@ -355,24 +366,29 @@ static void nr_pdcp_entity_set_security(nr_pdcp_entity_t *entity,
     }
   }
 
-  if (ciphering_algorithm == 0) {
+  if (parameters->ciphering_algorithm == 0) {
     entity->has_ciphering = 0;
     if (entity->free_security != NULL)
       entity->free_security(entity->security_context);
     entity->free_security = NULL;
   }
 
-  if (ciphering_algorithm != 0 && ciphering_algorithm != -1) {
-    if (ciphering_algorithm != 2) {
-      LOG_E(PDCP, "FATAL: only nea2 supported for the moment\n");
-      exit(1);
-    }
+  if (parameters->ciphering_algorithm != 0 && parameters->ciphering_algorithm != -1) {
     entity->has_ciphering = 1;
     if (entity->free_security != NULL)
       entity->free_security(entity->security_context);
-    entity->security_context = nr_pdcp_security_nea2_init(entity->ciphering_key);
-    entity->cipher = nr_pdcp_security_nea2_cipher;
-    entity->free_security = nr_pdcp_security_nea2_free_security;
+    if (parameters->ciphering_algorithm == 2) {
+      entity->security_context = nr_pdcp_security_nea2_init(entity->security_keys_and_algos.ciphering_key);
+      entity->cipher = nr_pdcp_security_nea2_cipher;
+      entity->free_security = nr_pdcp_security_nea2_free_security;
+    } else if (parameters->ciphering_algorithm == 1) {
+      entity->security_context = nr_pdcp_security_nea1_init(entity->security_keys_and_algos.ciphering_key);
+      entity->cipher = nr_pdcp_security_nea1_cipher;
+      entity->free_security = nr_pdcp_security_nea1_free_security;
+    } else {
+      LOG_E(PDCP, "FATAL: only nea1 and nea2 supported for the moment\n");
+      exit(1);
+    }
   }
 }
 
@@ -387,6 +403,14 @@ static void check_t_reordering(nr_pdcp_entity_t *entity)
   if (entity->t_reordering_start == 0
       || entity->t_current <= entity->t_reordering_start + entity->t_reordering)
     return;
+  LOG_D(PDCP,
+        "%s: entity (%s) %d: t_reordering_start = %ld, t_current = %ld, t_reordering = %d \n",
+        __func__,
+        entity->type > NR_PDCP_DRB_UM ? "SRB" : "DRB",
+        entity->rb_id,
+        entity->t_reordering_start,
+        entity->t_current,
+        entity->t_reordering);
 
   /* stop timer */
   entity->t_reordering_start = 0;
@@ -450,15 +474,29 @@ static void deliver_all_sdus(nr_pdcp_entity_t *entity)
   }
 }
 
+/**
+ * @brief PDCP Entity Suspend according to 5.1.4 of 3GPP TS 38.323
+ * Transmitting PDCP entity shall:
+ * - set TX_NEXT to the initial value;
+ * - discard all stored PDCP PDUs (NOTE: PDUs are stored in RLC)
+ * Receiving PDCP entity shall:
+ * - if t-Reordering is running:
+ *   a) stop and reset t-Reordering;
+ *   b) deliver all stored PDCP SDUs
+ * - set RX_NEXT and RX_DELIV to the initial value.
+ */
 static void nr_pdcp_entity_suspend(nr_pdcp_entity_t *entity)
 {
+  /* Transmitting PDCP entity */
   entity->tx_next = 0;
+  /* Receiving PDCP entity */
   if (entity->t_reordering_start != 0) {
     entity->t_reordering_start = 0;
     deliver_all_sdus(entity);
   }
   entity->rx_next = 0;
   entity->rx_deliv = 0;
+  /* Flag to keep track of PDCP entity status */
   entity->entity_suspended = true;
 }
 
@@ -480,23 +518,27 @@ static void free_rx_list(nr_pdcp_entity_t *entity)
  * @brief PDCP entity re-establishment according to 5.1.2 of 3GPP TS 38.323
  * @todo  deal with ciphering/integrity algos and keys for transmitting/receiving entity procedures
 */
-static void nr_pdcp_entity_reestablish_drb_am(nr_pdcp_entity_t *entity)
+static void nr_pdcp_entity_reestablish_drb_am(nr_pdcp_entity_t *entity,
+                                              const nr_pdcp_entity_security_keys_and_algos_t *security_parameters)
 {
   /* transmitting entity procedures */
-  /* todo: deal with ciphering/integrity algos and keys */
+  /* do nothing */
 
   /* receiving entity procedures */
-  /* todo: deal with ciphering/integrity algos and keys */
+  /* do nothing */
+
+  /* ciphering and integrity: common for both tx and rx entities */
+  entity->set_security(entity, security_parameters);
 
   /* Flag PDCP entity as re-established */
   entity->entity_suspended = false;
 }
 
-static void nr_pdcp_entity_reestablish_drb_um(nr_pdcp_entity_t *entity)
+static void nr_pdcp_entity_reestablish_drb_um(nr_pdcp_entity_t *entity,
+                                              const nr_pdcp_entity_security_keys_and_algos_t *security_parameters)
 {
   /* transmitting entity procedures */
   entity->tx_next = 0;
-  /* todo: deal with ciphering/integrity algos and keys */
 
   /* receiving entity procedures */
   /* deliver all SDUs if t_reordering is running */
@@ -507,17 +549,19 @@ static void nr_pdcp_entity_reestablish_drb_um(nr_pdcp_entity_t *entity)
   /* set rx_next and rx_deliv to the initial value */
   entity->rx_next = 0;
   entity->rx_deliv = 0;
-  /* todo: deal with ciphering/integrity algos and keys */
+
+  /* ciphering and integrity: common for both tx and rx entities */
+  entity->set_security(entity, security_parameters);
 
   /* Flag PDCP entity as re-established */
   entity->entity_suspended = false;
 }
 
-static void nr_pdcp_entity_reestablish_srb(nr_pdcp_entity_t *entity)
+static void nr_pdcp_entity_reestablish_srb(nr_pdcp_entity_t *entity,
+                                           const nr_pdcp_entity_security_keys_and_algos_t *security_parameters)
 {
   /* transmitting entity procedures */
   entity->tx_next = 0;
-  /* todo: deal with ciphering/integrity algos and keys */
 
   /* receiving entity procedures */
   free_rx_list(entity);
@@ -526,7 +570,9 @@ static void nr_pdcp_entity_reestablish_srb(nr_pdcp_entity_t *entity)
   /* set rx_next and rx_deliv to the initial value */
   entity->rx_next = 0;
   entity->rx_deliv = 0;
-  /* todo: deal with ciphering/integrity algos and keys */
+
+  /* ciphering and integrity: common for both tx and rx entities */
+  entity->set_security(entity, security_parameters);
 
   /* Flag PDCP entity as re-established */
   entity->entity_suspended = false;
@@ -571,10 +617,7 @@ nr_pdcp_entity_t *new_nr_pdcp_entity(
     int sn_size,
     int t_reordering,
     int discard_timer,
-    int ciphering_algorithm,
-    int integrity_algorithm,
-    unsigned char *ciphering_key,
-    unsigned char *integrity_key)
+    const nr_pdcp_entity_security_keys_and_algos_t *security_parameters)
 {
   nr_pdcp_entity_t *ret;
 
@@ -628,9 +671,7 @@ nr_pdcp_entity_t *new_nr_pdcp_entity(
 
   ret->is_gnb = is_gnb;
 
-  nr_pdcp_entity_set_security(ret,
-                              integrity_algorithm, (char *)integrity_key,
-                              ciphering_algorithm, (char *)ciphering_key);
+  nr_pdcp_entity_set_security(ret, security_parameters);
 
   return ret;
 }

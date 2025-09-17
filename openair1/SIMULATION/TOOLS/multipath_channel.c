@@ -19,13 +19,8 @@
  *      contact@openairinterface.org
  */
 
-#include <stdio.h>
-#include <stdlib.h>
 #include <math.h>
-#include <string.h>
-#include "nfapi_nr_interface_scf.h"
 #include "PHY/TOOLS/tools_defs.h"
-#include "SIMULATION/RF/rf.h"
 #include "sim.h"
 
 //#define DEBUG_CH
@@ -55,12 +50,12 @@ void __attribute__ ((no_sanitize_address)) multipath_channel(channel_desc_t *des
       tx128_re, tx128_im, ch128_x, ch128_y, pathloss128;
 
   double path_loss = pow(10,desc->path_loss_dB/20);
-  int dd = abs(desc->channel_offset);
+  uint64_t dd = desc->channel_offset;
 
   pathloss128 = simde_mm_set1_pd(path_loss);
 
 #ifdef DEBUG_CH
-  printf("[CHANNEL] keep = %d : path_loss = %g (%f), nb_rx %d, nb_tx %d, dd %d, len %d \n",keep_channel,path_loss,desc->path_loss_dB,desc->nb_rx,desc->nb_tx,dd,desc->channel_length);
+  printf("[CHANNEL] keep = %d : path_loss = %g (%f), nb_rx %d, nb_tx %d, dd %lu, len %d \n",keep_channel,path_loss,desc->path_loss_dB,desc->nb_rx,desc->nb_tx,dd,desc->channel_length);
 #endif
 
   if (keep_channel) {
@@ -184,11 +179,10 @@ void __attribute__ ((no_sanitize_address)) multipath_channel(channel_desc_t *des
 {
 
   double path_loss = pow(10,desc->path_loss_dB/20);
-  int dd;
-  dd = abs(desc->channel_offset);
+  uint64_t dd = desc->channel_offset;
 
 #ifdef DEBUG_CH
-  printf("[CHANNEL] keep = %d : path_loss = %g (%f), nb_rx %d, nb_tx %d, dd %d, len %d \n",
+  printf("[CHANNEL] keep = %d : path_loss = %g (%f), nb_rx %d, nb_tx %d, dd %lu, len %d \n",
          keep_channel, path_loss, desc->path_loss_dB, desc->nb_rx, desc->nb_tx, dd, desc->channel_length);
 #endif
 

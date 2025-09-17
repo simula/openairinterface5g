@@ -1,0 +1,138 @@
+#/*
+# * Licensed to the OpenAirInterface (OAI) Software Alliance under one or more
+# * contributor license agreements.  See the NOTICE file distributed with
+# * this work for additional information regarding copyright ownership.
+# * The OpenAirInterface Software Alliance licenses this file to You under
+# * the OAI Public License, Version 1.1  (the "License"); you may not use this file
+# * except in compliance with the License.
+# * You may obtain a copy of the License at
+# *
+# *      http://www.openairinterface.org/?page_id=698
+# *
+# * Unless required by applicable law or agreed to in writing, software
+# * distributed under the License is distributed on an "AS IS" BASIS,
+# * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# * See the License for the specific language governing permissions and
+# * limitations under the License.
+# *-------------------------------------------------------------------------------
+# * For more information about the OpenAirInterface (OAI) Software Alliance:
+# *      contact@openairinterface.org
+# */
+#---------------------------------------------------------------------
+#
+# Dockerfile for the Open-Air-Interface BUILD service
+#   Valid for Ubuntu 22.04
+#
+#---------------------------------------------------------------------
+
+FROM ran-base:latest AS enb-base
+
+FROM ran-build:latest AS enb-build
+
+
+#start from scratch for target executable
+FROM ubuntu:jammy AS oai-enb
+ARG BUILD_OPTION
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=Europe/Paris
+
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get upgrade --yes && \
+    DEBIAN_FRONTEND=noninteractive apt-get install --yes \
+        software-properties-common \
+        procps \
+        libsctp1 \
+        libboost-chrono1.74.0 \
+        libboost-date-time1.74.0 \
+        libboost-filesystem1.74.0 \
+        libboost-regex1.74.0 \
+        libboost-serialization1.74.0 \
+        libboost-thread1.74.0 \
+        libboost-system1.74.0 \
+        libboost-program-options1.74.0 \
+        tzdata \
+        libblas3 \
+        libconfig9 \
+        openssl \
+        net-tools \
+        wget \
+        iperf3 \
+        iputils-ping \
+        iproute2 \
+        gdb \
+        python3 \
+        python3-six \
+        python3-requests \
+        libusb-1.0-0 && \
+# Installing older version of iperf2 for feMBMS test
+    wget --quiet http://fr.archive.ubuntu.com/ubuntu/pool/universe/i/iperf/iperf_2.0.13+dfsg1-1build1_amd64.deb && \
+    dpkg -i iperf_2.0.13+dfsg1-1build1_amd64.deb && \
+# iperf --version returns 1 that fails docker build
+    iperf --version || true && \
+    rm -f iperf_2.0.13+dfsg1-1build1_amd64.deb && \
+    apt-get remove -y wget && \
+# if the --sanitize option was used to build, additional packages are required
+    /bin/bash -c 'if [[ "$BUILD_OPTION" = "--sanitize" ]]; then DEBIAN_FRONTEND=noninteractive apt-get install --yes \
+        #libasan5 \ # see below
+        libubsan1 \
+        liblapacke; fi' && \
+    apt-get clean -y && \
+    rm -rf /var/lib/apt/lists/*
+
+# we select another compile (gcc-12) for compilation, requiring another libasan
+# library version. Installing it above would install the wrong version. Hence,
+# copy the right version from ran-build. When upgrading to Ubuntu24, install
+# the correct one above!
+COPY --from=enb-build /usr/lib/x86_64-linux-gnu/libasan.so.8.0.0 /usr/lib/x86_64-linux-gnu/
+
+WORKDIR /opt/oai-enb/bin
+COPY --from=enb-build \
+    /oai-ran/cmake_targets/ran_build/build/lte-softmodem ./
+COPY ./docker/scripts/enb_entrypoint.sh ./entrypoint.sh
+
+COPY --from=enb-build \
+     /oai-ran/cmake_targets/ran_build/build/liboai_eth_transpro.so \
+     /oai-ran/cmake_targets/ran_build/build/librfsimulator.so \
+     /oai-ran/cmake_targets/ran_build/build/liboai_usrpdevif.so \
+     /oai-ran/cmake_targets/ran_build/build/libcoding.so \
+     /oai-ran/cmake_targets/ran_build/build/libparams_libconfig.so \
+     /oai-ran/cmake_targets/ran_build/build/libdfts.so \
+     /oai-ran/cmake_targets/ran_build/build/liboai_iqplayer.so \
+     /oai-ran/cmake_targets/ran_build/build/libtelnetsrv.so \
+     /oai-ran/cmake_targets/ran_build/build/libtelnetsrv_enb.so \
+     /usr/local/lib/
+
+# Now we are copying from builder-image the UHD files.
+COPY --from=enb-base /usr/local/bin/uhd_find_devices /usr/local/bin
+COPY --from=enb-base /usr/local/lib/libuhd.so.4.4.0 /usr/local/lib
+COPY --from=enb-base /usr/local/lib/uhd/utils/uhd_images_downloader.py /opt/oai-enb/bin
+
+RUN /bin/bash -c "ln -s /usr/local/lib/liboai_usrpdevif.so /usr/local/lib/liboai_device.so" && \
+    /bin/bash -c "ln -s /usr/local/lib/liboai_eth_transpro.so /usr/local/lib/liboai_transpro.so" && \
+    ldconfig && \
+    echo "---- ldd on lte-softmodem ----" && \
+    ldd /opt/oai-enb/bin/lte-softmodem && \
+    echo "---- ldd on shared libraries ----" && \
+    ldd /usr/local/lib/liboai_eth_transpro.so \
+        /usr/local/lib/librfsimulator.so \
+        /usr/local/lib/liboai_usrpdevif.so \
+        /usr/local/lib/libparams_libconfig.so \
+        /usr/local/lib/libdfts.so \
+        /usr/local/lib/liboai_iqplayer.so \
+        /usr/local/lib/libtelnetsrv.so \
+        /usr/local/lib/libtelnetsrv_enb.so \
+        /usr/local/lib/libuhd.so.4.4.0
+
+WORKDIR /opt/oai-enb
+
+# 2152 --> S1U, GTP/UDP
+# 36412 --> S1C, SCTP/UDP
+# 36422 --> X2C, SCTP/UDP
+EXPOSE 2152/udp 36412/udp 36422/udp
+#EXPOSE 22100/tcp # ?
+#EXPOSE 50000/udp # IF5 / ORI (control)
+#EXPOSE 50001/udp # IF5 / ECPRI (data)
+
+COPY --from=enb-base /tini /tini
+ENTRYPOINT ["/tini", "-v", "--", "/opt/oai-enb/bin/entrypoint.sh"]
+CMD ["/opt/oai-enb/bin/lte-softmodem", "-O", "/opt/oai-enb/etc/enb.conf"]

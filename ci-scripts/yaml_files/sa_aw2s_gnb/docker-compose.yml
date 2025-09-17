@@ -1,9 +1,13 @@
 services:
     oai-gnb:
-        image: oai-gnb-aw2s:latest
-        privileged: true
+        image: ${REGISTRY:-oaisoftwarealliance}/oai-gnb-aw2s:${TAG:-develop}
         network_mode: "host"
         container_name: oai-gnb-aw2s
+        cap_drop:
+            - ALL
+        cap_add:
+            - SYS_NICE
+            - IPC_LOCK
         ulimits:
           core: -1 # for core dumps
         environment:

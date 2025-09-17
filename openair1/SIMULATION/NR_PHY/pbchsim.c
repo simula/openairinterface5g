@@ -161,9 +161,9 @@ void nr_phy_config_request_sim_pbchsim(PHY_VARS_gNB *gNB,
   if (mu>2) fp->nr_band = 257;
   else fp->nr_band = 78;
   fp->threequarter_fs= 0;
-
-  int bw_index = get_supported_band_index(mu, fp->nr_band > 256 ? FR2 : FR1, N_RB_DL);
-  gNB_config->carrier_config.dl_bandwidth.value = get_supported_bw_mhz(fp->nr_band > 256 ? FR2 : FR1, bw_index);
+  frequency_range_t frequency_range = fp->nr_band > 256 ? FR2 : FR1;
+  int bw_index = get_supported_band_index(mu, frequency_range, N_RB_DL);
+  gNB_config->carrier_config.dl_bandwidth.value = get_supported_bw_mhz(frequency_range, bw_index);
 
   fp->ofdm_offset_divisor = UINT_MAX;
   nr_init_frame_parms(gNB_config, fp);
@@ -200,9 +200,11 @@ int main(int argc, char **argv)
   uint16_t Nid_cell=0;
   uint64_t SSB_positions=0x01;
   int ssb_subcarrier_offset = 0;
+  int ssb_scan_threads = 0;
 
   channel_desc_t *gNB2UE;
   get_softmodem_params()->sa = 1;
+  get_softmodem_params()->usim_test = 1;
 
   //uint8_t extended_prefix_flag=0;
   //int8_t interf1=-21,interf2=-21;
@@ -229,7 +231,7 @@ int main(int argc, char **argv)
   int frame_length_complex_samples_no_prefix;
   NR_DL_FRAME_PARMS *frame_parms;
 
-  int ret, payload_ret=0;
+  int ret;
   int run_initial_sync=0;
 
   int loglvl=OAILOG_WARNING;
@@ -244,8 +246,20 @@ int main(int argc, char **argv)
     exit_fun("[NR_PBCHSIM] Error, configuration module init failed\n");
   }
 
-  while ((c = getopt (argc, argv, "F:g:hIL:m:M:n:N:o:O:P:r:R:s:S:x:y:z:")) != -1) {
+  while ((c = getopt (argc, argv, "--:O:c:F:g:hIL:m:M:n:N:o:P:r:R:s:S:x:y:z:")) != -1) {
+
+    /* ignore long options starting with '--', option '-O' and their arguments that are handled by configmodule */
+    /* with this opstring getopt returns 1 for non-option arguments, refer to 'man 3 getopt' */
+    if (c == 1 || c == '-' || c == 'O')
+      continue;
+
+    printf("handling optarg %c\n",c);
     switch (c) {
+
+    case 'c':
+      ssb_subcarrier_offset = atoi(optarg);
+      break;
+
     /*case 'f':
       write_output_file=1;
       output_fd = fopen(optarg,"w");
@@ -342,10 +356,6 @@ int main(int argc, char **argv)
       Nid_cell = atoi(optarg);
       break;
 
-    case 'O':
-      ssb_subcarrier_offset = atoi(optarg);
-      break;
-
     case 'o':
       cfo = atof(optarg);
 #ifdef DEBUG_NR_PBCHSIM
@@ -433,6 +443,7 @@ int main(int argc, char **argv)
       printf("%s -F input_filename -g channel_mod -h(elp) -I(nitial sync) -L log_lvl -n n_frames -M SSBs -n frames -N cell_id -o FO -P phase -r seed -R RBs -s snr0 -S snr1 -x transmission_mode -y TXant -z RXant\n",
              argv[0]);
       //printf("-A Interpolation_filname Run with Abstraction to generate Scatter plot using interpolation polynomial in file\n");
+      printf("-c SSB subcarrier offset\n");
       //printf("-C Generate Calibration information for Abstraction (effective SNR adjustment to remove Pe bias w.r.t. AWGN)\n");
       //printf("-d Use TDD\n");
       //printf("-f Output filename (.txt format) for Pe/SNR results\n");
@@ -448,7 +459,6 @@ int main(int argc, char **argv)
       printf("-n Number of frames to simulate\n");
       printf("-N Nid_cell\n");
       printf("-o Carrier frequency offset in Hz\n");
-      printf("-O SSB subcarrier offset\n");
       //printf("-O oversampling factor (1,2,4,8,16)\n");
       //printf("-p Use extended prefix mode\n");
       printf("-P PBCH phase, allowed values 0-3\n");
@@ -487,15 +497,16 @@ int main(int argc, char **argv)
   frame_parms->N_RB_DL = N_RB_DL;
   frame_parms->Nid_cell = Nid_cell;
   frame_parms->ssb_type = nr_ssb_type_C;
-  frame_parms->freq_range = mu<2 ? nr_FR1 : nr_FR2;
+  frame_parms->freq_range = mu<2 ? FR1 : FR2;
 
   nr_phy_config_request_sim_pbchsim(gNB,N_RB_DL,N_RB_DL,mu,Nid_cell,SSB_positions);
   gNB->gNB_config.tdd_table.tdd_period.value = 6;
   set_tdd_config_nr(&gNB->gNB_config, mu, 7, 6, 2, 4);
   phy_init_nr_gNB(gNB);
   frame_parms->ssb_start_subcarrier = 12 * gNB->gNB_config.ssb_table.ssb_offset_point_a.value + ssb_subcarrier_offset;
+  initFloatingCoresTpool(ssb_scan_threads, &nrUE_params.Tpool, false, "UE-tpool");
 
-  uint8_t n_hf = 0;
+  int n_hf = 0;
   int cyclic_prefix_type = NFAPI_CP_NORMAL;
 
   double fs=0, eps;
@@ -609,8 +620,6 @@ int main(int argc, char **argv)
     exit(-1);
   }
 
-  nr_gold_pbch(UE);
-
   processingData_L1tx_t msgDataTx;
   // generate signal
   const uint32_t rxdataF_sz = UE->frame_parms.samples_per_slot_wCP;
@@ -620,8 +629,8 @@ int main(int argc, char **argv)
     for (i=0; i<frame_parms->Lmax; i++) {
       if((SSB_positions >> i) & 0x01) {
 
-        const int sc_offset = frame_parms->freq_range == nr_FR1 ? ssb_subcarrier_offset<<mu : ssb_subcarrier_offset;
-        const int prb_offset = frame_parms->freq_range == nr_FR1 ? gNB->gNB_config.ssb_table.ssb_offset_point_a.value<<mu : gNB->gNB_config.ssb_table.ssb_offset_point_a.value << (mu - 2);
+        const int sc_offset = frame_parms->freq_range == FR1 ? ssb_subcarrier_offset<<mu : ssb_subcarrier_offset;
+        const int prb_offset = frame_parms->freq_range == FR1 ? gNB->gNB_config.ssb_table.ssb_offset_point_a.value<<mu : gNB->gNB_config.ssb_table.ssb_offset_point_a.value << (mu - 2);
         msgDataTx.ssb[i].ssb_pdu.ssb_pdu_rel15.bchPayload = 0x55dd33;
         msgDataTx.ssb[i].ssb_pdu.ssb_pdu_rel15.SsbBlockIndex = i;
         msgDataTx.ssb[i].ssb_pdu.ssb_pdu_rel15.SsbSubcarrierOffset = sc_offset;
@@ -631,49 +640,45 @@ int main(int argc, char **argv)
         int slot = start_symbol/14;
 
         for (aa=0; aa<gNB->frame_parms.nb_antennas_tx; aa++)
-          memset(gNB->common_vars.txdataF[aa],0,frame_parms->samples_per_slot_wCP*sizeof(int32_t));
+          memset(gNB->common_vars.txdataF[0][aa], 0, frame_parms->samples_per_slot_wCP * sizeof(int32_t));
 
         nr_common_signal_procedures (gNB,frame,slot,msgDataTx.ssb[i].ssb_pdu);
 
+        int samp = frame_parms->get_samples_slot_timestamp(slot, frame_parms, 0);
         for (aa=0; aa<gNB->frame_parms.nb_antennas_tx; aa++) {
           if (cyclic_prefix_type == 1) {
             apply_nr_rotation_TX(frame_parms,
-                                 gNB->common_vars.txdataF[aa],
+                                 gNB->common_vars.txdataF[0][aa],
                                  frame_parms->symbol_rotation[0],
                                  slot,
                                  frame_parms->N_RB_DL,
                                  0,
                                  12);
 
-            PHY_ofdm_mod((int *)gNB->common_vars.txdataF[aa],
-            (int *)&txdata[aa][frame_parms->get_samples_slot_timestamp(slot,frame_parms,0)],
-            frame_parms->ofdm_symbol_size,
-            12,
-            frame_parms->nb_prefix_samples,
-            CYCLIC_PREFIX);
+            PHY_ofdm_mod((int *)gNB->common_vars.txdataF[0][aa],
+                         (int *)&txdata[aa][samp],
+                         frame_parms->ofdm_symbol_size,
+                         12,
+                         frame_parms->nb_prefix_samples,
+                         CYCLIC_PREFIX);
           } else {
             apply_nr_rotation_TX(frame_parms,
-                                 gNB->common_vars.txdataF[aa],
+                                 gNB->common_vars.txdataF[0][aa],
                                  frame_parms->symbol_rotation[0],
                                  slot,
                                  frame_parms->N_RB_DL,
                                  0,
                                  14);
 
-            /*nr_normal_prefix_mod(gNB->common_vars.txdataF[aa],
-              &txdata[aa][frame_parms->get_samples_slot_timestamp(slot,frame_parms,0)],
-              14,
-              frame_parms);*/
-
-            PHY_ofdm_mod((int *)gNB->common_vars.txdataF[aa],
-                         (int*)&txdata[aa][frame_parms->get_samples_slot_timestamp(slot,frame_parms,0)],
+            PHY_ofdm_mod((int *)gNB->common_vars.txdataF[0][aa],
+                         (int*)&txdata[aa][samp],
                          frame_parms->ofdm_symbol_size,
                          1,
                          frame_parms->nb_prefix_samples0,
                          CYCLIC_PREFIX);
 
-            PHY_ofdm_mod((int *)&gNB->common_vars.txdataF[aa][frame_parms->ofdm_symbol_size],
-                         (int*)&txdata[aa][frame_parms->get_samples_slot_timestamp(slot,frame_parms,0)+frame_parms->nb_prefix_samples0+frame_parms->ofdm_symbol_size],
+            PHY_ofdm_mod((int *)&gNB->common_vars.txdataF[0][aa][frame_parms->ofdm_symbol_size],
+                         (int*)&txdata[aa][samp + frame_parms->nb_prefix_samples0 + frame_parms->ofdm_symbol_size],
                          frame_parms->ofdm_symbol_size,
                          13,
                          frame_parms->nb_prefix_samples,
@@ -682,9 +687,9 @@ int main(int argc, char **argv)
         }
       }
     }
-    LOG_M("txsigF0.m","txsF0", gNB->common_vars.txdataF[0],frame_length_complex_samples_no_prefix,1,1);
+    LOG_M("txsigF0.m","txsF0", gNB->common_vars.txdataF[0][0],frame_length_complex_samples_no_prefix, 1, 1);
     if (gNB->frame_parms.nb_antennas_tx>1)
-      LOG_M("txsigF1.m","txsF1", gNB->common_vars.txdataF[1],frame_length_complex_samples_no_prefix,1,1);
+      LOG_M("txsigF1.m","txsF1", gNB->common_vars.txdataF[0][1],frame_length_complex_samples_no_prefix, 1, 1);
 
   } else {
     printf("Reading %d samples from file to antenna buffer %d\n",frame_length_complex_samples,0);
@@ -760,13 +765,16 @@ int main(int argc, char **argv)
       }
 
       if (n_trials==1) {
-	LOG_M("rxsig0.m","rxs0", UE->common_vars.rxdata[0],frame_parms->samples_per_frame,1,1);
-	if (gNB->frame_parms.nb_antennas_tx>1)
-	  LOG_M("rxsig1.m","rxs1", UE->common_vars.rxdata[1],frame_parms->samples_per_frame,1,1);
+        LOG_M("rxsig0.m", "rxs0", UE->common_vars.rxdata[0], frame_parms->samples_per_frame, 1, 1);
+        if (gNB->frame_parms.nb_antennas_tx > 1)
+          LOG_M("rxsig1.m", "rxs1", UE->common_vars.rxdata[1], frame_parms->samples_per_frame, 1, 1);
       }
       if (UE->is_synchronized == 0) {
-	UE_nr_rxtx_proc_t proc={0};
-        nr_initial_sync_t ret = nr_initial_sync(&proc, UE, 1, 0);
+        UE_nr_rxtx_proc_t proc = {0};
+        nr_gscn_info_t gscnInfo[MAX_GSCN_BAND] = {0};
+        const int numGscn = 1;
+        gscnInfo[0].ssbFirstSC = frame_parms->ssb_start_subcarrier;
+        nr_initial_sync_t ret = nr_initial_sync(&proc, UE, 1, 0, gscnInfo, numGscn);
         printf("nr_initial_sync1 returns %s\n", ret.cell_detected ? "cell detected" : "cell not detected");
         if (!ret.cell_detected)
           n_errors++;
@@ -787,10 +795,17 @@ int main(int argc, char **argv)
         proc.nr_slot_rx = ssb_slot;
         proc.gNB_id = 0;
         for (int i = UE->symbol_offset + 1; i < UE->symbol_offset + 4; i++) {
-          nr_slot_fep(UE, frame_parms, &proc, i % frame_parms->symbols_per_slot, rxdataF, link_type_dl);
+          nr_slot_fep(UE,
+                      frame_parms,
+                      proc.nr_slot_rx,
+                      i % frame_parms->symbols_per_slot,
+                      rxdataF,
+                      link_type_dl,
+                      0,
+                      UE->common_vars.rxdata);
 
-          nr_pbch_channel_estimation(UE,
-                                     &UE->frame_parms,
+          nr_pbch_channel_estimation(&UE->frame_parms,
+                                     &UE->SL_UE_PHY_PARAMS,
                                      estimateSz,
                                      dl_ch_estimates,
                                      dl_ch_estimates_time,
@@ -799,25 +814,40 @@ int main(int argc, char **argv)
                                      i - (UE->symbol_offset + 1),
                                      ssb_index % 8,
                                      n_hf,
+                                     frame_parms->ssb_start_subcarrier,
                                      rxdataF,
                                      false,
                                      frame_parms->Nid_cell);
         }
         fapiPbch_t result;
-        ret = nr_rx_pbch(UE, &proc, estimateSz, dl_ch_estimates, frame_parms, ssb_index % 8, &result, rxdataF);
+        int ret_ssb_idx;
+        int ret_symbol_offset;
+        ret = nr_rx_pbch(UE,
+                         &proc,
+                         true,
+                         estimateSz,
+                         dl_ch_estimates,
+                         frame_parms,
+                         ssb_index % 8,
+                         frame_parms->ssb_start_subcarrier,
+                         Nid_cell,
+                         &result,
+                         &n_hf,
+                         &ret_ssb_idx,
+                         &ret_symbol_offset,
+                         frame_parms->samples_per_frame_wCP,
+                         rxdataF);
 
         if (ret == 0) {
-          // UE->rx_ind.rx_indication_body->mib_pdu.ssb_index;  //not yet detected automatically
-          // UE->rx_ind.rx_indication_body->mib_pdu.ssb_length; //Lmax, not yet detected automatically
-          uint8_t gNB_xtra_byte = 0;
-          for (int i = 0; i < 8; i++)
-            gNB_xtra_byte |= ((gNB->pbch.pbch_a >> (31 - i)) & 1) << (7 - i);
-
-          payload_ret = (result.xtra_byte == gNB_xtra_byte);
-          for (i = 0; i < 3; i++) {
-            payload_ret +=
-                (result.decoded_output[i] == ((msgDataTx.ssb[ssb_index].ssb_pdu.ssb_pdu_rel15.bchPayload >> (8 * i)) & 0xff));
-          }
+          uint32_t xtra_byte = nr_pbch_extra_byte_generation(frame,
+                                                             n_hf,
+                                                             ssb_index,
+                                                             gNB->gNB_config.ssb_table.ssb_subcarrier_offset.value,
+                                                             frame_parms->Lmax);
+          int payload_ret = (result.xtra_byte == xtra_byte);
+          nfapi_nr_dl_tti_ssb_pdu_rel15_t *pdu = &msgDataTx.ssb[ssb_index].ssb_pdu.ssb_pdu_rel15;
+          for (int i = 0; i < 3; i++)
+            payload_ret += (result.decoded_output[i] == ((pdu->bchPayload >> (8 * i)) & 0xff));
           // printf("ret %d\n", payload_ret);
           if (payload_ret != 4)
             n_errors_payload++;

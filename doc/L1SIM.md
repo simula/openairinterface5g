@@ -45,7 +45,7 @@ $ source oaienv
 $ cd cmake_targets/tools
 $ sudo -E ./init_nas_nos1 eNB
 $ cd ../ran_build/build
-$ sudo -E ./lte-softmodem -O YYY.conf --noS1 --nokrnmod 0
+$ sudo -E ./lte-softmodem -O YYY.conf --noS1
 ```
 
 # How to run a UE with the noS1 option
@@ -59,7 +59,7 @@ $ source oaienv
 $ cd cmake_targets/tools
 $ sudo -E ./init_nas_nos1 UE
 $ cd ../ran_build/build
-$ sudo ./lte-uesoftmodem -O XXX.conf -r 25 --siml1 --noS1 --nokrnmod 0
+$ sudo ./lte-uesoftmodem -O XXX.conf -r 25 --siml1 --noS1
 ```
 
 That should give you equivalent functionality to what you had with oaisim including noise and RF channel emulation (path loss / fading, etc.). You should also be able to run multiple UEs. 

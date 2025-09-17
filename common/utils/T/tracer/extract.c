@@ -113,7 +113,7 @@ int main(int n, char **v)
 
   found = 0;
 
-  OBUF ebuf = { osize: 0, omaxsize: 0, obuf: NULL };
+  OBUF ebuf = {.osize = 0, .omaxsize = 0, .obuf = NULL};
 
   while (1) {
     event e;

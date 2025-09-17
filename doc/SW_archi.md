@@ -98,12 +98,6 @@ The infinite loop:
 raw incoming data is in buffer called "rxdata"  
     We derivate frame number, slot number, ... from the RX timestamp
 {: .func2}
-## nr_fep_full()
-"front end processing" of uplink signal  
-performs DFT on the signal  
-it computes the buffer rxdataF (for frequency) from rxdata (samples over time)  
-rxdataF is the rxdata in frequency domain, phase aligned
-{: .func3}
 ## gNB_top()
 only compute frame numbre, slot number, ...
 {: .func3}

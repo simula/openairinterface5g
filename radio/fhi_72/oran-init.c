@@ -123,6 +123,14 @@ static struct xran_prb_map get_xran_prb_map_ul(const struct xran_fh_config *f)
   return prbmap;
 }
 
+static uint32_t next_power_2(uint32_t num)
+{
+  uint32_t power = 2;
+  while (power < num)
+    power <<= 1;
+  return power;
+}
+
 static uint32_t oran_allocate_uplane_buffers(
     void *instHandle,
     struct xran_buffer_list list[XRAN_MAX_ANTENNA_NR][XRAN_N_FE_BUF_LEN],
@@ -132,7 +140,10 @@ static uint32_t oran_allocate_uplane_buffers(
 {
   xran_status_t status;
   uint32_t pool;
-  uint32_t numBufs = XRAN_N_FE_BUF_LEN * ant * XRAN_NUM_OF_SYMBOL_PER_SLOT;
+  // we need at least XRAN_N_FE_BUF_LEN * ant * XRAN_NUM_OF_SYMBOL_PER_SLOT
+  // buffers, but xran_bm_init() uses rte_pktmbuf_pool_create() which
+  // recommends to use a power of two for the buffers
+  uint32_t numBufs = next_power_2(XRAN_N_FE_BUF_LEN * ant * XRAN_NUM_OF_SYMBOL_PER_SLOT);
   status = xran_bm_init(instHandle, &pool, numBufs, bufSize);
   AssertFatal(XRAN_STATUS_SUCCESS == status, "Failed at xran_bm_init(), status %d\n", status);
   printf("xran_bm_init() hInstance %p poolIdx %u elements %u size %u\n", instHandle, pool, numBufs, bufSize);
@@ -211,14 +222,14 @@ static void oran_allocate_cplane_buffers(void *instHandle,
 {
   xran_status_t status;
   uint32_t poolSec;
-  uint32_t numBufsSec = XRAN_N_FE_BUF_LEN * ant * XRAN_NUM_OF_SYMBOL_PER_SLOT * sect * XRAN_MAX_FRAGMENT;
+  uint32_t numBufsSec = next_power_2(XRAN_N_FE_BUF_LEN * ant * XRAN_NUM_OF_SYMBOL_PER_SLOT * sect * XRAN_MAX_FRAGMENT);
   uint32_t bufSizeSec = sizeof(struct xran_section_desc);
   status = xran_bm_init(instHandle, &poolSec, numBufsSec, bufSizeSec);
   AssertFatal(XRAN_STATUS_SUCCESS == status, "Failed at xran_bm_init(), status %d\n", status);
   printf("xran_bm_init() hInstance %p poolIdx %u elements %u size %u\n", instHandle, poolSec, numBufsSec, bufSizeSec);
 
   uint32_t poolPrb;
-  uint32_t numBufsPrb = XRAN_N_FE_BUF_LEN * ant * XRAN_NUM_OF_SYMBOL_PER_SLOT;
+  uint32_t numBufsPrb = next_power_2(XRAN_N_FE_BUF_LEN * ant * XRAN_NUM_OF_SYMBOL_PER_SLOT);
   uint32_t bufSizePrb = size_of_prb_map;
   status = xran_bm_init(instHandle, &poolPrb, numBufsPrb, bufSizePrb);
   AssertFatal(XRAN_STATUS_SUCCESS == status, "Failed at xran_bm_init(), status %d\n", status);
@@ -381,8 +392,8 @@ static void oran_allocate_buffers(void *handle,
     }
   }
 
-  xran_5g_fronthault_config(pi->instanceHandle, src, srccp, dst, dstcp, oai_xran_fh_rx_callback, &portInstances->RxCbTag[0][0]);
-  xran_5g_prach_req(pi->instanceHandle, prach, prachdecomp, oai_xran_fh_rx_prach_callback, &portInstances->PrachCbTag[0][0]);
+  xran_5g_fronthault_config(pi->instanceHandle, src, srccp, dst, dstcp, oai_xran_fh_rx_callback, &portInstances->pusch_tag);
+  xran_5g_prach_req(pi->instanceHandle, prach, prachdecomp, oai_xran_fh_rx_prach_callback, &portInstances->prach_tag);
 }
 
 int *oai_oran_initialize(const openair0_config_t *openair0_cfg)
@@ -421,7 +432,11 @@ int *oai_oran_initialize(const openair0_config_t *openair0_cfg)
     }
 
     int sector = 0;
+    printf("Initialize ORAN port instance %d (%d) sector %d\n", o_xu_id, init.xran_ports, sector);
     oran_port_instance_t *pi = &gPortInst[o_xu_id][sector];
+    struct xran_cb_tag tag = {.cellId = sector, .oXuId = o_xu_id};
+    pi->prach_tag = tag;
+    pi->pusch_tag = tag;
     oran_allocate_buffers(gxran_handle, o_xu_id, 1, pi, &xran_fh_config[o_xu_id]);
 
     if ((xret = xran_reg_physide_cb(gxran_handle, oai_physide_dl_tti_call_back, NULL, 10, XRAN_CB_TTI)) != XRAN_STATUS_SUCCESS) {

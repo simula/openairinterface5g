@@ -19,17 +19,14 @@
  *      contact@openairinterface.org
  */
 
-#include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
-#include <string.h>
-#include "sim.h"
-#include "SIMULATION/RF/rf.h"
 #include <complex.h>
+#include "sim.h"
 
 void tv_channel(channel_desc_t *desc,double complex ***H,uint32_t length);
 double frand_a_b(double a, double b);
-void tv_conv(double complex **h, double complex *x, double complex *y, uint32_t nb_samples, uint8_t nb_taps, int delay);
+void tv_conv(double complex **h, double complex *x, double complex *y, uint32_t nb_samples, uint8_t nb_taps, uint64_t delay);
 
 void multipath_tv_channel(channel_desc_t *desc,
                           double **tx_sig_re,
@@ -42,10 +39,10 @@ void multipath_tv_channel(channel_desc_t *desc,
 
   double complex **tx,**rx,***H_t;
   double path_loss = pow(10,desc->path_loss_dB/20);
-  int i,j,dd;
-  dd = abs(desc->channel_offset);
+  int i,j;
+  uint64_t dd = desc->channel_offset;
 #ifdef DEBUG_CH
-  printf("[TV CHANNEL] keep = %d : path_loss = %g (%f), nb_rx %d, nb_tx %d, dd %d, len %d max_doppler %g\n",keep_channel,path_loss,desc->path_loss_dB,desc->nb_rx,desc->nb_tx,dd,desc->channel_length,
+  printf("[TV CHANNEL] keep = %d : path_loss = %g (%f), nb_rx %d, nb_tx %d, dd %lu, len %d max_doppler %g\n",keep_channel,path_loss,desc->path_loss_dB,desc->nb_rx,desc->nb_tx,dd,desc->channel_length,
          desc->max_Doppler);
 #endif
   tx = (double complex **)malloc(desc->nb_tx*sizeof(double complex *));
@@ -190,7 +187,7 @@ void tv_channel(channel_desc_t *desc,double complex ***H,uint32_t length){
 }
 
 // time varying convolution
-void tv_conv(double complex **h, double complex *x, double complex *y, uint32_t nb_samples, uint8_t nb_taps, int dd)
+void tv_conv(double complex **h, double complex *x, double complex *y, uint32_t nb_samples, uint8_t nb_taps, uint64_t dd)
 {
   for(int i = 0; i < ((int)nb_samples-dd); i++) {
     for(int j = 0; j < nb_taps; j++) {

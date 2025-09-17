@@ -22,13 +22,15 @@
 #ifndef _NR_PDCP_INTEGRITY_NIA1_H_
 #define _NR_PDCP_INTEGRITY_NIA1_H_
 
-void *nr_pdcp_integrity_nia1_init(unsigned char *integrity_key);
+#include "openair3/SECU/secu_defs.h"
 
-void nr_pdcp_integrity_nia1_integrity(void *integrity_context,
+stream_security_context_t *nr_pdcp_integrity_nia1_init(unsigned char *integrity_key);
+
+void nr_pdcp_integrity_nia1_integrity(stream_security_context_t *integrity_context,
                             unsigned char *out,
                             unsigned char *buffer, int length,
                             int bearer, int count, int direction);
 
-void nr_pdcp_integrity_nia1_free_integrity(void *integrity_context);
+void nr_pdcp_integrity_nia1_free_integrity(stream_security_context_t *integrity_context);
 
 #endif /* _NR_PDCP_INTEGRITY_NIA1_H_ */

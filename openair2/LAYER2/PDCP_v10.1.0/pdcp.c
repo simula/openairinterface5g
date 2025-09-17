@@ -49,8 +49,7 @@
 #include "common/ngran_types.h"
 #include "common/openairinterface5g_limits.h"
 #include "executables/lte-softmodem.h"
-#include "SIMULATION/ETH_TRANSPORT/proto.h"
-#include "openair2/RRC/NAS/nas_config.h"
+#include "common/utils/tun_if.h"
 #include "intertask_interface.h"
 #include "openair3/S1AP/s1ap_eNB.h"
 #include <pthread.h>
@@ -113,7 +112,7 @@ struct sockaddr_in prose_ctrl_addr;
 struct sockaddr_in prose_pdcp_addr;
 struct sockaddr_in pdcp_sin;
 /* pdcp module parameters and related functions*/
-static pdcp_params_t pdcp_params= {0,NULL};
+static pdcp_params_t pdcp_params = {0};
 rnti_t                 pdcp_UE_UE_module_id_to_rnti[MAX_MOBILES_PER_ENB];
 rnti_t                 pdcp_eNB_UE_instance_to_rnti[MAX_MOBILES_PER_ENB]; // for noS1 mode
 unsigned int           pdcp_eNB_UE_instance_to_rnti_index;
@@ -298,8 +297,8 @@ bool pdcp_data_req(protocol_ctxt_t  *ctxt_pP,
            LOG_UI(PDCP, "Before rlc_data_req 1, srb_flagP: %d, rb_idP: %ld \n", srb_flagP, rb_idP);
       }
 
-      rlc_status = pdcp_params.send_rlc_data_req_func(ctxt_pP, srb_flagP, MBMS_FLAG_YES, rb_idP, muiP,
-                   confirmP, sdu_buffer_sizeP, pdcp_pdu_p,NULL,NULL);
+      rlc_status =
+          rlc_data_req(ctxt_pP, srb_flagP, MBMS_FLAG_YES, rb_idP, muiP, confirmP, sdu_buffer_sizeP, pdcp_pdu_p, NULL, NULL);
     } else {
       rlc_status = RLC_OP_STATUS_OUT_OF_RESSOURCES;
       LOG_E(PDCP,PROTOCOL_CTXT_FMT" PDCP_DATA_REQ SDU DROPPED, OUT OF MEMORY \n",
@@ -467,9 +466,16 @@ bool pdcp_data_req(protocol_ctxt_t  *ctxt_pP,
     if ((pdcp_pdu_p!=NULL) && (srb_flagP == 0) && (ctxt_pP->enb_flag == 1)) {
       LOG_D(PDCP, "pdcp data req on drb %ld, size %d, rnti %lx\n", rb_idP, pdcp_pdu_size, ctxt_pP->rntiMaybeUEid);
 
-      rlc_status = pdcp_params.send_rlc_data_req_func(ctxt_pP, srb_flagP, MBMS_FLAG_NO, rb_idP, muiP,
-                   confirmP, pdcp_pdu_size, pdcp_pdu_p,sourceL2Id,
-                   destinationL2Id);
+      rlc_status = rlc_data_req(ctxt_pP,
+                                srb_flagP,
+                                MBMS_FLAG_NO,
+                                rb_idP,
+                                muiP,
+                                confirmP,
+                                pdcp_pdu_size,
+                                pdcp_pdu_p,
+                                sourceL2Id,
+                                destinationL2Id);
       ret = false;
       switch (rlc_status) {
         case RLC_OP_STATUS_OK:
@@ -2124,9 +2130,12 @@ pdcp_config_set_security(
           pdcp_pP->cipheringAlgorithm,
           pdcp_pP->integrityProtAlgorithm);
 
-    kRRCenc != NULL ? memcpy(pdcp_pP->kRRCenc, kRRCenc, 32) : memset(pdcp_pP->kRRCenc, 0, 32);
-    kRRCint != NULL ? memcpy(pdcp_pP->kRRCint, kRRCint, 32) : memset(pdcp_pP->kRRCint, 0, 32);
-    kUPenc != NULL ? memcpy(pdcp_pP->kUPenc, kUPenc, 32) : memset(pdcp_pP->kUPenc, 0, 32);
+    kRRCenc != NULL ? memcpy(pdcp_pP->kRRCenc, kRRCenc+16, 16) : memset(pdcp_pP->kRRCenc, 0, 16);
+    kRRCint != NULL ? memcpy(pdcp_pP->kRRCint, kRRCint+16, 16) : memset(pdcp_pP->kRRCint, 0, 16);
+    kUPenc != NULL ? memcpy(pdcp_pP->kUPenc, kUPenc+16, 16) : memset(pdcp_pP->kUPenc, 0, 16);
+
+    pdcp_pP->security_container_rrc = stream_security_container_init(pdcp_pP->cipheringAlgorithm, pdcp_pP->integrityProtAlgorithm, pdcp_pP->kRRCenc, pdcp_pP->kRRCint);
+    pdcp_pP->security_container_up = stream_security_container_init(pdcp_pP->cipheringAlgorithm, 0, pdcp_pP->kUPenc, NULL);
 
     /* Activate security */
     pdcp_pP->security_activated = 1;
@@ -2196,6 +2205,8 @@ void rrc_pdcp_config_req (
         pdcp_p->last_submitted_pdcp_rx_sn = 4095;
         pdcp_p->seq_num_size = 0;
         pdcp_p->first_missing_pdu = -1;
+        stream_security_container_delete(pdcp_p->security_container_rrc);
+        stream_security_container_delete(pdcp_p->security_container_up);
         pdcp_p->security_activated = 0;
         h_rc = hashtable_remove(pdcp_coll_p, key);
         break;
@@ -2274,63 +2285,38 @@ void rrc_pdcp_config_req (
   }
 }
 
-pdcp_data_ind_func_t get_pdcp_data_ind_func() {
-  return pdcp_params.pdcp_data_ind_func;
-}
-
-void pdcp_set_rlc_data_req_func(send_rlc_data_req_func_t send_rlc_data_req) {
-  pdcp_params.send_rlc_data_req_func = send_rlc_data_req;
-}
-
-void pdcp_set_pdcp_data_ind_func(pdcp_data_ind_func_t pdcp_data_ind) {
-  pdcp_params.pdcp_data_ind_func = pdcp_data_ind;
-}
-
 uint64_t pdcp_module_init( uint64_t pdcp_optmask, int id) {
   /* temporary enforce netlink when UE_NAS_USE_TUN is set,
      this is while switching from noS1 as build option
      to noS1 as config option                               */
   if ( pdcp_optmask & UE_NAS_USE_TUN_BIT) {
-    pdcp_params.optmask = pdcp_params.optmask | PDCP_USE_NETLINK_BIT ;
+    pdcp_params.optmask = pdcp_params.optmask;
   }
 
   pdcp_params.optmask = pdcp_params.optmask | pdcp_optmask ;
-  LOG_I(PDCP, "pdcp init,%s %s\n",
-        ((LINK_ENB_PDCP_TO_GTPV1U)?"usegtp":""),
-        ((PDCP_USE_NETLINK)?"usenetlink":""));
 
-  if (PDCP_USE_NETLINK) {
-    nas_getparams();
-
-    if(UE_NAS_USE_TUN) {
-      int num_if = (NFAPI_MODE == NFAPI_UE_STUB_PNF || IS_SOFTMODEM_SIML1 || NFAPI_MODE == NFAPI_MODE_STANDALONE_PNF)? MAX_MOBILES_PER_ENB : 1;
-      netlink_init_tun("ue",num_if, id);
-      if (IS_SOFTMODEM_NOS1)
-        nas_config(1, 1, 2, "ue");
-      netlink_init_mbms_tun("uem", id);
-      nas_config_mbms(1, 2, 2, "uem");
-      LOG_I(PDCP, "UE pdcp will use tun interface\n");
-    } else if(ENB_NAS_USE_TUN) {
-      netlink_init_tun("enb", 1, 0);
-      nas_config(1, 1, 1, "enb");
-      if(pdcp_optmask & ENB_NAS_USE_TUN_W_MBMS_BIT){
-        netlink_init_mbms_tun("enm", 0);
-      	nas_config_mbms(1, 2, 1, "enm"); 
-      	LOG_I(PDCP, "ENB pdcp will use mbms tun interface\n");
-      }
-      LOG_I(PDCP, "ENB pdcp will use tun interface\n");
-    } else {
-      LOG_I(PDCP, "pdcp will use kernel modules\n");
-      netlink_init();
+  if (UE_NAS_USE_TUN) {
+    int num_if = (NFAPI_MODE == NFAPI_UE_STUB_PNF || IS_SOFTMODEM_SIML1 || NFAPI_MODE == NFAPI_MODE_STANDALONE_PNF) ? MAX_MOBILES_PER_ENB : 1;
+    tun_init("oaitun_ue", num_if, id);
+    if (IS_SOFTMODEM_NOS1)
+      tun_config(1, "10.0.1.2", NULL, "oaitun_ue");
+    tun_init_mbms("oaitun_uem", id + 1);
+    tun_config(1, "10.0.2.2", NULL, "oaitun_uem");
+    LOG_I(PDCP, "UE pdcp will use tun interface\n");
+  } else if (ENB_NAS_USE_TUN) {
+    tun_init("oaitun_enb", 1, 0);
+    tun_config(1, "10.0.1.1", NULL, "oaitun_enb");
+    if (pdcp_optmask & ENB_NAS_USE_TUN_W_MBMS_BIT) {
+      tun_init_mbms("oaitun_enm", 1);
+      tun_config(1, "10.0.2.1", NULL, "oaitun_enm");
+      LOG_I(PDCP, "ENB pdcp will use mbms tun interface\n");
     }
-  }else{
-         if(pdcp_optmask & ENB_NAS_USE_TUN_W_MBMS_BIT){
-             LOG_W(PDCP, "ENB pdcp will use tun interface for MBMS\n");
-             netlink_init_mbms_tun("enm", 0);
-             nas_config_mbms_s1(1, 2, 1, "enm");
-         }else
-             LOG_E(PDCP, "ENB pdcp will not use tun interface\n");
-   }
+    LOG_I(PDCP, "ENB pdcp will use tun interface\n");
+  } else if (pdcp_optmask & ENB_NAS_USE_TUN_W_MBMS_BIT) {
+    tun_init_mbms("oaitun_enm", 0);
+    tun_config(1, "10.0.2.1", NULL, "oaitun_enm");
+    LOG_I(PDCP, "ENB pdcp will use mbms tun interface\n");
+  }
 
   pthread_create(&pdcp_stats_thread_desc,NULL,pdcp_stats_thread,NULL);
 
@@ -2357,7 +2343,7 @@ pdcp_free (
 void pdcp_module_cleanup (void)
 //-----------------------------------------------------------------------------
 {
-  netlink_cleanup();
+  // empty - we could free all contexts, not implemented
 }
 
 //-----------------------------------------------------------------------------

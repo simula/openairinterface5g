@@ -1,0 +1,90 @@
+Connecting to host 172.21.6.102, port 5007
+Reverse mode, remote host 172.21.6.102 is sending
+[  5] local 12.1.1.105 port 52299 connected to 172.21.6.102 port 5007
+[ ID] Interval           Transfer     Bitrate         Jitter    Lost/Total Datagrams
+[  5]   0.00-1.00   sec   389 KBytes  3.19 Mbits/sec  8024.341 ms  131771/132046 (1e+02%)  (omitted)
+[  5]   1.00-2.00   sec   602 KBytes  4.93 Mbits/sec  4.031 ms  -426/0 (0%)  (omitted)
+[  5]   2.00-3.00   sec   638 KBytes  5.22 Mbits/sec  3.643 ms  -451/0 (0%)  (omitted)
+[  5]   3.00-4.00   sec   632 KBytes  5.18 Mbits/sec  3.607 ms  -447/0 (0%)  (omitted)
+[  5]   1.00-1.00   sec   567 KBytes  2.32 Mbits/sec  2.950 ms  -818/0 (0%)
+[  5]   1.00-2.00   sec   570 KBytes  4.67 Mbits/sec  3.083 ms  -403/0 (0%)
+[  5]   2.00-3.00   sec   573 KBytes  4.69 Mbits/sec  3.222 ms  -405/0 (0%)
+[  5]   3.00-4.00   sec   566 KBytes  4.63 Mbits/sec  3.114 ms  -400/0 (0%)
+[  5]   4.00-5.00   sec   576 KBytes  4.71 Mbits/sec  3.594 ms  -407/0 (0%)
+[  5]   5.00-6.00   sec   567 KBytes  4.65 Mbits/sec  3.634 ms  -401/0 (0%)
+[  5]   6.00-7.00   sec   571 KBytes  4.68 Mbits/sec  3.196 ms  -404/0 (0%)
+[  5]   7.00-8.00   sec   567 KBytes  4.65 Mbits/sec  3.514 ms  -401/0 (0%)
+[  5]   8.00-9.00   sec   573 KBytes  4.69 Mbits/sec  3.230 ms  -405/0 (0%)
+[  5]   9.00-10.00  sec   570 KBytes  4.67 Mbits/sec  3.334 ms  -403/0 (0%)
+[  5]  10.00-11.00  sec   566 KBytes  4.63 Mbits/sec  3.602 ms  -400/0 (0%)
+[  5]  11.00-12.00  sec   574 KBytes  4.70 Mbits/sec  3.484 ms  -406/0 (0%)
+[  5]  12.00-13.00  sec   571 KBytes  4.68 Mbits/sec  3.339 ms  -404/0 (0%)
+[  5]  13.00-14.00  sec   568 KBytes  4.66 Mbits/sec  3.404 ms  -402/0 (0%)
+[  5]  14.00-15.00  sec   570 KBytes  4.67 Mbits/sec  3.503 ms  -403/0 (0%)
+[  5]  15.00-16.00  sec   573 KBytes  4.69 Mbits/sec  3.369 ms  -405/0 (0%)
+[  5]  16.00-17.00  sec   567 KBytes  4.65 Mbits/sec  3.533 ms  -401/0 (0%)
+[  5]  17.00-18.00  sec   570 KBytes  4.67 Mbits/sec  3.650 ms  -403/0 (0%)
+[  5]  18.00-19.00  sec   573 KBytes  4.69 Mbits/sec  3.532 ms  -405/0 (0%)
+[  5]  19.00-20.00  sec   568 KBytes  4.66 Mbits/sec  3.461 ms  -402/0 (0%)
+[  5]  20.00-21.00  sec   573 KBytes  4.69 Mbits/sec  3.369 ms  -405/0 (0%)
+[  5]  21.00-22.00  sec   566 KBytes  4.63 Mbits/sec  3.654 ms  -400/0 (0%)
+[  5]  22.00-23.00  sec   573 KBytes  4.69 Mbits/sec  3.309 ms  -405/0 (0%)
+[  5]  23.00-24.00  sec   568 KBytes  4.66 Mbits/sec  3.681 ms  -402/0 (0%)
+[  5]  24.00-25.00  sec   570 KBytes  4.67 Mbits/sec  3.443 ms  -403/0 (0%)
+[  5]  25.00-26.00  sec   571 KBytes  4.68 Mbits/sec  3.467 ms  -404/0 (0%)
+[  5]  26.00-27.00  sec   573 KBytes  4.69 Mbits/sec  3.324 ms  -405/0 (0%)
+[  5]  27.00-28.00  sec   566 KBytes  4.63 Mbits/sec  3.425 ms  -400/0 (0%)
+[  5]  28.00-29.00  sec   574 KBytes  4.70 Mbits/sec  3.274 ms  -406/0 (0%)
+[  5]  29.00-30.00  sec   570 KBytes  4.67 Mbits/sec  3.413 ms  -403/0 (0%)
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate         Jitter    Lost/Total Datagrams
+[  5]   0.00-30.01  sec  16.7 MBytes  4.67 Mbits/sec  0.000 ms  0/-117930 (0%)  sender
+[SUM]  0.0-30.0 sec  12094 datagrams received out-of-order
+[  5]   0.00-30.00  sec  16.7 MBytes  4.67 Mbits/sec  3.413 ms  -12094/0 (0%)  receiver
+
+Server output:
+Accepted connection from 172.21.6.101, port 47601
+[  5] local 172.21.6.102 port 5007 connected to 172.21.6.101 port 52299
+[ ID] Interval           Transfer     Bitrate         Total Datagrams
+[  5]   0.00-1.00   sec   570 KBytes  4.67 Mbits/sec  403  (omitted)
+[  5]   1.00-2.00   sec   570 KBytes  4.67 Mbits/sec  403  (omitted)
+[  5]   2.00-3.00   sec   571 KBytes  4.68 Mbits/sec  404  (omitted)
+[  5]   3.00-4.00   sec   570 KBytes  4.67 Mbits/sec  403  (omitted)
+[  5]   4.00-5.00   sec   570 KBytes  4.67 Mbits/sec  403  (omitted)
+[  5]   0.00-1.00   sec   570 KBytes  4.67 Mbits/sec  403
+[  5]   1.00-2.00   sec   570 KBytes  4.67 Mbits/sec  403
+[  5]   2.00-3.00   sec   570 KBytes  4.67 Mbits/sec  403
+[  5]   3.00-4.00   sec   570 KBytes  4.67 Mbits/sec  403
+[  5]   4.00-5.00   sec   571 KBytes  4.68 Mbits/sec  404
+[  5]   5.00-6.00   sec   570 KBytes  4.67 Mbits/sec  403
+[  5]   6.00-7.00   sec   570 KBytes  4.67 Mbits/sec  403
+[  5]   7.00-8.00   sec   570 KBytes  4.67 Mbits/sec  403
+[  5]   8.00-9.00   sec   571 KBytes  4.68 Mbits/sec  404
+[  5]   9.00-10.00  sec   570 KBytes  4.67 Mbits/sec  403
+[  5]  10.00-11.00  sec   570 KBytes  4.67 Mbits/sec  403
+[  5]  11.00-12.00  sec   570 KBytes  4.67 Mbits/sec  403
+[  5]  12.00-13.00  sec   570 KBytes  4.67 Mbits/sec  403
+[  5]  13.00-14.00  sec   570 KBytes  4.67 Mbits/sec  403
+[  5]  14.00-15.00  sec   570 KBytes  4.67 Mbits/sec  403
+[  5]  15.00-16.00  sec   570 KBytes  4.67 Mbits/sec  403
+[  5]  16.00-17.00  sec   570 KBytes  4.67 Mbits/sec  403
+[  5]  17.00-18.00  sec   570 KBytes  4.67 Mbits/sec  403
+[  5]  18.00-19.00  sec   571 KBytes  4.68 Mbits/sec  404
+[  5]  19.00-20.00  sec   570 KBytes  4.67 Mbits/sec  403
+[  5]  20.00-21.00  sec   570 KBytes  4.67 Mbits/sec  403
+[  5]  21.00-22.00  sec   570 KBytes  4.67 Mbits/sec  403
+[  5]  22.00-23.00  sec   570 KBytes  4.67 Mbits/sec  403
+[  5]  23.00-24.00  sec   570 KBytes  4.67 Mbits/sec  403
+[  5]  24.00-25.00  sec   571 KBytes  4.68 Mbits/sec  404
+[  5]  25.00-26.00  sec   570 KBytes  4.67 Mbits/sec  403
+[  5]  26.00-27.00  sec   570 KBytes  4.67 Mbits/sec  403
+[  5]  27.00-28.00  sec   570 KBytes  4.67 Mbits/sec  403
+[  5]  28.00-29.00  sec   570 KBytes  4.67 Mbits/sec  403
+[  5]  29.00-30.00  sec   570 KBytes  4.67 Mbits/sec  403
+[  5]  30.00-30.01  sec  8.48 KBytes  4.94 Mbits/sec  6
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate         Jitter    Lost/Total Datagrams
+[  5]   0.00-30.01  sec  16.7 MBytes  4.67 Mbits/sec  0.000 ms  0/12100 (0%)  sender
+
+
+iperf Done.

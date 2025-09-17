@@ -21,11 +21,11 @@ In this tutorial we describe how to configure and run a 5G end-to-end setup with
 
 Minimum hardware requirements:
 - Laptop/Desktop/Server for OAI CN5G and OAI gNB
-    - Operating System: [Ubuntu 22.04 LTS](https://releases.ubuntu.com/22.04/ubuntu-22.04.3-desktop-amd64.iso)
+    - Operating System: [Ubuntu 24.04 LTS](https://releases.ubuntu.com/24.04/ubuntu-24.04.1-desktop-amd64.iso)
     - CPU: 8 cores x86_64 @ 3.5 GHz
     - RAM: 32 GB
 - Laptop for UE
-    - Operating System: [Ubuntu 22.04 LTS](https://releases.ubuntu.com/22.04/ubuntu-22.04.3-desktop-amd64.iso)
+    - Operating System: [Ubuntu 24.04 LTS](https://releases.ubuntu.com/24.04/ubuntu-24.04.1-desktop-amd64.iso)
     - CPU: 8 cores x86_64 @ 3.5 GHz
     - RAM: 8 GB
 - [USRP B210](https://www.ettus.com/all-products/ub210-kit/), [USRP N300](https://www.ettus.com/all-products/USRP-N300/) or [USRP X300](https://www.ettus.com/all-products/x300-kit/)
@@ -47,11 +47,11 @@ Please install and configure OAI CN5G as described here:
 ### Build UHD from source
 ```bash
 # https://files.ettus.com/manual/page_build_guide.html
-sudo apt install -y autoconf automake build-essential ccache cmake cpufrequtils doxygen ethtool g++ git inetutils-tools libboost-all-dev libncurses5 libncurses5-dev libusb-1.0-0 libusb-1.0-0-dev libusb-dev python3-dev python3-mako python3-numpy python3-requests python3-scipy python3-setuptools python3-ruamel.yaml
+sudo apt install -y autoconf automake build-essential ccache cmake cpufrequtils doxygen ethtool g++ git inetutils-tools libboost-all-dev libncurses-dev libusb-1.0-0 libusb-1.0-0-dev libusb-dev python3-dev python3-mako python3-numpy python3-requests python3-scipy python3-setuptools python3-ruamel.yaml
 
 git clone https://github.com/EttusResearch/uhd.git ~/uhd
 cd ~/uhd
-git checkout v4.6.0.0
+git checkout v4.7.0.0
 cd host
 mkdir build
 cd build
@@ -159,6 +159,41 @@ cd ~/openairinterface5g/cmake_targets/ran_build/build
 sudo ./nr-uesoftmodem -r 32 --numerology 3 --band 257 -C 27533280000 --sa --uicc0.imsi 001010000000001 --ssb 72 --rfsim
 ```
 
+### Connection to an NG-Core
+
+A configuration file can be fed to the nrUE command line in order to connect to the local NGC.
+
+The nrUE configuration file (e.g. [ue.conf](../targets/PROJECTS/GENERIC-NR-5GC/CONF/ue.conf)) is structured in a key-value format and contains the relevant UICC parameters that are necessary to authenticate the UE to the local 5GC. E.g.:
+
+```shell
+uicc0 = {
+  imsi = "001010000000001";
+  key = "fec86ba6eb707ed08905757b1bb44b8f";
+  opc = "C42449363BBAD02B66D16BC975D77CC1";
+  dnn = "oai";
+  nssai_sst = 1;
+}
+```
+
+| **Parameter** | **Description** | **Default Value** |
+|---------------|-----------------|-------------------|
+| **IMSI** | Unique identifier for the UE within the mobile network. Used by the network to identify the UE during authentication. It ensures that the UE is correctly identified by the network. | 001010000000001 |
+| **key** | Cryptographic key shared between the UE and the network, used for encryption during the authentication process. | `fec86ba6eb707ed08905757b1bb44b8f` |
+| **OPC** | Operator key for the Milenage Authentication and Key Agreement algorithm used for encryption during the authentication process. | Ensures secure communication between the UE and the network by matching the encryption keys. | `C42449363BBAD02B66D16BC975D77CC1` |
+| **DNN** | Specifies the name of the data network the UE wishes to connect to, similar to an APN in 4G networks. | `oai` |
+| **NSSAI** | Allows the UE to select the appropriate network slice, which provides different QoS. | `1` |
+
+The UE configuration must match the one of the network's AMF. The nrUE can connect by default to OAI CN5G with no need to provide the configuration file.
+
+When running the `nr-uesoftmodem`, one can specify the nrUE configuration file using the `-O` option. E.g.:
+
+```bash
+sudo ./nr-uesoftmodem --rfsim --rfsimulator.serveraddr 127.0.0.1 --sa -r 106 --numerology 1 --band 78 -C 3619200000 -O ~/nrue.uicc.conf
+```
+The CL option `--uicc0.imsi`  can override the IMSI value in the configuration file if necessary (e.g. when running multiple UEs): `--uicc0.imsi  001010000000001`.
+
+More details available at [ci-scripts/yaml_files/5g_rfsimulator/README.md](../ci-scripts/yaml_files/5g_rfsimulator/README.md).
+
 ## 5.2 End-to-end connectivity test
 - Ping test from the UE host to the CN5G
 ```bash
@@ -201,6 +236,8 @@ sudo ethtool -G enp1s0f0 tx 4096 rx 4096
 - Sometimes, the nrUE would keep repeating RA procedure because of Msg3 failure at the gNB. If it happens, add the `-A` option at the nrUE and/or gNB side, e.g., `-A 45`. This modifies the timing advance (in samples). Adjust +/-5 if the issue persists.
 - This can be necessary since certain USRPs have larger signal delays than others; it is therefore specific to the used USRP model.
 - The x310 and B210 are found to work with the default configuration; N310 and x410 can benefit from setting this timing advance.
+- For example if the OAI UE uses the X410 and the gNB based on [Nvidia Aerial and Foxconn](./Aerial_FAPI_Split_Tutorial.md) a timing advance of 90 has been found to work well.  
+
 
 ## 6.5 Lower latency on user plane
 - To lower latency on the user plane, you can force the UE to be scheduled constantly in uplink: `--MACRLCs.[0].ulsch_max_frame_inactivity 0` .

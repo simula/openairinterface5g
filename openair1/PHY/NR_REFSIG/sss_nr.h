@@ -95,11 +95,15 @@ void free_context_sss_nr(void);
 void insert_sss_nr(int16_t *sss_time,
                    NR_DL_FRAME_PARMS *frame_parms);
 
-bool rx_sss_nr(PHY_VARS_NR_UE *ue,
-               const UE_nr_rxtx_proc_t *proc,
+bool rx_sss_nr(const NR_DL_FRAME_PARMS *frame_parms,
+               int nid2,
+               int target_Nid_cell,
+               int freq_offset_pss,
+               int ssb_start_subcarrier,
+               int *Nid_cell,
                int32_t *tot_metric,
                uint8_t *phase_max,
                int *freq_offset_sss,
-               c16_t rxdataF[][ue->frame_parms.samples_per_slot_wCP]);
+               c16_t rxdataF[][frame_parms->samples_per_slot_wCP]);
 #endif /* SSS_NR_H */
 

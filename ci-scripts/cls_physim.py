@@ -52,7 +52,6 @@ class PhySim:
 		self.ranCommitID= ""
 		self.ranAllowMerge= ""
 		self.ranTargetBranch= ""
-		self.exitStatus=0
 		self.forced_workspace_cleanup=False
 		#private attributes
 		self.__workSpacePath=''
@@ -84,7 +83,7 @@ class PhySim:
 		os.system('mv '+self.__runLogFile+' '+ self.__runLogPath+'/.')
 
 		HTML.CreateHtmlTestRowQueue(self.runargs, 'OK', [info])
-		return HTML
+		return True
 
 	def __CheckResults_LDPCt2Test(self,HTML,CONST,testcase_id):
 		thrs_KO = int(self.timethrs)
@@ -111,20 +110,19 @@ class PhySim:
 		if res_enc is None and res_dec is None:
 			logging.error(f'no statistics: res_enc {res_enc} res_dec {res_dec}')
 			HTML.CreateHtmlTestRowQueue(self.runargs, 'KO', ['no statistics'])
-			self.exitStatus = 1
 			os.system(f'mv {self.__runLogFile} {self.__runLogPath}/.')
-			return HTML
+			return False
 
 		#once parsed move the local logfile to its folder
 		os.system(f'mv {self.__runLogFile} {self.__runLogPath}/.')
-		if float(time) < thrs_KO:
+		success = float(time) < thrs_KO
+		if success:
 			HTML.CreateHtmlTestRowQueue(self.runargs, 'OK', [info])
 		else:
 			error_msg = f'Processing time exceeds a limit of {thrs_KO} us'
 			logging.error(error_msg)
 			HTML.CreateHtmlTestRowQueue(self.runargs, 'KO', [info + '\n' + error_msg])
-			self.exitStatus = 1
-		return HTML
+		return success
 
 	def __CheckResults_NRulsimTest(self, HTML, CONST, testcase_id):
 		#retrieve run log file and store it locally
@@ -135,8 +133,7 @@ class PhySim:
 			error_msg = f'could not recover test result file {filename}'
 			logging.error(error_msg)
 			HTML.CreateHtmlTestRowQueue("could not recover results", 'KO', [error_msg])
-			self.exitStatus = 1
-			return HTML
+			return False
 
 		PUSCH_OK = False
 		with open(self.__runLogFile) as f:
@@ -152,8 +149,7 @@ class PhySim:
 			error_msg = 'error: no "PUSCH test OK"'
 			logging.error(error_msg)
 			HTML.CreateHtmlTestRowQueue(self.runargs, 'KO', 1, [error_msg])
-			self.exitStatus = 1
-		return HTML
+		return PUSCH_OK
 
 	def __CheckBuild_PhySim(self, HTML, CONST):
 		self.__workSpacePath=self.eNBSourceCodePath+'/cmake_targets/'
@@ -168,14 +164,11 @@ class PhySim:
 		with open(self.__buildLogFile) as f:
 			if 'BUILD SHOULD BE SUCCESSFUL' in f.read():
 				HTML.CreateHtmlTestRow(self.buildargs, 'OK', CONST.ALL_PROCESSES_OK, 'PhySim')
-				self.exitStatus=0
-				return HTML
+				return True
 		logging.error('\u001B[1m Building Physical Simulators Failed\u001B[0m')
 		HTML.CreateHtmlTestRow(self.buildargs, 'KO', CONST.ALL_PROCESSES_OK, 'LDPC')
 		HTML.CreateHtmlTabFooter(False)
-		#exitStatus=1 will do a sys.exit in main
-		self.exitStatus = 1
-		return HTML
+		return False
 
 
 #-----------------$
@@ -226,10 +219,7 @@ class PhySim:
 		mySSH.command(f'./build_oai {self.buildargs} 2>&1 | tee {self.__buildLogFile}', '\$', 1500)
 
 		mySSH.close()
-		#check build status and update HTML object
-		lHTML = cls_oai_html.HTMLManagement()
-		lHTML=self.__CheckBuild_PhySim(htmlObj,constObj)
-		return lHTML
+		return __CheckBuild_PhySim(htmlObj,constObj)
 
 
 	def Run_CUDATest(self,htmlObj,constObj,testcase_id):
@@ -245,10 +235,7 @@ class PhySim:
 		#run and redirect the results to a log file
 		mySSH.command(self.__workSpacePath+'ran_build/build/ldpctest ' + self.runargs + ' >> '+self.__runLogFile, '\$', 30)
 		mySSH.close()
-		#return updated HTML to main
-		lHTML = cls_oai_html.HTMLManagement()
-		lHTML=self.__CheckResults_LDPCcudaTest(htmlObj,constObj,testcase_id)
-		return lHTML
+		return self.__CheckResults_LDPCcudaTest(htmlObj,constObj,testcase_id)
 
 	def Run_T2Test(self,htmlObj,constObj,testcase_id):
 		self.__workSpacePath = f'{self.eNBSourceCodePath}/cmake_targets/'
@@ -262,10 +249,7 @@ class PhySim:
 		#run and redirect the results to a log file
 		mySSH.run(f'sudo {self.__workSpacePath}ran_build/build/{self.runsim} {self.runargs} > {self.__workSpacePath}{self.__runLogFile} 2>&1')
 		mySSH.close()
-		#return updated HTML to main
-		lHTML = cls_oai_html.HTMLManagement()
-		lHTML=self.__CheckResults_LDPCt2Test(htmlObj,constObj,testcase_id)
-		return lHTML
+		return self.__CheckResults_LDPCt2Test(htmlObj,constObj,testcase_id)
 
 	def Run_NRulsimTest(self, htmlObj, constObj, testcase_id):
 		self.__workSpacePath=self.eNBSourceCodePath+'/cmake_targets/'
@@ -276,6 +260,4 @@ class PhySim:
 		mySSH.command(f'cd {self.__workSpacePath}', '\$', 5)
 		mySSH.command(f'sudo {self.__workSpacePath}ran_build/build/nr_ulsim {self.runargs} > {self.__runLogFile} 2>&1', '\$', 30)
 		mySSH.close()
-		#return updated HTML to main
-		lHTML = self.__CheckResults_NRulsimTest(htmlObj, constObj, testcase_id)
-		return lHTML
+		return self.__CheckResults_NRulsimTest(htmlObj, constObj, testcase_id)

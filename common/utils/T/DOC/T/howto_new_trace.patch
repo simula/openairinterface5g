@@ -164,7 +164,7 @@ index 0000000000..00baf34774
 +  }
 +
 +  /* a buffer needed to receive events from the nr-softmodem */
-+  OBUF ebuf = { osize: 0, omaxsize: 0, obuf: NULL };
++  OBUF ebuf = { .osize = 0, .omaxsize = 0, .obuf = NULL };
 +
 +  /* read events */
 +  while (1) {

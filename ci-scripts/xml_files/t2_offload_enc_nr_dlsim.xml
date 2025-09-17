@@ -23,7 +23,6 @@
 	<htmlTabRef>test-t2-offload-enc</htmlTabRef>
 	<htmlTabName>Test T2 Offload Encoder</htmlTabName>
 	<htmlTabIcon>tasks</htmlTabIcon>
-	<repeatCount>1</repeatCount>
         <TestCaseRequestedList>
                 000111 000112 000121 000122 000131 000132
                 000211 000212 000221 000222 000231 000232
@@ -44,7 +43,7 @@
 		<desc>Run nr_dlsim with T2 LDPC offload: SNR = 30, MCS = 5, 106 PRBs, 1 layer</desc>
 		<physim_run>nr_dlsim</physim_run>
 		<physim_time_threshold>100</physim_time_threshold>
-		<physim_run_args>-n100 -s30 -e5 -b106 -R106 -c -P</physim_run_args>
+		<physim_run_args>-n100 -s30 -e5 -b106 -R106 -c -P --ldpc_offload.dpdk_dev d8:00.0</physim_run_args>
 	</testCase>
 
 	<testCase id="000121">
@@ -60,7 +59,7 @@
 		<desc>Run nr_dlsim with T2 LDPC offload: SNR = 30, MCS = 15, 106 PRBs, 1 layer</desc>
 		<physim_run>nr_dlsim</physim_run>
 		<physim_time_threshold>100</physim_time_threshold>
-		<physim_run_args>-n100 -s30 -e15 -b106 -R106 -c -P</physim_run_args>
+		<physim_run_args>-n100 -s30 -e15 -b106 -R106 -c -P --ldpc_offload.dpdk_dev d8:00.0</physim_run_args>
 	</testCase>
 
 	<testCase id="000131">
@@ -76,7 +75,7 @@
                 <desc>Run nr_dlsim with T2 LDPC offload: SNR = 30, MCS = 25, 106 PRBs, 1 layer</desc>
                 <physim_run>nr_dlsim</physim_run>
                 <physim_time_threshold>200</physim_time_threshold>
-                <physim_run_args>-n100 -s30 -e25 -b106 -R106 -c -P</physim_run_args>
+                <physim_run_args>-n100 -s30 -e25 -b106 -R106 -c -P --ldpc_offload.dpdk_dev d8:00.0</physim_run_args>
         </testCase>
 
         <testCase id="000211">
@@ -92,7 +91,7 @@
                 <desc>Run nr_dlsim with T2 LDPC offload: SNR = 30, MCS = 5, 273 PRBs, 1 layer</desc>
                 <physim_run>nr_dlsim</physim_run>
                 <physim_time_threshold>150</physim_time_threshold>
-                <physim_run_args>-n100 -s30 -e5 -b273 -R273 -c -P</physim_run_args>
+                <physim_run_args>-n100 -s30 -e5 -b273 -R273 -c -P --ldpc_offload.dpdk_dev d8:00.0</physim_run_args>
 	</testCase>
 
 	<testCase id="000221">
@@ -108,7 +107,7 @@
                 <desc>Run nr_dlsim with T2 LDPC offload: SNR = 30, MCS = 15, 273 PRBs, 1 layer</desc>
                 <physim_run>nr_dlsim</physim_run>
                 <physim_time_threshold>250</physim_time_threshold>
-                <physim_run_args>-n100 -s30 -e15 -b273 -R273 -c -P</physim_run_args>
+                <physim_run_args>-n100 -s30 -e15 -b273 -R273 -c -P --ldpc_offload.dpdk_dev d8:00.0</physim_run_args>
         </testCase>
 
         <testCase id="000231">
@@ -124,7 +123,7 @@
                 <desc>Run nr_dlsim with T2 LDPC offload: SNR = 30, MCS = 25, 273 PRBs, 1 layer</desc>
                 <physim_run>nr_dlsim</physim_run>
                 <physim_time_threshold>400</physim_time_threshold>
-                <physim_run_args>-n100 -s30 -e25 -b273 -R273 -c -P</physim_run_args>
+                <physim_run_args>-n100 -s30 -e25 -b273 -R273 -c -P --ldpc_offload.dpdk_dev d8:00.0</physim_run_args>
         </testCase>
 
         <testCase id="000311">
@@ -140,7 +139,7 @@
                 <desc>Run nr_dlsim with T2 LDPC offload: SNR = 30, MCS = 5, 273 PRBs, 2 layers</desc>
                 <physim_run>nr_dlsim</physim_run>
                 <physim_time_threshold>200</physim_time_threshold>
-                <physim_run_args>-n100 -s30 -e5 -b273 -R273 -c -x2 -z2 -y2 -P</physim_run_args>
+                <physim_run_args>-n100 -s30 -e5 -b273 -R273 -c -x2 -z2 -y2 -P --ldpc_offload.dpdk_dev d8:00.0</physim_run_args>
         </testCase>
 
         <testCase id="000321">
@@ -156,7 +155,7 @@
                 <desc>Run nr_dlsim with T2 LDPC offload: SNR = 30, MCS = 15, 273 PRBs, 2 layers</desc>
                 <physim_run>nr_dlsim</physim_run>
                 <physim_time_threshold>500</physim_time_threshold>
-                <physim_run_args>-n100 -s30 -e15 -b273 -R273 -c -x2 -z2 -y2 -P</physim_run_args>
+                <physim_run_args>-n100 -s30 -e15 -b273 -R273 -c -x2 -z2 -y2 -P --ldpc_offload.dpdk_dev d8:00.0</physim_run_args>
         </testCase>
 
         <testCase id="000331">
@@ -172,7 +171,7 @@
                 <desc>Run nr_dlsim with T2 LDPC offload: SNR = 30, MCS = 25, 273 PRBs, 2 layers</desc>
                 <physim_run>nr_dlsim</physim_run>
                 <physim_time_threshold>800</physim_time_threshold>
-                <physim_run_args>-n100 -s30 -e25 -b273 -R273 -c -x2 -z2 -y2 -P</physim_run_args>
+                <physim_run_args>-n100 -s30 -e25 -b273 -R273 -c -x2 -z2 -y2 -P --ldpc_offload.dpdk_dev d8:00.0</physim_run_args>
         </testCase>
 
 </testCaseList>

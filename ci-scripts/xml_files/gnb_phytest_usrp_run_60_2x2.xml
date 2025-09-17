@@ -24,7 +24,6 @@
   <htmlTabRef>gNB-PHY-Test-60-2x2</htmlTabRef>
   <htmlTabName>Timing phytest 60 MHz 2x2</htmlTabName>
   <htmlTabIcon>tasks</htmlTabIcon>
-  <repeatCount>1</repeatCount>
   <TestCaseRequestedList>
 100000 290101 000001 290109 200000
   </TestCaseRequestedList>
@@ -37,6 +36,7 @@
   </testCase>
   <testCase id="200000">
 	  <class>Custom_Command</class>
+    <always_exec>true</always_exec>
 	  <desc>Enable Sleep States</desc>
 	  <node>caracal</node>
 	  <command>sudo cpupower idle-set -E</command>
@@ -61,6 +61,7 @@
 
   <testCase id="290109">
     <class>Terminate_eNB</class>
+    <always_exec>true</always_exec>
     <desc>Terminate gNB</desc>
     <air_interface>NR</air_interface>
   </testCase>

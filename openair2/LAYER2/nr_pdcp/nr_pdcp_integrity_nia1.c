@@ -28,24 +28,23 @@
 #include "openair3/SECU/secu_defs.h"
 #include "openair3/SECU/key_nas_deriver.h"
 
-void *nr_pdcp_integrity_nia1_init(unsigned char *integrity_key)
+stream_security_context_t *nr_pdcp_integrity_nia1_init(unsigned char *integrity_key)
 {
   nas_stream_cipher_t *ret;
 
   ret = calloc(1, sizeof(*ret)); if (ret == NULL) abort();
-  ret->key = malloc(16); if (ret->key == NULL) abort();
-  memcpy(ret->key, integrity_key, 16);
-  ret->key_length = 16;   /* unused */
+  ret->context = malloc(16); if (ret->context == NULL) abort();
+  memcpy(ret->context, integrity_key, 16);
 
-  return ret;
+  return (stream_security_context_t *)ret;
 }
 
-void nr_pdcp_integrity_nia1_integrity(void *integrity_context,
+void nr_pdcp_integrity_nia1_integrity(stream_security_context_t *integrity_context,
                             unsigned char *out,
                             unsigned char *buffer, int length,
                             int bearer, int count, int direction)
 {
-  nas_stream_cipher_t *ctx = integrity_context;
+  nas_stream_cipher_t *ctx = (nas_stream_cipher_t *)integrity_context;
 
   ctx->message = buffer;
   ctx->count = count;
@@ -56,9 +55,9 @@ void nr_pdcp_integrity_nia1_integrity(void *integrity_context,
   stream_compute_integrity(EIA1_128_ALG_ID, ctx, out);
 }
 
-void nr_pdcp_integrity_nia1_free_integrity(void *integrity_context)
+void nr_pdcp_integrity_nia1_free_integrity(stream_security_context_t *integrity_context)
 {
-  nas_stream_cipher_t *ctx = integrity_context;
-  free(ctx->key);
+  nas_stream_cipher_t *ctx = (nas_stream_cipher_t *)integrity_context;
+  free(ctx->context);
   free(ctx);
 }

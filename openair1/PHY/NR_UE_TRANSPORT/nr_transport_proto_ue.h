@@ -52,116 +52,6 @@
 */
 void nr_ue_dlsch_init(NR_UE_DLSCH_t *dlsch_list, int num_dlsch, uint8_t max_ldpc_iterations);
 
-/** \brief This function computes the LLRs for ML (max-logsum approximation) dual-stream QPSK/QPSK reception.
-    @param stream0_in Input from channel compensated (MR combined) stream 0
-    @param stream1_in Input from channel compensated (MR combined) stream 1
-    @param stream0_out Output from LLR unit for stream0
-    @param rho01 Cross-correlation between channels (MR combined)
-    @param length in complex channel outputs*/
-void nr_qpsk_qpsk(int16_t *stream0_in,
-               int16_t *stream1_in,
-               int16_t *stream0_out,
-               int16_t *rho01,
-               int32_t length);
-
-/** \brief This function perform LLR computation for dual-stream (QPSK/QPSK) transmission.
-    @param frame_parms Frame descriptor structure
-    @param rxdataF_comp Compensated channel output
-    @param rxdataF_comp_i Compensated channel output for interference
-    @param rho_i Correlation between channel of signal and inteference
-    @param dlsch_llr llr output
-    @param symbol OFDM symbol index in sub-frame
-    @param len
-    @param first_symbol_flag flag to indicate this is the first symbol of the dlsch
-    @param nb_rb number of RBs for this allocation
-    @param pbch_pss_sss_adj Number of channel bits taken by PBCH/PSS/SSS
-    @param llr128p pointer to pointer to symbol in dlsch_llr*/
-int32_t nr_dlsch_qpsk_qpsk_llr(NR_DL_FRAME_PARMS *frame_parms,
-                            int32_t **rxdataF_comp,
-                            int32_t **rxdataF_comp_i,
-                            int32_t **rho_i,
-                            int16_t *dlsch_llr,
-                            uint8_t symbol,
-                            uint32_t len,
-                            uint8_t first_symbol_flag,
-                            uint16_t nb_rb,
-                            uint16_t pbch_pss_sss_adj,
-                            int16_t **llr128p);
-
-/** \brief This function generates log-likelihood ratios (decoder input) for single-stream QPSK received waveforms
-    @param frame_parms Frame descriptor structure
-    @param rxdataF_comp Compensated channel output
-    @param dlsch_llr llr output
-    @param symbol OFDM symbol index in sub-frame
-    @param len
-    @param first_symbol_flag
-    @param nb_rb number of RBs for this allocation
-*/
-int32_t nr_dlsch_qpsk_llr(NR_DL_FRAME_PARMS *frame_parms,
-                   int32_t *rxdataF_comp,
-                   int16_t *dlsch_llr,
-                   uint8_t symbol,
-                   uint32_t len,
-                   uint8_t first_symbol_flag,
-                   uint16_t nb_rb);
-
-/**
-   \brief This function generates log-likelihood ratios (decoder input) for single-stream 16QAM received waveforms
-   @param frame_parms Frame descriptor structure
-   @param rxdataF_comp Compensated channel output
-   @param dlsch_llr llr output
-   @param dl_ch_mag Squared-magnitude of channel in each resource element position corresponding to allocation and weighted for
-   mid-point in 16QAM constellation
-   @param len
-   @param symbol OFDM symbol index in sub-frame
-   @param first_symbol_flag
-   @param nb_rb number of RBs for this allocation
-*/
-
-void nr_dlsch_16qam_llr(NR_DL_FRAME_PARMS *frame_parms,
-                     int32_t *rxdataF_comp,
-                     int16_t *dlsch_llr,
-                     int32_t *dl_ch_mag,
-                     uint8_t symbol,
-                     uint32_t len,
-                     uint8_t first_symbol_flag,
-                     uint16_t nb_rb);
-/**
-   \brief This function generates log-likelihood ratios (decoder input) for single-stream 16QAM received waveforms
-   @param frame_parms Frame descriptor structure
-   @param rxdataF_comp Compensated channel output
-   @param dlsch_llr llr output
-   @param dl_ch_mag Squared-magnitude of channel in each resource element position corresponding to allocation, weighted by first
-   mid-point of 64-QAM constellation
-   @param dl_ch_magb Squared-magnitude of channel in each resource element position corresponding to allocation, weighted by second
-   mid-point of 64-QAM constellation
-   @param symbol OFDM symbol index in sub-frame
-   @param len
-   @param first_symbol_flag
-   @param nb_rb number of RBs for this allocation
-*/
-
-void nr_dlsch_64qam_llr(NR_DL_FRAME_PARMS *frame_parms,
-                     int32_t *rxdataF_comp,
-                     int16_t *dlsch_llr,
-                     int32_t *dl_ch_mag,
-                     int32_t *dl_ch_magb,
-                     uint8_t symbol,
-                     uint32_t len,
-                     uint8_t first_symbol_flag,
-                     uint16_t nb_rb);
-
-void nr_dlsch_256qam_llr(NR_DL_FRAME_PARMS *frame_parms,
-                     int32_t *rxdataF_comp,
-                     int16_t *dlsch_llr,
-                     int32_t *dl_ch_mag,
-                     int32_t *dl_ch_magb,
-                     int32_t *dl_ch_magr,
-                     uint8_t symbol,
-                     uint32_t len,
-                     uint8_t first_symbol_flag,
-                     uint16_t nb_rb);
-
 void nr_dlsch_deinterleaving(uint8_t symbol,
                              uint8_t start_symbol,
                              uint16_t L,
@@ -257,7 +147,8 @@ uint8_t nr_ue_pusch_common_procedures(PHY_VARS_NR_UE *UE,
                                       const uint8_t slot,
                                       const NR_DL_FRAME_PARMS *frame_parms,
                                       const uint8_t n_antenna_ports,
-                                      c16_t **txdataF);
+                                      c16_t **txdataF,
+                                      uint32_t linktype);
 
 void clean_UE_harq(PHY_VARS_NR_UE *UE);
 
@@ -291,12 +182,19 @@ int rx_sss(PHY_VARS_NR_UE *phy_vars_ue,int32_t *tot_metric,uint8_t *flip_max,uin
 
 int nr_rx_pbch(PHY_VARS_NR_UE *ue,
                const UE_nr_rxtx_proc_t *proc,
-               const int estimateSz,
+               bool is_synchronized,
+               int estimateSz,
                struct complex16 dl_ch_estimates[][estimateSz],
-               NR_DL_FRAME_PARMS *frame_parms,
+               const NR_DL_FRAME_PARMS *frame_parms,
                uint8_t i_ssb,
+               int ssb_start_subcarrier,
+               int Nid_cell,
                fapiPbch_t *result,
-               c16_t rxdataF[][ue->frame_parms.samples_per_slot_wCP]);
+               int *half_frame_bit,
+               int *ssb_index,
+               int *ret_symbol_offset,
+               int rxdataFSize,
+               const struct complex16 rxdataF[][rxdataFSize]);
 
 #ifndef modOrder
 #define modOrder(I_MCS,I_TBS) ((I_MCS-I_TBS)*2+2) // Find modulation order from I_TBS and I_MCS
@@ -319,11 +217,12 @@ int dump_ue_stats(PHY_VARS_NR_UE *phy_vars_ue,
 @param n_frames
   @param sa current running mode
 */
-typedef struct {
-  bool cell_detected;
-  int rx_offset;
-} nr_initial_sync_t;
-nr_initial_sync_t nr_initial_sync(UE_nr_rxtx_proc_t *proc, PHY_VARS_NR_UE *phy_vars_ue, int n_frames, int sa);
+nr_initial_sync_t nr_initial_sync(UE_nr_rxtx_proc_t *proc,
+                                  PHY_VARS_NR_UE *phy_vars_ue,
+                                  int n_frames,
+                                  int sa,
+                                  nr_gscn_info_t gscnInfo[MAX_GSCN_BAND],
+                                  int numGscn);
 
 /*!
   \brief This function gets the carrier frequencies either from FP or command-line-set global variables, depending on the
@@ -406,13 +305,14 @@ int nr_rx_pdsch(PHY_VARS_NR_UE *ue,
                 uint32_t dl_valid_re[NR_SYMBOLS_PER_SLOT],
                 c16_t rxdataF[][ue->frame_parms.samples_per_slot_wCP],
                 uint32_t llr_offset[NR_SYMBOLS_PER_SLOT],
-                int32_t *log2_maxhrx_size_symbol,
+                int32_t *log2_maxh,
                 int rx_size_symbol,
                 int nbRx,
                 int32_t rxdataF_comp[][nbRx][rx_size_symbol * NR_SYMBOLS_PER_SLOT],
                 c16_t ptrs_phase_per_slot[][NR_SYMBOLS_PER_SLOT],
                 int32_t ptrs_re_per_slot[][NR_SYMBOLS_PER_SLOT],
-                int G);
+                int G,
+                uint32_t nvar);
 
 int32_t generate_nr_prach(PHY_VARS_NR_UE *ue, uint8_t gNB_id, int frame, uint8_t slot);
 
@@ -420,7 +320,7 @@ void dump_nrdlsch(PHY_VARS_NR_UE *ue,uint8_t gNB_id,uint8_t nr_slot_rx,unsigned 
 void nr_a_sum_b(c16_t *input_x, c16_t *input_y, unsigned short nb_rb);
 
 int nr_rx_psbch(PHY_VARS_NR_UE *ue,
-                UE_nr_rxtx_proc_t *proc,
+                const UE_nr_rxtx_proc_t *proc,
                 int estimateSz,
                 struct complex16 dl_ch_estimates[][estimateSz],
                 NR_DL_FRAME_PARMS *frame_parms,
@@ -434,13 +334,13 @@ nr_initial_sync_t sl_nr_slss_search(PHY_VARS_NR_UE *UE, UE_nr_rxtx_proc_t *proc,
 
 // Reuse already existing PBCH functions
 int nr_pbch_channel_level(struct complex16 dl_ch_estimates_ext[][PBCH_MAX_RE_PER_SYMBOL],
-                          NR_DL_FRAME_PARMS *frame_parms,
+                          const NR_DL_FRAME_PARMS *frame_parms,
                           int nb_re);
 void nr_pbch_channel_compensation(struct complex16 rxdataF_ext[][PBCH_MAX_RE_PER_SYMBOL],
                                   struct complex16 dl_ch_estimates_ext[][PBCH_MAX_RE_PER_SYMBOL],
                                   int nb_re,
                                   struct complex16 rxdataF_comp[][PBCH_MAX_RE_PER_SYMBOL],
-                                  NR_DL_FRAME_PARMS *frame_parms,
+                                  const NR_DL_FRAME_PARMS *frame_parms,
                                   uint8_t output_shift);
 void nr_pbch_unscrambling(int16_t *demod_pbch_e,
                           uint16_t Nid,

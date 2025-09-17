@@ -135,7 +135,7 @@ int decode_poll_byte(int v)
   }
 
   if (tab[v] == -1) return -1;
-  return tab[v] * 1024;
+  return tab[v];
 }
 
 int decode_max_retx_threshold(int v)

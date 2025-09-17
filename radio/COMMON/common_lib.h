@@ -174,6 +174,7 @@ typedef struct {
 } udp_ctx_t;
 
 typedef enum {
+  RU_GPIO_CONTROL_NONE,
   RU_GPIO_CONTROL_GENERIC,
   RU_GPIO_CONTROL_INTERDIGITAL,
 } gpio_control_t;
@@ -195,6 +196,8 @@ typedef struct split7_config {
   struct {
     symbol_direction_t sym_dir[14];
   } slot_dirs[160];
+  /*! this is the exponent in 2^X for the FFT size */
+  uint16_t fftSize;
 } split7_config_t;
 
 /*! \brief RF frontend parameters set by application */
@@ -567,11 +570,10 @@ struct openair0_device_t {
    * \param idx RU index
    * \param arg pointer to capabilities or configuration
    */
-  void (*configure_rru)(int idx, void *arg);
+  void (*configure_rru)(void *, void *arg);
 
-/*! \brief Pointer to generic RRU private information
+  /*! \brief Pointer to generic RRU private information
    */
-
 
   void *thirdparty_priv;
 
@@ -672,7 +674,7 @@ extern int read_recplayconfig(recplay_conf_t **recplay_conf, recplay_state_t **r
 extern void iqrecorder_end(openair0_device *device);
 
 int openair0_write_reorder(openair0_device *device, openair0_timestamp timestamp, void **txp, int nsamps, int nbAnt, int flags);
-
+void openair0_write_reorder_clear_context(openair0_device *device);
 #include <unistd.h>
 #ifndef gettid
 #define gettid() syscall(__NR_gettid)

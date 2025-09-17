@@ -217,26 +217,8 @@ void pnf_nfapi_trace(nfapi_trace_level_t nfapi_level, const char *message, ...) 
   va_end(args);
 }
 
-void pnf_set_thread_priority(int priority) {
-  set_priority(priority);
-
-  pthread_attr_t ptAttr;
-  if(pthread_attr_setschedpolicy(&ptAttr, SCHED_RR) != 0) {
-    printf("failed to set pthread SCHED_RR %d\n", errno);
-  }
-
-  pthread_attr_setinheritsched(&ptAttr, PTHREAD_EXPLICIT_SCHED);
-  struct sched_param thread_params;
-  thread_params.sched_priority = 20;
-
-  if(pthread_attr_setschedparam(&ptAttr, &thread_params) != 0) {
-    printf("failed to set sched param\n");
-  }
-}
-
 void *pnf_p7_thread_start(void *ptr) {
   NFAPI_TRACE(NFAPI_TRACE_INFO, "[PNF] P7 THREAD %s\n", __FUNCTION__);
-  pnf_set_thread_priority(79);
   nfapi_pnf_p7_config_t *config = (nfapi_pnf_p7_config_t *)ptr;
   nfapi_pnf_p7_start(config);
   return 0;
@@ -244,7 +226,6 @@ void *pnf_p7_thread_start(void *ptr) {
 
 void *pnf_nr_p7_thread_start(void *ptr) {
   NFAPI_TRACE(NFAPI_TRACE_INFO, "[NR_PNF] NR P7 THREAD %s\n", __FUNCTION__);
-  pnf_set_thread_priority(79);
   nfapi_pnf_p7_config_t *config = (nfapi_pnf_p7_config_t *)ptr;
   nfapi_nr_pnf_p7_start(config);
   return 0;
@@ -1708,7 +1689,7 @@ int start_request(nfapi_pnf_config_t *config, nfapi_pnf_phy_config_t *phy, nfapi
   p7_config->codec_config.pack_vendor_extension_tlv = &pnf_phy_pack_vendor_extention_tlv;
   NFAPI_TRACE(NFAPI_TRACE_INFO, "[PNF] Creating P7 thread %s\n", __FUNCTION__);
   pthread_t p7_thread;
-  pthread_create(&p7_thread, NULL, &pnf_p7_thread_start, p7_config);
+  threadCreate(&p7_thread, &pnf_p7_thread_start, p7_config, "pnf_p7_thread", -1, OAI_PRIORITY_RT);
   //((pnf_phy_user_data_t*)(phy_info->fapi->user_data))->p7_config = p7_config;
   NFAPI_TRACE(NFAPI_TRACE_INFO, "[PNF] Calling l1_north_init_eNB() %s\n", __FUNCTION__);
   l1_north_init_eNB();
@@ -1835,7 +1816,7 @@ int nr_start_request(nfapi_pnf_config_t *config, nfapi_pnf_phy_config_t *phy,  n
   p7_config->codec_config.pack_vendor_extension_tlv = &pnf_phy_pack_vendor_extention_tlv;
   NFAPI_TRACE(NFAPI_TRACE_INFO, "[PNF] Creating P7 thread %s\n", __FUNCTION__);
   pthread_t p7_thread;
-  pthread_create(&p7_thread, NULL, &pnf_nr_p7_thread_start, p7_config);
+  threadCreate(&p7_thread, &pnf_nr_p7_thread_start, p7_config, "pnf_p7_thread", -1, OAI_PRIORITY_RT);
   NFAPI_TRACE(NFAPI_TRACE_INFO, "[PNF] Calling l1_north_init_eNB() %s\n", __FUNCTION__);
   l1_north_init_gNB();
   NFAPI_TRACE(NFAPI_TRACE_INFO, "[PNF] HACK - Set p7_config global ready for subframe ind%s\n", __FUNCTION__);

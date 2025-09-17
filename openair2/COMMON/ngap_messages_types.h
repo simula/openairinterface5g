@@ -31,8 +31,9 @@
 #define NGAP_MESSAGES_TYPES_H_
 #include "common/platform_constants.h"
 #include "common/platform_types.h"
-#include "common/ngran_types.h"
+#include "common/5g_platform_types.h"
 #include "LTE_asn_constant.h"
+#include "s1ap_messages_types.h"
 //-------------------------------------------------------------------------------------------//
 // Defines to access message fields.
 
@@ -196,16 +197,11 @@ typedef enum ngap_rrc_establishment_cause_e {
   NGAP_RRC_CAUSE_LAST
 } ngap_rrc_establishment_cause_t;
 
-typedef struct nssai_s {
-  uint8_t sst;
-  uint32_t sd;
-} nssai_t;
-
 typedef struct pdusession_level_qos_parameter_s {
   uint8_t qfi;
   uint64_t fiveQI;
   uint64_t qos_priority;
-  fiveQI_type_t fiveQI_type;
+  fiveQI_t fiveQI_type;
   ngap_allocation_retention_priority_t allocation_retention_priority;
 } pdusession_level_qos_parameter_t;
 
@@ -278,8 +274,6 @@ typedef struct pdusession_s {
   transport_layer_addr_t upf_addr;
   /* Outgoing (UL) NG-U Tunnel Endpoint Identifier (S-GW/UPF) */
   uint32_t gtp_teid;
-  /* Stores the DRB ID of the DRBs used by this PDU Session */
-  uint8_t used_drbs[MAX_DRBS_PER_UE];
   /* Incoming (DL) NG-U Tunnel Endpoint Identifier (S-GW/UPF) */
   uint32_t gNB_teid_N3;
   transport_layer_addr_t gNB_addr_N3;
@@ -408,6 +402,19 @@ typedef enum ngap_Cause_radio_network_e {
   NGAP_CAUSE_RADIO_NETWORK_RELEASE_DUE_TO_PRE_EMPTION,
   NGAP_CAUSE_RADIO_NETWORK_MULTIPLE_LOCATION_REPORTING_REFERENCE_ID_INSTANCES
 } ngap_Cause_radio_network_t;
+
+/**
+ * NGAP protocol cause values as per 9.3.1.2 `Cause` section in 3GPP TS 38.413.
+ */
+typedef enum ngap_cause_protocol_e {
+  NGAP_CAUSE_PROTOCOL_TRANSFER_SYNTAX_ERROR,
+  NGAP_CAUSE_PROTOCOL_ABSTRACT_SYNTAX_ERROR_REJECT,
+  NGAP_CAUSE_PROTOCOL_ABSTRACT_SYNTAX_ERROR_IGNORE,
+  NGAP_CAUSE_PROTOCOL_MSG_NOT_COMPATIBLE_WITH_RECEIVER_STATE,
+  NGAP_CAUSE_PROTOCOL_SEMANTIC_ERROR,
+  NGAP_CAUSE_PROTOCOL_ABSTRACT_SYNTAX_ERROR_FCM,
+  NGAP_CAUSE_PROTOCOL_UNSPECIFIED
+} ngap_cause_protocol_t;
 
 typedef struct pdusession_failed_s {
   /* Unique pdusession_id for the UE. */
@@ -583,6 +590,8 @@ typedef struct ngap_ue_ctxt_modification_resp_s {
 
 typedef struct ngap_ue_release_complete_s {
   uint32_t gNB_ue_ngap_id;
+  int num_pdu_sessions;
+  uint32_t pdu_session_id[256];
 } ngap_ue_release_complete_t;
 
 //-------------------------------------------------------------------------------------------//

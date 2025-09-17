@@ -29,7 +29,6 @@
 * \note
 * \warning
  */
-#ifdef ENABLE_AERIAL
 #ifndef OPENAIRINTERFACE_FAPI_NVIPC_H
 #define OPENAIRINTERFACE_FAPI_NVIPC_H
 
@@ -37,8 +36,9 @@
 #include "nv_ipc_utils.h"
 #include "nvlog.h"
 #include "nfapi/open-nFAPI/vnf/public_inc/nfapi_vnf_interface.h"
-#include "openair1/PHY/defs_gNB.h"
 #include "debug.h"
+
+#include "openair2/LAYER2/NR_MAC_gNB/nr_mac_gNB.h"
 
 typedef struct {
   uint8_t num_msg;
@@ -55,7 +55,6 @@ int aerial_send_P7_msg_with_data(void *packedBuf,
                                       uint32_t dataLength,
                                       nfapi_p7_message_header_t *header);
 void set_config(nfapi_vnf_config_t *conf);
-int nvIPC_Init();
+int nvIPC_Init(nvipc_params_t nvipc_params_s);
 
 #endif // OPENAIRINTERFACE_FAPI_NVIPC_H
-#endif

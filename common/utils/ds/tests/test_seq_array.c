@@ -52,7 +52,7 @@ int main()
 
   // Find element in the array
   int value = 50;
-  elm_arr_t elm = find_if_arr(&arr, &value, eq_int);
+  elm_arr_t elm = find_if(&arr, &value, eq_int);
   assert(elm.found == true);
   // Check
   assert(*(int*)elm.it == 50);

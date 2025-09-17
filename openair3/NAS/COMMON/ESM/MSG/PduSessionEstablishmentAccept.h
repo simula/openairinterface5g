@@ -114,10 +114,7 @@ typedef struct pdu_address_s {
   uint8_t pdu_iei;        /* PDU Address IEI (0x29) */
   uint8_t pdu_length;     /* Length of PDU address contents */
   uint8_t pdu_type;       /* PDU session type value */
-  uint8_t pdu_addr_oct1;  /* PDU address information (1st Octet)*/
-  uint8_t pdu_addr_oct2;  /* PDU address information (2nd Octet)*/
-  uint8_t pdu_addr_oct3;  /* PDU address information (3rd Octet)*/
-  uint8_t pdu_addr_oct4;  /* PDU address information (4th Octet)*/
+  uint8_t pdu_addr_oct[12];  /* PDU address information (depending on type, up to 12 bytes)*/
 } pdu_address_t; /* TS 24.501 9.11.4.10 */
 
 typedef struct dnn_s {

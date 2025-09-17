@@ -64,18 +64,18 @@ then
     awk '/#[ \t]*ifndef/ { gsub("^.*ifndef *",""); if (names[$1]!="") print "files with same {define ", FILENAME, names[$1]; names[$1]=FILENAME } /#[ \t]*define/ { gsub("^.*define *",""); if(names[$1]!=FILENAME) print "error in declaration", FILENAME, $1, names[$1]; nextfile }' `find openair* common targets executables -name *.h |grep -v LFDS` > header-files-w-incorrect-define.txt
 
     # Testing if explicit GNU GPL license banner
-    egrep -irl --exclude-dir=.git --include=*.cpp --include=*.c --include=*.h "General Public License" . | egrep -v "openair3/NAS/COMMON/milenage.h" > files-w-gnu-gpl-license-banner.txt
+    grep -E -irl --exclude-dir=.git --include=*.cpp --include=*.c --include=*.h "General Public License" . | grep -E -v "openair3/NAS/COMMON/milenage.h" > files-w-gnu-gpl-license-banner.txt
 
     # Looking at exotic/suspect banner
-    LIST_OF_FILES_W_BANNER=`egrep -irl --exclude-dir=.git --include=*.cpp --include=*.c --include=*.h "Copyright|copyleft" .`
+    LIST_OF_FILES_W_BANNER=`grep -E -irl --exclude-dir=.git --include=*.cpp --include=*.c --include=*.h "Copyright|copyleft" .`
     if [ -f ./files-w-suspect-banner.txt ]; then rm -f ./files-w-suspect-banner.txt; fi
     for FILE in $LIST_OF_FILES_W_BANNER
     do
-       IS_NFAPI=`echo $FILE | egrep -c "nfapi/open-nFAPI|nfapi/oai_integration/vendor_ext" || true`
-       IS_OAI_LICENCE_PRESENT=`egrep -c "OAI Public License" $FILE || true`
-       IS_BSD_LICENCE_PRESENT=`egrep -c "the terms of the BSD Licence|License-Identifier: BSD-2-Clause" $FILE || true`
-       IS_MIT_LICENCE_PRESENT=`egrep -c "MIT License" $FILE || true`
-       IS_EXCEPTION=`echo $FILE | egrep -c "common/utils/collection/tree.h|common/utils/collection/queue.h|openair2/UTIL/OPT/packet-rohc.h|openair3/NAS/COMMON/milenage.h|openair1/PHY/CODING/crc.h|openair1/PHY/CODING/crcext.h|openair1/PHY/CODING/types.h|openair1/PHY/CODING/nrLDPC_decoder/nrLDPC_decoder_offload.c|openair1/PHY/CODING/nrLDPC_decoder/nrLDPC_offload.h" || true`
+       IS_NFAPI=`echo $FILE | grep -E -c "nfapi/open-nFAPI|nfapi/oai_integration/vendor_ext" || true`
+       IS_OAI_LICENCE_PRESENT=`grep -E -c "OAI Public License" $FILE || true`
+       IS_BSD_LICENCE_PRESENT=`grep -E -c "the terms of the BSD Licence|License-Identifier: BSD-2-Clause" $FILE || true`
+       IS_MIT_LICENCE_PRESENT=`grep -E -c "MIT License" $FILE || true`
+       IS_EXCEPTION=`echo $FILE | grep -E -c "common/utils/collection/tree.h|common/utils/collection/queue.h|openair2/UTIL/OPT/packet-rohc.h|openair3/NAS/COMMON/milenage.h|openair1/PHY/CODING/crc.h|openair1/PHY/CODING/crcext.h|openair1/PHY/CODING/types.h|openair1/PHY/CODING/nrLDPC_decoder/nrLDPC_decoder_offload.c|openair1/PHY/CODING/nrLDPC_decoder/nrLDPC_offload.h" || true`
        if [ $IS_OAI_LICENCE_PRESENT -eq 0 ] && [ $IS_BSD_LICENCE_PRESENT -eq 0 ] && [ $IS_MIT_LICENCE_PRESENT -eq 0 ]
        then
            if [ $IS_NFAPI -eq 0 ] && [ $IS_EXCEPTION -eq 0 ]
@@ -147,7 +147,7 @@ echo " ----------------------------------------------------------"
 echo ""
 
 # Retrieve the list of modified files since the latest develop commit
-MODIFIED_FILES=`git log $TARGET_INIT_COMMIT..$MERGE_COMMMIT --oneline --name-status | egrep "^M|^A" | sed -e "s@^M\t*@@" -e "s@^A\t*@@" | sort | uniq`
+MODIFIED_FILES=`git log $TARGET_INIT_COMMIT..$MERGE_COMMMIT --oneline --name-status | grep -E "^M|^A" | sed -e "s@^M\t*@@" -e "s@^A\t*@@" | sort | uniq`
 NB_TO_FORMAT=0
 if [ -f header-files-w-incorrect-define.txt ]
 then
@@ -173,20 +173,20 @@ do
     if [ $EXT = "c" ] || [ $EXT = "h" ] || [ $EXT = "cpp" ] || [ $EXT = "hpp" ]
     then
         # Testing if explicit GNU GPL license banner
-        GNU_EXCEPTION=`echo $FULLFILE | egrep -c "openair3/NAS/COMMON/milenage.h" || true`
+        GNU_EXCEPTION=`echo $FULLFILE | grep -E -c "openair3/NAS/COMMON/milenage.h" || true`
         if [ $GNU_EXCEPTION -eq 0 ]
         then
-            egrep -il "General Public License" $FULLFILE >> files-w-gnu-gpl-license-banner.txt
+            grep -E -il "General Public License" $FULLFILE >> files-w-gnu-gpl-license-banner.txt
         fi
         # Looking at exotic/suspect banner
-        IS_BANNER=`egrep -i -c "Copyright|copyleft" $FULLFILE || true`
+        IS_BANNER=`grep -E -i -c "Copyright|copyleft" $FULLFILE || true`
         if [ $IS_BANNER -ne 0 ]
         then
-            IS_NFAPI=`echo $FULLFILE | egrep -c "nfapi/open-nFAPI|nfapi/oai_integration/vendor_ext" || true`
-            IS_OAI_LICENCE_PRESENT=`egrep -c "OAI Public License" $FULLFILE || true`
-            IS_BSD_LICENCE_PRESENT=`egrep -c "the terms of the BSD Licence|License-Identifier: BSD-2-Clause" $FULLFILE || true`
-            IS_MIT_LICENCE_PRESENT=`egrep -c "MIT License" $FULLFILE || true`
-            IS_EXCEPTION=`echo $FULLFILE | egrep -c "common/utils/collection/tree.h|common/utils/collection/queue.h|openair2/UTIL/OPT/packet-rohc.h|openair3/NAS/COMMON/milenage.h|openair1/PHY/CODING/crc.h|openair1/PHY/CODING/crcext.h|openair1/PHY/CODING/types.h|openair1/PHY/CODING/nrLDPC_decoder/nrLDPC_decoder_offload.c|openair1/PHY/CODING/nrLDPC_decoder/nrLDPC_offload.h" || true`
+            IS_NFAPI=`echo $FULLFILE | grep -E -c "nfapi/open-nFAPI|nfapi/oai_integration/vendor_ext" || true`
+            IS_OAI_LICENCE_PRESENT=`grep -E -c "OAI Public License" $FULLFILE || true`
+            IS_BSD_LICENCE_PRESENT=`grep -E -c "the terms of the BSD Licence|License-Identifier: BSD-2-Clause" $FULLFILE || true`
+            IS_MIT_LICENCE_PRESENT=`grep -E -c "MIT License" $FULLFILE || true`
+            IS_EXCEPTION=`echo $FULLFILE | grep -E -c "common/utils/collection/tree.h|common/utils/collection/queue.h|openair2/UTIL/OPT/packet-rohc.h|openair3/NAS/COMMON/milenage.h|openair1/PHY/CODING/crc.h|openair1/PHY/CODING/crcext.h|openair1/PHY/CODING/types.h|openair1/PHY/CODING/nrLDPC_decoder/nrLDPC_decoder_offload.c|openair1/PHY/CODING/nrLDPC_decoder/nrLDPC_offload.h" || true`
             if [ $IS_OAI_LICENCE_PRESENT -eq 0 ] && [ $IS_BSD_LICENCE_PRESENT -eq 0 ] && [ $IS_MIT_LICENCE_PRESENT -eq 0 ]
             then
                 if [ $IS_NFAPI -eq 0 ] && [ $IS_EXCEPTION -eq 0 ]

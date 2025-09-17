@@ -72,8 +72,6 @@ static int DEFRUTPCORES[] = {2,4,6,8};
 #include "ENB_APP/enb_paramdef.h"
 #include "common/config/config_userapi.h"
 
-#include "SIMULATION/ETH_TRANSPORT/proto.h"
-
 #include "T.h"
 
 #include "executables/softmodem-common.h"
@@ -92,12 +90,6 @@ void prach_procedures(PHY_VARS_eNB *eNB,int br_flag);
 void stop_RU(RU_t **rup,int nb_ru);
 
 static void do_ru_synch(RU_t *ru);
-
-void configure_ru(int idx,
-                  void *arg);
-
-void configure_rru(int idx,
-                   void *arg);
 
 void reset_proc(RU_t *ru);
 int connect_rau(RU_t *ru);
@@ -1468,7 +1460,7 @@ static void *ru_stats_thread(void *param) {
   while (!oai_exit) {
     sleep(1);
 
-    if (opp_enabled) {
+    if (cpu_meas_enabled) {
       if (ru->feprx) print_meas(&ru->ofdm_demod_stats,"feprx_ru",NULL,NULL);
 
       if (ru->feptx_ofdm) print_meas(&ru->ofdm_mod_stats,"feptx_ofdm_ru",NULL,NULL);
@@ -2183,8 +2175,6 @@ int stop_rf(RU_t *ru) {
   return 0;
 }
 
-
-extern void configure_ru(int idx, void *arg);
 extern void fep_full(RU_t *ru, int subframe);
 extern void feptx_ofdm(RU_t *ru, int frame_tx, int tti_tx);
 extern void feptx_ofdm_2thread(RU_t *ru, int frame_tx, int tti_tx);
@@ -2332,7 +2322,7 @@ void init_RU_proc(RU_t *ru) {
     init_feptx_thread(ru, NULL);
   }
 
-  if (opp_enabled == 1)
+  if (cpu_meas_enabled)
     pthread_create(&ru->ru_stats_thread, NULL, ru_stats_thread, (void *)ru);
 }
 
@@ -2430,7 +2420,7 @@ void kill_RU_proc(RU_t *ru) {
     }
   }
 
-  if (opp_enabled) {
+  if (cpu_meas_enabled) {
     LOG_D(PHY, "Joining ru_stats_thread\n");
     pthread_join(ru->ru_stats_thread, NULL);
   }

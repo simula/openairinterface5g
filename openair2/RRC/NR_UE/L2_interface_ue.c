@@ -31,16 +31,14 @@
  */
 
 #include "rrc_defs.h"
-#include "rrc_proto.h"
+#include "L2_interface_ue.h"
 #include "assertions.h"
 #include "LAYER2/NR_MAC_COMMON/nr_mac.h"
 #include "openair2/LAYER2/NR_MAC_UE/mac_proto.h"
 
 typedef uint32_t channel_t;
 
-void nr_mac_rrc_sync_ind(const module_id_t module_id,
-                         const frame_t frame,
-                         const bool in_sync)
+void nr_mac_rrc_sync_ind(const module_id_t module_id, const frame_t frame, const bool in_sync)
 {
   MessageDef *message_p = itti_alloc_new_message(TASK_MAC_UE, 0, NR_RRC_MAC_SYNC_IND);
   NR_RRC_MAC_SYNC_IND (message_p).frame = frame;
@@ -48,17 +46,17 @@ void nr_mac_rrc_sync_ind(const module_id_t module_id,
   itti_send_msg_to_task(TASK_RRC_NRUE, GNB_MODULE_ID_TO_INSTANCE(module_id), message_p);
 }
 
-int8_t nr_mac_rrc_data_ind_ue(const module_id_t module_id,
-                              const int CC_id,
-                              const uint8_t gNB_index,
-                              const frame_t frame,
-                              const int slot,
-                              const rnti_t rnti,
-                              const uint32_t cellid,
-                              const long arfcn,
-                              const channel_t channel,
-                              const uint8_t* pduP,
-                              const sdu_size_t pdu_len)
+void nr_mac_rrc_data_ind_ue(const module_id_t module_id,
+                            const int CC_id,
+                            const uint8_t gNB_index,
+                            const frame_t frame,
+                            const int slot,
+                            const rnti_t rnti,
+                            const uint32_t cellid,
+                            const long arfcn,
+                            const channel_t channel,
+                            const uint8_t* pduP,
+                            const sdu_size_t pdu_len)
 {
   sdu_size_t sdu_size = 0;
 
@@ -113,8 +111,7 @@ int8_t nr_mac_rrc_data_ind_ue(const module_id_t module_id,
         NR_RRC_MAC_SBCCH_DATA_IND (message_p).frame = frame; //frameP
         NR_RRC_MAC_SBCCH_DATA_IND (message_p).slot = slot;
         NR_RRC_MAC_SBCCH_DATA_IND (message_p).sdu_size = sdu_size;
-        NR_RRC_MAC_SBCCH_DATA_IND (message_p).gnb_index = gNB_index;
-        NR_RRC_MAC_SBCCH_DATA_IND (message_p).rx_slss_id = rnti;//rx_slss_id is rnti
+        NR_RRC_MAC_SBCCH_DATA_IND(message_p).rx_slss_id = cellid; // cellid is rx slss id
         itti_send_msg_to_task(TASK_RRC_NRUE, GNB_MODULE_ID_TO_INSTANCE(module_id), message_p);
       }
       break;
@@ -122,8 +119,13 @@ int8_t nr_mac_rrc_data_ind_ue(const module_id_t module_id,
     default:
       break;
   }
+}
 
-  return(0);
+void nr_mac_rrc_inactivity_timer_ind(const module_id_t mod_id)
+{
+  MessageDef *message_p = itti_alloc_new_message(TASK_MAC_UE, 0, NR_RRC_MAC_INAC_IND);
+  NR_RRC_MAC_INAC_IND (message_p).inactivity_timer_expired = true;
+  itti_send_msg_to_task(TASK_RRC_NRUE, GNB_MODULE_ID_TO_INSTANCE(mod_id), message_p);
 }
 
 void nr_mac_rrc_msg3_ind(const module_id_t mod_id, const int rnti, int gnb_id)

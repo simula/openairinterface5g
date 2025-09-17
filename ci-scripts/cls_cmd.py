@@ -36,12 +36,21 @@ import time
 
 SSHTIMEOUT=7
 
+def is_local(host):
+	return host is None or host.lower() in ["", "none", "localhost"]
+
 # helper that returns either LocalCmd or RemoteCmd based on passed host name
 def getConnection(host, d=None):
-	if host is None or host.lower() in ["", "none", "localhost"]:
+	if is_local(host):
 		return LocalCmd(d=d)
 	else:
 		return RemoteCmd(host, d=d)
+
+def runScript(host, path, timeout, parameters=None, redirect=None, silent=False):
+	if is_local(host):
+		return LocalCmd.exec_script(path, timeout, parameters, redirect, silent)
+	else:
+		return RemoteCmd.exec_script(host, path, timeout, parameters, redirect, silent)
 
 # provides a partial interface for the legacy SSHconnection class (getBefore(), command())
 class Cmd(metaclass=abc.ABCMeta):
@@ -57,6 +66,10 @@ class Cmd(metaclass=abc.ABCMeta):
 			self.cwd += f"/{d}"
 		if not silent:
 			logging.debug(f'cd {self.cwd}')
+
+	@abc.abstractmethod
+	def exec_script(path, timeout, parameters=None, redirect=None, silent=False):
+		return
 
 	@abc.abstractmethod
 	def run(self, line, timeout=300, silent=False):
@@ -99,17 +112,33 @@ class LocalCmd(Cmd):
 			logging.debug(f'Working dir is {self.cwd}')
 		self.cp = sp.CompletedProcess(args='', returncode=0, stdout='')
 
+	def exec_script(path, timeout, parameters=None, redirect=None, silent=False):
+		if redirect and not redirect.startswith("/"):
+			raise ValueError(f"redirect must be absolute, but is {redirect}")
+		c = f"{path} {parameters}" if parameters else path
+		if not redirect:
+			ret = sp.run(c, shell=True, timeout=timeout, stdout=sp.PIPE, stderr=sp.STDOUT)
+			ret.stdout = ret.stdout.decode('utf-8').strip()
+		else:
+			with open(redirect, "w") as f:
+				ret = sp.run(c, shell=True, timeout=timeout, stdout=f, stderr=f)
+			ret.args += f" &> {redirect}"
+			ret.stdout = ""
+		if not silent:
+			logging.info(f"local> {ret.args}")
+		return ret
+
 	def run(self, line, timeout=300, silent=False, reportNonZero=True):
 		if not silent:
-			logging.info(line)
+			logging.info(f"local> {line}")
 		try:
 			if line.strip().endswith('&'):
 				# if we wait for stdout, subprocess does not return before the end of the command
 				# however, we don't want to wait for commands with &, so just return fake command
-				ret = sp.run(line, shell=True, cwd=self.cwd, timeout=5)
+				ret = sp.run(line, shell=True, cwd=self.cwd, timeout=5, executable='/bin/bash')
 				time.sleep(0.1)
 			else:
-				ret = sp.run(line, shell=True, cwd=self.cwd, stdout=sp.PIPE, stderr=sp.STDOUT, timeout=timeout)
+				ret = sp.run(line, shell=True, cwd=self.cwd, stdout=sp.PIPE, stderr=sp.STDOUT, timeout=timeout, executable='/bin/bash')
 		except Exception as e:
 			ret = sp.CompletedProcess(args=line, returncode=255, stdout=f'Exception: {str(e)}'.encode('utf-8'))
 		if ret.stdout is None:
@@ -128,7 +157,9 @@ class LocalCmd(Cmd):
 
 	def copyin(self, src, tgt, recursive=False):
 		if src[0] != '/' or tgt[0] != '/':
-			raise Exception('support only absolute file paths!')
+			raise Exception(f'support only absolute file paths (src {src} tgt {tgt})!')
+		if src == tgt:
+			return # nothing to copy, file is already where it should go
 		opt = '-r' if recursive else ''
 		return self.run(f'cp {opt} {src} {tgt}').returncode == 0
 
@@ -166,9 +197,8 @@ class RemoteCmd(Cmd):
 
 	def __init__(self, hostname, d=None):
 		cIdx = 0
-		logging.getLogger('paramiko').setLevel(logging.ERROR) # prevent spamming through Paramiko
-		self.client = paramiko.SSHClient()
-		self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+		self.hostname = hostname
+		self.client = RemoteCmd._ssh_init()
 		cfg = RemoteCmd._lookup_ssh_config(hostname)
 		self.cwd = d
 		self.cp = sp.CompletedProcess(args='', returncode=0, stdout='')
@@ -180,6 +210,12 @@ class RemoteCmd(Cmd):
 				logging.error(f'Could not connect to {hostname}, tried for {cIdx} time')
 				cIdx +=1
 		raise Exception ("Error: max retries, did not connect to host")
+
+	def _ssh_init():
+		logging.getLogger('paramiko').setLevel(logging.ERROR) # prevent spamming through Paramiko
+		client = paramiko.SSHClient()
+		client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+		return client
 
 	def _lookup_ssh_config(hostname):
 		ssh_config = paramiko.SSHConfig()
@@ -201,9 +237,33 @@ class RemoteCmd(Cmd):
 			cfg['sock'] = paramiko.ProxyCommand(ucfg['proxycommand'])
 		return cfg
 
+	def exec_script(host, path, timeout, parameters=None, redirect=None, silent=False):
+		if redirect and not redirect.startswith("/"):
+			raise ValueError(f"redirect must be absolute, but is {redirect}")
+		p = parameters if parameters else ""
+		r = f"> {redirect}" if redirect else ""
+		if not silent:
+			logging.info(f"local> ssh {host} bash -s {p} < {path} {r} # {path} from localhost")
+		client = RemoteCmd._ssh_init()
+		cfg = RemoteCmd._lookup_ssh_config(host)
+		client.connect(**cfg)
+		bash_opt = 'BASH_XTRACEFD=1' # write bash set -x output to stdout, see bash(1)
+		stdin, stdout, stderr = client.exec_command(f"{bash_opt} bash -s {p} {r}", timeout=timeout)
+		# open() the file f at path, read() it and write() it into the stdin of the bash -s cmd
+		with open(path) as f:
+			stdin.write(f.read())
+			stdin.close()
+		cmd = path
+		if parameters: cmd += f" {parameters}"
+		if redirect: cmd += f" &> {redirect}"
+		ret = sp.CompletedProcess(args=cmd, returncode=stdout.channel.recv_exit_status(), stdout=stdout.read(size=None) + stderr.read(size=None))
+		ret.stdout = ret.stdout.decode('utf-8').strip()
+		client.close()
+		return ret
+
 	def run(self, line, timeout=300, silent=False, reportNonZero=True):
 		if not silent:
-			logging.info(line)
+			logging.info(f"ssh[{self.hostname}]> {line}")
 		if self.cwd:
 			line = f"cd {self.cwd} && {line}"
 		try:
@@ -233,7 +293,7 @@ class RemoteCmd(Cmd):
 	# if recursive is True, tgt must be a directory (and src is file or directory)
 	# if recursive is False, tgt and src must be a file name
 	def copyout(self, src, tgt, recursive=False):
-		logging.debug(f"copyout: local:{src} -> remote:{tgt}")
+		logging.debug(f"copyout: local:{src} -> {self.hostname}:{tgt}")
 		if recursive:
 			tmpfile = f"{uuid.uuid4()}.tar"
 			abstmpfile = f"/tmp/{tmpfile}"
@@ -251,7 +311,7 @@ class RemoteCmd(Cmd):
 	# if recursive is True, tgt must be a directory (and src is file or directory)
 	# if recursive is False, tgt and src must be a file name
 	def copyin(self, src, tgt, recursive=False):
-		logging.debug(f"copyin: remote:{src} -> local:{tgt}")
+		logging.debug(f"copyin: {self.hostname}:{src} -> local:{tgt}")
 		if recursive:
 			tmpfile = f"{uuid.uuid4()}.tar"
 			abstmpfile = f"/tmp/{tmpfile}"

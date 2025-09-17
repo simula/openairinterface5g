@@ -215,7 +215,7 @@ static void prepare_NR_SL_BWPConfigCommon(NR_SL_BWP_ConfigCommon_r16_t *sl_bwp,
   // Value can be between symbols 0 to 7
   sl_bwp->sl_BWP_Generic_r16->sl_StartSymbol_r16 = calloc(1, sizeof(long));
 
-  sl_bwp->sl_BWP_Generic_r16->sl_PSBCH_Config_r16 = calloc(1,sizeof(NR_SL_PSBCH_Config_r16_t));
+  sl_bwp->sl_BWP_Generic_r16->sl_PSBCH_Config_r16 = calloc(1, sizeof(*sl_bwp->sl_BWP_Generic_r16->sl_PSBCH_Config_r16));
   // PSBCH CONFIG contains PO and alpha for PSBCH powercontrol.
   sl_bwp->sl_BWP_Generic_r16->sl_PSBCH_Config_r16->present = NR_SetupRelease_SL_PSBCH_Config_r16_PR_release;
 
@@ -462,9 +462,7 @@ static int8_t nr_sl_rrc_ue_decode_SL_MIB(const uint8_t gNB_index,
 
     uint8_t val_slot = sl_mib->slotIndex_r16.buf[0];
 
-    LOG_D(NR_RRC, "SL-RRC - Received MIB\n");
-    LOG_D(NR_RRC, "SL-MIB Contents - DFN:%d\n" , val_fn);
-    LOG_D(NR_RRC, "SL-MIB Contents - SLOT:%d\n" , val_slot >> 1);
+    LOG_D(NR_RRC, "%d:%d SL-RRC - Received MIB.\n", val_fn, val_slot >> 1);
     LOG_D(NR_RRC, "SL-MIB Contents - Incoverage:%d\n", sl_mib->inCoverage_r16);
     LOG_D(NR_RRC, "SL-MIB Contents - sl-TDD-Config:%x\n" , *((uint16_t *)(sl_mib->sl_TDD_Config_r16.buf)));
 

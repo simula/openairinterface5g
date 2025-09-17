@@ -378,8 +378,15 @@ ue_send_sdu(module_id_t module_idP,
   VCD_SIGNAL_DUMPER_DUMP_FUNCTION_BY_NAME
   (VCD_SIGNAL_DUMPER_FUNCTIONS_UE_SEND_SDU, VCD_FUNCTION_IN);
   //LOG_D(MAC,"sdu: %x.%x.%x\n",sdu[0],sdu[1],sdu[2]);
-  trace_pdu(DIRECTION_DOWNLINK, sdu, sdu_len, module_idP, WS_C_RNTI,
-            UE_mac_inst[module_idP].crnti, frameP, subframeP, 0, 0);
+  ws_trace_t tmp = {.direction = DIRECTION_DOWNLINK,
+                    .pdu_buffer = sdu,
+                    .pdu_buffer_size = sdu_len,
+                    .ueid = module_idP,
+                    .rntiType = WS_C_RNTI,
+                    .rnti = UE_mac_inst[module_idP].crnti,
+                    .sysFrame = frameP,
+                    .subframe = subframeP};
+  trace_pdu(&tmp);
   payload_ptr =
     parse_header(sdu, &num_ce, &num_sdu, rx_ces, rx_lcids, rx_lengths,
                  sdu_len);
@@ -576,16 +583,15 @@ void ue_decode_si_mbms(module_id_t module_idP, int CC_id, frame_t frameP,
   (VCD_SIGNAL_DUMPER_FUNCTIONS_UE_DECODE_SI, VCD_FUNCTION_OUT);
   stop_UE_TIMING(UE_mac_inst[module_idP].rx_si);
 
-  trace_pdu(DIRECTION_UPLINK,
-            (uint8_t *) pdu,
-            len,
-            module_idP,
-            WS_SI_RNTI,
-            0xffff,
-            UE_mac_inst[module_idP].rxFrame,
-            UE_mac_inst[module_idP].rxSubframe,
-            0,
-            0);
+  ws_trace_t tmp = {.direction = DIRECTION_UPLINK,
+                    .pdu_buffer = pdu,
+                    .pdu_buffer_size = len,
+                    .ueid = module_idP,
+                    .rntiType = WS_SI_RNTI,
+                    .rnti = 0xffff,
+                    .sysFrame = UE_mac_inst[module_idP].rxFrame,
+                    .subframe = UE_mac_inst[module_idP].rxSubframe};
+  trace_pdu(&tmp);
 }
 
 
@@ -604,14 +610,15 @@ ue_decode_si(module_id_t module_idP, int CC_id, frame_t frameP,
   VCD_SIGNAL_DUMPER_DUMP_FUNCTION_BY_NAME
   (VCD_SIGNAL_DUMPER_FUNCTIONS_UE_DECODE_SI, VCD_FUNCTION_OUT);
   stop_UE_TIMING(UE_mac_inst[module_idP].rx_si);
-  trace_pdu(DIRECTION_UPLINK,
-            (uint8_t *) pdu,
-            len,
-            module_idP,
-            WS_SI_RNTI,
-            0xffff,
-            UE_mac_inst[module_idP].rxFrame,
-            UE_mac_inst[module_idP].rxSubframe, 0, 0);
+  ws_trace_t tmp = {.direction = DIRECTION_UPLINK,
+                    .pdu_buffer = pdu,
+                    .pdu_buffer_size = len,
+                    .ueid = module_idP,
+                    .rntiType = WS_SI_RNTI,
+                    .rnti = 0xffff,
+                    .sysFrame = UE_mac_inst[module_idP].rxFrame,
+                    .subframe = UE_mac_inst[module_idP].rxSubframe};
+  trace_pdu(&tmp);
 }
 
 void
@@ -630,14 +637,15 @@ ue_decode_p(module_id_t module_idP, int CC_id, frame_t frameP,
   VCD_SIGNAL_DUMPER_DUMP_FUNCTION_BY_NAME
   (VCD_SIGNAL_DUMPER_FUNCTIONS_UE_DECODE_PCCH, VCD_FUNCTION_OUT);
   stop_UE_TIMING(UE_mac_inst[module_idP].rx_p);
-  trace_pdu(DIRECTION_UPLINK,
-            (uint8_t *) pdu,
-            len,
-            module_idP,
-            WS_SI_RNTI,
-            P_RNTI,
-            UE_mac_inst[module_idP].rxFrame,
-            UE_mac_inst[module_idP].rxSubframe, 0, 0);
+  ws_trace_t tmp = {.direction = DIRECTION_UPLINK,
+                    .pdu_buffer = pdu,
+                    .pdu_buffer_size = len,
+                    .ueid = module_idP,
+                    .rntiType = WS_SI_RNTI,
+                    .rnti = P_RNTI,
+                    .sysFrame = UE_mac_inst[module_idP].rxFrame,
+                    .subframe = UE_mac_inst[module_idP].rxSubframe};
+  trace_pdu(&tmp);
 }
 
 unsigned char *parse_mch_header(unsigned char *mac_header,
@@ -2864,10 +2872,15 @@ ue_get_sdu(module_id_t module_idP, int CC_id, frame_t frameP,
   VCD_SIGNAL_DUMPER_DUMP_FUNCTION_BY_NAME
   (VCD_SIGNAL_DUMPER_FUNCTIONS_UE_GET_SDU, VCD_FUNCTION_OUT);
   stop_UE_TIMING(UE_mac_inst[module_idP].tx_ulsch_sdu);
-  trace_pdu(DIRECTION_UPLINK, ulsch_buffer, buflen, module_idP, WS_C_RNTI,
-            UE_mac_inst[module_idP].crnti,
-            UE_mac_inst[module_idP].txFrame,
-            UE_mac_inst[module_idP].txSubframe, 0, 0);
+  ws_trace_t tmp = {.direction = DIRECTION_UPLINK,
+                    .pdu_buffer = ulsch_buffer,
+                    .pdu_buffer_size = buflen,
+                    .ueid = module_idP,
+                    .rntiType = WS_C_RNTI,
+                    .rnti = UE_mac_inst[module_idP].crnti,
+                    .sysFrame = UE_mac_inst[module_idP].txFrame,
+                    .subframe = UE_mac_inst[module_idP].txSubframe};
+  trace_pdu(&tmp);
 }
 
 

@@ -37,6 +37,7 @@
 #undef MALLOC //there are two conflicting definitions, so we better make sure we don't use it at all
 
 #include "assertions.h"
+#include "common/oai_version.h"
 
 #include "PHY/types.h"
 
@@ -69,7 +70,7 @@ unsigned short config_frames[4] = {2,9,11,13};
 #include "common/utils/LOG/log.h"
 #include "UTIL/OTG/otg_tx.h"
 #include "UTIL/OTG/otg_externs.h"
-#include "UTIL/MATH/oml.h"
+#include "SIMULATION/TOOLS/sim.h"
 #include "common/utils/LOG/vcd_signal_dumper.h"
 #include "UTIL/OPT/opt.h"
 #include "enb_config.h"
@@ -143,8 +144,6 @@ char channels[128] = "0";
 int rx_input_level_dBm;
 int otg_enabled;
 
-uint64_t num_missed_slots=0; // counter for the number of missed slots
-
 RU_t **RCconfig_RU(int nb_RU,int nb_L1_inst,PHY_VARS_eNB ***eNB,uint64_t *ru_mask,pthread_mutex_t *ru_mutex,pthread_cond_t *ru_cond);
 
 RU_t **RCconfig_RU(int nb_RU,int nb_L1_inst,PHY_VARS_eNB ***eNB,uint64_t *ru_mask,pthread_mutex_t *ru_mutex,pthread_cond_t *ru_cond);
@@ -159,7 +158,6 @@ eth_params_t *eth_params;
 
 double cpuf;
 
-int oaisim_flag=0;
 
 /* hardcoded into gtp_itf.cpp */
 bool sdap_data_req(protocol_ctxt_t *ctxt_p,
@@ -410,18 +408,14 @@ extern void  phy_free_RU(RU_t *);
 static void init_pdcp(void)
 {
   pdcp_layer_init();
-  uint32_t pdcp_initmask = (IS_SOFTMODEM_NOS1) ?
-                           (PDCP_USE_NETLINK_BIT | LINK_ENB_PDCP_TO_IP_DRIVER_BIT) : LINK_ENB_PDCP_TO_GTPV1U_BIT;
+  uint32_t pdcp_initmask = (IS_SOFTMODEM_NOS1) ? 0 : LINK_ENB_PDCP_TO_GTPV1U_BIT;
 
   if (IS_SOFTMODEM_NOS1)
-    pdcp_initmask = pdcp_initmask | ENB_NAS_USE_TUN_BIT | SOFTMODEM_NOKRNMOD_BIT  ;
+    pdcp_initmask = pdcp_initmask | ENB_NAS_USE_TUN_BIT;
 
   pdcp_initmask = pdcp_initmask | ENB_NAS_USE_TUN_W_MBMS_BIT;
 
   pdcp_module_init(pdcp_initmask, 0);
-
-  pdcp_set_rlc_data_req_func(rlc_data_req);
-  pdcp_set_pdcp_data_ind_func(pdcp_data_ind);
 }
 
 static  void wait_nfapi_init(char *thread_name) {
@@ -448,7 +442,7 @@ int main ( int argc, char **argv )
 
   mode = normal_txrx;
   logInit();
-  set_latency_target();
+  lock_memory_to_ram();
   printf("Reading in command-line options\n");
   get_options(uniqCfg);
 
@@ -473,11 +467,8 @@ int main ( int argc, char **argv )
   init_opt();
   // to make a graceful exit when ctrl-c is pressed
   set_softmodem_sighandler();
-#ifndef PACKAGE_VERSION
-#define PACKAGE_VERSION "UNKNOWN-EXPERIMENTAL"
-#endif
   // strdup to put the sring in the core file for post mortem identification
-  LOG_I(HW, "Version: %s\n", strdup(PACKAGE_VERSION));
+  LOG_I(HW, "Version: %s\n", strdup(OAI_PACKAGE_VERSION));
 
   /* Read configuration */
   if (RC.nb_inst > 0) {
@@ -518,7 +509,6 @@ int main ( int argc, char **argv )
   // init UE_PF_PO and mutex lock
   pthread_mutex_init(&ue_pf_po_mutex, NULL);
   memset (&UE_PF_PO[0][0], 0, sizeof(UE_PF_PO_t)*MAX_MOBILES_PER_ENB*MAX_NUM_CCs);
-  mlockall(MCL_CURRENT | MCL_FUTURE);
   pthread_cond_init(&sync_cond,NULL);
   pthread_mutex_init(&sync_mutex, NULL);
 
@@ -543,8 +533,8 @@ int main ( int argc, char **argv )
   printf("RC.nb_L1_inst:%d\n", RC.nb_L1_inst);
 
   if (RC.nb_L1_inst > 0) {
-    printf("Initializing eNB threads single_thread_flag:%d wait_for_sync:%d\n", get_softmodem_params()->single_thread_flag,get_softmodem_params()->wait_for_sync);
-    init_eNB(get_softmodem_params()->single_thread_flag,get_softmodem_params()->wait_for_sync);
+    printf("Initializing eNB threads wait_for_sync:%d\n", get_softmodem_params()->wait_for_sync);
+    init_eNB(get_softmodem_params()->wait_for_sync);
   }
   for (int x=0; x < RC.nb_L1_inst; x++)
     for (int CC_id=0; CC_id<RC.nb_L1_CC[x]; CC_id++) {

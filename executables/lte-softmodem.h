@@ -26,7 +26,6 @@
 #include "PHY/defs_eNB.h"
 #include "PHY/defs_UE.h"
 #include "s1ap_eNB.h"
-#include "SIMULATION/ETH_TRANSPORT/proto.h"
 #include "executables/softmodem-common.h"
 
 
@@ -122,9 +121,7 @@ extern uint64_t downlink_frequency[MAX_NUM_CCs][4];
 extern int32_t  uplink_frequency_offset[MAX_NUM_CCs][4];
 
 extern int rx_input_level_dBm;
-extern uint64_t num_missed_slots; // counter for the number of missed slots
 
-extern int oaisim_flag;
 extern int oai_exit;
 
 extern openair0_config_t openair0_cfg[MAX_CARDS];
@@ -141,7 +138,7 @@ extern int usrp_tx_thread;
 // In lte-enb.c
 extern void stop_eNB(int);
 extern void kill_eNB_proc(int inst);
-extern void init_eNB(int single_thread_flag, int wait_for_sync);
+extern void init_eNB(int wait_for_sync);
 
 // In lte-ru.c
 extern void stop_ru(RU_t *ru);
@@ -189,8 +186,6 @@ void kill_feptx_thread(RU_t *ru);
 void init_fep_thread(RU_t *ru, pthread_attr_t *attr_fep);
 void init_feptx_thread(RU_t *ru, pthread_attr_t *attr_feptx);
 void fep_full(RU_t *ru, int subframe);
-void configure_ru(int, void *arg);
-void configure_rru(int, void *arg);
 void ru_fep_full_2thread(RU_t *ru,int subframe);
 void feptx_ofdm(RU_t*ru, int frame_tx, int tti_tx);
 void feptx_prec(struct RU_t_s *ru, int frame_tx, int tti_tx);

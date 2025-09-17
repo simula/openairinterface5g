@@ -47,43 +47,16 @@
 
 #include "openair3/SECU/secu_defs.h"
 
-typedef rlc_op_status_t (*send_rlc_data_req_func_t)(const protocol_ctxt_t *const,
-                                                    const srb_flag_t,
-                                                    const MBMS_flag_t,
-                                                    const rb_id_t,
-                                                    const mui_t,
-                                                    confirm_t,
-                                                    sdu_size_t,
-                                                    uint8_t *,
-                                                    const uint32_t *const,
-                                                    const uint32_t *const);
-
-typedef bool(pdcp_data_ind_t)(const protocol_ctxt_t *,
-                              const srb_flag_t,
-                              const MBMS_flag_t,
-                              const rb_id_t,
-                              const sdu_size_t,
-                              uint8_t *,
-                              const uint32_t *const,
-                              const uint32_t *const);
-typedef pdcp_data_ind_t* pdcp_data_ind_func_t;
-
 #define MAX_NUMBER_NETIF                 1 //16
 #define ENB_NAS_USE_TUN_W_MBMS_BIT      (1<< 10)
-#define PDCP_USE_NETLINK_BIT            (1<< 11)
-#define LINK_ENB_PDCP_TO_IP_DRIVER_BIT  (1<< 13)
 #define LINK_ENB_PDCP_TO_GTPV1U_BIT     (1<< 14)
 #define UE_NAS_USE_TUN_BIT              (1<< 15)
 #define ENB_NAS_USE_TUN_BIT             (1<< 16)
 typedef struct {
   uint64_t optmask;
-  send_rlc_data_req_func_t send_rlc_data_req_func;
-  pdcp_data_ind_func_t pdcp_data_ind_func;
 } pdcp_params_t;
 
 
-#define PDCP_USE_NETLINK          ( get_pdcp_optmask() & PDCP_USE_NETLINK_BIT)
-#define LINK_ENB_PDCP_TO_IP_DRIVER  ( get_pdcp_optmask() & LINK_ENB_PDCP_TO_IP_DRIVER_BIT)
 #define LINK_ENB_PDCP_TO_GTPV1U     ( get_pdcp_optmask() & LINK_ENB_PDCP_TO_GTPV1U_BIT)
 #define UE_NAS_USE_TUN              ( get_pdcp_optmask() & UE_NAS_USE_TUN_BIT)
 #define ENB_NAS_USE_TUN             ( get_pdcp_optmask() & ENB_NAS_USE_TUN_BIT)
@@ -181,9 +154,12 @@ typedef struct pdcp_s {
    * Control-Plane RRC integrity key
    * These keys are configured by RRC layer
    */
-  uint8_t kUPenc[32];
-  uint8_t kRRCint[32];
-  uint8_t kRRCenc[32];
+  uint8_t kUPenc[16];
+  uint8_t kRRCint[16];
+  uint8_t kRRCenc[16];
+
+  stream_security_container_t *security_container_rrc;
+  stream_security_container_t *security_container_up;
 
   uint8_t security_activated;
 
@@ -276,7 +252,7 @@ bool cu_f1u_data_req(protocol_ctxt_t  *ctxt_pP,
                      const uint32_t *const sourceL2Id,
                      const uint32_t *const destinationL2Id);
 
-/*! \fn bool pdcp_data_ind(const protocol_ctxt_t* const, srb_flag_t, MBMS_flag_t, rb_id_t, sdu_size_t, uint8_t*, bool)
+/*! \fn bool pdcp_data_ind(const protocol_ctxt_t* const, srb_flag_t, MBMS_flag_t, rb_id_t, sdu_size_t, uint8_t*, uint32_t, uint32_t)
  * \brief This functions handles data transfer indications coming from RLC
  * \param[in] ctxt_pP        Running context.
  * \param[in] Shows if rb is SRB
@@ -284,12 +260,20 @@ bool cu_f1u_data_req(protocol_ctxt_t  *ctxt_pP,
  * \param[in] rab_id Radio Bearer ID
  * \param[in] sdu_buffer_size Size of incoming SDU in bytes
  * \param[in] sdu_buffer Buffer carrying SDU
- * \param[in] is_data_plane flag to indicate whether the userplane data belong to the control plane or data plane
+ * \param[in] srcID
+ * \param[in] dstID
  * \return TRUE on success, false otherwise
  * \note None
  * @ingroup _pdcp
  */
-pdcp_data_ind_t pdcp_data_ind;
+bool pdcp_data_ind(const protocol_ctxt_t *const ctxt_pP,
+                   const srb_flag_t srb_flagP,
+                   const MBMS_flag_t MBMS_flagP,
+                   const rb_id_t rb_idP,
+                   const sdu_size_t sdu_buffer_sizeP,
+                   uint8_t *const sdu_buffer_pP,
+                   const uint32_t *const srcID,
+                   const uint32_t *const dstID);
 
 /*! \fn void rrc_pdcp_config_req(const protocol_ctxt_t* const ,uint32_t,rb_id_t,uint8_t)
 * \brief This functions initializes relevant PDCP entity
@@ -378,9 +362,6 @@ int pdcp_fifo_flush_sdus                      ( const protocol_ctxt_t *const  ct
 int pdcp_fifo_read_input_sdus_remaining_bytes ( const protocol_ctxt_t *const  ctxt_pP);
 int pdcp_fifo_read_input_sdus                 ( const protocol_ctxt_t *const  ctxt_pP);
 void pdcp_fifo_read_input_sdus_from_otg       ( const protocol_ctxt_t *const  ctxt_pP);
-void pdcp_set_rlc_data_req_func(send_rlc_data_req_func_t send_rlc_data_req);
-void pdcp_set_pdcp_data_ind_func(pdcp_data_ind_func_t pdcp_data_ind);
-pdcp_data_ind_func_t get_pdcp_data_ind_func(void);
 //-----------------------------------------------------------------------------
 int pdcp_fifo_flush_mbms_sdus                      ( const protocol_ctxt_t *const  ctxt_pP);
 int pdcp_fifo_read_input_mbms_sdus_fromtun       ( const protocol_ctxt_t *const  ctxt_pP);

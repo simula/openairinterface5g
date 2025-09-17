@@ -81,12 +81,6 @@
 #define DAQ_AGC_ON 1
 #define DAQ_AGC_OFF 0
 
-
-typedef struct {
-  uint8_t decoded_output[3]; // PBCH paylod not larger than 3B
-  uint8_t xtra_byte;
-} fapiPbch_t;
-
 /** @addtogroup _PHY_PROCEDURES_
  * @{
  */
@@ -116,8 +110,6 @@ int8_t nr_find_ue(uint16_t rnti, PHY_VARS_eNB *phy_vars_eNB);
   @param frame_tx
 */
 void ue_ta_procedures(PHY_VARS_NR_UE *ue, int slot_tx, int frame_tx);
-
-unsigned int nr_get_tx_amp(int power_dBm, int power_max_dBm, int N_RB_UL, int nb_rb);
 
 void set_tx_harq_id(NR_UE_ULSCH_t *ulsch, int harq_pid, int slot_tx);
 int get_tx_harq_id(NR_UE_ULSCH_t *ulsch, int slot_tx);
@@ -157,29 +149,29 @@ int nr_ue_pdcch_procedures(PHY_VARS_NR_UE *ue,
                            int n_ss,
                            c16_t rxdataF[][ue->frame_parms.samples_per_slot_wCP]);
 
-int nr_ue_csi_im_procedures(PHY_VARS_NR_UE *ue,
-                            const UE_nr_rxtx_proc_t *proc,
-                            c16_t rxdataF[][ue->frame_parms.samples_per_slot_wCP]);
+void nr_ue_csi_im_procedures(PHY_VARS_NR_UE *ue,
+                             const UE_nr_rxtx_proc_t *proc,
+                             c16_t rxdataF[][ue->frame_parms.samples_per_slot_wCP]);
 
 void nr_ue_csi_rs_procedures(PHY_VARS_NR_UE *ue,
                              const UE_nr_rxtx_proc_t *proc,
                              c16_t rxdataF[][ue->frame_parms.samples_per_slot_wCP]);
 
-int psbch_pscch_processing(PHY_VARS_NR_UE *ue, UE_nr_rxtx_proc_t *proc, nr_phy_data_t *phy_data);
-int phy_procedures_nrUE_SL_TX(PHY_VARS_NR_UE *ue, UE_nr_rxtx_proc_t *proc, nr_phy_data_tx_t *phy_data);
+int psbch_pscch_processing(PHY_VARS_NR_UE *ue, const UE_nr_rxtx_proc_t *proc, nr_phy_data_t *phy_data);
+void phy_procedures_nrUE_SL_TX(PHY_VARS_NR_UE *ue, const UE_nr_rxtx_proc_t *proc, nr_phy_data_tx_t *phy_data);
 /*! \brief This function prepares the sl indication to pass to the MAC
  */
 void nr_fill_sl_indication(nr_sidelink_indication_t *sl_ind,
                            sl_nr_rx_indication_t *rx_ind,
                            sl_nr_sci_indication_t *sci_ind,
-                           UE_nr_rxtx_proc_t *proc,
+                           const UE_nr_rxtx_proc_t *proc,
                            PHY_VARS_NR_UE *ue,
                            void *phy_data);
 void nr_fill_sl_rx_indication(sl_nr_rx_indication_t *rx_ind,
                               uint8_t pdu_type,
                               PHY_VARS_NR_UE *ue,
                               uint16_t n_pdus,
-                              UE_nr_rxtx_proc_t *proc,
+                              const UE_nr_rxtx_proc_t *proc,
                               void *typeSpecific,
                               uint16_t rx_slss_id);
 

@@ -307,7 +307,7 @@ int main(int argc, char **argv)
 
   int threequarter_fs=0;
 
-  opp_enabled=1; // to enable the time meas
+  cpu_meas_enabled = 1; // to enable the time meas
 
 #if defined(__arm__) || defined(__aarch64__)
   FILE    *proc_fd = NULL;

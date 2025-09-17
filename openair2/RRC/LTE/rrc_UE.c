@@ -67,8 +67,7 @@
 #include "NR_RAT-Type.h"
 #include "NR_UE-CapabilityRAT-Container.h"
 
-#include "RRC/NAS/nas_config.h"
-#include "RRC/NAS/rb_config.h"
+#include "common/utils/tun_if.h"
 #if ENABLE_RAL
   #include "rrc_UE_ral.h"
 #endif
@@ -766,23 +765,20 @@ rrc_ue_establish_drb(
     ip_addr_offset4 = 1;
     LOG_I(OIP,"[UE %d] trying to bring up the OAI interface %d, IP X.Y.%d.%d\n", ue_mod_idP, ip_addr_offset3+ue_mod_idP,
           ip_addr_offset3+ue_mod_idP+1,ip_addr_offset4+ue_mod_idP+1);
-    oip_ifup=nas_config(ip_addr_offset3+ue_mod_idP+1,   // interface_id
-                        UE_NAS_USE_TUN?1:(ip_addr_offset3+ue_mod_idP+1), // third_octet
-                        ip_addr_offset4+ue_mod_idP+1, // fourth_octet
-                        "oip");                        // interface suffix (when using kernel module)
+    char ip[20];
+    snprintf(ip,
+             sizeof(ip),
+             "10.0.%d.%d",
+             UE_NAS_USE_TUN ? 1 : (ip_addr_offset3 + ue_mod_idP + 1),
+             ip_addr_offset4 + ue_mod_idP + 1);
+    oip_ifup = tun_config(ip_addr_offset3 + ue_mod_idP + 1, ip, NULL, "oaitun_oip");
 
     if (oip_ifup == 0 && (!UE_NAS_USE_TUN)) { // interface is up --> send a config the DRB
       LOG_I(OIP,"[UE %d] Config the ue net interface %d to send/receive pkt on DRB %ld to/from the protocol stack\n",
             ue_mod_idP,
             ip_addr_offset3+ue_mod_idP,
             (long int)((eNB_index * LTE_maxDRB) + DRB_config->drb_Identity));
-      rb_conf_ipv4(0,//add
-                   ue_mod_idP,//cx align with the UE index
-                   ip_addr_offset3+ue_mod_idP,//inst num_enb+ue_index
-                   (eNB_index * LTE_maxDRB) + DRB_config->drb_Identity,//rb
-                   0,//dscp
-                   ipv4_address(ip_addr_offset3+ue_mod_idP+1,ip_addr_offset4+ue_mod_idP+1),//saddr
-                   ipv4_address(ip_addr_offset3+ue_mod_idP+1,eNB_index+1));//daddr
+      AssertFatal(false, "not implemented\n");
       LOG_D(RRC,"[UE %d] State = Attached (eNB %d)\n",ue_mod_idP,eNB_index);
     }
   } // !EPC_MODE_ENABLED

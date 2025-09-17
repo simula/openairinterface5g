@@ -118,21 +118,6 @@ char *itoa(int i) {
   return strdup(buffer);
 }
 
-
-void set_priority(int priority)
-{
-  struct sched_param param =
-  {
-    .sched_priority = priority,
-  };
-  fprintf(stderr, "Calling sched_setscheduler(%d)\n", priority);
-  if (sched_setscheduler(0, SCHED_RR, &param) == -1)
-  {
-    fprintf(stderr, "sched_setscheduler: %s\n", strerror(errno));
-    abort();
-  }
-}
-
 /**
  * @brief Convert a version string x.y.z into numbers.
  *

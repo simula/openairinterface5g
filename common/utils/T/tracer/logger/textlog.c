@@ -131,7 +131,7 @@ static struct chunk next_chunk(char **s, database_event_format f)
     cur++;
     *s = cur;
     if (find_argument(name, f, &it, &event_arg) == 0) goto error;
-    return (struct chunk){type:C_ARG_NAME, s:name, it:it, event_arg:event_arg};
+    return (struct chunk){.type = C_ARG_NAME, .s = name, .it = it, .event_arg = event_arg};
   }
 
   /* { } is name of event (anything in between is smashed) */
@@ -143,7 +143,7 @@ static struct chunk next_chunk(char **s, database_event_format f)
     *cur = 0;
     cur++;
     *s = cur;
-    return (struct chunk){type:C_EVENT_NAME};
+    return (struct chunk){.type = C_EVENT_NAME};
   }
 
   /* anything but [ and { is raw string */
@@ -151,10 +151,10 @@ static struct chunk next_chunk(char **s, database_event_format f)
   name = cur;
   while (*cur && *cur != '[' && *cur != '{') cur++;
   *s = cur;
-  return (struct chunk){type:C_STRING, s:name};
+  return (struct chunk){.type = C_STRING, .s = name};
 
 error:
-  return (struct chunk){type:C_ERROR};
+  return (struct chunk){.type = C_ERROR};
 }
 
 logger *new_textlog(event_handler *h, void *database,

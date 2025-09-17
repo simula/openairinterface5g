@@ -47,6 +47,10 @@ typedef struct {
   /* set to the latest know time by the user of the module. Unit: ms */
   uint64_t t_current;
 
+  /* deal with logging of buffer full */
+  uint64_t t_log_buffer_full;
+  int      sdu_rejected;
+
   /* timers (stores the TTI of activation, 0 means not active) */
   uint64_t t_reassembly_start;
 

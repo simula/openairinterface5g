@@ -55,6 +55,12 @@
 
 typedef net_ip_address_t e1ap_net_ip_address_t;
 
+typedef enum BEARER_CONTEXT_STATUS_e {
+  BEARER_ACTIVE = 0,
+  BEARER_SUSPEND,
+  BEARER_RESUME,
+} BEARER_CONTEXT_STATUS_t;
+
 typedef struct PLMN_ID_s {
   int mcc;
   int mnc;
@@ -157,7 +163,7 @@ typedef struct qos_characteristics_s {
       } packet_error_rate;
     } dynamic;
   };
-  fiveQI_type_t qos_type;
+  fiveQI_t qos_type;
 } qos_characteristics_t;
 
 typedef struct ngran_allocation_retention_priority_s {
@@ -240,6 +246,7 @@ typedef struct e1ap_bearer_setup_req_s {
   char     integrityProtectionKey[128];
   long     ueDlAggMaxBitRate;
   PLMN_ID_t servingPLMNid;
+  BEARER_CONTEXT_STATUS_t bearerContextStatus;
   long activityNotificationLevel;
   int numPDUSessions;
   pdu_session_to_setup_t pduSession[E1AP_MAX_NUM_PDU_SESSIONS];

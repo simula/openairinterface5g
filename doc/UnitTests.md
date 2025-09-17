@@ -8,8 +8,9 @@ explaining how to test with cmake and ctest; it is a suggested read, and the
 following just lists the main points of how to compile the tests and how to add
 new ones.
 
-At the time of writing, only the NR RLC tests have been integrated. The author
-hopes that more tests follow suit.
+GoogleTest is a C++ unit testing framework that has been added as an external dependency. While using GoogleTest is not a requirement it can simplify writing unit tests.
+See [primer](http://google.github.io/googletest/primer.html) for a quick introduction. To add it to your test executable link against
+`GTest::gtest` or `GTest::gtest_main`.
 
 # How to compile tests
 
@@ -23,8 +24,13 @@ cmake .. -GNinja -DENABLE_TESTS=ON
 ninja tests
 ```
 
+The user can use either `ninja` or `make`.
+
+# Run unit tests
+
 Then, you can run `ctest` to run all tests:
-```
+
+```bash
 $ ctest
 Test project /home/richie/w/ctest/build
     Start 1: nr_rlc_tests
@@ -34,6 +40,8 @@ Test project /home/richie/w/ctest/build
 
 Total Test time (real) =   0.06 sec
 ```
+
+The user can see all available tests by typing `ctest -N` and then run a specific with `ctest -R <test_name>`, e.g. `ctest -R nr_rlc_tests`.
 
 A couple of interesting variables are `--verbose`, `--output-on-failure`.
 
@@ -58,7 +66,8 @@ process is
 
 In the simplest case, in an existing `CMakeLists.txt`, you might add the
 following:
-```
+
+```bash
 if(ENABLE_TESTS)
   add_executable(my_test mytest.c)
   add_dependencies(tests my_test)
@@ -106,3 +115,65 @@ that directory directly, which you might also use to compare to the
    slight complication is due to using shell scripts. An easier way is to
    directly declare the executable in `add_test()`, and `ctest` will locate and
    run the executable properly.
+
+# Benchmarking
+
+Google benchmark can be used to profile and benchmark small pieces of code. See
+`benchmark_rotate_vector` for reference implementation. To start benchmarking code,
+write a benchmark first and compare your implementation against baseline result.
+To ensure your results are reproducible see this [guide](https://github.com/google/benchmark/blob/main/docs/reducing_variance.md)
+
+Example output follows:
+
+```bash
+2024-08-26T11:55:49+02:00
+Running ./openair1/PHY/TOOLS/tests/benchmark_rotate_vector
+Run on (8 X 4700 MHz CPU s)
+CPU Caches:
+  L1 Data 48 KiB (x4)
+  L1 Instruction 32 KiB (x4)
+  L2 Unified 1280 KiB (x4)
+  L3 Unified 12288 KiB (x1)
+Load Average: 0.51, 0.31, 0.29
+***WARNING*** CPU scaling is enabled, the benchmark real time measurements may be noisy and will incur extra overhead.
+---------------------------------------------------------------------
+Benchmark                           Time             CPU   Iterations
+---------------------------------------------------------------------
+BM_rotate_cpx_vector/100         43.1 ns         43.1 ns     16683136
+BM_rotate_cpx_vector/256         70.1 ns         70.0 ns      9647446
+BM_rotate_cpx_vector/1024         277 ns          277 ns      2378273
+BM_rotate_cpx_vector/4096        1070 ns         1070 ns       654792
+BM_rotate_cpx_vector/16384       4220 ns         4220 ns       169070
+BM_rotate_cpx_vector/20000       5288 ns         5289 ns       136190
+```
+
+## Comparing results
+
+Benchmark results can be output to json by using command line arguments, example below
+
+```bash
+./benchmark_rotate_vector --benchmark_out=file.json --benchmark_repetitions=10
+```
+
+These results can be compared by a tool provided with google benchmark
+
+```bash
+./compare.py benchmarks ../../file.json ../../file1.json
+```
+
+Example output:
+```
+Comparing ../../file.json to ../../file1.json
+Benchmark                                           Time             CPU      Time Old      Time New       CPU Old       CPU New
+--------------------------------------------------------------------------------------------------------------------------------
+BM_rotate_cpx_vector/100                         +0.3383         +0.3384            43            58            43            58
+BM_rotate_cpx_vector/100                         +0.2334         +0.2335            42            52            42            52
+BM_rotate_cpx_vector/100                         +0.1685         +0.1683            42            49            42            49
+BM_rotate_cpx_vector/100                         +0.1890         +0.1889            42            50            42            50
+BM_rotate_cpx_vector/100                         +0.0456         +0.0457            42            44            42            44
+BM_rotate_cpx_vector/100                         +0.0163         +0.0162            42            42            42            42
+BM_rotate_cpx_vector/100                         +0.0005         +0.0004            43            43            43            43
+BM_rotate_cpx_vector/100                         +0.0134         +0.0129            43            43            43            43
+BM_rotate_cpx_vector/100                         +0.0162         +0.0162            42            42            42            42
+BM_rotate_cpx_vector/100                         +0.0003         +0.0003            42            42            42            42
+```

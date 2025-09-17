@@ -31,8 +31,6 @@
 
 #define PDCP_FIFO_C
 
-
-
 extern int otg_enabled;
 
 #include "pdcp.h"
@@ -49,7 +47,6 @@ extern int otg_enabled;
 
 #include "../MAC/mac_extern.h"
 #include "RRC/L2_INTERFACE/openair_rrc_L2_interface.h"
-#include "NETWORK_DRIVER/LITE/constant.h"
 //#include "SIMULATION/ETH_TRANSPORT/extern.h"
 #include "common/utils/LOG/log.h"
 #include "UTIL/OTG/otg_tx.h"
@@ -63,23 +60,12 @@ extern int otg_enabled;
 
 #include <sys/socket.h>
 #include <linux/netlink.h>
-#include "NETWORK_DRIVER/UE_IP/constant.h"
-
-extern char nl_rx_buf[NL_MAX_PAYLOAD];
-extern struct sockaddr_nl nas_src_addr, nas_dest_addr;
-extern struct nlmsghdr *nas_nlh_tx;
-extern struct nlmsghdr *nas_nlh_rx;
-extern struct iovec nas_iov_tx;
-extern struct iovec nas_iov_rx;
 
 extern int nas_sock_fd[MAX_MOBILES_PER_ENB];
 
 extern int nas_sock_mbms_fd;
 
-extern struct msghdr nas_msg_tx;
-extern struct msghdr nas_msg_rx;
-
-
+static char nl_rx_buf[NL_MAX_PAYLOAD];
 
 #  include "openair3/ocp-gtpu/gtp_itf.h"
 
@@ -136,12 +122,7 @@ int pdcp_fifo_flush_sdus(const protocol_ctxt_t *const  ctxt_pP) {
 	log_dump(PDCP, pdcpData, pdcpHead->data_size, LOG_DUMP_CHAR,"PDCP output to be sent to TUN interface: \n");
       ret = write(nas_sock_fd[0], pdcpData, pdcpHead->data_size);
        LOG_T(PDCP,"[NB PDCP_FIFOS] ret %d TRIED TO PUSH DATA TO rb_id %d handle %d sizeToWrite %d\n",ret,rb_id,nas_sock_fd[0],pdcpHead->data_size);
-    } else if (PDCP_USE_NETLINK) {
-      int sizeToWrite= sizeof (pdcp_data_ind_header_t) + pdcpHead->data_size;
-      memcpy(NLMSG_DATA(nas_nlh_tx), (uint8_t *) pdcpHead,  sizeToWrite);
-      nas_nlh_tx->nlmsg_len = sizeToWrite;
-      ret = sendmsg(nas_sock_fd[0],&nas_msg_tx,0);
-    }  //  PDCP_USE_NETLINK
+    }
     
     AssertFatal(ret >= 0,"[PDCP_FIFOS] pdcp_fifo_flush_sdus (errno: %d %s), nas_sock_fd[0]: %d\n", errno, strerror(errno), nas_sock_fd[0]);
 
@@ -418,13 +399,14 @@ int pdcp_fifo_read_input_sdus_fromnetlinksock (const protocol_ctxt_t *const  ctx
     rb_id_t          rab_id  = 0;
     VCD_SIGNAL_DUMPER_DUMP_FUNCTION_BY_NAME( VCD_SIGNAL_DUMPER_FUNCTIONS_PDCP_FIFO_READ, 1 );
     VCD_SIGNAL_DUMPER_DUMP_FUNCTION_BY_NAME( VCD_SIGNAL_DUMPER_FUNCTIONS_PDCP_FIFO_READ_BUFFER, 1 );
+    struct msghdr nas_msg_rx;
     len = recvmsg(nas_sock_fd[0], &nas_msg_rx, 0);
     VCD_SIGNAL_DUMPER_DUMP_FUNCTION_BY_NAME( VCD_SIGNAL_DUMPER_FUNCTIONS_PDCP_FIFO_READ_BUFFER, 0 );
 
     if (len > 0) {
-      for (nas_nlh_rx = (struct nlmsghdr *) nl_rx_buf;
-           NLMSG_OK (nas_nlh_rx, len);
-           nas_nlh_rx = NLMSG_NEXT (nas_nlh_rx, len)) {
+      for (struct nlmsghdr *nas_nlh_rx = (struct nlmsghdr *)nl_rx_buf;
+           NLMSG_OK(nas_nlh_rx, len);
+           nas_nlh_rx = NLMSG_NEXT(nas_nlh_rx, len)) {
         if (nas_nlh_rx->nlmsg_type == NLMSG_DONE) {
           LOG_D(PDCP, "[PDCP][NETLINK] RX NLMSG_DONE\n");
           //return;
@@ -526,7 +508,7 @@ int pdcp_fifo_read_input_sdus_fromnetlinksock (const protocol_ctxt_t *const  ctx
             ctxt.rntiMaybeUEid = pdcp_UE_UE_module_id_to_rnti[ctxt.module_id];
 
             if (rab_id != 0) {
-              if (rab_id == UE_IP_DEFAULT_RAB_ID) {
+              if (rab_id == 1) {
                 LOG_D(PDCP, "PDCP_COLL_KEY_DEFAULT_DRB_VALUE(module_id=%d, rnti=%lx, enb_flag=%d)\n", ctxt.module_id, ctxt.rntiMaybeUEid, ctxt.enb_flag);
                 key = PDCP_COLL_KEY_DEFAULT_DRB_VALUE(ctxt.module_id, ctxt.rntiMaybeUEid, ctxt.enb_flag);
                 h_rc = hashtable_get(pdcp_coll_p, key, (void **)&pdcp_p);
@@ -700,7 +682,7 @@ void pdcp_fifo_read_input_sdus_frompc5s (const protocol_ctxt_t *const  ctxt_pP) 
         //UE
         if (!ctxt.enb_flag) {
           if (rab_id != 0) {
-            if (rab_id == UE_IP_DEFAULT_RAB_ID) {
+            if (rab_id == 1) {
               LOG_D(PDCP, "PDCP_COLL_KEY_DEFAULT_DRB_VALUE(module_id=%d, rnti=%lx, enb_flag=%d)\n", ctxt.module_id, ctxt.rntiMaybeUEid, ctxt.enb_flag);
               key = PDCP_COLL_KEY_DEFAULT_DRB_VALUE(ctxt.module_id, ctxt.rntiMaybeUEid, ctxt.enb_flag);
               h_rc = hashtable_get(pdcp_coll_p, key, (void **)&pdcp_p);
@@ -794,7 +776,7 @@ void pdcp_fifo_read_input_sdus_frompc5s (const protocol_ctxt_t *const  ctxt_pP) 
             pc5s_header->destinationL2Id=destinationL2Id; 
           }
         } /* end of !ctxt.enb_flag */
-
+        break;
       default:
         LOG_D(PDCP, "pc5s message type %d, unknown...\n", pc5s_header->traffic_type);
         break;
@@ -807,15 +789,10 @@ void pdcp_fifo_read_input_sdus_frompc5s (const protocol_ctxt_t *const  ctxt_pP) 
 } /* pdcp_fifo_read_input_sdus_frompc5s */
 
 //-----------------------------------------------------------------------------
-int pdcp_fifo_read_input_sdus (const protocol_ctxt_t *const  ctxt_pP) {
-  if (UE_NAS_USE_TUN || ENB_NAS_USE_TUN) {
-    return pdcp_fifo_read_input_sdus_fromtun (ctxt_pP);
-  } else if (PDCP_USE_NETLINK) {
-    pdcp_fifo_read_input_sdus_frompc5s (ctxt_pP);
-    return pdcp_fifo_read_input_sdus_fromnetlinksock(ctxt_pP);
-  } /* PDCP_USE_NETLINK */
-
-  return 0;
+int pdcp_fifo_read_input_sdus(const protocol_ctxt_t *const ctxt_pP)
+{
+  DevAssert(UE_NAS_USE_TUN || ENB_NAS_USE_TUN);
+  return pdcp_fifo_read_input_sdus_fromtun(ctxt_pP);
 }
 
 //TTN for D2D (PC5S)

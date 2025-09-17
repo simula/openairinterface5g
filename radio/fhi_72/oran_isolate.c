@@ -34,6 +34,11 @@
 #include "common/utils/threadPool/thread-pool.h"
 #include "oaioran.h"
 
+// include the following file for VERSIONX, version of xran lib, to print it during
+// startup. Only relevant for printing, if it ever makes problem, remove this
+// line and the use of VERSIONX further below. It is relative to phy/fhi_lib/lib/api
+#include "../../app/src/common.h"
+
 typedef struct {
   eth_state_t e;
   rru_config_msg_type_t last_msg;
@@ -309,7 +314,7 @@ __attribute__((__visibility__("default"))) int transport_init(openair0_device *d
 
   eth->last_msg = (rru_config_msg_type_t)-1;
 
-  printf("ORAN: %s\n", __FUNCTION__);
+  LOG_I(HW, "Initializing O-RAN 7.2 FH interface through xran library (compiled against headers of %s)\n", VERSIONX);
 
   initNotifiedFIFO(&oran_sync_fifo);
   eth->oran_priv = oai_oran_initialize(openair0_cfg);

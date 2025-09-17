@@ -52,7 +52,7 @@ int send_messages_txt(int s, char *T_messages_txt, int T_messages_txt_len)
     /* TODO: be careful, we use internal T stuff, to rewrite? */
     T_LOCAL_size = 0;
     T_HEADER(T_ID(-1));
-    T_PUT_buffer(1, ((T_buffer){addr:(src), length:(send_size)}));
+    T_PUT_buffer(1, ((T_buffer){.addr = src, .length = send_size}));
     if (socket_send(s, &T_LOCAL_size, 4) == -1) return -1;
     if (socket_send(s, buf, T_LOCAL_size) == -1) return -1;
     src += send_size;
@@ -242,7 +242,7 @@ int main(int n, char **v)
   /* create listener socket */
   l = create_listen_socket("0.0.0.0", local_port);
 
-  OBUF ebuf = { osize: 0, omaxsize: 0, obuf: NULL };
+  OBUF ebuf = {.osize = 0, .omaxsize = 0, .obuf = NULL};
 
   current_nfd = 0;
 

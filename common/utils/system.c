@@ -32,6 +32,7 @@
 #include "system.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <unistd.h>
 #include <pthread.h>
 #include <string.h>
@@ -94,17 +95,6 @@ static void read_pipe(int p, char *b, int size) {
     b += ret;
     size -= ret;
   }
-}
-int checkIfFedoraDistribution(void) {
-  return !system("grep -iq 'ID_LIKE.*fedora' /etc/os-release ");
-}
-
-int checkIfGenericKernelOnFedora(void) {
-  return system("uname -a | grep -q rt");
-}
-
-int checkIfInsideContainer(void) {
-  return !system("egrep -q 'libpod|podman|kubepods'  /proc/self/cgroup");
 }
 
 /********************************************************************/
@@ -225,43 +215,71 @@ int rt_sleep_ns (uint64_t x)
   return clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &myTime, NULL);
 }
 
-void threadCreate(pthread_t* t, void * (*func)(void*), void * param, char* name, int affinity, int priority){
-  pthread_attr_t attr;
+#ifdef HAVE_LIB_CAP
+#include <sys/capability.h>
+/* \brief reports if the current thread has capability CAP_SYS_NICE, i.e. */
+bool has_cap_sys_nice(void)
+{
+  /* get capabilities of calling PID */
+  cap_t cap = cap_get_pid(0);
+  cap_flag_value_t val;
+  /* check to what CAP_SYS_NICE is currently ("effective capability") set */
+  int ret = cap_get_flag(cap, CAP_SYS_NICE, CAP_EFFECTIVE, &val);
+  AssertFatal(ret == 0, "Error in cap_get_flag(): ret %d errno %d\n", ret, errno);
+  cap_free(cap);
+  /* return true if CAP_SYS_NICE is currently set */
+  return val == CAP_SET;
+}
+#else
+/* libcap has not been detected on this system. We do not need to require it --
+ * we can try to read directly via a syscall. This is discouraged, though; from
+ * the man page: "The portable interfaces are cap_set_proc(3) and
+ * cap_get_proc(3); if possible, you should use those interfaces in
+ * applications". */
+#include <sys/syscall.h>      /* Definition of SYS_* constants */
+#include <linux/capability.h> /* capabilities used below */
+/* \brief reports if the current thread has capability CAP_SYS_NICE, i.e. */
+bool has_cap_sys_nice(void)
+{
+  struct __user_cap_header_struct hdr = {.version = _LINUX_CAPABILITY_VERSION_3};
+  struct __user_cap_data_struct cap[2];
+  if (syscall(SYS_capget, &hdr, cap) == -1)
+    return false;
+  return (cap[0].effective & (1 << CAP_SYS_NICE)) != 0;
+}
+#endif
+
+void threadCreate(pthread_t* t, void * (*func)(void*), void * param, char* name, int affinity, int priority)
+{
   int ret;
-  int settingPriority = 1;
+  bool set_prio = has_cap_sys_nice();
+
+  pthread_attr_t attr;
   ret=pthread_attr_init(&attr);
   AssertFatal(ret == 0, "Error in pthread_attr_init(): ret: %d, errno: %d\n", ret, errno);
 
-  LOG_I(UTIL,"Creating thread %s with affinity %d and priority %d\n",name,affinity,priority);
-
-  if (checkIfFedoraDistribution())
-    if (checkIfGenericKernelOnFedora())
-      if (checkIfInsideContainer())
-        settingPriority = 0;
-  
-  if (settingPriority) {
-    ret=pthread_attr_setinheritsched(&attr, PTHREAD_EXPLICIT_SCHED);
+  if (set_prio) {
+    ret = pthread_attr_setinheritsched(&attr, PTHREAD_EXPLICIT_SCHED);
     AssertFatal(ret == 0, "Error in pthread_attr_setinheritsched(): ret: %d, errno: %d\n", ret, errno);
-    ret=pthread_attr_setschedpolicy(&attr, SCHED_OAI);
+    ret = pthread_attr_setschedpolicy(&attr, SCHED_OAI);
     AssertFatal(ret == 0, "Error in pthread_attr_setschedpolicy(): ret: %d, errno: %d\n", ret, errno);
-    if(priority<sched_get_priority_min(SCHED_OAI) || priority>sched_get_priority_max(SCHED_OAI)) {
-      LOG_E(UTIL,"Prio not possible: %d, min is %d, max: %d, forced in the range\n",
-	    priority,
-	    sched_get_priority_min(SCHED_OAI),
-	    sched_get_priority_max(SCHED_OAI));
-      if(priority<sched_get_priority_min(SCHED_OAI))
-        priority=sched_get_priority_min(SCHED_OAI);
-      if(priority>sched_get_priority_max(SCHED_OAI))
-        priority=sched_get_priority_max(SCHED_OAI);
-    }
-    AssertFatal(priority<=sched_get_priority_max(SCHED_OAI),"");
-    struct sched_param sparam={0};
+    AssertFatal(priority >= sched_get_priority_min(SCHED_OAI) && priority <= sched_get_priority_max(SCHED_OAI),
+                "Scheduling priority %d not possible: must be within [%d, %d]\n",
+                priority,
+                sched_get_priority_min(SCHED_OAI),
+                sched_get_priority_max(SCHED_OAI));
+    AssertFatal(priority <= sched_get_priority_max(SCHED_OAI), "");
+    struct sched_param sparam = {0};
     sparam.sched_priority = priority;
-    ret=pthread_attr_setschedparam(&attr, &sparam);
+    ret = pthread_attr_setschedparam(&attr, &sparam);
     AssertFatal(ret == 0, "Error in pthread_attr_setschedparam(): ret: %d errno: %d\n", ret, errno);
+    LOG_I(UTIL, "%s() for %s: creating thread with affinity %x, priority %d\n", __func__, name, affinity, priority);
+  } else {
+    affinity = -1;
+    priority = -1;
+    LOG_I(UTIL, "%s() for %s: creating thread (no affinity, default priority)\n", __func__, name);
   }
- 
-  LOG_I(UTIL,"threadCreate for %s, affinity %x, priority %d\n",name,affinity,priority); 
+
   ret=pthread_create(t, &attr, func, param);
   AssertFatal(ret == 0, "Error in pthread_create(): ret: %d, errno: %d\n", ret, errno);
   
@@ -314,11 +332,6 @@ void thread_top_init(char *thread_name,
     }
   }
 
-  if (checkIfFedoraDistribution())
-    if (checkIfGenericKernelOnFedora())
-      if (checkIfInsideContainer())
-        settingPriority = 0;
-
   if (settingPriority) {
     memset(&sparam, 0, sizeof(sparam));
     sparam.sched_priority = sched_get_priority_max(SCHED_FIFO);
@@ -347,37 +360,10 @@ void thread_top_init(char *thread_name,
   }
 }
 
-
-// Block CPU C-states deep sleep
-void set_latency_target(void) {
-  int ret;
-  static int latency_target_fd=-1;
-  uint32_t latency_target_value=2; // in microseconds
-  if (latency_target_fd == -1) {
-    if ( (latency_target_fd = open("/dev/cpu_dma_latency", O_RDWR)) != -1 ) {
-      ret = write(latency_target_fd, &latency_target_value, sizeof(latency_target_value));
-      if (ret == 0) {
-	printf("# error setting cpu_dma_latency to %u!: %s\n", latency_target_value, strerror(errno));
-	close(latency_target_fd);
-	latency_target_fd=-1;
-	return;
-      }
-    }
-  }
-  if (latency_target_fd != -1) 
-    LOG_I(HW,"# /dev/cpu_dma_latency set to %u us\n", latency_target_value);
-  else
-    LOG_E(HW,"Can't set /dev/cpu_dma_latency to %u us\n", latency_target_value);
-
-  // Set CPU frequency to it's maximum
-  int system_ret = system("for d in /sys/devices/system/cpu/cpu[0-9]*; do cat $d/cpufreq/cpuinfo_max_freq > $d/cpufreq/scaling_min_freq; done");
-  if (system_ret == -1) {
-    LOG_E(HW, "Can't set cpu frequency: [%d]  %s\n", errno, strerror(errno));
-    return;
-  }
-  if (!((WIFEXITED(system_ret)) && (WEXITSTATUS(system_ret) == 0))) {
-    LOG_E(HW, "Can't set cpu frequency\n");
-  }
-  mlockall(MCL_CURRENT | MCL_FUTURE);
-
+/* \brief lock memory to RAM to avoid delays */
+void lock_memory_to_ram(void)
+{
+  int rc = mlockall(MCL_CURRENT | MCL_FUTURE);
+  if (rc != 0)
+    LOG_W(UTIL, "mlockall() failed: %d, %s\n", errno, strerror(errno));
 }

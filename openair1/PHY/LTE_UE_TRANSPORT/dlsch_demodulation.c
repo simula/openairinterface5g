@@ -1955,7 +1955,7 @@ void dlsch_channel_compensation_TM56(int **rxdataF_ext,
     }
 
     Nre = (pilots==0) ? 12 : 8;
-    precoded_signal_strength += ((signal_energy_nodc(&dl_ch_estimates_ext[aarx][symbol*frame_parms->N_RB_DL*Nre],
+    precoded_signal_strength += ((signal_energy_nodc((c16_t*)&dl_ch_estimates_ext[aarx][symbol*frame_parms->N_RB_DL*Nre],
                                   (nb_rb*Nre))) - (measurements->n0_power[aarx]));
   } // rx_antennas
 
@@ -2349,9 +2349,9 @@ void dlsch_channel_compensation_TM34(LTE_DL_FRAME_PARMS *frame_parms,
     } // rb loop
 
     Nre = (pilots==0) ? 12 : 8;
-    precoded_signal_strength0 += ((signal_energy_nodc(&dl_ch_estimates_ext[aarx][symbol*frame_parms->N_RB_DL*Nre],
+    precoded_signal_strength0 += ((signal_energy_nodc((c16_t*)&dl_ch_estimates_ext[aarx][symbol*frame_parms->N_RB_DL*Nre],
                                    (nb_rb*Nre))*rx_power_correction) - (measurements->n0_power[aarx]));
-    precoded_signal_strength1 += ((signal_energy_nodc(&dl_ch_estimates_ext[aarx+2][symbol*frame_parms->N_RB_DL*Nre],
+    precoded_signal_strength1 += ((signal_energy_nodc((c16_t*)&dl_ch_estimates_ext[aarx+2][symbol*frame_parms->N_RB_DL*Nre],
                                    (nb_rb*Nre))*rx_power_correction) - (measurements->n0_power[aarx]));
   } // rx_antennas
 

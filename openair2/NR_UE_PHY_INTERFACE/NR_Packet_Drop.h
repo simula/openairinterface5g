@@ -22,7 +22,6 @@
 #define __NR_CHAN_MODEL_H__
 
 #include "common/platform_types.h"
-#include <nfapi_nr_interface_scf.h>
 #include "openair2/NR_PHY_INTERFACE/NR_IF_Module.h"
 
 #define NR_NUM_MCS 29
@@ -77,5 +76,6 @@ float get_bler_val(uint8_t mcs, int sinr);
 bool should_drop_transport_block(int slot, uint16_t rnti);
 bool is_channel_modeling(void);
 int get_mcs_from_sinr(nr_bler_struct *nr_bler_data, float sinr);
+void init_nr_bler_table(const char *env_string);
 
 #endif

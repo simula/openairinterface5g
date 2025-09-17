@@ -57,6 +57,7 @@
 
 #define NR_RRC_MAC_RA_IND(mSGpTR)               (mSGpTR)->ittiMsg.nr_rrc_mac_ra_ind
 #define NR_RRC_MAC_MSG3_IND(mSGpTR)             (mSGpTR)->ittiMsg.nr_rrc_mac_msg3_ind
+#define NR_RRC_MAC_INAC_IND(mSGpTR)             (mSGpTR)->ittiMsg.nr_rrc_mac_inac_ind
 
 #define RRC_MAC_DRX_CONFIG_REQ(mSGpTR)          (mSGpTR)->ittiMsg.rrc_mac_drx_config_req
 
@@ -79,6 +80,10 @@ typedef struct NRRrcMacMsg3Ind_s {
   uint16_t rnti;
   int gnb_id;
 } NRRrcMacMsg3Ind;
+
+typedef struct NRRrcMacInacInd_s {
+  bool inactivity_timer_expired; // not to leave the struct empty
+} NRRrcMacInacInd;
 
 typedef struct RrcMacInSyncInd_s {
   uint32_t  frame;

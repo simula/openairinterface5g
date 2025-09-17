@@ -1,0 +1,5 @@
+add_library(nr_ue_power_procedures nr_ue_power_procedures.c)
+target_link_libraries(nr_ue_power_procedures PUBLIC asn1_nr_rrc ${T_LIB} MAC_NR_COMMON nr_common)
+if (ENABLE_TESTS)
+  add_subdirectory(tests)
+endif()

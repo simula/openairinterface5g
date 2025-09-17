@@ -35,20 +35,22 @@ import subprocess
 from datetime import datetime
 import yaml
 
-#for log rotation mgt
-import cls_log_mgt
 import cls_cmd
 
 class Module_UE:
 
-	def __init__(self, module_name, filename="ci_infra.yaml"):
+	def __init__(self, module_name, node=None, filename="ci_infra.yaml"):
 		with open(filename, 'r') as f:
 			all_ues = yaml.load(f, Loader=yaml.FullLoader)
 			m = all_ues.get(module_name)
 			if m is None:
 				raise Exception(f'no such module name "{module_name}" in "{filename}"')
 			self.module_name = module_name
-			self.host = m['Host']
+			self.host = m['Host'] if m['Host'] != "%%current_host%%" else None
+			if node is None and self.host is None:
+				raise Exception(f'node not provided when needed')
+			elif node is not None and self.host is None:
+				self.host = node
 			self.cmd_dict = {
 				"attach": m.get('AttachScript'),
 				"detach": m.get('DetachScript'),
@@ -65,6 +67,8 @@ class Module_UE:
 			self.logStore = m.get('LogStore')
 			self.cmd_prefix = m.get('CmdPrefix')
 			self.runIperf3Server = m.get('RunIperf3Server', True)
+			self.namespace = m.get('Namespace')
+			self.cnPath = m.get('CNPath')
 			logging.info(f'initialized {self.module_name}@{self.host} from {filename}')
 
 	def __str__(self):
@@ -190,6 +194,12 @@ class Module_UE:
 	def getHost(self):
 		return self.host
 
+	def getNamespace(self):
+		return self.namespace
+
+	def getCNPath(self):
+		return self.cnPath
+
 	def getRunIperf3Server(self):
 		return self.runIperf3Server
 
@@ -208,25 +218,6 @@ class Module_UE:
 
 	def _disableTrace(self):
 		raise Exception("not implemented")
-		mySSH = sshconnection.SSHConnection()
-		mySSH.open(self.HostIPAddress, self.HostUsername, self.HostPassword)
-		mySSH.command('echo ' + ' '  + ' | sudo -S killall --signal=SIGINT *QLog*', '\$',5)
-		mySSH.close()
-
 
 	def _logCollect(self):
 		raise Exception("not implemented")
-		mySSH = sshconnection.SSHConnection()
-		mySSH.open(self.HostIPAddress, self.HostUsername, self.HostPassword)
-		#archive qlog to USB stick in /media/usb-drive/ci_qlogs with datetime suffix
-		now=datetime.now()
-		now_string = now.strftime("%Y%m%d-%H%M")
-		source='ci_qlog'
-		destination= self.LogStore + '/ci_qlog_'+now_string+'.zip'
-		#qlog artifact is zipped into the target folder
-		mySSH.command('echo $USER; echo ' + ' '  + ' | nohup sudo -S zip -r '+destination+' '+source+' > /dev/null 2>&1 &','\$', 10)
-		mySSH.close()
-		#post action : log cleaning to make sure enough space is reserved for the next run
-		Log_Mgt=cls_log_mgt.Log_Mgt(self.HostUsername,self.HostIPAddress, self.HostPassword, self.LogStore)
-		return destination
-

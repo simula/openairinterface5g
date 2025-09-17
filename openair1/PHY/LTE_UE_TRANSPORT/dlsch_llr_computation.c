@@ -8010,12 +8010,12 @@ int dlsch_64qam_64qam_llr(LTE_DL_FRAME_PARMS *frame_parms,
                    (int32_t *) rho_256i,
                    len);
 #else // defined(__arm__) || defined(__aarch64__)
-  qam64_qam64((int32_t *)rxF_256i,
-                   (int32_t *)rxF_i_256i,
-                   (int32_t *)ch_mag_256i,
-                   (int32_t *)ch_mag_i_256i,
-                   (int16_t *)llr16,
-                   (int32_t *) rho_256i,
+  qam64_qam64((short *)rxF_256i,
+                   (short *)rxF_i_256i,
+                   (short *)ch_mag_256i,
+                   (short *)ch_mag_i_256i,
+                   (short *)llr16,
+                   (short *) rho_256i,
                    len);
 #endif
 

@@ -62,7 +62,7 @@ void nr_rlc_activate_avg_time_to_tx(const int ue_id, const logical_chan_id_t cha
 
 void nr_rlc_srb_recv_sdu(const int ue_id, const logical_chan_id_t channel_id, unsigned char *buf, int size);
 
-void nr_rlc_activate_srb0(int ue_id,
+bool nr_rlc_activate_srb0(int ue_id,
                           void *data,
                           void (*send_initial_ul_rrc_message)(int rnti, const uint8_t *sdu, sdu_size_t sdu_len, void *data));
 

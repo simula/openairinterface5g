@@ -983,18 +983,16 @@ schedule_ue_spec(module_id_t module_idP,
         for (int j = 0; j < TBS - sdu_length_total - offset; j++) {
           dlsch_pdu->payload[0][offset + sdu_length_total + j] = 0;
         }
-
-        trace_pdu(DIRECTION_DOWNLINK,
-                  (uint8_t *) dlsch_pdu->payload[0],
-                  TBS,
-                  module_idP,
-                  WS_C_RNTI,
-                  UE_RNTI(module_idP,
-                          UE_id),
-                  eNB->frame,
-                  eNB->subframe,
-                  0,
-                  0);
+        ws_trace_t tmp = {.direction = DIRECTION_DOWNLINK,
+                          .pdu_buffer = (uint8_t *)dlsch_pdu->payload,
+                          .pdu_buffer_size = TBS,
+                          .ueid = module_idP,
+                          .rntiType = WS_C_RNTI,
+                          .rnti = UE_RNTI(module_idP, UE_id),
+                          .sysFrame = eNB->frame,
+                          .subframe = eNB->subframe,
+                          .harq_pid = harq_pid};
+        trace_pdu(&tmp);
         T(T_ENB_MAC_UE_DL_PDU_WITH_DATA,
           T_INT(module_idP),
           T_INT(CC_id),
@@ -1648,16 +1646,16 @@ schedule_ue_spec_br(module_id_t module_idP,
             UE_info->DLSCH_pdu[CC_id][0][UE_id].payload[0][offset + sdu_length_total + j] = (char)(taus()&0xff);
           }
 
-          trace_pdu(DIRECTION_DOWNLINK,
-                    (uint8_t *)UE_info->DLSCH_pdu[CC_id][0][UE_id].payload[0],
-                    TBS,
-                    module_idP,
-                    3,
-                    UE_RNTI(module_idP,UE_id),
-                    mac->frame,
-                    mac->subframe,
-                    0,
-                    0);
+          ws_trace_t tmp = {.direction = DIRECTION_DOWNLINK,
+                            .pdu_buffer = UE_info->DLSCH_pdu[CC_id][0][UE_id].payload[0],
+                            .pdu_buffer_size = TBS,
+                            .ueid = module_idP,
+                            .rntiType = 3,
+                            .rnti = UE_RNTI(module_idP, UE_id),
+                            .sysFrame = mac->frame,
+                            .subframe = mac->subframe,
+                            .harq_pid = harq_pid};
+          trace_pdu(&tmp);
           T(T_ENB_MAC_UE_DL_PDU_WITH_DATA,
             T_INT(module_idP),
             T_INT(CC_id),
@@ -1850,16 +1848,15 @@ schedule_ue_spec_br(module_id_t module_idP,
         T_INT (subframeP),
         T_INT (0 /* harq_pid always 0? */ ),
         T_BUFFER (&mac->UE_info.DLSCH_pdu[CC_id][0][UE_id].payload[0], TX_req->pdu_length));
-      trace_pdu(1,
-                (uint8_t *) mac->UE_info.DLSCH_pdu[CC_id][0][(unsigned char) UE_id].payload[0],
-                TX_req->pdu_length,
-                UE_id,
-                3,
-                rnti,
-                frameP,
-                subframeP,
-                0,
-                0);
+      ws_trace_t tmp = {.direction = 1,
+                        .pdu_buffer = mac->UE_info.DLSCH_pdu[CC_id][0][UE_id].payload[0],
+                        .pdu_buffer_size = TX_req->pdu_length,
+                        .ueid = UE_id,
+                        .rntiType = 3,
+                        .rnti = rnti,
+                        .sysFrame = frameP,
+                        .subframe = subframeP};
+      trace_pdu(&tmp);
     } // end else if ((subframeP == 7) && (round_DL < 8))
   } // end loop on UE_id
 }
@@ -2360,17 +2357,15 @@ schedule_PCH(module_id_t module_idP,
                 subframeP);
           continue;
         }
-
-        trace_pdu(DIRECTION_DOWNLINK,
-                  &eNB->common_channels[CC_id].PCCH_pdu.payload[0],
-                  pcch_sdu_length,
-                  0xffff,
-                  PCCH,
-                  P_RNTI,
-                  eNB->frame,
-                  eNB->subframe,
-                  0,
-                  0);
+        ws_trace_t tmp = {.direction = DIRECTION_DOWNLINK,
+                          .pdu_buffer = eNB->common_channels[CC_id].PCCH_pdu.payload,
+                          .pdu_buffer_size = pcch_sdu_length,
+                          .ueid = 0xffff,
+                          .rntiType = PCCH,
+                          .rnti = P_RNTI,
+                          .sysFrame = eNB->frame,
+                          .subframe = eNB->subframe};
+        trace_pdu(&tmp);
         eNB->eNB_stats[CC_id].total_num_pcch_pdu++;
         eNB->eNB_stats[CC_id].pcch_buffer = pcch_sdu_length;
         eNB->eNB_stats[CC_id].total_pcch_buffer += pcch_sdu_length;

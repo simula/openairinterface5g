@@ -33,15 +33,13 @@
 void nas_stream_encrypt_eea2(nas_stream_cipher_t const *stream_cipher, uint8_t *out)
 {
   DevAssert(stream_cipher != NULL);
-  DevAssert(stream_cipher->key != NULL);
-  DevAssert(stream_cipher->key_length == 32);
   DevAssert(stream_cipher->bearer < 32);
   DevAssert(stream_cipher->direction < 2);
   DevAssert(stream_cipher->message != NULL);
   DevAssert(stream_cipher->blength > 7);
 
   aes_128_t p = {0};
-  memcpy(p.key, stream_cipher->key, stream_cipher->key_length);
+  memcpy(p.key, stream_cipher->context, 16);
   p.type = AES_INITIALIZATION_VECTOR_16;
   p.iv16.d.count = htonl(stream_cipher->count);
   p.iv16.d.bearer = stream_cipher->bearer;
@@ -53,4 +51,17 @@ void nas_stream_encrypt_eea2(nas_stream_cipher_t const *stream_cipher, uint8_t *
   const size_t len_out = byte_lenght;
   byte_array_t msg = {.buf =  stream_cipher->message, .len = byte_lenght};
   aes_128_ctr(&p, msg, len_out, out);
+}
+
+stream_security_context_t *stream_ciphering_init_eea2(const uint8_t *ciphering_key)
+{
+  void *ret = calloc(1, 16);
+  AssertFatal(ret != NULL, "out of memory\n");
+  memcpy(ret, ciphering_key, 16);
+  return (stream_security_context_t *)ret;
+}
+
+void stream_ciphering_free_eea2(stream_security_context_t *ciphering_context)
+{
+  free(ciphering_context);
 }

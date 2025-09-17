@@ -59,8 +59,9 @@ typedef struct {
   uint32_t F;
   /// Modulation order
   uint8_t Qm;
-  uint32_t E;
+  uint32_t Tbslbrm;
   unsigned int G;
+  nrLDPC_params_per_cb_t perCB[NR_LDPC_MAX_NUM_CB];
   // Redundancy version index
   uint8_t rv;
 } encoder_implemparams_t;

@@ -70,6 +70,26 @@ static void *nr_pdcp_timer_thread(void *_nr_pdcp_ue_manager)
   return NULL;
 }
 
+static void *nr_pdcp_tick_thread() {
+  pthread_setname_np(pthread_self(),"nr_pdcp_tick_thread");
+  uint64_t curr_time = 0;
+  while (1) {
+    usleep(1000);
+    curr_time++;
+    nr_pdcp_wakeup_timer_thread(curr_time);
+  }
+  return NULL;
+}
+
+void nr_pdcp_init_tick_thread() 
+{
+  pthread_t t;
+  if (pthread_create(&t, NULL, nr_pdcp_tick_thread, NULL) != 0) {
+    LOG_E(PDCP, "%s:%d:%s: fatal\n", __FILE__, __LINE__, __FUNCTION__);
+    exit(1);
+  }
+}
+
 void nr_pdcp_init_timer_thread(nr_pdcp_ue_manager_t *nr_pdcp_ue_manager)
 {
   pthread_t t;

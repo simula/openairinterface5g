@@ -74,16 +74,11 @@ If DPDK library was installed into custom path, you have to point to the right d
 ```
 export PKG_CONFIG_PATH=/opt/dpdk-t2/lib64/pkgconfig/:$PKG_CONFIG_PATH
 ```
-## T2 card DPDK initialization
-Following lines in `openair1/PHY/CODING/nrLDPC_decoder/nrLDPC_decoder_offload.c` file has to be
-modified based on your system requirements. By default, PCI address of the T2 card is set to 41:00.0 and cores 14 and 15 are assigned to the DPDK.
-```
- char *dpdk_dev = "41:00.0"; //PCI address of the card
- char *argv_re[] = {"bbdev", "-a", dpdk_dev, "-l", "14-15", "--file-prefix=b6", "--"};
-```
-For the DPDK EAL initialization, device is specified by `-a` option and list
-of cores to run the DPDK application on is selected by `-l` option. PCI adress of
-the T2 card can be detected by `lspci | grep "Xilinx"` command.
+## Setup of T2-related DPDK EAL parameters
+To configure T2-related DPDK Environment Abstraction Layer (EAL) parameters, you can set the following parameters via the command line:
+- `ldpc_offload.dpdk_dev` - **mandatory** parameter, specifies PCI address of the T2 card. PCI address of the T2 card can be detected by `lspci | grep "Xilinx"` command.
+- `ldpc_offload.dpdk_cores_list` - CPU cores assigned to DPDK for T2 processing, by default set to *11-12*. Ensure that the CPU cores specified in *ldpc_offload.dpdk_cores_list* are available and not used by other processes to avoid conflicts.
+- `ldpc_offload.dpdk_prefix` - DPDK shared data file prefix, by default set to *b6*
 
 # OAI Build
 OTA deployment is precisely described in the following tutorial:
@@ -118,7 +113,7 @@ Offload of the channel decoding to the T2 card is in nr_ulsim specified by *-o* 
 cd ~/openairinterface5g
 source oaienv
 cd cmake_targets/ran_build/build
-sudo ./nr_ulsim -n100 -s20 -m20 -r273 -R273 -o
+sudo ./nr_ulsim -n100 -s20 -m20 -r273 -R273 -o --ldpc_offload.dpdk_dev 01:00.0
 ```
 ## nr_dlsim test
 Offload of the channel encoding to the AMD Xilinx T2 card is in nr_dlsim specified by *-c* option. Example command for running nr_dlsim with LDPC encoding offload to the T2 card:
@@ -126,7 +121,7 @@ Offload of the channel encoding to the AMD Xilinx T2 card is in nr_dlsim specifi
 cd ~/openairinterface5g
 source oaienv
 cd cmake_targets/ran_build/build
-sudo ./nr_dlsim -n300 -s30 -R 106 -e 27 -c
+sudo ./nr_dlsim -n300 -s30 -R 106 -e 27 -c --ldpc_offload.dpdk_dev 01:00.0
 ```
 
 # OTA test
@@ -137,7 +132,7 @@ Offload of the channel encoding and decoding to the AMD Xilinx T2 card is enable
 cd ~/openairinterface5g
 source oaienv
 cd cmake_targets/ran_build/build
-sudo ./nr-softmodem --sa -O ../../../targets/PROJECTS/GENERIC-NR-5GC/CONF/gnb.sa.band78.fr1.106PRB.usrpb210.conf --ldpc-offload-enable
+sudo ./nr-softmodem --sa -O ../../../targets/PROJECTS/GENERIC-NR-5GC/CONF/gnb.sa.band78.fr1.106PRB.usrpb210.conf --ldpc-offload-enable --ldpc_offload.dpdk_dev 01:00.0
 ```
 
 # Limitations

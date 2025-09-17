@@ -31,7 +31,7 @@ FROM ran-build:latest AS lte-ue-build
 
 
 #start from scratch for target executable
-FROM registry.access.redhat.com/ubi9/ubi:latest as oai-lte-ue
+FROM registry.access.redhat.com/ubi9/ubi:latest AS oai-lte-ue
 ENV TZ=Europe/Paris
 
 RUN dnf update -y && \
@@ -39,7 +39,8 @@ RUN dnf update -y && \
         lksctp-tools \
         procps-ng \
         tzdata \
-        atlas \
+        libusbx \
+        libgfortran \
         gdb \
         python3 \
         python3-pip \
@@ -101,7 +102,18 @@ WORKDIR /usr/local/share/uhd/rfnoc
 COPY --from=lte-ue-base /usr/local/share/uhd/rfnoc/ .
 
 RUN /bin/bash -c "ln -s /usr/local/lib/liboai_usrpdevif.so /usr/local/lib/liboai_device.so" && \
-    ldconfig
+    ldconfig && \
+    echo "---- ldd on executable lte-uesoftmodem ----" && \
+    ldd /opt/oai-lte-ue/bin/lte-uesoftmodem && \
+    echo "---- ldd on shared libraries ----" && \
+    ldd /usr/local/lib/liboai_eth_transpro.so \
+        /usr/local/lib/librfsimulator.so \
+        /usr/local/lib/liboai_usrpdevif.so \
+        /usr/local/lib/libcoding.so \
+        /usr/local/lib/libparams_libconfig.so \
+        /usr/local/lib/libdfts.so \
+        /usr/local/lib/libtelnetsrv.so \
+        /usr/local/lib64/libuhd.so.4.4.0
 
 WORKDIR /opt/oai-lte-ue
 COPY --from=lte-ue-base /tini /tini

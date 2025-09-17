@@ -1,0 +1,22 @@
+services:
+    oai-gnb:
+        image: ${REGISTRY:-oaisoftwarealliance}/oai-gnb-aw2s:${TAG:-develop}
+        network_mode: "host"
+        container_name: oai-gnb-aw2s
+        cap_drop:
+            - ALL
+        cap_add:
+            - SYS_NICE
+            - IPC_LOCK
+        ulimits:
+          core: -1 # for core dumps
+        environment:
+            TZ: Europe/Paris
+            USE_ADDITIONAL_OPTIONS: --sa
+        volumes:
+            - ../../conf_files/gnb.sa.band78.51prb.aw2s.ddsuu.2x2.conf:/opt/oai-gnb-aw2s/etc/gnb.conf
+        healthcheck:
+            test: /bin/bash -c "pgrep nr-softmodem"
+            interval: 10s
+            timeout: 5s
+            retries: 5

@@ -36,9 +36,6 @@
 /* comment (and recompile everything) to not send time in events */
 #define T_SEND_TIME
 
-/* maximum number of arguments for the T macro */
-#define T_MAX_ARGS 16
-
 /* maximum size of a message - increase if needed */
 #define T_BUFFER_MAX (1024*64*4)
 

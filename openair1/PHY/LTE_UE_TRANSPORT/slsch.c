@@ -31,10 +31,6 @@
  */
 #include "PHY/defs_UE.h"
 
-extern int
-multicast_link_write_sock(int groupP, char *dataP, uint32_t sizeP);
-
-
 void generate_slsch(PHY_VARS_UE *ue,SLSCH_t *slsch,int frame_tx,int subframe_tx) {
 
   UE_tport_t pdu;
@@ -58,9 +54,6 @@ void generate_slsch(PHY_VARS_UE *ue,SLSCH_t *slsch,int frame_tx,int subframe_tx)
 	  slsch->payload_length,
 	  slsch_header_len+sizeof(SLSCH_t)-sizeof(uint8_t*)+slsch->payload_length);
     
-    multicast_link_write_sock(0, 
-			      (char *)&pdu,
-			      slsch_header_len+sizeof(SLSCH_t)-sizeof(uint8_t*)+slsch->payload_length);
-    
+    AssertFatal(false, "multicast_link_write_sock() not implemented\n");
   }
 }

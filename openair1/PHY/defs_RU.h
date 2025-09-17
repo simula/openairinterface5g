@@ -130,9 +130,9 @@ typedef struct {
   /// - third index: frequency [0..]
   int32_t **tdd_calib_coeffs;
   /// \brief Anaglogue beam ID for each OFDM symbol (used when beamforming not done in RU)
-  /// - first index: antenna port
+  /// - first index: concurrent beam
   /// - second index: beam_id [0.. symbols_per_frame[
-  uint8_t **beam_id;
+  int **beam_id;
 } RU_COMMON;
 
 
@@ -661,7 +661,8 @@ typedef struct RU_t_s {
   /// number of cores for RU ThreadPool
   int num_tpcores;
   /// structure for analyzing high-level RT measurements
-  rt_ru_profiling_t rt_ru_profiling; 
+  rt_ru_profiling_t rt_ru_profiling;
+  void* scopeData;
 } RU_t;
 
 

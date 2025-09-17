@@ -37,20 +37,12 @@
  * Reset
  */
 int DU_handle_RESET(instance_t instance, sctp_assoc_t assoc_id, uint32_t stream, F1AP_F1AP_PDU_t *pdu);
-int DU_send_RESET_ACKKNOWLEDGE(sctp_assoc_t assoc_id, F1AP_ResetAcknowledge_t *ResetAcknowledge);
-int DU_send_RESET(sctp_assoc_t assoc_id, F1AP_Reset_t *Reset);
-int DU_handle_RESET_ACKNOWLEDGE(instance_t instance, sctp_assoc_t assoc_id, uint32_t stream, F1AP_F1AP_PDU_t *pdu);
-
-/*
- * Error Indication
- */
-int DU_send_ERROR_INDICATION(sctp_assoc_t assoc_id, F1AP_F1AP_PDU_t *pdu_p);
-int DU_handle_ERROR_INDICATION(instance_t instance, sctp_assoc_t assoc_id, uint32_t stream, F1AP_F1AP_PDU_t *pdu);
+int DU_send_RESET_ACKNOWLEDGE(sctp_assoc_t assoc_id, const f1ap_reset_ack_t *ack);
 
 /*
  * F1 Setup
  */
-int DU_send_F1_SETUP_REQUEST(sctp_assoc_t assoc_id, f1ap_setup_req_t *setup_req);
+int DU_send_F1_SETUP_REQUEST(sctp_assoc_t assoc_id, const f1ap_setup_req_t *setup_req);
 
 int DU_handle_F1_SETUP_RESPONSE(instance_t instance, sctp_assoc_t assoc_id, uint32_t stream, F1AP_F1AP_PDU_t *pdu);
 
@@ -59,15 +51,7 @@ int DU_handle_F1_SETUP_FAILURE(instance_t instance, sctp_assoc_t assoc_id, uint3
 /*
  * gNB-DU Configuration Update
  */
-int DU_send_gNB_DU_CONFIGURATION_UPDATE(sctp_assoc_t assoc_id,
-                                        f1ap_setup_req_t *f1ap_du_data);
-
-int DU_handle_gNB_DU_CONFIGURATION_FAILURE(instance_t instance, sctp_assoc_t assoc_id, uint32_t stream, F1AP_F1AP_PDU_t *pdu);
-
-int DU_handle_gNB_DU_CONFIGURATION_UPDATE_ACKNOWLEDGE(instance_t instance,
-                                                      sctp_assoc_t assoc_id,
-                                                      uint32_t stream,
-                                                      F1AP_F1AP_PDU_t *pdu);
+int DU_send_gNB_DU_CONFIGURATION_UPDATE(sctp_assoc_t assoc_id, f1ap_gnb_du_configuration_update_t *msg);
 
 /*
  * gNB-CU Configuration Update
@@ -80,17 +64,9 @@ int DU_send_gNB_CU_CONFIGURATION_UPDATE_FAILURE(sctp_assoc_t assoc_id,
 int DU_send_gNB_CU_CONFIGURATION_UPDATE_ACKNOWLEDGE(sctp_assoc_t assoc_id,
     f1ap_gnb_cu_configuration_update_acknowledge_t *GNBCUConfigurationUpdateAcknowledge);
 
-
-
-/*
- * gNB-DU Resource Coordination
- */
-int DU_send_gNB_DU_RESOURCE_COORDINATION_REQUEST(sctp_assoc_t assoc_id,
-    F1AP_GNBDUResourceCoordinationRequest_t *GNBDUResourceCoordinationRequest);
-
-int DU_handle_gNB_DU_RESOURCE_COORDINATION_RESPONSE(instance_t instance,
-                                                    sctp_assoc_t assoc_id,
-                                                    uint32_t stream,
-                                                    F1AP_F1AP_PDU_t *pdu);
+int DU_handle_gNB_DU_CONFIGURATION_UPDATE_ACKNOWLEDGE(instance_t instance,
+                                                      sctp_assoc_t assoc_id,
+                                                      uint32_t stream,
+                                                      F1AP_F1AP_PDU_t *pdu);
 
 #endif /* F1AP_DU_INTERFACE_MANAGEMENT_H_ */

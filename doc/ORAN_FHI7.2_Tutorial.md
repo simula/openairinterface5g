@@ -26,7 +26,12 @@ The hardware on which we have tried this tutorial:
 |Intel(R) Xeon(R) Gold 6354 36-Core, 128GB|Ubuntu 22.04.3 LTS (5.15.0-1033-realtime)       |Intel X710, i40e, 9.00 0x8000cfeb 21.5.9 |
 |AMD EPYC 9374F 32-Core Processor, 128GB  |Ubuntu 22.04.2 LTS (5.15.0-1038-realtime)       |Intel E810 ,ice, 4.00 0x8001184e 1.3236.0|
 
-**NOTE**: These are not minimum hardware requirements. This is the configuration of our servers. The NIC card should support hardware PTP time stamping.
+**NOTE**: 
+
+- These are not minimum hardware requirements. This is the configuration of our servers. 
+- The NIC card should support hardware PTP time stamping. 
+- If you are using Intel servers then use only Ice Lake or newer generations. In case of AMD use only 4th generation, Genoa or newer. 
+- If you try on any other server apart from the above listed, then choose a desktop/server with clock speed higher than 3.0 GHz and `avx512` capabilities. 
 
 NICs we have tested so far:
 
@@ -391,6 +396,8 @@ Compile the fronthaul interface library by calling `make` and the option
 environment variables `RTE_SDK` for the path to the source tree of DPDK, and
 `XRAN_DIR` to set the path to the fronthaul library.
 
+**Note**: you need at least gcc-11 and g++-11.
+
 ```bash
 cd ~/phy/fhi_lib/lib
 make clean
@@ -624,7 +631,7 @@ In the following, we will use these short hands:
 - `du-u-plane-mac-addr`: DU U plane MAC address
 - `pci-address-u-plane-vf`: PCI bus address of the VF for U plane
 
-In the configuration file, in option `fhi_72.dpdk_devices`, the first PCI address is for C-plane and the second for U-plane. 
+In the configuration file, in option `fhi_72.dpdk_devices`, the first PCI address is for U-plane and the second for C-plane.
 
 For both the MAC addresses, you might use the MAC addresses which are
 pre-configured in the RUs (typically `00:11:22:33:44:66`, but that is not
@@ -763,6 +770,7 @@ Edit the sample OAI gNB configuration file and check following parameters:
   * Set an isolated core for L1 thread `L1_rx_thread_core`, in our environment we are using CPU 8
   * Set an isolated core for L1 thread `L1_tx_thread_core`, in our environment we are using CPU 10
   * `phase_compensation` should be set to 0 to disable when it is performed in the RU and set to 1 when it should be performed on the DU side
+  * `tx_amp_backoff_dB` controls the output level of OAI with respect to a full-scale output. The exact value for `tx_amp_backoff_dB` should be obtained from the O-RU documentation. This documentation typically includes detailed sections on Downlink (DL) signal scaling and gain setup. **Warning:** Exceeding the recommended power limits may permanently damage the RU.
 
 * `RUs` section
   * Set an isolated core for RU thread `ru_thread_core`, in our environment we are using CPU 6
@@ -780,6 +788,12 @@ Edit the sample OAI gNB configuration file and check following parameters:
   * `ru_addr`: RU C- and U-plane MAC-addresses (format `UU:VV:WW:XX:YY:ZZ`,
     hexadecimal numbers)
   * `mtu`: Maximum Transmission Unit for the RU, specified by RU vendor
+  * `dpdk_mem_size`: the huge page size that should be pre-allocated by DPDK
+    _for NUMA node 0_; by default, this is 8192 MiB (corresponding to 8 huge
+    pages à 1024 MiB each, see above). In the current implementation, you
+    cannot preallocate memory on NUMA nodes other than 0; in this case, set
+    this to 0 (no pre-allocation) and so that DPDK will allocate it on-demand
+    on the right NUMA node.
   * `fh_config`: parameters that need to match RU parameters
     * timing parameters (starting with `T`) depend on the RU: `Tadv_cp_dl` is a
       single number, the rest pairs of numbers `(x, y)` specifying minimum and
@@ -789,7 +803,6 @@ Edit the sample OAI gNB configuration file and check following parameters:
         compression
       * `iq_width_prach`: Width of PRACH IQ samples: if 16, no compression, if <16, applies
         compression
-      * `fft_size`: size of FFT performed by RU, set to 12 by default
     * `prach_config`: PRACH-specific configuration
       * `eAxC_offset`:  PRACH antenna offset
       * `kbar`: the PRACH guard interval, provided in RU
@@ -889,6 +902,143 @@ do not do any jumps (during the last hour). While an occasional jump is not
 necessarily problematic for the gNB, many such messages mean that the system is
 not working, and UEs might not be able to attach or reach good performance.
 
+# Operation with multiple RUs
+
+It is possible to connect up to 4 RUs to one DU at the same time and operate
+them as a (single) distributed antenna (array). This works since all RUs and
+the DU are synchronized onto a common clock using PTP. The assumed
+configuration is that with N RUs each having an M×M configuration, we
+effectively reach an (N×M)×(N×M) configuration.
+
+Some caveats:
+- Since it's a distributed antenna, this implies that this setup will deploy a
+  single cell only -- multiple cells on different RUs are not supported.
+- All RUs should use the same MTU, so either "normal" (1500 byte) MTU or jumbo
+  frames, but not a mix of both.
+- We tested only two RUs as of now, i.e., an 8×8 configuration.
+- Testing is currently limited to 4 logical antenna ports in DL; in UL, up to 8 can be used.
+
+For two RUs each using a 4x4 configuration, make sure to configure the 8x8
+configuration, i.e., set `nb_tx` and `nb_rx` under `RUs` to 8 each (NOT two
+RUs!). Also, set the antenna port information as listed above, i.e.,
+
+```
+pdsch_AntennaPorts_XP = 2;
+pdsch_AntennaPorts_N1 = 2;
+pusch_AntennaPorts    = 8;
+maxMIMO_layers        = 2;
+```
+Once testing for 8 antenna ports in DL is complete, we will change pdsch_AntennaPorts_N1 to 4.
+
+Next, configure the `fhi_72` section as indicated below:
+
+```
+fhi_72 = {
+   dpdk_devices = ("ru1_up_vf_pci", "ru1_cp_vf_pci", "ru2_up_vf_pci", "ru2_cp_vf_pci");
+   // core config as always
+   du_addr = ("du_ru1_up_mac_addr", "du_ru1_cp_mac_addr", "du_ru2_up_mac_addr", "du_ru2_cp_mac_addr");
+   ru_addr = ("ru1_up_mac_addr", "ru1_cp_mac_addr", "ru2_up_mac_addr", "ru2_cp_mac_addr");
+   // mtu, file_prefix ...
+   fh_config = (
+     {
+       // timing, ru_config, prach_config of RU1
+     },
+     {
+       // timing, ru_config, prach_config of RU2
+     }
+  );
+};
+```
+
+i.e., for `dpdk_devices`, `du_addr`, and `ru_addr` is configured for
+both RUs in a (flat) array, and the individual radio configuration is given for
+each RU individually inside the `fh_config`.
+
+<details>
+<summary>Sample FHI 7.2 configuration for two RUs (Benetel 550 and 650)</summary>
+
+```
+fhi_72 = {
+  dpdk_devices = ("0000:01:01.0", "0000:01:01.1", "0000:01:01.2", "0000:01:01.3");
+  system_core = 0;
+  io_core = 1;
+  worker_cores = (2);
+  du_addr = ("00:11:22:33:44:66","00:11:22:33:44:67","00:11:22:33:44:66","00:11:22:33:44:67");
+  ru_addr = ("70:b3:d5:e1:5b:ff","70:b3:d5:e1:5b:ff","70:b3:d5:e1:5b:81", "70:b3:d5:e1:5b:81");
+  mtu = 9216;
+  file_prefix = "fhi_72";
+  fh_config = (
+# RAN650
+   {
+    Tadv_cp_dl = 125;
+    T2a_cp_dl = (259, 500);
+    T2a_cp_ul = (25, 500);
+    T2a_up = (134, 375);
+    Ta3 = (152, 160);
+    T1a_cp_dl = (419, 470);
+    T1a_cp_ul = (285, 336);
+    T1a_up = (294, 345);
+    Ta4 = (0, 200);
+    ru_config = {
+      iq_width = 9;
+      iq_width_prach = 9;
+    };
+    prach_config = {
+      eAxC_offset = 4;
+    };
+  },
+# RAN550
+  {
+    Tadv_cp_dl = 125;
+    T2a_cp_dl = (259, 500);
+    T2a_cp_ul = (25, 500);
+    T2a_up = (134, 375);
+    Ta3 = (152, 160);
+    T1a_cp_dl = (419, 470);
+    T1a_cp_ul = (285, 336);
+    T1a_up = (294, 345);
+    Ta4 = (0, 200);
+    ru_config = {
+      iq_width = 9;
+      iq_width_prach = 9;
+    };
+    prach_config = {
+      eAxC_offset = 4;
+    };
+  });
+```
+</details>
+
+Compare also with the example (DU) configuration in
+[`gnb-du.sa.band78.106prb.fhi72.8x8-benetel-650-550.conf`](../targets/PROJECTS/GENERIC-NR-5GC/CONF/gnb-du.sa.band78.106prb.fhi72.8x8-benetel-650-550.conf).
+
+Afterwards, start the gNB with the modified configuration file. If everything
+went well, you should see the RU counters for both RUs go up:
+
+```
+[NR_PHY]   [o-du 0][rx  614400 pps   61440 kbps  844953][tx 1275076 pps  127488 kbps 1998585][Total Msgs_Rcvd 614400]
+[NR_PHY]   [o_du0][pusch0  107520 prach0   46080]
+[NR_PHY]   [o_du0][pusch1  107520 prach1   46080]
+[NR_PHY]   [o_du0][pusch2  107520 prach2   46080]
+[NR_PHY]   [o_du0][pusch3  107520 prach3   46080]
+[NR_PHY]   [o-du 1][rx  614400 pps   61440 kbps  844953][tx 1275076 pps  127488 kbps 1998585][Total Msgs_Rcvd 614400]
+[NR_PHY]   [o_du1][pusch0  107520 prach0   46080]
+[NR_PHY]   [o_du1][pusch1  107520 prach1   46080]
+[NR_PHY]   [o_du1][pusch2  107520 prach2   46080]
+[NR_PHY]   [o_du1][pusch3  107520 prach3   46080]
+```
+
+You can also verify that there is signal on all RX antennas like so:
+```bash
+$ cat nrL1_stats.log
+[...]
+max_IO = 66 (81), min_I0 = 0 (53), avg_I0 = 51 dB(46.48.45.46.51.56.55.45.)
+PRACH I0 = 38.0 dB
+```
+
+Note the eight entries after `avg_IO`.
+
+You should be able to connect a UE now.
 
 # Contact in case of questions
 

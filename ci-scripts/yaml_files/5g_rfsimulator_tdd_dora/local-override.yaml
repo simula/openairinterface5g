@@ -1,0 +1,27 @@
+include:
+  - ../local_common_overrides/build_images.yaml
+  - ../local_common_overrides/rebuild_nr_softmodems.yaml
+services:
+  oai-gnb:
+    privileged: true
+    depends_on:
+      rebuild-nr-softmodems:
+        condition: service_completed_successfully
+    # volumes:
+    # replace the gnb executable here
+  oai-nr-ue:
+    privileged: true
+    image: ue-local
+    depends_on:
+      build-ran-build:
+        condition: service_completed_successfully
+        restart: true
+      oai-gnb:
+        condition: service_started
+      rebuild-nr-softmodems:
+        condition: service_completed_successfully
+    container_name: local-oai-nr-ue
+    volumes:
+      - ../../../cmake_targets/ran_build/build/nr-uesoftmodem:/opt/oai-nr-ue/bin/nr-uesoftmodem
+      - ../../../cmake_targets/ran_build/build/librfsimulator.so:/usr/local/lib/librfsimulator.so 
+      - ../../../crashdumps/:/cores/

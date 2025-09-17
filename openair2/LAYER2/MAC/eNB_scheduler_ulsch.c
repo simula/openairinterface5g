@@ -134,7 +134,15 @@ rx_sdu(const module_id_t enb_mod_idP,
   memset(rx_lengths, 0, NB_RB_MAX * sizeof(unsigned short));
   start_meas(&mac->rx_ulsch_sdu);
   VCD_SIGNAL_DUMPER_DUMP_FUNCTION_BY_NAME(VCD_SIGNAL_DUMPER_FUNCTIONS_RX_SDU, 1);
-  trace_pdu(DIRECTION_UPLINK, sduP, sdu_lenP, 0, WS_C_RNTI, current_rnti, frameP, subframeP, 0, 0);
+  ws_trace_t tmp = {.direction = DIRECTION_UPLINK,
+                    .pdu_buffer = sduP,
+                    .pdu_buffer_size = sdu_lenP,
+                    .ueid = 0,
+                    .rntiType = WS_C_RNTI,
+                    .rnti = current_rnti,
+                    .sysFrame = frameP,
+                    .subframe = subframeP};
+  trace_pdu(&tmp);
 
   if (UE_id != -1) {
     UE_scheduling_control = &UE_info->UE_sched_ctrl[UE_id];

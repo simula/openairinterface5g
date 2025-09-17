@@ -50,9 +50,33 @@ extern RAN_CONTEXT_t RC;
 static nr_rlc_ue_manager_t *nr_rlc_ue_manager;
 
 /* TODO: handle time a bit more properly */
+static pthread_mutex_t nr_rlc_current_time_mutex = PTHREAD_MUTEX_INITIALIZER;
 static uint64_t nr_rlc_current_time;
 static int      nr_rlc_current_time_last_frame;
 static int      nr_rlc_current_time_last_subframe;
+
+void lock_nr_rlc_current_time(void)
+{
+  if (pthread_mutex_lock(&nr_rlc_current_time_mutex))
+    AssertFatal(0, "error locking mutex");
+}
+
+void unlock_nr_rlc_current_time(void)
+{
+  if (pthread_mutex_unlock(&nr_rlc_current_time_mutex))
+    AssertFatal(0, "error locking mutex");
+}
+
+static uint64_t get_nr_rlc_current_time(void)
+{
+  lock_nr_rlc_current_time();
+
+  uint64_t ret = nr_rlc_current_time;
+
+  unlock_nr_rlc_current_time();
+
+  return ret;
+}
 
 static void release_rlc_entity_from_lcid(nr_rlc_ue_t *ue, logical_chan_id_t channel_id)
 {
@@ -147,7 +171,7 @@ void mac_rlc_data_ind(const module_id_t  module_idP,
                       num_tb_t num_tbP,
                       crc_t *crcs_pP)
 {
-  if (module_idP != 0 || eNB_index != 0 || /*enb_flagP != 1 ||*/ MBMS_flagP != 0) {
+  if (eNB_index != 0 || /*enb_flagP != 1 ||*/ MBMS_flagP != 0) {
     LOG_E(RLC, "%s:%d:%s: fatal\n", __FILE__, __LINE__, __FUNCTION__);
     exit(1);
   }
@@ -166,7 +190,7 @@ void mac_rlc_data_ind(const module_id_t  module_idP,
 
   if (rb != NULL) {
     LOG_D(RLC, "RB found! (channel ID %d) \n", channel_idP);
-    rb->set_time(rb, nr_rlc_current_time);
+    rb->set_time(rb, get_nr_rlc_current_time());
     rb->recv_pdu(rb, buffer_pP, tb_sizeP);
   } else {
     LOG_E(RLC, "Fatal: no RB found (channel ID %d UE ID %d)\n", channel_idP, ue_id);
@@ -197,7 +221,7 @@ tbs_size_t mac_rlc_data_req(const module_id_t  module_idP,
 
   if (rb != NULL) {
     LOG_D(RLC, "MAC PDU to get created for channel_idP:%d \n", channel_idP);
-    rb->set_time(rb, nr_rlc_current_time);
+    rb->set_time(rb, get_nr_rlc_current_time());
     maxsize = tb_sizeP;
     ret = rb->generate_pdu(rb, buffer_pP, maxsize);
   } else {
@@ -233,7 +257,7 @@ mac_rlc_status_resp_t mac_rlc_status_ind(const module_id_t module_idP,
 
   if (rb != NULL) {
     nr_rlc_entity_buffer_status_t buf_stat;
-    rb->set_time(rb, nr_rlc_current_time);
+    rb->set_time(rb, get_nr_rlc_current_time());
     /* 38.321 deals with BSR values up to 81338368 bytes, after what it
      * reports '> 81338368' (table 6.1.3.1-2). Passing 100000000 is thus
      * more than enough.
@@ -275,12 +299,14 @@ rlc_buffer_occupancy_t mac_rlc_get_buffer_occupancy_ind(const module_id_t module
   }
 
   /* TODO: handle time a bit more properly */
+  lock_nr_rlc_current_time();
   if (nr_rlc_current_time_last_frame != frameP ||
       nr_rlc_current_time_last_subframe != subframeP) {
     nr_rlc_current_time++;
     nr_rlc_current_time_last_frame = frameP;
     nr_rlc_current_time_last_subframe = subframeP;
   }
+  unlock_nr_rlc_current_time();
 
   nr_rlc_manager_lock(nr_rlc_ue_manager);
   nr_rlc_ue_t *ue = nr_rlc_manager_get_ue(nr_rlc_ue_manager, ue_id);
@@ -288,7 +314,7 @@ rlc_buffer_occupancy_t mac_rlc_get_buffer_occupancy_ind(const module_id_t module
 
   if (rb != NULL) {
     nr_rlc_entity_buffer_status_t buf_stat;
-    rb->set_time(rb, nr_rlc_current_time);
+    rb->set_time(rb, get_nr_rlc_current_time());
     /* 38.321 deals with BSR values up to 81338368 bytes, after what it
      * reports '> 81338368' (table 6.1.3.1-2). Passing 100000000 is thus
      * more than enough.
@@ -345,7 +371,7 @@ rlc_op_status_t rlc_data_req(const protocol_ctxt_t *const ctxt_pP,
   }
 
   if (rb != NULL) {
-    rb->set_time(rb, nr_rlc_current_time);
+    rb->set_time(rb, get_nr_rlc_current_time());
     rb->recv_sdu(rb, (char *)sdu_pP, sdu_sizeP, muiP);
   } else {
     LOG_E(RLC, "%s:%d:%s: fatal: SDU sent to unknown RB\n", __FILE__, __LINE__, __FUNCTION__);
@@ -519,7 +545,7 @@ rb_found:
   }
   memcpy(memblock, buf, size);
   LOG_D(PDCP, "Calling PDCP layer from RLC in %s\n", __FUNCTION__);
-  if (!pdcp_data_ind(&ctx, is_srb, 0, rb_id, size, memblock, NULL, NULL)) {
+  if (!nr_pdcp_data_ind(&ctx, is_srb, 0, rb_id, size, memblock, NULL, NULL)) {
     LOG_E(RLC, "%s:%d:%s: ERROR: pdcp_data_ind failed\n", __FILE__, __LINE__, __FUNCTION__);
     /* what to do in case of failure? for the moment: nothing */
   }
@@ -650,7 +676,7 @@ void nr_rlc_reestablish_entity(int ue_id, int lc_id)
   nr_rlc_entity_t *rb = get_rlc_entity_from_lcid(ue, lc_id);
 
   if (rb != NULL) {
-    LOG_D(RLC, "RB found! (channel ID %d) \n", lc_id);
+    LOG_D(RLC, "RB found! (channel ID %d), re-establish RLC\n", lc_id);
     rb->reestablishment(rb);
   } else {
     LOG_E(RLC, "no RLC entity found (channel ID %d) for reestablishment\n", lc_id);
@@ -957,10 +983,17 @@ void deliver_sdu_srb0(void *deliver_sdu_data, struct nr_rlc_entity_t *entity,
   s0->send_initial_ul_rrc_message(s0->ue_id, (unsigned char *)buf, size, s0->data);
 }
 
-void nr_rlc_activate_srb0(int ue_id,
+bool nr_rlc_activate_srb0(int ue_id,
                           void *data,
                           void (*send_initial_ul_rrc_message)(int ue_id, const uint8_t *sdu, sdu_size_t sdu_len, void *data))
 {
+  nr_rlc_manager_lock(nr_rlc_ue_manager);
+  nr_rlc_ue_t *ue = nr_rlc_manager_get_ue(nr_rlc_ue_manager, ue_id);
+  if (ue->srb0 != NULL) {
+    LOG_W(RLC, "SRB0 already exists for UE %x, do nothing\n", ue_id);
+    nr_rlc_manager_unlock(nr_rlc_ue_manager);
+    return false;
+  }
   struct srb0_data *srb0_data = calloc(1, sizeof(struct srb0_data));
   AssertFatal(srb0_data, "out of memory\n");
 
@@ -968,21 +1001,13 @@ void nr_rlc_activate_srb0(int ue_id,
   srb0_data->data = data;
   srb0_data->send_initial_ul_rrc_message = send_initial_ul_rrc_message;
 
-  nr_rlc_manager_lock(nr_rlc_ue_manager);
-  nr_rlc_ue_t *ue = nr_rlc_manager_get_ue(nr_rlc_ue_manager, ue_id);
-  if (ue->srb0 != NULL) {
-    LOG_W(RLC, "SRB0 already exists for UE %d, do nothing\n", ue_id);
-    free(srb0_data);
-    nr_rlc_manager_unlock(nr_rlc_ue_manager);
-    return;
-  }
-
   nr_rlc_entity_t *nr_rlc_tm = new_nr_rlc_entity_tm(10000,
-                                   deliver_sdu_srb0, srb0_data);
+                                  deliver_sdu_srb0, srb0_data);
   nr_rlc_ue_add_srb_rlc_entity(ue, 0, nr_rlc_tm);
 
   LOG_I(RLC, "Activated srb0 for UE %d\n", ue_id);
   nr_rlc_manager_unlock(nr_rlc_ue_manager);
+  return true;
 }
 
 rlc_op_status_t rrc_rlc_config_req(const protocol_ctxt_t* const ctxt_pP,
@@ -1065,12 +1090,11 @@ bool nr_rlc_update_id(int from_id, int to_id)
   }
   ue->ue_id = to_id;
   LOG_I(RLC, "Update old UE ID %d context to ID %d\n", from_id, to_id);
-  for (int i = 0; i < sizeof(ue->srb) / sizeof(ue->srb[0]); ++i)
-    if (ue->srb[i])
-      ue->srb[i]->reestablishment(ue->srb[i]);
-  for (int i = 0; i < sizeof(ue->drb) / sizeof(ue->drb[0]); ++i)
-    if (ue->drb[i])
-      ue->drb[i]->reestablishment(ue->drb[i]);
+  /* re-establish RLC for SRB1: according to 5.3.7.4 of TS 38.331 */
+  if (ue->srb[0]) {
+    LOG_I(RLC, "Re-establish RLC for SRB 1\n");
+    ue->srb[0]->reestablishment(ue->srb[0]);
+  }
   nr_rlc_manager_unlock(nr_rlc_ue_manager);
   return true;
 }
@@ -1095,12 +1119,14 @@ void nr_rlc_test_trigger_reestablishment(int ue_id)
 
 void nr_rlc_tick(int frame, int subframe)
 {
+  lock_nr_rlc_current_time();
   if (frame != nr_rlc_current_time_last_frame ||
       subframe != nr_rlc_current_time_last_subframe) {
     nr_rlc_current_time_last_frame = frame;
     nr_rlc_current_time_last_subframe = subframe;
     nr_rlc_current_time++;
   }
+  unlock_nr_rlc_current_time();
 }
 
 /* This is a hack, to compile the gNB.
@@ -1159,7 +1185,7 @@ bool nr_rlc_get_statistics(int ue_id, int srb_flag, int rb_id, nr_rlc_statistics
     ret = true;
 
     // Patch buffer status using OAI results (no need to change anything in the RB)
-    // rb->set_time(rb, nr_rlc_current_time);
+    // rb->set_time(rb, get_nr_rlc_current_time());
     nr_rlc_entity_buffer_status_t oai_stat = rb->buffer_status(rb, 1000*1000);
     out->rxbuf_occ_bytes = oai_stat.status_size;
     out->txbuf_occ_bytes = oai_stat.tx_size + oai_stat.retx_size;
@@ -1188,7 +1214,7 @@ void nr_rlc_srb_recv_sdu(const int ue_id, const logical_chan_id_t channel_id, un
 
   AssertFatal(rb != NULL, "SDU sent to unknown RB UE-ID %d SRB %d\n", ue_id, channel_id);
 
-  rb->set_time(rb, nr_rlc_current_time);
+  rb->set_time(rb, get_nr_rlc_current_time());
   rb->recv_sdu(rb, (char *)buf, size, -1);
 
   nr_rlc_manager_unlock(nr_rlc_ue_manager);

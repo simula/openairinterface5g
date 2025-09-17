@@ -46,13 +46,13 @@ BUILD_DOXYGEN=0
 DISABLE_HARDWARE_DEPENDENCY="False"
 CMAKE_BUILD_TYPE="RelWithDebInfo"
 CMAKE_CMD="$CMAKE"
-OPTIONAL_LIBRARIES="telnetsrv enbscope uescope nrscope nrqtscope ldpc_cuda ldpc_t2 websrv oai_iqplayer"
+OPTIONAL_LIBRARIES="telnetsrv enbscope uescope nrscope ldpc_cuda ldpc_t2 websrv oai_iqplayer imscope"
 TARGET_LIST=""
 
 function print_help() {
   echo_info "
 This script compiles OpenAirInterface Software, and can install dependencies
-for a number of distributions (Ubuntu 18-22, Fedora, RHEL7/8).
+for a number of distributions (Ubuntu 22-24, Fedora, RHEL9).
 Options:
 --arch-native
    Passes -march=native to the compiler.
@@ -85,7 +85,7 @@ Options:
 --RU
   Makes the OAI RRU
 --UE
-   Makes the UE specific parts (ue_ip, usim, nvram) from the given configuration file
+   Makes the UE specific parts (usim, nvram) from the given configuration file
 --nrUE
   Makes the NR UE softmodem
 --UE-conf-nvram [configuration file]
@@ -124,6 +124,8 @@ Options:
 --disable-cpu-affinity
    Disables CPU Affinity between UHD/TX/RX Threads (Valid only when deadline scheduler is disabled). By defaulT, CPU Affinity is enabled when not using deadline scheduler. It is enabled only with >2 CPUs. For eNB, CPU_0-> Device library (UHD), CPU_1->TX Threads, CPU_2...CPU_MAX->Rx Threads. For UE, CPU_0->Device Library(UHD), CPU_1..CPU_MAX -> All the UE threads
 --enable-cpu-affinity
+--enable-LTTNG
+   Enable LTTNG log. While lttng is enabled, T-Tracer will be disabled
 --disable-T-Tracer
    Disables the T tracer.
 --disable-hardware-dependency
@@ -269,9 +271,6 @@ function main() {
        --UE-gen-nvram)
             gen_nvram_path=$(readlink -f "$2")
             shift 2;;
-       --UE-ip)
-            TARGET_LIST="$TARGET_LIST ue_ip"
-            shift;;
        -w | --hardware)
             case "$2" in
                 "USRP" | "BLADERF" | "LMSSDR" | "IRIS")
@@ -353,6 +352,11 @@ function main() {
            BUILD_DOXYGEN=1
            echo_info "Will build doxygen support"
            shift;;     
+       --enable-LTTNG)
+            CMAKE_CMD="$CMAKE_CMD -DENABLE_LTTNG=ON -DT_TRACER=OFF"
+            echo_info "Enable LTTNG tracer"
+            USE_LTTNG=1
+            shift 1;;
        --disable-T-Tracer)
             CMAKE_CMD="$CMAKE_CMD -DT_TRACER=False"
             echo_info "Disabling the T tracer"
@@ -411,24 +415,21 @@ function main() {
             CMAKE_CMD="$CMAKE_CMD -DSANITIZE_ADDRESS=True -DSANITIZE_UNDEFINED=True"
             shift;;
         --sanitize-address | -fsanitize=address)
-            grep -sq "Ubuntu 18.04" /etc/os-release && echo_error "Bug in OS with this option, see CMakeLists.txt"
             CMAKE_CMD="$CMAKE_CMD -DSANITIZE_ADDRESS=True"
             shift;;
-        --sanitize-undefined | -fundefined=address)
+        --sanitize-undefined | -fsanitize=undefined)
             CMAKE_CMD="$CMAKE_CMD -DSANITIZE_UNDEFINED=True"
             shift;;
         --sanitize-memory | -fsanitize=memory)
-            echo_warning "Note: memory sanitizer\n* requires clang (tested: v17)\n* is incompatible with address/undefined behavior sanitizer\n* requires cmake_targets/tools/memsan.patch"
-            sleep 2
             CMAKE_CMD="$CMAKE_CMD -DSANITIZE_MEMORY=ON -DSANITIZE_ADDRESS=OFF -DSANITIZE_UNDEFINED=OFF"
+            shift;;
+        --sanitize-thread | -fsanitize=thread)
+            CMAKE_CMD="$CMAKE_CMD -DSANITIZE_THREAD=True"
             shift;;
        --trace-asn1c-enc-dec)
             CMAKE_CMD="$CMAKE_CMD -DTRACE_ASN1C_ENC_DEC=ON"
             echo_info "Enabling asn1c internal traces via OAI logging system"
             shift 1;;
-        --sanitize-thread | -fthread=address)
-            CMAKE_CMD="$CMAKE_CMD -DSANITIZE_THREAD=True"
-            shift;;
         -h | --help)
             print_help
             exit 1;;
@@ -456,6 +457,10 @@ function main() {
   if [ "$INSTALL_EXTERNAL" = "1" ] ; then
     echo_info "Installing packages"
     check_install_oai_software
+    if [ "$USE_LTTNG" = "1" ] ; then
+      echo_info "installing LTTng"
+      install_lttng $1
+    fi
     if [ "$HW" == "OAI_USRP" ] ; then
       echo_info "installing packages for USRP support"
       check_install_usrp_uhd_driver
@@ -492,7 +497,7 @@ function main() {
     # add some default libraries that should always be built
     # for eNB, gNB, UEs, simulators
     if [[ $gNB == 1 || $eNB == 1 || $UE == 1 || $nrUE == 1 || $SIMUS_PHY == 1 || $RU == 1 ]]; then
-      TARGET_LIST="$TARGET_LIST params_libconfig coding rfsimulator dfts"
+      TARGET_LIST="$TARGET_LIST params_libconfig coding rfsimulator dfts params_yaml"
     fi
 
     mkdir -p $DIR/$BUILD_DIR/build
@@ -544,22 +549,15 @@ function main() {
   # Auto-tests #
   ##############
   if [ "$OAI_TEST" = "1" ] ; then
-    echo_error "These scripts ASSUME that user is in /etc/sudoers and can execute commands without PASSWORD prompt"
-    echo_error "Add the following lines in /etc/sudoers file to make your __user_name__ sudo without password prompt"
-    echo_error " __your_user_name__ ALL = (ALL:ALL) NOPASSWD: ALL"
-    echo_error " __your_user_name__ ALL = (ALL) NOPASSWD: ALL "
     echo_info "The log file for the autotest script for debugging is located here: $OPENAIR_DIR/cmake_targets/autotests/log/autotests.log "
     echo_info "The results of autotests results is located here: $OPENAIR_DIR/cmake_targets/autotests/log/results_autotests.xml "
     echo_info "You can hit CTRL-C at any time to terminate the autotests..."
-    echo "Current User Name: $USER"
-    read -s -p "Enter Password: " mypassword
-    echo -e "\n"
     rm -fr $OPENAIR_DIR/cmake_targets/autotests/log
     mkdir -p $OPENAIR_DIR/cmake_targets/autotests/log
     if [ "$RUN_GROUP" -eq "1" ]; then
-        $OPENAIR_DIR/cmake_targets/autotests/run_exec_autotests.bash -g "$TEST_CASE_GROUP" -p $mypassword >& $OPENAIR_DIR/cmake_targets/autotests/log/autotests.log &
+        $OPENAIR_DIR/cmake_targets/autotests/run_exec_autotests.bash -g "$TEST_CASE_GROUP" >& $OPENAIR_DIR/cmake_targets/autotests/log/autotests.log
     else
-        $OPENAIR_DIR/cmake_targets/autotests/run_exec_autotests.bash -p $mypassword >& $OPENAIR_DIR/cmake_targets/autotests/log/autotests.log &
+        $OPENAIR_DIR/cmake_targets/autotests/run_exec_autotests.bash >& $OPENAIR_DIR/cmake_targets/autotests/log/autotests.log
     fi
     wait
   else

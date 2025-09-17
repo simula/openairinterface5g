@@ -33,6 +33,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include "common/oai_version.h"
 
 #include "PHY/sse_intrin.h"
 
@@ -359,10 +360,7 @@ void init_encoder_sse (void) {
    against main exec version. version mismatch no considered as fatal (interfaces not supposed to change)
 */
 int  coding_checkbuildver(char *mainexec_buildversion, char **shlib_buildversion) {
-#ifndef PACKAGE_VERSION
-#define PACKAGE_VERSION "standalone built: " __DATE__ __TIME__
-#endif
-  *shlib_buildversion = PACKAGE_VERSION;
+  *shlib_buildversion = OAI_PACKAGE_VERSION;
 
   if (strcmp(mainexec_buildversion, *shlib_buildversion) != 0) {
     fprintf(stderr,"[CODING] shared lib version %s, doesn't match main version %s, compatibility should be checked\n",

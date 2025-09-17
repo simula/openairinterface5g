@@ -24,10 +24,9 @@
         <htmlTabRef>rfsim-5gnr-tdd</htmlTabRef>
         <htmlTabName>Monolithic SA TDD gNB</htmlTabName>
         <htmlTabIcon>wrench</htmlTabIcon>
-        <repeatCount>1</repeatCount>
         <TestCaseRequestedList>
  111111
- 100001
+ 800813
  000001
  000002
  000003
@@ -51,6 +50,7 @@
  333333
  020006
  100001
+ 222222
         </TestCaseRequestedList>
         <TestCaseExclusionList></TestCaseExclusionList>
 
@@ -60,74 +60,88 @@
                 <test_svr_id>0</test_svr_id>
                 <images_to_pull>oai-gnb-asan oai-nr-ue</images_to_pull>
         </testCase>
-
+        <testCase id="800813">
+                <class>Create_Workspace</class>
+                <desc>Create new Workspace</desc>
+                <eNB_instance>0</eNB_instance>
+                <eNB_serverId>0</eNB_serverId>
+        </testCase>
         <testCase id="000001">
-                <class>DeployGenObject</class>
+                <class>Deploy_Object</class>
                 <desc>Deploy OAI 5G CoreNetwork</desc>
-                <yaml_path>yaml_files/5g_rfsimulator</yaml_path>
+                <yaml_path>ci-scripts/yaml_files/5g_rfsimulator</yaml_path>
                 <services>mysql oai-amf oai-smf oai-upf oai-ext-dn</services>
-                <nb_healthy>5</nb_healthy>
+                <eNB_instance>0</eNB_instance>
+                <eNB_serverId>0</eNB_serverId>
         </testCase>
 
         <testCase id="000002">
-                <class>DeployGenObject</class>
+                <class>Deploy_Object</class>
                 <desc>Deploy OAI 5G gNB RF sim SA</desc>
-                <yaml_path>yaml_files/5g_rfsimulator</yaml_path>
+                <yaml_path>ci-scripts/yaml_files/5g_rfsimulator</yaml_path>
                 <services>oai-gnb</services>
-                <nb_healthy>6</nb_healthy>
+                <eNB_instance>0</eNB_instance>
+                <eNB_serverId>0</eNB_serverId>
         </testCase>
 
         <testCase id="000003">
-                <class>DeployGenObject</class>
+                <class>Deploy_Object</class>
                 <desc>Deploy OAI 5G NR-UE RF sim SA</desc>
-                <yaml_path>yaml_files/5g_rfsimulator</yaml_path>
+                <yaml_path>ci-scripts/yaml_files/5g_rfsimulator</yaml_path>
                 <services>oai-nr-ue</services>
-                <nb_healthy>7</nb_healthy>
+                <eNB_instance>0</eNB_instance>
+                <eNB_serverId>0</eNB_serverId>
         </testCase>
 
         <testCase id="000004">
-                <class>DeployGenObject</class>
+                <class>Deploy_Object</class>
                 <desc>Deploy Second OAI 5G NR-UE RF sim SA</desc>
-                <yaml_path>yaml_files/5g_rfsimulator</yaml_path>
+                <yaml_path>ci-scripts/yaml_files/5g_rfsimulator</yaml_path>
                 <services>oai-nr-ue2</services>
-                <nb_healthy>8</nb_healthy>
+                <eNB_instance>0</eNB_instance>
+                <eNB_serverId>0</eNB_serverId>
         </testCase>
 
         <testCase id="000005">
-                <class>DeployGenObject</class>
+                <class>Deploy_Object</class>
                 <desc>Deploy OAI 5G NR-UEs (#3, #4, #5) RF sim SA</desc>
-                <yaml_path>yaml_files/5g_rfsimulator</yaml_path>
+                <yaml_path>ci-scripts/yaml_files/5g_rfsimulator</yaml_path>
                 <services>oai-nr-ue3 oai-nr-ue4 oai-nr-ue5</services>
-                <nb_healthy>11</nb_healthy>
+                <eNB_instance>0</eNB_instance>
+                <eNB_serverId>0</eNB_serverId>
         </testCase>
 
         <testCase id="000006">
-                <class>DeployGenObject</class>
+                <class>Deploy_Object</class>
                 <desc>Deploy OAI 5G NR-UEs (#6, #7, #8) RF sim SA</desc>
-                <yaml_path>yaml_files/5g_rfsimulator</yaml_path>
+                <yaml_path>ci-scripts/yaml_files/5g_rfsimulator</yaml_path>
                 <services>oai-nr-ue6 oai-nr-ue7 oai-nr-ue8</services>
-                <nb_healthy>14</nb_healthy>
+                <eNB_instance>0</eNB_instance>
+                <eNB_serverId>0</eNB_serverId>
         </testCase>
 
         <testCase id="000007">
-                <class>DeployGenObject</class>
+                <class>Deploy_Object</class>
                 <desc>Deploy OAI 5G NR-UEs (#9, #10) RF sim SA</desc>
-                <yaml_path>yaml_files/5g_rfsimulator</yaml_path>
+                <yaml_path>ci-scripts/yaml_files/5g_rfsimulator</yaml_path>
                 <services>oai-nr-ue9 oai-nr-ue10</services>
-                <nb_healthy>16</nb_healthy>
+                <eNB_instance>0</eNB_instance>
+                <eNB_serverId>0</eNB_serverId>
         </testCase>
 
         <testCase id="000008">
                 <class>Attach_UE</class>
                 <desc>Attach OAI UE (Wait for IP)</desc>
                 <id>rfsim5g_ue rfsim5g_ue2 rfsim5g_ue3 rfsim5g_ue4 rfsim5g_ue5 rfsim5g_ue6 rfsim5g_ue7 rfsim5g_ue8 rfsim5g_ue9 rfsim5g_ue10</id>
+                <nodes>cacofonix cacofonix cacofonix cacofonix cacofonix cacofonix cacofonix cacofonix cacofonix cacofonix</nodes>
         </testCase>
 
         <testCase id="020001">
                 <class>Ping</class>
                 <desc>Ping ext-dn from NR-UE</desc>
                 <id>rfsim5g_ue</id>
-                <ping_args> -c 20 192.168.72.135</ping_args>
+                <nodes>cacofonix</nodes>
+                <ping_args> -c 20 -i 0.25 192.168.72.135</ping_args>
                 <ping_packetloss_threshold>5</ping_packetloss_threshold>
         </testCase>
 
@@ -135,7 +149,8 @@
                 <class>Ping</class>
                 <desc>Ping NR-UE from ext-dn</desc>
                 <id>rfsim5g_ext_dn</id>
-                <ping_args>-c 20 12.1.1.2</ping_args>
+                <nodes>cacofonix</nodes>
+                <ping_args>-c 20 -i 0.25 12.1.1.2</ping_args>
                 <ping_packetloss_threshold>5</ping_packetloss_threshold>
         </testCase>
 
@@ -143,7 +158,8 @@
                 <class>Ping</class>
                 <desc>Ping ext-dn from Second NR-UE</desc>
                 <id>rfsim5g_ue</id>
-                <ping_args> -c 20 192.168.72.135</ping_args>
+                <nodes>cacofonix</nodes>
+                <ping_args> -c 20 -i 0.25 192.168.72.135</ping_args>
                 <ping_packetloss_threshold>5</ping_packetloss_threshold>
         </testCase>
 
@@ -151,7 +167,8 @@
                 <class>Ping</class>
                 <desc>Ping Second NR-UE from ext-dn</desc>
                 <id>rfsim5g_ext_dn</id>
-                <ping_args>-c 20 12.1.1.3</ping_args>
+                <nodes>cacofonix</nodes>
+                <ping_args>-c 20 -i 0.25 12.1.1.3</ping_args>
                 <ping_packetloss_threshold>5</ping_packetloss_threshold>
         </testCase>
 
@@ -159,7 +176,8 @@
                 <class>Ping</class>
                 <desc>Ping ext-dn from both UEs</desc>
                 <id>rfsim5g_ue rfsim5g_ue2</id>
-                <ping_args>-c 20 192.168.72.135</ping_args>
+                <nodes>cacofonix cacofonix</nodes>
+                <ping_args>-c 20 -i 0.25 192.168.72.135</ping_args>
                 <ping_packetloss_threshold>5</ping_packetloss_threshold>
         </testCase>
 
@@ -167,7 +185,8 @@
                 <class>Ping</class>
                 <desc>Ping ext-dn from both UEs</desc>
                 <id>rfsim5g_ue rfsim5g_ue2</id>
-                <ping_args>-c 20 192.168.72.135</ping_args>
+                <nodes>cacofonix cacofonix</nodes>
+                <ping_args>-c 20 -i 0.25 192.168.72.135</ping_args>
                 <ping_packetloss_threshold>5</ping_packetloss_threshold>
         </testCase>
 
@@ -175,16 +194,19 @@
                 <class>Ping</class>
                 <desc>Ping ext-dn from all UEs</desc>
                 <id>rfsim5g_ue rfsim5g_ue2 rfsim5g_ue3 rfsim5g_ue4 rfsim5g_ue5 rfsim5g_ue6 rfsim5g_ue7 rfsim5g_ue8 rfsim5g_ue9 rfsim5g_ue10</id>
-                <ping_args>-c 100 192.168.72.135 -i 0.2 -s 1016</ping_args>
+                <nodes>cacofonix cacofonix cacofonix cacofonix cacofonix cacofonix cacofonix cacofonix cacofonix cacofonix</nodes>
+                <ping_args>-c 20 192.168.72.135 -i 0.25 -s 1016</ping_args>
                 <ping_packetloss_threshold>5</ping_packetloss_threshold>
         </testCase>
 
         <testCase id="030001">
                 <class>Iperf</class>
                 <desc>Iperf (DL/3Mbps/UDP)(30 sec)</desc>
-                <iperf_args>-u -b 3M -t 30 -R</iperf_args>
+                <iperf_args>-u -b 3M -t 20 -R</iperf_args>
                 <id>rfsim5g_ue</id>
+                <nodes>cacofonix</nodes>
                 <svr_id>rfsim5g_ext_dn</svr_id>
+                <svr_node>cacofonix</svr_node>
                 <iperf_packetloss_threshold>5</iperf_packetloss_threshold>
                 <iperf_bitrate_threshold>90</iperf_bitrate_threshold>
         </testCase>
@@ -192,9 +214,11 @@
         <testCase id="030002">
                 <class>Iperf</class>
                 <desc>Iperf (UL/1Mbps/UDP)(30 sec)</desc>
-                <iperf_args>-u -b 1M -t 30</iperf_args>
+                <iperf_args>-u -b 1M -t 20</iperf_args>
                 <id>rfsim5g_ue</id>
+                <nodes>cacofonix</nodes>
                 <svr_id>rfsim5g_ext_dn</svr_id>
+                <svr_node>cacofonix</svr_node>
                 <iperf_packetloss_threshold>5</iperf_packetloss_threshold>
                 <iperf_bitrate_threshold>90</iperf_bitrate_threshold>
         </testCase>
@@ -203,26 +227,39 @@
                 <class>Attach_UE</class>
                 <desc>Attach OAI UE 1 and 2</desc>
                 <id>rfsim5g_ue rfsim5g_ue2</id>
+                <nodes>cacofonix cacofonix</nodes>
         </testCase>
 
         <testCase id="444444">
                 <class>Detach_UE</class>
                 <desc>Detach OAI UE 1 and 2</desc>
                 <id>rfsim5g_ue rfsim5g_ue2</id>
+                <nodes>cacofonix cacofonix</nodes>
         </testCase>
 
         <testCase id="444445">
                 <class>Detach_UE</class>
                 <desc>Detach OAI UE 2 to 10</desc>
                 <id>rfsim5g_ue3 rfsim5g_ue4 rfsim5g_ue5 rfsim5g_ue6 rfsim5g_ue7 rfsim5g_ue8 rfsim5g_ue9 rfsim5g_ue10</id>
+                <nodes>cacofonix cacofonix cacofonix cacofonix cacofonix cacofonix cacofonix cacofonix</nodes>
         </testCase>
 
         <testCase id="100001">
-                <class>UndeployGenObject</class>
+                <class>Undeploy_Object</class>
+                <always_exec>true</always_exec>
                 <desc>Undeploy all OAI 5G stack</desc>
-                <yaml_path>yaml_files/5g_rfsimulator</yaml_path>
+                <yaml_path>ci-scripts/yaml_files/5g_rfsimulator</yaml_path>
                 <d_retx_th>1,0,0,0</d_retx_th>
                 <u_retx_th>1,0,0,0</u_retx_th>
+                <eNB_instance>0</eNB_instance>
+                <eNB_serverId>0</eNB_serverId>
+        </testCase>
+
+        <testCase id="222222">
+                <class>Clean_Test_Server_Images</class>
+                <always_exec>true</always_exec>
+                <desc>Clean Test Images on Test Server</desc>
+                <test_svr_id>0</test_svr_id>
         </testCase>
 
 </testCaseList>

@@ -1,8 +1,6 @@
-version: '3.8'
-
 services:
     enb_mono_fdd:
-        image: oai-enb:latest
+        image: ${REGISTRY:-oaisoftwarealliance}/oai-enb:${TAG:-develop}
         privileged: true
         container_name: prod-enb-mono-fdd
         environment:

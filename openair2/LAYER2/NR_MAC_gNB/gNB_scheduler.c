@@ -68,7 +68,7 @@ void clear_nr_nfapi_information(gNB_MAC_INST *gNB,
   NR_ServingCellConfigCommon_t *scc = gNB->common_channels->ServingCellConfigCommon;
   const int num_slots = nr_slots_per_frame[*scc->ssbSubcarrierSpacing];
 
-  UL_tti_req_ahead_initialization(gNB, scc, num_slots, CC_idP, frameP, slotP, *scc->ssbSubcarrierSpacing);
+  UL_tti_req_ahead_initialization(gNB, num_slots, CC_idP, frameP, slotP);
 
   nfapi_nr_dl_tti_pdcch_pdu_rel15_t **pdcch = (nfapi_nr_dl_tti_pdcch_pdu_rel15_t **)gNB->pdcch_pdu_idx[CC_idP];
 
@@ -92,49 +92,6 @@ void clear_nr_nfapi_information(gNB_MAC_INST *gNB,
   LOG_D(NR_MAC, "%d.%d UL_tti_req_ahead SFN.slot = %d.%d for index %d \n", frameP, slotP, future_ul_tti_req->SFN, future_ul_tti_req->Slot, prev_slot % size);
   /* future_ul_tti_req->Slot is fixed! */
   for (int i = 0; i < future_ul_tti_req->n_pdus; i++) {
-    switch(future_ul_tti_req->pdus_list[i].pdu_type){
-      case NFAPI_NR_UL_CONFIG_PRACH_PDU_TYPE:
-        if(future_ul_tti_req->pdus_list[i].prach_pdu.beamforming.prgs_list){
-          for (int j = 0; j < future_ul_tti_req->pdus_list[i].prach_pdu.beamforming.num_prgs; ++j) {
-            if(future_ul_tti_req->pdus_list[i].prach_pdu.beamforming.prgs_list[j].dig_bf_interface_list){
-              free(future_ul_tti_req->pdus_list[i].prach_pdu.beamforming.prgs_list[j].dig_bf_interface_list);
-            }
-          }
-          free(future_ul_tti_req->pdus_list[i].prach_pdu.beamforming.prgs_list);
-        }
-        break;
-      case NFAPI_NR_UL_CONFIG_PUSCH_PDU_TYPE:
-        if(future_ul_tti_req->pdus_list[i].pusch_pdu.beamforming.prgs_list){
-          for (int j = 0; j < future_ul_tti_req->pdus_list[i].pusch_pdu.beamforming.num_prgs; ++j) {
-            if(future_ul_tti_req->pdus_list[i].pusch_pdu.beamforming.prgs_list[j].dig_bf_interface_list){
-              free(future_ul_tti_req->pdus_list[i].pusch_pdu.beamforming.prgs_list[j].dig_bf_interface_list);
-            }
-          }
-          free(future_ul_tti_req->pdus_list[i].pusch_pdu.beamforming.prgs_list);
-        }
-        break;
-      case NFAPI_NR_UL_CONFIG_PUCCH_PDU_TYPE:
-        if(future_ul_tti_req->pdus_list[i].pucch_pdu.beamforming.prgs_list){
-          for (int j = 0; j < future_ul_tti_req->pdus_list[i].pucch_pdu.beamforming.num_prgs; ++j) {
-            if(future_ul_tti_req->pdus_list[i].pucch_pdu.beamforming.prgs_list[j].dig_bf_interface_list){
-              free(future_ul_tti_req->pdus_list[i].pucch_pdu.beamforming.prgs_list[j].dig_bf_interface_list);
-            }
-          }
-          free(future_ul_tti_req->pdus_list[i].pucch_pdu.beamforming.prgs_list);
-        }
-        break;
-      case NFAPI_NR_UL_CONFIG_SRS_PDU_TYPE:
-        if(future_ul_tti_req->pdus_list[i].srs_pdu.beamforming.prgs_list){
-          for (int j = 0; j < future_ul_tti_req->pdus_list[i].srs_pdu.beamforming.num_prgs; ++j) {
-            if(future_ul_tti_req->pdus_list[i].srs_pdu.beamforming.prgs_list[j].dig_bf_interface_list){
-              free(future_ul_tti_req->pdus_list[i].srs_pdu.beamforming.prgs_list[j].dig_bf_interface_list);
-            }
-          }
-          free(future_ul_tti_req->pdus_list[i].srs_pdu.beamforming.prgs_list);
-        }
-      default:
-        break;
-    }
     future_ul_tti_req->pdus_list[i].pdu_type = 0;
     future_ul_tti_req->pdus_list[i].pdu_size = 0;
   }
@@ -144,6 +101,24 @@ void clear_nr_nfapi_information(gNB_MAC_INST *gNB,
   future_ul_tti_req->n_group = 0;
 
   TX_req[CC_idP].Number_of_PDUs = 0;
+}
+
+void clear_beam_information(NR_beam_info_t *beam_info, int frame, int slot, int mu)
+{
+  // for now we use the same logic of UL_tti_req_ahead
+  // reset after 1 frame with the exception of 15kHz
+  if(!beam_info->beam_allocation)
+    return;
+  // initialization done only once
+  const int slots_per_frame = nr_slots_per_frame[mu];
+  AssertFatal(beam_info->beam_allocation_size >= 0, "Beam information not initialized\n");
+  int idx_to_clear = (frame * slots_per_frame + slot) / beam_info->beam_duration;
+  idx_to_clear = (idx_to_clear + beam_info->beam_allocation_size - 1) % beam_info->beam_allocation_size;
+  if (slot % beam_info->beam_duration == 0) {
+    // resetting previous period allocation
+    for (int i = 0; i < beam_info->beams_per_period; i++)
+      beam_info->beam_allocation[i][idx_to_clear] = -1;
+  }
 }
 
 bool is_xlsch_in_slot(uint64_t bitmap, sub_frame_t slot) {
@@ -195,23 +170,13 @@ void gNB_dlsch_ulsch_scheduler(module_id_t module_idP, frame_t frame, sub_frame_
 
   gNB_MAC_INST *gNB = RC.nrmac[module_idP];
   NR_COMMON_channels_t *cc = gNB->common_channels;
-  NR_ServingCellConfigCommon_t        *scc     = cc->ServingCellConfigCommon;
+  NR_ServingCellConfigCommon_t *scc = cc->ServingCellConfigCommon;
 
   NR_SCHED_LOCK(&gNB->sched_lock);
 
-  if (slot==0 && (*scc->downlinkConfigCommon->frequencyInfoDL->frequencyBandList.list.array[0]>=257)) {
-    //FR2
-    const NR_TDD_UL_DL_Pattern_t *tdd = &scc->tdd_UL_DL_ConfigurationCommon->pattern1;
-    AssertFatal(tdd,"Dynamic TDD not handled yet\n");
-    const int nb_periods_per_frame = get_nb_periods_per_frame(tdd->dl_UL_TransmissionPeriodicity);
-    // re-initialization of tdd_beam_association at beginning of frame
-    for (int i=0; i<nb_periods_per_frame; i++)
-      gNB->tdd_beam_association[i] = -1;
-  }
+  clear_beam_information(&gNB->beam_info, frame, slot, *scc->ssbSubcarrierSpacing);
 
   gNB->frame = frame;
-  gNB->slot = slot;
-
   start_meas(&gNB->eNB_scheduler);
   VCD_SIGNAL_DUMPER_DUMP_FUNCTION_BY_NAME(VCD_SIGNAL_DUMPER_FUNCTIONS_gNB_DLSCH_ULSCH_SCHEDULER,VCD_FUNCTION_IN);
 
@@ -226,17 +191,20 @@ void gNB_dlsch_ulsch_scheduler(module_id_t module_idP, frame_t frame, sub_frame_
   }
 
   for (int CC_id = 0; CC_id < MAX_NUM_CCs; CC_id++) {
-    //mbsfn_status[CC_id] = 0;
-
+    int num_beams = 1;
+    if(gNB->beam_info.beam_allocation)
+      num_beams = gNB->beam_info.beams_per_period;
     // clear vrb_maps
-    memset(cc[CC_id].vrb_map, 0, sizeof(uint16_t) * MAX_BWP_SIZE);
+    for (int i = 0; i < num_beams; i++)
+      memset(cc[CC_id].vrb_map[i], 0, sizeof(uint16_t) * MAX_BWP_SIZE);
     // clear last scheduled slot's content (only)!
     const int num_slots = nr_slots_per_frame[*scc->ssbSubcarrierSpacing];
     const int size = gNB->vrb_map_UL_size;
     const int prev_slot = frame * num_slots + slot + size - 1;
-    uint16_t *vrb_map_UL = cc[CC_id].vrb_map_UL;
-    memcpy(&vrb_map_UL[prev_slot % size * MAX_BWP_SIZE], &gNB->ulprbbl, sizeof(uint16_t) * MAX_BWP_SIZE);
-
+    for (int i = 0; i < num_beams; i++) {
+      uint16_t *vrb_map_UL = cc[CC_id].vrb_map_UL[i];
+      memcpy(&vrb_map_UL[prev_slot % size * MAX_BWP_SIZE], &gNB->ulprbbl, sizeof(uint16_t) * MAX_BWP_SIZE);
+    }
     clear_nr_nfapi_information(gNB, CC_id, frame, slot, &sched_info->DL_req, &sched_info->TX_req, &sched_info->UL_dci_req);
   }
 
@@ -252,8 +220,12 @@ void gNB_dlsch_ulsch_scheduler(module_id_t module_idP, frame_t frame, sub_frame_
   schedule_nr_mib(module_idP, frame, slot, &sched_info->DL_req);
 
   // This schedules SIB1
-  if (get_softmodem_params()->sa == 1)
+  // SIB19 will be scheduled if ntn_Config_r17 is initialized
+  if (get_softmodem_params()->sa == 1) {
     schedule_nr_sib1(module_idP, frame, slot, &sched_info->DL_req, &sched_info->TX_req);
+    if (cc->sib19)
+      schedule_nr_sib19(module_idP, frame, slot, &sched_info->DL_req, &sched_info->TX_req, cc->sib19_bcch_length, cc->sib19_bcch_pdu);
+  }
 
   // This schedule PRACH if we are not in phy_test mode
   if (get_softmodem_params()->phy_test == 0) {
@@ -263,7 +235,7 @@ void gNB_dlsch_ulsch_scheduler(module_id_t module_idP, frame_t frame, sub_frame_
        slot, because otherwise we would allocate the current slot in
        UL_tti_req_ahead), but be aware that, e.g., K2 is allowed to be larger
        (schedule_nr_prach will assert if resources are not free). */
-    const sub_frame_t n_slots_ahead = nr_slots_per_frame[*scc->ssbSubcarrierSpacing] - 1;
+    const sub_frame_t n_slots_ahead = nr_slots_per_frame[*scc->ssbSubcarrierSpacing] - 1 + get_NTN_Koffset(scc);
     const frame_t f = (frame + (slot + n_slots_ahead) / nr_slots_per_frame[*scc->ssbSubcarrierSpacing]) % 1024;
     const sub_frame_t s = (slot + n_slots_ahead) % nr_slots_per_frame[*scc->ssbSubcarrierSpacing];
     schedule_nr_prach(module_idP, f, s);

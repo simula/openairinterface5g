@@ -1,19 +1,22 @@
-version: '3.8'
-
 services:
     gnb_cucp:
-        image: oai-gnb:latest
-        privileged: true
+        image: ${REGISTRY:-oaisoftwarealliance}/${GNB_IMG:-oai-gnb}:${TAG:-develop}
         container_name: sa-cucp-gnb
+        cap_drop:
+            - ALL
         ulimits:
           core: -1 # for core dumps
         environment:
-            USE_ADDITIONAL_OPTIONS: --sa --telnetsrv --telnetsrv.shrmod ci --log_config.global_log_options level,nocolor,time,line_num,function
+            USE_ADDITIONAL_OPTIONS: --sa
+                                    --telnetsrv --telnetsrv.listenport 9090 --telnetsrv.shrmod ci
+                                    --log_config.global_log_options level,nocolor,time,line_num,function
         volumes:
             - ../../conf_files/gnb-cucp.sa.f1.quectel.conf:/opt/oai-gnb/etc/gnb.conf
-        networks:
-            public_net:
-                ipv4_address: 192.168.68.194
+        # for performance reasons, we use host mode: in bridge mode, we have
+        # unacceptable DL TCP performance. However, the whole point of
+        # containerization is to not be in host mode, so update this to macvlan
+        # later.
+        network_mode: "host"
         healthcheck:
             # pgrep does NOT work
             test: /bin/bash -c "ps aux | grep -v grep | grep -c softmodem"
@@ -22,18 +25,25 @@ services:
             retries: 5
 
     gnb_cuup:
-        image: oai-nr-cuup:latest
-        privileged: true
+        image: ${REGISTRY:-oaisoftwarealliance}/${NRCUUP_IMG:-oai-nr-cuup}:${TAG:-develop}
         container_name: sa-cuup-gnb
+        cap_drop:
+            - ALL
+        cap_add:
+            - SYS_NICE
+            - IPC_LOCK
         ulimits:
           core: -1 # for core dumps
         environment:
-            USE_ADDITIONAL_OPTIONS: --sa --log_config.global_log_options level,nocolor,time,line_num,function
+            USE_ADDITIONAL_OPTIONS: --sa
+                                    --log_config.global_log_options level,nocolor,time,line_num,function
         volumes:
             - ../../conf_files/gnb-cuup.sa.f1.quectel.conf:/opt/oai-gnb/etc/gnb.conf
-        networks:
-            public_net:
-                ipv4_address: 192.168.68.196
+        # for performance reasons, we use host mode: in bridge mode, we have
+        # unacceptable DL TCP performance. However, the whole point of
+        # containerization is to not be in host mode, so update this to macvlan
+        # later.
+        network_mode: "host"
         healthcheck:
             # pgrep does NOT work
             test: /bin/bash -c "ps aux | grep -v grep | grep -c nr-cuup"
@@ -42,9 +52,13 @@ services:
             retries: 5
 
     gnb_du_tdd:
-        image: oai-gnb:latest
-        privileged: true
+        image: ${REGISTRY:-oaisoftwarealliance}/${GNB_IMG:-oai-gnb}:${TAG:-develop}
         container_name: sa-du-b200-gnb
+        cap_drop:
+            - ALL
+        cap_add:
+            - SYS_NICE
+            - IPC_LOCK
         ulimits:
           core: -1 # for core dumps
         environment:
@@ -52,16 +66,17 @@ services:
             USE_ADDITIONAL_OPTIONS: --sa
                                     --RUs.[0].sdr_addrs serial=30C51D4
                                     --continuous-tx -E
-                                    --telnetsrv --telnetsrv.shrmod ci
-                                    --gNBs.[0].min_rxtxtime 2 --gNBs.[0].do_CSIRS 1 --gNBs.[0].do_SRS 1
-                                    --RUs.[0].att_rx 14 --RUs.[0].att_tx 14
+                                    --telnetsrv --telnetsrv.listenport 9091 --telnetsrv.shrmod ci
                                     --log_config.global_log_options level,nocolor,time,line_num,function
+        devices:
+            - /dev/bus/usb/:/dev/bus/usb/
         volumes:
             - ../../conf_files/gnb-du.sa.band78.106prb.usrpb200.conf:/opt/oai-gnb/etc/gnb.conf
-            - /dev:/dev
-        networks:
-            public_net:
-                ipv4_address: 192.168.68.195
+        # for performance reasons, we use host mode: in bridge mode, we have
+        # unacceptable DL TCP performance. However, the whole point of
+        # containerization is to not be in host mode, so update this to macvlan
+        # later.
+        network_mode: "host"
         #entrypoint: /bin/bash -c "sleep infinity"
         healthcheck:
             # pgrep does NOT work
@@ -69,12 +84,3 @@ services:
             interval: 10s
             timeout: 5s
             retries: 5
-
-networks:
-    public_net:
-        name: sa-b200-gnb-net
-        ipam:
-            config:
-                - subnet: 192.168.68.192/26
-        driver_opts:
-            com.docker.network.bridge.name: "sa-gnb-net"

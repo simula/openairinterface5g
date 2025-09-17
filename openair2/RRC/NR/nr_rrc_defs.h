@@ -37,6 +37,7 @@
 
 #include "collection/tree.h"
 #include "collection/linear_alloc.h"
+#include "common/utils/ds/seq_arr.h"
 #include "nr_rrc_common.h"
 #include "ds/byte_array.h"
 
@@ -62,6 +63,7 @@
 #include "NR_CellGroupConfig.h"
 #include "NR_ServingCellConfigCommon.h"
 #include "NR_EstablishmentCause.h"
+#include "NR_MeasurementTimingConfiguration.h"
 
 //-------------------
 
@@ -86,15 +88,6 @@
 #define NR_RRC_RECONFIGURATION_DELAY_MS 10
 #define NR_RRC_BWP_SWITCHING_DELAY_MS   6
 
-// 3GPP TS 38.133 - Section 8 - Table 8.2.1.2.7-2: Parameters which cause interruption other than SCS
-// This table was recently added to 3GPP. It shows that changing the parameters locationAndBandwidth, nrofSRS-Ports or
-// maxMIMO-Layers-r16 causes an interruption. This parameter is not yet being used in code, but has been placed here
-// for future reference.
-#define NR_OF_SRS_PORTS_SWITCHING_DELAY_MS 30
-
-#define NR_UE_MODULE_INVALID ((module_id_t) ~0) // FIXME attention! depends on type uint8_t!!!
-#define NR_UE_INDEX_INVALID  ((module_id_t) ~0) // FIXME attention! depends on type uint8_t!!! used to be -1
-
 typedef enum {
   NR_RRC_OK=0,
   NR_RRC_ConnSetup_failed,
@@ -103,17 +96,11 @@ typedef enum {
   NR_RRC_HO_STARTED
 } NR_RRC_status_t;
 
-#define RRM_FREE(p)       if ( (p) != NULL) { free(p) ; p=NULL ; }
-#define RRM_MALLOC(t,n)   (t *) malloc16( sizeof(t) * n )
-#define RRM_CALLOC(t,n)   (t *) malloc16( sizeof(t) * n)
-#define RRM_CALLOC2(t,s)  (t *) malloc16( s )
-
 #define MAX_MEAS_OBJ                                  7
 #define MAX_MEAS_CONFIG                               7
 #define MAX_MEAS_ID                                   7
 
-#define PAYLOAD_SIZE_MAX                              1024
-#define RRC_BUF_SIZE                                  1024
+#define NR_RRC_BUF_SIZE                               4096
 #define UNDEF_SECURITY_MODE                           0xff
 #define NO_SECURITY_MODE                              0x20
 
@@ -126,14 +113,6 @@ typedef struct UE_S_TMSI_NR_s {
   uint8_t                                             amf_pointer;
   uint32_t                                            fiveg_tmsi;
 } __attribute__ ((__packed__)) NR_UE_S_TMSI;
-
-
-typedef enum nr_e_rab_satus_e {
-  NR_E_RAB_STATUS_NEW,
-  NR_E_RAB_STATUS_DONE,           // from the gNB perspective
-  NR_E_RAB_STATUS_ESTABLISHED,    // get the reconfigurationcomplete form UE
-  NR_E_RAB_STATUS_FAILED,
-} nr_e_rab_status_t;
 
 typedef struct nr_e_rab_param_s {
   e_rab_t param;
@@ -154,11 +133,9 @@ typedef struct HANDOVER_INFO_NR_s {
   //AS_Config_t                                       as_config;          /* these two parameters are taken from 36.331 section 10.2.2: HandoverPreparationInformation-r8-IEs */
   //AS_Context_t                                      as_context;         /* They are mandatory for HO */
 
-  uint8_t                                             buf[RRC_BUF_SIZE];  /* ASN.1 encoded handoverCommandMessage */
+  uint8_t                                             buf[NR_RRC_BUF_SIZE];  /* ASN.1 encoded handoverCommandMessage */
   int                                                 size;               /* size of above message in bytes */
 } NR_HANDOVER_INFO;
-
-#define NR_RRC_BUFFER_SIZE                            sizeof(RRC_BUFFER_NR)
 
 typedef struct nr_rrc_guami_s {
   uint16_t mcc;
@@ -192,19 +169,15 @@ typedef struct pdu_session_param_s {
  * @brief F1-U tunnel configuration
 */
 typedef struct f1u_tunnel_s {
-  /* Downlink F1-U Tunnel Endpoint Identifier (CU-UP/DU) */
-  uint32_t cuup_teid_f1u;
-  /* DL F1-U Transport Layer */
-  transport_layer_addr_t cuup_addr_f1u;
+  /* F1-U Tunnel Endpoint Identifier (on DU side) */
+  uint32_t teid;
+  /* Downlink F1-U Transport Layer (on DU side) */
+  transport_layer_addr_t addr;
 } f1u_tunnel_t;
 
 typedef struct drb_s {
   int status;
-  int defaultDRBid;
   int drb_id;
-  int reestablishPDCP;
-  int recoverPDCP;
-  int daps_Config_r16;
   struct cnAssociation_s {
     int present;
     int eps_BearerIdentity;
@@ -230,8 +203,10 @@ typedef struct drb_s {
       int cipheringDisabled;
     } ext1;
   } pdcp_config;
-  // F1-U
-  f1u_tunnel_t f1u_tunnel_config;
+  // F1-U Downlink Tunnel Config (on DU side)
+  f1u_tunnel_t du_tunnel_config;
+  // F1-U Uplink Tunnel Config (on CU-UP side)
+  f1u_tunnel_t cuup_tunnel_config;
 } drb_t;
 
 typedef enum {
@@ -240,7 +215,6 @@ typedef enum {
   RRC_SETUP_FOR_REESTABLISHMENT,
   RRC_REESTABLISH,
   RRC_REESTABLISH_COMPLETE,
-  RRC_DEFAULT_RECONF,
   RRC_DEDICATED_RECONF,
   RRC_PDUSESSION_ESTABLISH,
   RRC_PDUSESSION_MODIFY,
@@ -260,6 +234,7 @@ typedef struct gNB_RRC_UE_s {
   NR_MeasResults_t                  *measResults;
 
   bool as_security_active;
+  bool f1_ue_context_active;
 
   byte_array_t ue_cap_buffer;
   NR_UE_NR_Capability_t*             UE_Capability_nr;
@@ -267,9 +242,7 @@ typedef struct gNB_RRC_UE_s {
   NR_UE_MRDC_Capability_t*           UE_Capability_MRDC;
   int                                UE_MRDC_Capability_size;
 
-  NR_CellGroupConfig_t               *secondaryCellGroup;
   NR_CellGroupConfig_t               *masterCellGroup;
-  NR_RRCReconfiguration_t            *reconfig;
   NR_RadioBearerConfig_t             *rb_config;
 
   ImsiMobileIdentity_t               imsi;
@@ -284,7 +257,6 @@ typedef struct gNB_RRC_UE_s {
   NR_CipheringAlgorithm_t            ciphering_algorithm;
   e_NR_IntegrityProtAlgorithm        integrity_algorithm;
 
-  NR_UE_STATE_t                      StatusRrc;
   rnti_t                             rnti;
   uint64_t                           random_ue_identity;
 
@@ -300,7 +272,7 @@ typedef struct gNB_RRC_UE_s {
   ngap_security_capabilities_t       security_capabilities;
   //NSA block
   /* Number of NSA e_rab */
-  uint8_t                            nb_of_e_rabs;
+  int                                nb_of_e_rabs;
   /* list of pdu session to be setup by RRC layers */
   nr_e_rab_param_t                   e_rab[NB_RB_MAX];//[S1AP_MAX_E_RAB];
   uint32_t                           nsa_gtp_teid[S1AP_MAX_E_RAB];
@@ -316,13 +288,16 @@ typedef struct gNB_RRC_UE_s {
   uint32_t ue_rrc_inactivity_timer;
   uint32_t                           ue_reestablishment_counter;
   uint32_t                           ue_reconfiguration_counter;
-  struct NR_SpCellConfig                                *spCellConfig;
+
+  bool an_release; // flag if core requested UE release
+
+  /* NGUEContextSetup might come with PDU sessions, but setup needs to be
+   * delayed after security (and capability); PDU sessions are stored here */
+  int n_initial_pdu;
+  pdusession_t *initial_pdus;
 
   /* Nas Pdu */
   ngap_pdu_t nas_pdu;
-
-  /* hack, see rrc_gNB_process_NGAP_PDUSESSION_SETUP_REQ() for more info */
-  int max_delays_pdu_session;
 
 } gNB_RRC_UE_t;
 
@@ -336,7 +311,7 @@ typedef struct rrc_gNB_ue_context_s {
 typedef struct {
 
   uint8_t                                   *SIB23;
-  uint8_t                                   sizeof_SIB23;
+  int                                       sizeof_SIB23;
 
 } rrc_gNB_carrier_data_t;
 //---------------------------------------------------
@@ -356,9 +331,52 @@ typedef struct {
   int do_drb_integrity;
 } nr_security_configuration_t;
 
+typedef struct {
+  long maxReportCells;
+  bool includeBeamMeasurements;
+} nr_per_event_t;
+
+typedef struct {
+  long threshold_RSRP;
+  long timeToTrigger;
+} nr_a2_event_t;
+
+typedef struct {
+  int pci;
+  long a3_offset;
+  long hysteresis;
+  long timeToTrigger;
+} nr_a3_event_t;
+
+typedef struct {
+  nr_per_event_t *per_event;
+  nr_a2_event_t *a2_event;
+  seq_arr_t *a3_event_list;
+  bool is_default_a3_configuration_exists;
+} nr_measurement_configuration_t;
+
+typedef struct {
+  uint32_t gNB_ID;
+  uint64_t nrcell_id;
+  int physicalCellId;
+  int absoluteFrequencySSB;
+  int subcarrierSpacing;
+  plmn_identity_t plmn;
+  uint32_t tac;
+  bool isIntraFrequencyNeighbour;
+} nr_neighbour_gnb_configuration_t;
+
+typedef struct neighbour_cell_configuration_s {
+  uint64_t nr_cell_id;
+  seq_arr_t *neighbour_cells;
+} neighbour_cell_configuration_t;
+
 typedef struct nr_mac_rrc_dl_if_s {
+  f1_reset_cu_initiated_func_t f1_reset;
+  f1_reset_acknowledge_du_initiated_func_t f1_reset_acknowledge;
   f1_setup_response_func_t f1_setup_response;
   f1_setup_failure_func_t f1_setup_failure;
+  gnb_du_configuration_update_ack_func_t gnb_du_configuration_update_acknowledge;
   ue_context_setup_request_func_t ue_context_setup_request;
   ue_context_modification_request_func_t ue_context_modification_request;
   ue_context_modification_confirm_func_t ue_context_modification_confirm;
@@ -381,6 +399,7 @@ typedef struct nr_rrc_du_container_t {
   f1ap_setup_req_t *setup_req;
   NR_MIB_t *mib;
   NR_SIB1_t *sib1;
+  NR_MeasurementTimingConfiguration_t *mtc;
 } nr_rrc_du_container_t;
 
 typedef struct nr_rrc_cuup_container_t {
@@ -418,6 +437,8 @@ typedef struct gNB_RRC_INST_s {
 
   nr_mac_rrc_dl_if_t mac_rrc;
   cucp_cuup_if_t cucp_cuup;
+  seq_arr_t *neighbour_cell_configuration;
+  nr_measurement_configuration_t measurementConfiguration;
 
   RB_HEAD(rrc_du_tree, nr_rrc_du_container_t) dus; // DUs, indexed by assoc_id
   size_t num_dus;

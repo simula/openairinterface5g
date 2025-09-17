@@ -190,18 +190,22 @@ do {                                            \
     (aSN)->bits_unused = 0;                   \
 } while(0)
 
-#define AMF_SETID_TO_BIT_STRING(x, aSN)       \
-  do {                                        \
-    INT16_TO_OCTET_STRING(x, aSN);            \
-    (aSN)->bits_unused = 6;                   \
-} while(0)
+#define AMF_SETID_TO_BIT_STRING(x, aSN)      \
+  do {                                       \
+    (aSN)->buf = calloc(2, sizeof(uint8_t)); \
+    (aSN)->buf[0] = ((x) >> 2) & 0xff;       \
+    (aSN)->buf[1] = ((x) & 0x03) << 6;       \
+    (aSN)->size = 2;                         \
+    (aSN)->bits_unused = 6;                  \
+  } while (0)
 
-#define AMF_POINTER_TO_BIT_STRING(x, aSN)     \
-  do {                                        \
-    INT8_TO_OCTET_STRING(x, aSN);             \
-    (aSN)->bits_unused = 2;                   \
-} while(0)
-
+#define AMF_POINTER_TO_BIT_STRING(x, aSN)    \
+  do {                                       \
+    (aSN)->buf = calloc(1, sizeof(uint8_t)); \
+    (aSN)->buf[0] = ((x) & 0x3f) << 2;       \
+    (aSN)->size = 1;                         \
+    (aSN)->bits_unused = 2;                  \
+  } while (0)
 
 #define ENCRALG_TO_BIT_STRING(encralg, bitstring)    \
     do {                        \

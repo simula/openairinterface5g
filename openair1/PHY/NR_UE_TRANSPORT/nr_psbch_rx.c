@@ -24,6 +24,7 @@
 #include "PHY/CODING/nrPolar_tools/nr_polar_defs.h"
 #include "common/utils/LOG/log.h"
 #include "PHY/NR_UE_TRANSPORT/nr_transport_proto_ue.h"
+#include "PHY/TOOLS/phy_scope_interface.h"
 
 // #define DEBUG_PSBCH
 
@@ -109,7 +110,7 @@ static void nr_psbch_extract(uint32_t rxdataF_sz,
 }
 
 int nr_rx_psbch(PHY_VARS_NR_UE *ue,
-                UE_nr_rxtx_proc_t *proc,
+                const UE_nr_rxtx_proc_t *proc,
                 int estimateSz,
                 struct complex16 dl_ch_estimates[][estimateSz],
                 NR_DL_FRAME_PARMS *frame_parms,
@@ -122,6 +123,7 @@ int nr_rx_psbch(PHY_VARS_NR_UE *ue,
   // Extra 2 bits needed as polar decoder expects a multiple of 4 as encoder length
   // If these 2 bits are not added, runs compiled with --sanitize will fail.
   int16_t psbch_e_rx[SL_NR_POLAR_PSBCH_E_NORMAL_CP + 2] = {0};
+  int16_t psbch_unClipped[SL_NR_POLAR_PSBCH_E_NORMAL_CP + 2] = {0};
 
 #ifdef DEBUG_PSBCH
   write_output("psbch_rxdataF.m",
@@ -174,6 +176,9 @@ int nr_rx_psbch(PHY_VARS_NR_UE *ue,
 
     nr_pbch_quantize(psbch_e_rx + psbch_e_rx_idx, (short *)rxdataF_comp[0], SL_NR_NUM_PSBCH_DATA_BITS_IN_ONE_SYMBOL);
 
+    if (ue->scopeData)
+      memcpy(psbch_unClipped + psbch_e_rx_idx, rxdataF_comp[0], SL_NR_NUM_PSBCH_DATA_BITS_IN_ONE_SYMBOL * sizeof(int16_t));
+
     psbch_e_rx_idx += SL_NR_NUM_PSBCH_DATA_BITS_IN_ONE_SYMBOL;
 
     // SKIP 2 SL-PSS AND 2 SL-SSS symbols
@@ -181,10 +186,8 @@ int nr_rx_psbch(PHY_VARS_NR_UE *ue,
     symbol = (symbol == 0) ? 5 : symbol + 1;
   }
 
-#if 0 // ENABLE SCOPE LATER
-  UEscopeCopy(ue, psbchRxdataF_comp, psbch_unClipped, sizeof(struct complex16), frame_parms->nb_antennas_rx, psbch_e_rx_idx/2);
-  UEscopeCopy(ue, psbchLlr, psbch_e_rx, sizeof(int16_t), frame_parms->nb_antennas_rx, psbch_e_rx_idx);
-#endif
+  UEscopeCopy(ue, psbchRxdataF_comp, psbch_unClipped, sizeof(c16_t), frame_parms->nb_antennas_rx, psbch_e_rx_idx / 2, 0);
+  UEscopeCopy(ue, psbchLlr, psbch_e_rx, sizeof(int16_t), frame_parms->nb_antennas_rx, psbch_e_rx_idx, 0);
 
 #ifdef DEBUG_PSBCH
   write_output("psbch_rxdataFcomp.m", "psbch_rxFcomp", psbch_unClipped, SL_NR_NUM_PSBCH_DATA_RE_IN_ALL_SYMBOLS, 1, 1);

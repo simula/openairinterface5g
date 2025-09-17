@@ -115,9 +115,15 @@ uint16_t ue_process_rar(const module_id_t module_idP, const int CC_id, const fra
   LOG_D(MAC, "[UE %d][RAPROC] rar->t_crnti %x\n", module_idP,
         (uint16_t) rar[5] + (rar[4] << 8));
 #endif
-  trace_pdu(DIRECTION_DOWNLINK, (uint8_t *) dlsch_buffer, n_rarh + n_rarpy * 6,
-            module_idP, WS_RA_RNTI, ra_rnti, UE_mac_inst[module_idP].rxFrame,
-            UE_mac_inst[module_idP].rxSubframe, 0, 0);
+  ws_trace_t tmp = {.direction = DIRECTION_DOWNLINK,
+                    .pdu_buffer = dlsch_buffer,
+                    .pdu_buffer_size = n_rarh + n_rarpy * 6,
+                    .ueid = module_idP,
+                    .rntiType = WS_RA_RNTI,
+                    .rnti = ra_rnti,
+                    .sysFrame = UE_mac_inst[module_idP].rxFrame,
+                    .subframe = UE_mac_inst[module_idP].rxSubframe};
+  trace_pdu(&tmp);
 
   if (preamble_index == rarh->RAPID) {
     *t_crnti = (uint16_t) rar[5] + (rar[4] << 8); //rar->t_crnti;

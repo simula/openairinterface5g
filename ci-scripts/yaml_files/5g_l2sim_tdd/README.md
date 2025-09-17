@@ -12,10 +12,8 @@
   </tr>
 </table>
 
-This page is valid for an `Ubuntu18` host.
-It is also valid for `Ubuntu 20.04`.
+It is also valid for `Ubuntu 22.04`.
 
-This tutorial is only valid once this file is merged into the `develop` branch.
 # 1. Adapt the `docker-compose` to your environment #
 The yaml file is in the following directory:  `ci-scripts/yaml_files/5g_l2sim_tdd`
 

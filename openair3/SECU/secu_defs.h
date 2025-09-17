@@ -28,16 +28,45 @@
 #define SECU_DIRECTION_UPLINK   0
 #define SECU_DIRECTION_DOWNLINK 1
 
+/* stream_security_context_t is an opaque structure.
+ * It is different for each integrity and ciphering algorithm in use.
+ * Defined as a struct to have compilation time type checking
+ * (the "context" field is never actually used).
+ */
 typedef struct {
-  uint8_t *key;
-  uint32_t key_length;
+  void *context;
+} stream_security_context_t;
+
+/* stream_security_container_t contains the current configuration
+ * of integrity and ciphering. It is used by PDCP and NAS.
+ */
+typedef struct {
+  int integrity_algorithm;
+  int ciphering_algorithm;
+  stream_security_context_t *ciphering_context;
+  stream_security_context_t *integrity_context;
+} stream_security_container_t;
+
+typedef struct {
+  stream_security_context_t *context;
   uint32_t count;
   uint8_t  bearer;
   uint8_t  direction;
   uint8_t  *message;
   /* length in bits */
-  uint32_t  blength;
+  uint32_t blength;
 } nas_stream_cipher_t;
+
+stream_security_context_t *stream_integrity_init(int integrity_algorithm, const uint8_t *integrity_key);
+stream_security_context_t *stream_ciphering_init(int ciphering_algorithm, const uint8_t *ciphering_key);
+void stream_integrity_free(int integrity_algorithm, stream_security_context_t *integrity_context);
+void stream_ciphering_free(int ciphering_algorithm, stream_security_context_t *ciphering_context);
+
+stream_security_container_t *stream_security_container_init(int ciphering_algorithm,
+                                                            int integrity_algorithm,
+                                                            const uint8_t *ciphering_key,
+                                                            const uint8_t *integrity_key);
+void stream_security_container_delete(stream_security_container_t *container);
 
 /*!
  * @brief Encrypt/Decrypt a block of data based on the provided algorithm

@@ -187,13 +187,16 @@ void e1_bearer_context_setup(const e1ap_bearer_setup_req_t *req)
     // create PDCP bearers. This will also create SDAP bearers
     NR_DRB_ToAddModList_t DRB_configList = {0};
     fill_DRB_configList_e1(&DRB_configList, req_pdu);
+    nr_pdcp_entity_security_keys_and_algos_t security_parameters;
+    security_parameters.ciphering_algorithm = req->cipheringAlgorithm;
+    security_parameters.integrity_algorithm = req->integrityProtectionAlgorithm;
+    memcpy(security_parameters.ciphering_key, req->encryptionKey, NR_K_KEY_SIZE);
+    memcpy(security_parameters.integrity_key, req->integrityProtectionKey, NR_K_KEY_SIZE);
     nr_pdcp_add_drbs(true, // set this to notify PDCP that his not UE
                      cu_up_ue_id,
                      &DRB_configList,
-                     (req->integrityProtectionAlgorithm << 4) | req->cipheringAlgorithm,
-                     (uint8_t *)req->encryptionKey,
-                     (uint8_t *)req->integrityProtectionKey);
-
+                     &security_parameters);
+    ASN_STRUCT_RESET(asn_DEF_NR_DRB_ToAddModList, &DRB_configList.list);
     if (f1inst >= 0) { /* we have F1(-U) */
       teid_t dummy_teid = 0xffff; // we will update later with answer from DU
       in_addr_t dummy_address = {0}; // IPv4, updated later with answer from DU
@@ -255,16 +258,26 @@ void e1_bearer_context_modif(const e1ap_bearer_mod_req_t *req)
       modified->id = to_modif->id;
 
       if (to_modif->pdcp_config.pDCP_Reestablishment) {
-        nr_pdcp_reestablishment(req->gNB_cu_up_ue_id, to_modif->id, false);
+        nr_pdcp_entity_security_keys_and_algos_t security_parameters;
+        security_parameters.ciphering_algorithm = req->cipheringAlgorithm;
+        security_parameters.integrity_algorithm = req->integrityProtectionAlgorithm;
+        memcpy(security_parameters.ciphering_key, req->encryptionKey, NR_K_KEY_SIZE);
+        memcpy(security_parameters.integrity_key, req->integrityProtectionKey, NR_K_KEY_SIZE);
+        nr_pdcp_reestablishment(req->gNB_cu_up_ue_id,
+                                to_modif->id,
+                                false,
+                                &security_parameters);
       }
 
       if (f1inst < 0) // no F1-U?
         continue; // nothing to do
 
-      in_addr_t addr = {0};
-      memcpy(&addr, &to_modif->DlUpParamList[0].tlAddress, sizeof(in_addr_t));
-
-      GtpuUpdateTunnelOutgoingAddressAndTeid(f1inst, req->gNB_cu_cp_ue_id, to_modif->id, addr, to_modif->DlUpParamList[0].teId);
+      /* Loop through DL UP Transport Layer params list
+       * and update GTP tunnel outgoing addr and TEID */
+      for (int k = 0; k < to_modif->numDlUpParam; k++) {
+        in_addr_t addr = to_modif->DlUpParamList[k].tlAddress;
+        GtpuUpdateTunnelOutgoingAddressAndTeid(f1inst, req->gNB_cu_cp_ue_id, to_modif->id, addr, to_modif->DlUpParamList[k].teId);
+      }
     }
   }
 

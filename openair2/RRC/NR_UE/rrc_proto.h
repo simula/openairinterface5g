@@ -39,56 +39,22 @@
 #include "NR_MeasConfig.h"
 #include "NR_CellGroupConfig.h"
 #include "NR_RadioBearerConfig.h"
-#include "openair2/PHY_INTERFACE/queue_t.h"
 #include "common/utils/ocp_itti/intertask_interface.h"
 
-extern queue_t nr_rach_ind_queue;
-extern queue_t nr_rx_ind_queue;
-extern queue_t nr_crc_ind_queue;
-extern queue_t nr_uci_ind_queue;
-extern queue_t nr_sfn_slot_queue;
-extern queue_t nr_chan_param_queue;
-extern queue_t nr_dl_tti_req_queue;
-extern queue_t nr_tx_req_queue;
-extern queue_t nr_ul_dci_req_queue;
-extern queue_t nr_ul_tti_req_queue;
+NR_UE_RRC_INST_t *nr_rrc_init_ue(char* uecap_file, int nb_inst, int num_ant_tx);
 
-NR_UE_RRC_INST_t *nr_rrc_init_ue(char* uecap_file, int nb_inst);
 void init_nsa_message (NR_UE_RRC_INST_t *rrc, char* reconfig_file, char* rbconfig_file);
 
 void process_nsa_message(NR_UE_RRC_INST_t *rrc, nsa_message_t nsa_message_type, void *message, int msg_len);
 
 void nr_rrc_cellgroup_configuration(NR_UE_RRC_INST_t *rrc, NR_CellGroupConfig_t *cellGroupConfig);
 
-/**\brief interface between MAC and RRC thru SRB0 (RLC TM/no PDCP)
-   \param module_id  module id
-   \param CC_id      component carrier id
-   \param gNB_index  gNB index
-   \param channel    indicator for channel of the pdu
-   \param pduP       pointer to pdu
-   \param pdu_len    data length of pdu*/
-int8_t nr_mac_rrc_data_ind_ue(const module_id_t module_id,
-                              const int CC_id,
-                              const uint8_t gNB_index,
-                              const frame_t frame,
-                              const int slot,
-                              const rnti_t rnti,
-                              const uint32_t cellid,
-                              const long arfcn,
-                              const channel_t channel,
-                              const uint8_t* pduP,
-                              const sdu_size_t pdu_len);
-
-void nr_mac_rrc_sync_ind(const module_id_t module_id,
-                         const frame_t frame,
-                         const bool in_sync);
-
 void nr_rrc_going_to_IDLE(NR_UE_RRC_INST_t *rrc,
                           NR_Release_Cause_t release_cause,
                           NR_RRCRelease_t *RRCRelease);
 
-void nr_mac_rrc_ra_ind(const module_id_t mod_id, int frame, bool success);
-void nr_mac_rrc_msg3_ind(const module_id_t mod_id, const int rnti, int gnb_id);
+void handle_RRCRelease(NR_UE_RRC_INST_t *rrc);
+
 void set_rlf_sib1_timers_and_constants(NR_UE_Timers_Constants_t *tac, NR_SIB1_t *sib1);
 
 /**\brief RRC UE task.
@@ -103,8 +69,6 @@ void nr_rrc_handle_timers(NR_UE_RRC_INST_t *rrc);
 void *recv_msgs_from_lte_ue(void *args_p);
 
 void init_connections_with_lte_ue(void);
-
-void nsa_sendmsg_to_lte_ue(const void *message, size_t msg_len, Rrc_Msg_Type_t msg_type);
 
 extern void start_oai_nrue_threads(void);
 

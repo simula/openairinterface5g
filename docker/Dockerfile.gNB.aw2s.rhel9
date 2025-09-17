@@ -38,20 +38,23 @@ RUN /bin/sh oaienv && \
     ./build_oai -w AW2SORI -t Ethernet
 
 #start from scratch for target executable
-FROM registry.access.redhat.com/ubi9/ubi:latest as oai-gnb-aw2s
+FROM registry.access.redhat.com/ubi9/ubi:latest AS oai-gnb-aw2s
 ENV TZ=Europe/Paris
+
+# Install EPEL for RHEL9
+RUN dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm
 
 RUN dnf update -y && \
     dnf install -y \
         procps-ng \
         libXpm \
         libX11 \
-        atlas \
         gdb \
         lksctp-tools \
         tzdata \
         net-tools \
-        iputils && \
+        iputils \
+        yaml-cpp-devel && \
     echo "/usr/local/lib" > /etc/ld.so.conf.d/local-lib.conf && \
     echo "/usr/local/lib64" >> /etc/ld.so.conf.d/local-lib.conf
 
@@ -70,23 +73,34 @@ COPY --from=gnb-build \
     /oai-ran/cmake_targets/ran_build/build/libdfts.so \
     /oai-ran/cmake_targets/ran_build/build/libldpc*.so \
     /oai-ran/cmake_targets/ran_build/build/libtelnetsrv.so \
+    /oai-ran/cmake_targets/ran_build/build/libparams_yaml.so \
     /usr/local/lib/
 
 COPY --from=gnb-base \
     /lib64/libconfig.so.11 \
     /lib64/libforms.so.2 \
-    /lib64/libblas.so.3 \
-    /lib64/libcblas.so.3 \
-    /lib64/liblapack.so.3 \
-    /lib64/liblapacke.so.3 \
     /lib64/
+
+## Copy E2 SM models
+COPY --from=gnb-build /usr/local/lib64/flexric /usr/local/lib64/flexric
 
 RUN ln -s /usr/local/lib/libaw2sori_transpro.so /usr/local/lib/libthirdparty_transpro.so && \
     ln -s /usr/local/lib/liboai_eth_transpro.so /usr/local/lib/liboai_transpro.so && \
-    ldconfig
+    ldconfig && \
+    echo "---- ldd on executable nr-softmodem ----" && \
+    ldd /opt/oai-gnb-aw2s/bin/nr-softmodem && \
+    echo "---- ldd on shared libraries ----" && \
+    ldd /usr/local/lib/liboai_eth_transpro.so \
+        /usr/local/lib/librfsimulator.so \
+        /usr/local/lib/libaw2sori_transpro.so \
+        /usr/local/lib/libcoding.so \
+        /usr/local/lib/libparams_libconfig.so \
+        /usr/local/lib/libdfts.so \
+        /usr/local/lib/libldpc*.so \
+        /usr/local/lib/libtelnetsrv.so
 
 WORKDIR /opt/oai-gnb-aw2s
 
 COPY --from=gnb-base /tini /tini
 ENTRYPOINT ["/tini", "-v", "--", "/opt/oai-gnb-aw2s/bin/entrypoint.sh"]
-CMD ["/opt/oai-gnb-aw2s/bin/nr-softmodem", "-O", "/opt/oai-gnb-aw2s/etc/gnb.conf"]
+CMD ["/opt/oai-gnb-aw2s/bin/nr-softmodem"]

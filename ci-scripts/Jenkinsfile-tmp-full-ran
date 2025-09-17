@@ -39,10 +39,8 @@ if (params.LockResources != null && params.LockResources.trim().length() > 0)
 
 // Terminate Status
 def termENB = 0
-def termOAIUE = 1
-def termStatusArray = new Boolean[termOAIUE + 1]
+def termStatusArray = new Boolean[termENB + 1]
 termStatusArray[termENB] = false
-termStatusArray[termOAIUE] = false
 
 // Global Parameters. Normally they should be populated when the master job
 // triggers the slave job with parameters
@@ -194,6 +192,8 @@ pipeline {
                                 if (fileExists(xmlFile)) {
                                     mainPythonAllXmlFiles += "--XMLTestFile=" + xmlFile + " "
                                     echo "Test XML file         :   ${xmlFile}"
+                                } else {
+                                    echo "Test XML file ${xmlFile}: no such file"
                                 }
                             }
                         }
@@ -237,23 +237,6 @@ pipeline {
                         success {
                             script {
                                 termStatusArray[termENB] = true
-                            }
-                        }
-                    }
-                }
-                stage('Terminate OAI-UE') {
-                    steps {
-                        echo '\u2705 \u001B[32mTerminate OAI-UE\u001B[0m'
-                        withCredentials([
-                            [$class: 'UsernamePasswordMultiBinding', credentialsId: "${params.UE_Credentials}", usernameVariable: 'UE_Username', passwordVariable: 'UE_Password']
-                        ]) {
-                            sh "python3 ci-scripts/main.py --mode=TerminateOAIUE --UEIPAddress=${params.UE_IPAddress} --UEUserName=${UE_Username} --UEPassword=${UE_Password}"
-                        }
-                    }
-                    post {
-                        success {
-                            script {
-                                termStatusArray[termOAIUE] = true
                             }
                         }
                     }
@@ -304,7 +287,7 @@ pipeline {
                              [$class: 'UsernamePasswordMultiBinding', credentialsId: "${params.eNB_Credentials}", usernameVariable: 'eNB_Username', passwordVariable: 'eNB_Password']
                         ]) {
                             echo '\u2705 \u001B[32mLog Collection (eNB - Run)\u001B[0m'
-                            sh "python3 ci-scripts/main.py --mode=LogCollecteNB --eNBIPAddress=${params.eNB_IPAddress} --eNBUserName=${eNB_Username} --eNBPassword=${eNB_Password} --eNBSourceCodePath=${params.eNB_SourceCodePath}"
+                            sh "python3 ci-scripts/main.py --mode=LogCollecteNB --eNBIPAddress=${params.eNB_IPAddress} --eNBUserName=${eNB_Username} --eNBPassword=${eNB_Password} --eNBSourceCodePath=${params.eNB_SourceCodePath} --BuildId=${env.BUILD_ID}"
 
                             echo '\u2705 \u001B[32mLog Transfer (eNB - Run)\u001B[0m'
                             sh "sshpass -p \'${eNB_Password}\' scp -o 'StrictHostKeyChecking no' -o 'ConnectTimeout 10' ${eNB_Username}@${params.eNB_IPAddress}:${eNB_SourceCodePath}/cmake_targets/enb.log.zip ./enb.log.${env.BUILD_ID}.zip || true"
@@ -471,13 +454,6 @@ pipeline {
                         [$class: 'UsernamePasswordMultiBinding', credentialsId: "${params.eNB_Credentials}", usernameVariable: 'eNB_Username', passwordVariable: 'eNB_Password']
                     ]) {
                         sh "python3 ci-scripts/main.py --mode=TerminateeNB --eNBIPAddress=${params.eNB_IPAddress} --eNBUserName=${eNB_Username} --eNBPassword=${eNB_Password}"
-                    }
-                }
-                if (!termStatusArray[termOAIUE]) {
-                    withCredentials([
-                        [$class: 'UsernamePasswordMultiBinding', credentialsId: "${params.UE_Credentials}", usernameVariable: 'UE_Username', passwordVariable: 'UE_Password']
-                    ]) {
-                        sh "python3 ci-scripts/main.py --mode=TerminateOAIUE --UEIPAddress=${params.UE_IPAddress} --UEUserName=${UE_Username} --UEPassword=${UE_Password}"
                     }
                 }
             }

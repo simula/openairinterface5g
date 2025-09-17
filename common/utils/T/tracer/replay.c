@@ -136,7 +136,7 @@ int main(int n, char **v)
 
   new_thread(get_message_thread, &socket);
 
-  OBUF ebuf = { osize: 0, omaxsize: 0, obuf: NULL };
+  OBUF ebuf = {.osize = 0, .omaxsize = 0, .obuf = NULL};
 
   while (1) {
     int type;

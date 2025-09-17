@@ -277,7 +277,7 @@ int test_pucch_common_config_single_transport_block(PHY_VARS_NR_UE *ue, int gNB_
    v_return = -1;
   }
 
-  harq_status->ack = DL_NACK;
+  harq_status->decodeResult = false;
 
   printf("\n  => Test : PUCCH format from common config in prach mode: one negative downlink ACKnowledgment \n");
 
@@ -308,7 +308,7 @@ int test_pucch_common_config_single_transport_block(PHY_VARS_NR_UE *ue, int gNB_
     v_return = -1;
   }
 
-  harq_status->ack = DL_NACK;
+  harq_status->decodeResult = false;
 
   printf("\n  => Test : PUCCH format from common config in dedicated mode: one positive and one negative downlink ACKnowledgments \n");
 
@@ -1073,8 +1073,6 @@ int test_csi_dedicated(PHY_VARS_NR_UE *ue, int gNB_id, UE_nr_rxtx_proc_t *proc)
   printf("%s", tst_separator);
 
   ue->dlsch[proc->thread_id][gNB_id][0]->current_harq_pid = NR_MAX_DLSCH_HARQ_PROCESSES;
-
-  set_csi_nr( 4, 0x0E );
 
   printf("\n  => Test : PUCCH format from dedicated config with CSI alone \n");
 

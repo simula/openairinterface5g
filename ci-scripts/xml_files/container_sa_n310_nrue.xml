@@ -24,16 +24,20 @@
   <htmlTabRef>TEST-5G-NRUE</htmlTabRef>
   <htmlTabName>40 MHz TDD SA</htmlTabName>
   <htmlTabIcon>tasks</htmlTabIcon>
-  <repeatCount>1</repeatCount>
   <TestCaseRequestedList>
     010000 010001
-    020000 020001
+    800813
+    020000
+    800814
+    020001
     000001
     001000
     002000
     000100
     000200
     040001 040000
+    333333
+    444444
   </TestCaseRequestedList>
   <TestCaseExclusionList></TestCaseExclusionList>
 
@@ -64,7 +68,12 @@
     <node>caracal</node>
     <command>ssh root@192.168.20.2 reboot ; sleep 45</command>
   </testCase>
-
+  <testCase id="800813">
+    <class>Create_Workspace</class>
+    <desc>Create new Workspace</desc>
+    <eNB_instance>0</eNB_instance>
+    <eNB_serverId>0</eNB_serverId>
+  </testCase>
   <testCase id="020000">
     <class>Deploy_Object</class>
     <desc>Deploy gNB (TDD/Band78/40MHz/N310) in a container</desc>
@@ -72,7 +81,12 @@
     <eNB_instance>0</eNB_instance>
     <eNB_serverId>0</eNB_serverId>
   </testCase>
-
+  <testCase id="800814">
+    <class>Create_Workspace</class>
+    <desc>Create new Workspace</desc>
+    <eNB_instance>1</eNB_instance>
+    <eNB_serverId>1</eNB_serverId>
+  </testCase>
   <testCase id="020001">
     <class>Deploy_Object</class>
     <desc>Deploy nrUE (TDD/Band78/40MHz/N310) in a container</desc>
@@ -127,6 +141,7 @@
 
   <testCase id="040000">
     <class>Undeploy_Object</class>
+    <always_exec>true</always_exec>
     <desc>Undeploy gNB</desc>
     <yaml_path>ci-scripts/yaml_files/5g_sa_n310_gnb</yaml_path>
     <eNB_instance>0</eNB_instance>
@@ -137,10 +152,25 @@
   
   <testCase id="040001">
     <class>Undeploy_Object</class>
+    <always_exec>true</always_exec>
     <desc>Undeploy nr UE</desc>
     <yaml_path>ci-scripts/yaml_files/5g_sa_n310_nrue</yaml_path>
     <eNB_instance>1</eNB_instance>
     <eNB_serverId>1</eNB_serverId>
+  </testCase>
+
+  <testCase id="333333">
+    <class>Clean_Test_Server_Images</class>
+    <always_exec>true</always_exec>
+    <desc>Clean Test Images on Test Server</desc>
+    <test_svr_id>0</test_svr_id>
+  </testCase>
+
+  <testCase id="444444">
+    <class>Clean_Test_Server_Images</class>
+    <always_exec>true</always_exec>
+    <desc>Clean Test Images on Test Server</desc>
+    <test_svr_id>1</test_svr_id>
   </testCase>
 
 </testCaseList>

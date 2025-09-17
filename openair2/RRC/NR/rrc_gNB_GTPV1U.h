@@ -30,12 +30,8 @@
 #ifndef RRC_GNB_GTPV1U_H_
 #define RRC_GNB_GTPV1U_H_
 
-
-int
-rrc_gNB_process_GTPV1U_CREATE_TUNNEL_RESP(
-  const protocol_ctxt_t *const ctxt_pP,
-  const gtpv1u_enb_create_tunnel_resp_t *const create_tunnel_resp_pP,
-  uint8_t                         *inde_list
-);
+int rrc_gNB_process_GTPV1U_CREATE_TUNNEL_RESP(gNB_RRC_UE_t *ue,
+                                              const gtpv1u_enb_create_tunnel_resp_t *const create_tunnel_resp_pP,
+                                              uint8_t *inde_list);
 
 #endif

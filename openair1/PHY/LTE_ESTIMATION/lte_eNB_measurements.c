@@ -69,7 +69,7 @@ void lte_eNB_I0_measurements(PHY_VARS_eNB *eNB,
 
   uint32_t aarx /* ,rx_power_correction */;
   uint32_t rb;
-  int32_t *ul_ch;
+  c16_t *ul_ch;
   int32_t n0_power_tot;
   int64_t n0_power_tot2;
   int len;
@@ -112,9 +112,9 @@ void lte_eNB_I0_measurements(PHY_VARS_eNB *eNB,
       for (aarx=0; aarx<frame_parms->nb_antennas_rx; aarx++) {
         measurements->n0_subband_power[aarx][rb] = 0;
         for (int s=0;s<(14-(frame_parms->Ncp<<1));s++) {
-	        offset = offset0 + (s*frame_parms->ofdm_symbol_size);
-	        ul_ch  = &common_vars->rxdataF[aarx][offset];
-	        len = 12;
+          offset = offset0 + (s*frame_parms->ofdm_symbol_size);
+          ul_ch = (c16_t *)&common_vars->rxdataF[aarx][offset];
+          len = 12;
 	// just do first half of middle PRB for odd number of PRBs
 	        if (((frame_parms->N_RB_UL&1) == 1) && 
 	            (rb==(frame_parms->N_RB_UL>>1))) {
@@ -154,7 +154,7 @@ void lte_eNB_srs_measurements(PHY_VARS_eNB *eNB,
   int32_t aarx,rx_power_correction;
   int32_t rx_power;
   uint32_t rb;
-  int32_t *ul_ch;
+  c16_t *ul_ch;
 
   //printf("Running eNB_srs_measurements for eNB_id %d\n",eNB_id);
 
@@ -176,9 +176,9 @@ void lte_eNB_srs_measurements(PHY_VARS_eNB *eNB,
 
 
     measurements->rx_spatial_power[srs_id][0][aarx] =
-      ((signal_energy_nodc(&srs_vars->srs_ch_estimates[aarx][frame_parms->first_carrier_offset],
+      ((signal_energy_nodc((c16_t*)&srs_vars->srs_ch_estimates[aarx][frame_parms->first_carrier_offset],
                            (frame_parms->N_RB_DL*6)) +
-        signal_energy_nodc(&srs_vars->srs_ch_estimates[aarx][1],
+        signal_energy_nodc((c16_t*)&srs_vars->srs_ch_estimates[aarx][1],
                            (frame_parms->N_RB_DL*6)))*rx_power_correction) -
       measurements->n0_power[aarx];
 
@@ -219,9 +219,9 @@ void lte_eNB_srs_measurements(PHY_VARS_eNB *eNB,
 
       //      printf("common_vars->srs_ch_estimates[0] => %x\n",common_vars->srs_ch_estimates[0]);
       if (rb < 12)
-        ul_ch    = &srs_vars->srs_ch_estimates[aarx][frame_parms->first_carrier_offset + (rb*12)];
+        ul_ch = (c16_t *)&srs_vars->srs_ch_estimates[aarx][frame_parms->first_carrier_offset + (rb * 12)];
       else if (rb>12)
-        ul_ch    = &srs_vars->srs_ch_estimates[aarx][6 + (rb-13)*12];
+        ul_ch = (c16_t *)&srs_vars->srs_ch_estimates[aarx][6 + (rb - 13) * 12];
       else {
         measurements->subband_cqi_dB[srs_id][aarx][rb] = 0;
         continue;

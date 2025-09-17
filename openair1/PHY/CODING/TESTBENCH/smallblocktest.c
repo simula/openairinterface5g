@@ -1,4 +1,5 @@
 #include <getopt.h>
+#include "common/config/config_userapi.h"
 #include "SIMULATION/TOOLS/sim.h"
 #include "PHY/CODING/nrSmallBlock/nr_small_block_defs.h"
 #include "coding_unitary_defs.h"
@@ -9,7 +10,7 @@ configmodule_interface_t *uniqCfg = NULL;
 int main(int argc, char *argv[])
 {
   time_stats_t timeEncoder, timeDecoder;
-  opp_enabled = 1;
+  cpu_meas_enabled = 1;
   reset_meas(&timeEncoder);
   reset_meas(&timeDecoder);
   randominit(0);
@@ -26,7 +27,19 @@ int main(int argc, char *argv[])
   int8_t channelOutput_int8[NR_SMALL_BLOCK_CODED_BITS];
   unsigned char qbits = 8;
 
-  while ((arguments = getopt(argc, argv, "s:d:f:l:i:mhg")) != -1)
+  if ((uniqCfg = load_configmodule(argc, argv, CONFIG_ENABLECMDLINEONLY)) == 0) {
+    exit_fun("[SMALLBLOCKTEST] Error, configuration module init failed\n");
+  }
+  logInit();
+
+  while ((arguments = getopt(argc, argv, "--:O:s:d:f:l:i:mhg")) != -1) {
+
+    /* ignore long options starting with '--', option '-O' and their arguments that are handled by configmodule */
+    /* with this opstring getopt returns 1 for non-option arguments, refer to 'man 3 getopt' */
+    if (arguments == 1 || arguments == '-' || arguments == 'O')
+      continue;
+
+    printf("handling optarg %c\n",arguments);
     switch (arguments) {
       case 's':
         SNRstart = atof(optarg);
@@ -69,6 +82,7 @@ int main(int argc, char *argv[])
         perror("[smallblocktest.c] Problem at argument parsing with getopt");
         exit(-1);
     }
+  }
 
   uint16_t mask = 0x07ff >> (11 - messageLength);
   for (SNR = SNRstart; SNR <= SNRstop; SNR += SNRinc) {

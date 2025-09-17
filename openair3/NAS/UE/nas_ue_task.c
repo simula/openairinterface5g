@@ -30,6 +30,7 @@
 # include "nas_parser.h"
 # include "nas_proc.h"
 #include "common/utils/mem/oai_memory.h"
+#include "common/oai_version.h"
 
 #include "nas_user.h"
 #include "common/ran_context.h"
@@ -134,7 +135,7 @@ void *nas_ue_task(void *args_p)
       user->at_response = calloc_or_fail(1, sizeof(at_response_t));
       user->lowerlayer_data = calloc_or_fail(1, sizeof(lowerlayer_data_t));
       /* Initialize NAS user */
-      nas_user_initialize(user, &user_api_emm_callback, &user_api_esm_callback, FIRMWARE_VERSION);
+      nas_user_initialize(user, &user_api_emm_callback, &user_api_esm_callback, OAI_FIRMWARE_VERSION);
     }
   }
   else
@@ -174,7 +175,7 @@ void *nas_ue_task(void *args_p)
       user->at_response = calloc_or_fail(1, sizeof(at_response_t));
       user->lowerlayer_data = calloc_or_fail(1, sizeof(lowerlayer_data_t));
       /* Initialize NAS user */
-      nas_user_initialize(user, &user_api_emm_callback, &user_api_esm_callback, FIRMWARE_VERSION);
+      nas_user_initialize(user, &user_api_emm_callback, &user_api_esm_callback, OAI_FIRMWARE_VERSION);
       user->ueid = 0;
   }
 

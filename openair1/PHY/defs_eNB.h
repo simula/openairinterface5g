@@ -519,7 +519,6 @@ typedef struct PHY_VARS_eNB_s {
   uint8_t              CC_id;
   uint8_t              configured;
   L1_proc_t            proc;
-  int                  single_thread_flag;
   int                  abstraction_flag;
   int                  num_RU;
   RU_t                 *RU_list[MAX_NUM_RU_PER_eNB];

@@ -30,6 +30,7 @@
 #ifdef ENABLE_AERIAL
 #include "nfapi/oai_integration/aerial/fapi_nvIPC.h"
 #include "nfapi/oai_integration/aerial/fapi_vnf_p5.h"
+#include "nr_fapi.h"
 #endif
 #include "nfapi/oai_integration/vendor_ext.h"
 
@@ -1529,13 +1530,11 @@ int vnf_nr_pack_and_send_p5_message(vnf_t* vnf, uint16_t p5_idx, nfapi_p4_p5_mes
 #ifdef ENABLE_AERIAL
       // In case it is a FAPI message, create 2 messages, one with nFAPI header for OAI PNF and one with no nFAPI header for Aerial
       // L1
-      nfapi_p4_p5_message_header_t *msgFAPI = calloc(1, msg_len);
-      memcpy(msgFAPI, msg, msg_len);
       // create FAPI tx_buffer
       uint8_t tx_messagebufferFAPI[sizeof(vnf->tx_message_buffer)];
       int packedMessageLengthFAPI = -1;
       packedMessageLengthFAPI =
-          fapi_nr_p5_message_pack(msgFAPI, msg_len, tx_messagebufferFAPI, sizeof(tx_messagebufferFAPI), &vnf->_public.codec_config);
+          fapi_nr_p5_message_pack(msg, msg_len, tx_messagebufferFAPI, sizeof(tx_messagebufferFAPI), &vnf->_public.codec_config);
       return aerial_send_P5_msg(tx_messagebufferFAPI, packedMessageLengthFAPI, msg);
 #else
       return 0;

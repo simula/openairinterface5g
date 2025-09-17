@@ -1,0 +1,40 @@
+services:
+    oai-gnb:
+        image: ${REGISTRY:-oaisoftwarealliance}/oai-gnb-fhi72:${TAG:-develop}
+        cap_add:
+            - SYS_ADMIN
+            - IPC_LOCK
+            - SYS_NICE
+        cap_drop:
+            - ALL
+        container_name: oai-gnb
+        environment:
+            TZ: Europe/Paris
+            USE_ADDITIONAL_OPTIONS: --sa --thread-pool 6,7,8,9
+        devices:
+            - /dev/vfio:/dev/vfio/
+        volumes:
+            - ../../conf_files/gnb.sa.band77.273prb.fhi72.4x4-vvdn.conf:/opt/oai-gnb/etc/gnb.conf
+            - /dev/hugepages:/dev/hugepages
+        # Please change these values based on your system
+        cpuset: "0,1,2,3,4,5,6,7,8,9"
+        networks:
+            oai-net:
+                ipv4_address: 172.21.18.20
+        healthcheck:
+           test: /bin/bash -c "pgrep nr-softmodem"
+           interval: 10s
+           timeout: 5s
+           retries: 5
+networks:
+    oai-net:
+        driver: macvlan
+        name: oai-net
+        ipam:
+            config:
+                - subnet: "172.21.16.0/22"
+                  ip_range: "172.21.18.20/32"
+                  gateway: "172.21.19.254"
+        driver_opts:
+            com.docker.network.bridge.name: "oai-net"
+            parent: ens7f0

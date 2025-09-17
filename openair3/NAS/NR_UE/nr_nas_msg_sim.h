@@ -41,6 +41,7 @@
 #include "as_message.h"
 #include "FGSUplinkNasTransport.h"
 #include <openair3/UICC/usim_interface.h>
+#include "secu_defs.h"
 
 #define PLAIN_5GS_MSG                                      0b0000
 #define INTEGRITY_PROTECTED                                0b0001
@@ -88,18 +89,23 @@ typedef struct {
   uint8_t kseaf[32];
   uint8_t kamf[32];
   uint8_t knas_int[16];
+  uint8_t knas_enc[16];
   uint8_t res[16];
   uint8_t rand[16];
   uint8_t kgnb[32];
-  uint32_t mm_counter;
-  uint32_t sm_counter;
+  uint32_t nas_count_ul;
+  uint32_t nas_count_dl;
 } ue_sa_security_key_t;
 
 typedef struct {
   uicc_t *uicc;
   ue_sa_security_key_t security;
+  stream_security_container_t *security_container;
   Guti5GSMobileIdentity_t *guti;
   bool termination_procedure;
+  uint8_t  *registration_request_buf;
+  uint32_t  registration_request_len;
+  instance_t UE_id;
 } nr_ue_nas_t;
 
 typedef enum fgs_protocol_discriminator_e {

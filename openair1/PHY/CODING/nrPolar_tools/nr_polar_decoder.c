@@ -51,9 +51,9 @@ static inline void updateCrcChecksum2(int xlen,
 				      uint32_t i2,
 				      uint8_t len)
 {
-  for (uint8_t i = 0; i < listSize; i++) {
-    for (uint8_t j = 0; j < len; j++) {
-      crcChecksum[j][i+listSize] = ( (crcChecksum[j][i] + crcGen[i2][j]) % 2 );
+  for (uint i = 0; i < listSize; i++) {
+    for (uint j = 0; j < len; j++) {
+      crcChecksum[j][i + listSize] = (crcChecksum[j][i] + crcGen[i2][j]) % 2;
     }
   }
 }
@@ -87,7 +87,7 @@ int8_t polar_decoder(double *input,
 
   for (int i=0; i<polarParams->N; i++) {
     llrUpdated[i][polarParams->n]=1;
-    bitUpdated[i][0]=((polarParams->information_bit_pattern[i]+1) % 2);
+    bitUpdated[i][0] = (polarParams->information_bit_pattern[i] + 1) % 2;
   }
 
   uint8_t extended_crc_generator_matrix[polarParams->K][polarParams->crcParityBits]; //G_P3
@@ -101,11 +101,7 @@ int8_t polar_decoder(double *input,
 
   for (int i=polarParams->payloadBits; i<polarParams->K; i++) {
     for (int j=0; j<polarParams->crcParityBits; j++) {
-      if( (i-polarParams->payloadBits) == j ) {
-        tempECGM[i][j]=1;
-      } else {
-        tempECGM[i][j]=0;
-      }
+      tempECGM[i][j] = (i - polarParams->payloadBits) == j;
     }
   }
 
@@ -121,7 +117,8 @@ int8_t polar_decoder(double *input,
 
   for (int j=0; j<polarParams->crcParityBits; j++) {
     for (int i=0; i<polarParams->K; i++) {
-      if (extended_crc_generator_matrix[i][j]==1) last1ind[j]=i;
+      if (extended_crc_generator_matrix[i][j] == 1)
+        last1ind[j] = i;
     }
   }
 
@@ -135,12 +132,12 @@ int8_t polar_decoder(double *input,
    * SCL polar decoder.
    */
   uint32_t nonFrozenBit=0;
-  uint8_t currentListSize=1;
-  uint8_t decoderIterationCheck=0;
-  int16_t checkCrcBits=-1;
+  uint currentListSize = 1;
+  uint decoderIterationCheck = 0;
+  int checkCrcBits = -1;
   uint8_t listIndex[2*listSize], copyIndex;
 
-  for (uint16_t currentBit=0; currentBit<polarParams->N; currentBit++) {
+  for (uint currentBit = 0; currentBit < polarParams->N; currentBit++) {
     updateLLR(currentListSize, currentBit, 0, polarParams->N, polarParams->n + 1, 2 * listSize, llr, llrUpdated, bit, bitUpdated);
 
     if (polarParams->information_bit_pattern[currentBit]==0) { //Frozen bit.
@@ -179,19 +176,18 @@ int8_t polar_decoder(double *input,
 
       // Keep only the best "listSize" number of entries.
       if (currentListSize > listSize) {
-        for (uint8_t i = 0; i < 2 * listSize; i++)
+        for (uint i = 0; i < 2 * listSize; i++)
           listIndex[i] = i;
 
         nr_sort_asc_double_1D_array_ind(pathMetric, listIndex, currentListSize);
         // sort listIndex[listSize, ..., 2*listSize-1] in descending order.
-        uint8_t swaps, tempInd;
 
-        for (uint8_t i = 0; i < listSize; i++) {
-          swaps = 0;
+        for (uint i = 0; i < listSize; i++) {
+          int swaps = 0;
 
-          for (uint8_t j = listSize; j < (2 * listSize - i) - 1; j++) {
+          for (uint j = listSize; j < (2 * listSize - i) - 1; j++) {
             if (listIndex[j + 1] > listIndex[j]) {
-              tempInd = listIndex[j];
+              int tempInd = listIndex[j];
               listIndex[j] = listIndex[j + 1];
               listIndex[j + 1] = tempInd;
               swaps++;
@@ -218,7 +214,8 @@ int8_t polar_decoder(double *input,
           }
         }
 
-        for (int k=(listSize-1); k>0; k--) crcState[listIndex[(2*listSize-1)-k]]=crcState[listIndex[k]];
+        for (int k = (listSize - 1); k > 0; k--)
+          crcState[listIndex[(2 * listSize - 1) - k]] = crcState[listIndex[k]];
 
         //Copy the best "listSize" number of entries to the first indices.
         for (int k = 0; k < listSize; k++) {
@@ -269,18 +266,20 @@ int8_t polar_decoder(double *input,
       }
 
       if ( checkCrcBits > (-1) ) {
-        for (uint8_t i = 0; i < currentListSize; i++) {
+        for (uint i = 0; i < currentListSize; i++) {
           if (crcChecksum[checkCrcBits][i]==1) {
             crcState[i]=0; //0=False, 1=True
           }
         }
       }
 
-      for (uint8_t i = 0; i < currentListSize; i++) decoderIterationCheck+=crcState[i];
+      for (uint i = 0; i < currentListSize; i++)
+        decoderIterationCheck += crcState[i];
 
       if (decoderIterationCheck==0) {
         //perror("[SCL polar decoder] All list entries have failed the CRC checks.");
-        polarReturn(-1);
+        polarReturn(polarParams);
+        return -1;
       }
 
       nonFrozenBit++;
@@ -289,22 +288,26 @@ int8_t polar_decoder(double *input,
     }
   }
 
-  for (uint8_t i = 0; i < 2*listSize; i++) listIndex[i]=i;
+  for (uint i = 0; i < 2 * listSize; i++)
+    listIndex[i] = i;
 
   nr_sort_asc_double_1D_array_ind(pathMetric, listIndex, currentListSize);
-
-  for (uint8_t i = 0; i < fmin(listSize, (pow(2,polarParams->crcCorrectionBits)) ); i++) {
+  uint8_t nr_polar_A[polarParams->payloadBits];
+  for (uint i = 0; i < fmin(listSize, (pow(2, polarParams->crcCorrectionBits))); i++) {
     if ( crcState[listIndex[i]] == 1 ) {
+      uint8_t nr_polar_U[polarParams->N];
       for (int j = 0; j < polarParams->N; j++)
-        polarParams->nr_polar_U[j] = bit[j][0][listIndex[i]];
+        nr_polar_U[j] = bit[j][0][listIndex[i]];
 
       //Extract the information bits (û to ĉ)
-      nr_polar_info_bit_extraction(polarParams->nr_polar_U, polarParams->nr_polar_CPrime, polarParams->information_bit_pattern, polarParams->N);
+      uint8_t nr_polar_CPrime[polarParams->N];
+      nr_polar_info_bit_extraction(nr_polar_U, nr_polar_CPrime, polarParams->information_bit_pattern, polarParams->N);
       //Deinterleaving (ĉ to b)
-      nr_polar_deinterleaver(polarParams->nr_polar_CPrime, polarParams->nr_polar_B, polarParams->interleaving_pattern, polarParams->K);
+      uint8_t nr_polar_B[polarParams->K];
+      nr_polar_deinterleaver(nr_polar_CPrime, nr_polar_B, polarParams->interleaving_pattern, polarParams->K);
 
       //Remove the CRC (â)
-      for (int j = 0; j < polarParams->payloadBits; j++) polarParams->nr_polar_A[j]=polarParams->nr_polar_B[j];
+      memcpy(nr_polar_A, nr_polar_B, polarParams->payloadBits);
 
       break;
     }
@@ -313,9 +316,10 @@ int8_t polar_decoder(double *input,
   /*
    * Return bits.
    */
-  nr_byte2bit_uint8_32(polarParams->nr_polar_A, polarParams->payloadBits, out);
+  nr_byte2bit_uint8_32(nr_polar_A, polarParams->payloadBits, out);
 
-  polarReturn 0;
+  polarReturn(polarParams);
+  return 0;
 }
 
 int8_t polar_decoder_dci(double *input,
@@ -347,7 +351,7 @@ int8_t polar_decoder_dci(double *input,
 
   for (int i=0; i<polarParams->N; i++) {
     llrUpdated[i][polarParams->n]=1;
-    bitUpdated[i][0]=((polarParams->information_bit_pattern[i]+1) % 2);
+    bitUpdated[i][0] = (polarParams->information_bit_pattern[i] + 1) % 2;
   }
 
   uint8_t extended_crc_generator_matrix[polarParams->K][polarParams->crcParityBits]; //G_P3: K-by-P
@@ -361,11 +365,7 @@ int8_t polar_decoder_dci(double *input,
 
   for (int i=polarParams->payloadBits; i<polarParams->K; i++) {
     for (int j=0; j<polarParams->crcParityBits; j++) {
-      if( (i-polarParams->payloadBits) == j ) {
-        tempECGM[i][j]=1;
-      } else {
-        tempECGM[i][j]=0;
-      }
+      tempECGM[i][j] = (i - polarParams->payloadBits) == j;
     }
   }
 
@@ -384,7 +384,8 @@ int8_t polar_decoder_dci(double *input,
     }
   }
 
-  for (int i=0; i<8; i++) extended_crc_scrambling_pattern[i]=0;
+  for (int i = 0; i < 8; i++)
+    extended_crc_scrambling_pattern[i] = 0;
 
   for (int i=8; i<polarParams->crcParityBits; i++) {
     extended_crc_scrambling_pattern[i]=(n_RNTI>>(23-i))&1;
@@ -408,12 +409,12 @@ int8_t polar_decoder_dci(double *input,
   }
 
   uint32_t nonFrozenBit=0;
-  uint8_t currentListSize=1;
-  uint8_t decoderIterationCheck=0;
-  int16_t checkCrcBits=-1;
+  uint currentListSize = 1;
+  uint decoderIterationCheck = 0;
+  int checkCrcBits = -1;
   uint8_t listIndex[2*listSize], copyIndex;
 
-  for (uint16_t currentBit=0; currentBit<polarParams->N; currentBit++) {
+  for (uint currentBit = 0; currentBit < polarParams->N; currentBit++) {
     updateLLR(currentListSize, currentBit, 0, polarParams->N, polarParams->n+1, 2*listSize, llr, llrUpdated, bit, bitUpdated);
 
     if (polarParams->information_bit_pattern[currentBit]==0) { //Frozen bit.
@@ -445,18 +446,18 @@ int8_t polar_decoder_dci(double *input,
 
       //Keep only the best "listSize" number of entries.
       if (currentListSize > listSize) {
-        for (uint8_t i = 0; i < 2*listSize; i++) listIndex[i]=i;
+        for (uint i = 0; i < 2 * listSize; i++)
+          listIndex[i] = i;
 
         nr_sort_asc_double_1D_array_ind(pathMetric, listIndex, currentListSize);
-        //sort listIndex[listSize, ..., 2*listSize-1] in descending order.
-        uint8_t swaps, tempInd;
+        // sort listIndex[listSize, ..., 2*listSize-1] in descending order.
 
-        for (uint8_t i = 0; i < listSize; i++) {
-          swaps = 0;
+        for (uint i = 0; i < listSize; i++) {
+          int swaps = 0;
 
-          for (uint8_t j = listSize; j < (2*listSize - i) - 1; j++) {
+          for (uint j = listSize; j < (2 * listSize - i) - 1; j++) {
             if (listIndex[j+1] > listIndex[j]) {
-              tempInd = listIndex[j];
+              int tempInd = listIndex[j];
               listIndex[j] = listIndex[j + 1];
               listIndex[j + 1] = tempInd;
               swaps++;
@@ -483,7 +484,8 @@ int8_t polar_decoder_dci(double *input,
           }
         }
 
-        for (int k=(listSize-1); k>0; k--) crcState[listIndex[(2*listSize-1)-k]]=crcState[listIndex[k]];
+        for (int k = (listSize - 1); k > 0; k--)
+          crcState[listIndex[(2 * listSize - 1) - k]] = crcState[listIndex[k]];
 
         //Copy the best "listSize" number of entries to the first indices.
         for (int k = 0; k < listSize; k++) {
@@ -534,19 +536,20 @@ int8_t polar_decoder_dci(double *input,
       }
 
       if ( checkCrcBits > (-1) ) {
-        for (uint8_t i = 0; i < currentListSize; i++) {
+        for (uint i = 0; i < currentListSize; i++) {
           if (crcChecksum[checkCrcBits][i]!=extended_crc_scrambling_pattern[checkCrcBits]) {
             crcState[i]=0; //0=False, 1=True
           }
         }
       }
 
-      for (uint8_t i = 0; i < currentListSize; i++)
-	decoderIterationCheck+=crcState[i];
+      for (uint i = 0; i < currentListSize; i++)
+        decoderIterationCheck += crcState[i];
 
       if (decoderIterationCheck==0) {
         //perror("[SCL polar decoder] All list entries have failed the CRC checks.");
-        polarReturn -1;
+        polarReturn(polarParams);
+        return -1;
       }
 
       nonFrozenBit++;
@@ -555,22 +558,27 @@ int8_t polar_decoder_dci(double *input,
     }
   }
 
-  for (uint8_t i = 0; i < 2*listSize; i++) listIndex[i]=i;
+  for (uint i = 0; i < 2 * listSize; i++)
+    listIndex[i] = i;
 
   nr_sort_asc_double_1D_array_ind(pathMetric, listIndex, currentListSize);
+  uint8_t nr_polar_A[polarParams->payloadBits];
 
-  for (uint8_t i = 0; i < fmin(listSize, (pow(2,polarParams->crcCorrectionBits)) ); i++) {
+  for (uint i = 0; i < fmin(listSize, (pow(2, polarParams->crcCorrectionBits))); i++) {
     if ( crcState[listIndex[i]] == 1 ) {
-      for (int j = 0; j < polarParams->N; j++) polarParams->nr_polar_U[j]=bit[j][0][listIndex[i]];
+      uint8_t nr_polar_U[polarParams->N];
+      for (int j = 0; j < polarParams->N; j++)
+        nr_polar_U[j] = bit[j][0][listIndex[i]];
 
       //Extract the information bits (û to ĉ)
-      nr_polar_info_bit_extraction(polarParams->nr_polar_U, polarParams->nr_polar_CPrime, polarParams->information_bit_pattern, polarParams->N);
+      uint8_t nr_polar_CPrime[polarParams->N];
+      nr_polar_info_bit_extraction(nr_polar_U, nr_polar_CPrime, polarParams->information_bit_pattern, polarParams->N);
       //Deinterleaving (ĉ to b)
-      nr_polar_deinterleaver(polarParams->nr_polar_CPrime, polarParams->nr_polar_B, polarParams->interleaving_pattern, polarParams->K);
+      uint8_t nr_polar_B[polarParams->K];
+      nr_polar_deinterleaver(nr_polar_CPrime, nr_polar_B, polarParams->interleaving_pattern, polarParams->K);
 
       //Remove the CRC (â)
-      for (int j = 0; j < polarParams->payloadBits; j++) polarParams->nr_polar_A[j]=polarParams->nr_polar_B[j];
-
+      memcpy(nr_polar_A, nr_polar_B, polarParams->payloadBits);
       break;
     }
   }
@@ -578,9 +586,10 @@ int8_t polar_decoder_dci(double *input,
   /*
    * Return bits.
    */
-  nr_byte2bit_uint8_32(polarParams->nr_polar_A, polarParams->payloadBits, out);
+  nr_byte2bit_uint8_32(nr_polar_A, polarParams->payloadBits, out);
 
-  polarReturn 0;
+  polarReturn(polarParams);
+  return 0;
 }
 
 void init_polar_deinterleaver_table(t_nrPolar_params *polarParams) {
@@ -588,29 +597,27 @@ void init_polar_deinterleaver_table(t_nrPolar_params *polarParams) {
   AssertFatal(polarParams->K < 129, "K = %d > 128, is not supported yet\n",polarParams->K);
   int bit_i,ip,ipmod64;
   int numbytes = polarParams->K>>3;
-  int residue = polarParams->K&7;
-  int numbits;
+  int residue = polarParams->K & 7;
 
-  if (residue>0) numbytes++;
+  if (residue > 0)
+    numbytes++;
 
   for (int byte=0; byte<numbytes; byte++) {
-    if (byte<(polarParams->K>>3)) numbits=8;
-    else numbits=residue;
+    int numbits = byte < (polarParams->K >> 3) ? 8 : residue;
 
     for (int i=0; i<numbits; i++) {
       // flip bit endian for B
-      ip=polarParams->K - 1 - polarParams->interleaving_pattern[(8*byte)+i];
-#if 0
-      printf("byte %d, i %d => ip %d\n",byte,i,ip);
-#endif
+      ip = polarParams->K - 1 - polarParams->interleaving_pattern[(8 * byte) + i];
       ipmod64 = ip&63;
       AssertFatal(ip<128,"ip = %d\n",ip);
 
       for (int val=0; val<256; val++) {
         bit_i=(val>>i)&1;
 
-        if (ip<64) polarParams->B_tab0[byte][val] |= (((uint64_t)bit_i)<<ipmod64);
-        else       polarParams->B_tab1[byte][val] |= (((uint64_t)bit_i)<<ipmod64);
+        if (ip < 64)
+          polarParams->B_tab0[byte][val] |= ((uint64_t)bit_i) << ipmod64;
+        else
+          polarParams->B_tab1[byte][val] |= ((uint64_t)bit_i) << ipmod64;
       }
     }
   }
@@ -621,7 +628,7 @@ uint32_t polar_decoder_int16(int16_t *input,
                              uint8_t ones_flag,
                              int8_t messageType,
                              uint16_t messageLength,
-                             uint8_t aggregation_level )
+                             uint8_t aggregation_level)
 {
   t_nrPolar_params *polarParams=nr_polar_params(messageType, messageLength, aggregation_level, true);
 
@@ -638,11 +645,19 @@ uint32_t polar_decoder_int16(int16_t *input,
 #endif
 
   int16_t d_tilde[polarParams->N];
-  nr_polar_rate_matching_int16(input, d_tilde, polarParams->rate_matching_pattern, polarParams->K, polarParams->N, polarParams->encoderLength, polarParams->i_bil);
+  nr_polar_rate_matching_int16(input,
+                               d_tilde,
+                               polarParams->rate_matching_pattern,
+                               polarParams->K,
+                               polarParams->N,
+                               polarParams->encoderLength,
+                               polarParams->i_bil);
 
   for (int i=0; i<polarParams->N; i++) {
-    if (d_tilde[i]<-128) d_tilde[i]=-128;
-    else if (d_tilde[i]>127) d_tilde[i]=128;
+    if (d_tilde[i] < -128)
+      d_tilde[i] = -128;
+    else if (d_tilde[i] > 127)
+      d_tilde[i] = 128;
   }
 
 #ifdef POLAR_CODING_DEBUG
@@ -656,9 +671,10 @@ uint32_t polar_decoder_int16(int16_t *input,
   printf("\n");
 #endif
 
-  memcpy((void *)&polarParams->tree.root->alpha[0], (void *)&d_tilde[0], sizeof(int16_t) * polarParams->N);
-  memset(polarParams->nr_polar_U, 0, polarParams->N * sizeof(uint8_t));
-  generic_polar_decoder(polarParams, polarParams->tree.root);
+  memcpy(polarParams->tree.root->alpha, d_tilde, sizeof(d_tilde));
+  uint8_t nr_polar_U[polarParams->N];
+  memset(nr_polar_U, 0, sizeof(nr_polar_U));
+  generic_polar_decoder(polarParams, polarParams->tree.root, nr_polar_U);
 
 #ifdef POLAR_CODING_DEBUG
   printf("u: ");
@@ -666,7 +682,7 @@ uint32_t polar_decoder_int16(int16_t *input,
     if (i % 4 == 0) {
       printf(" ");
     }
-    printf("%i", polarParams->nr_polar_U[i]);
+    printf("%i", nr_polar_U[i]);
   }
   printf("\n");
 #endif
@@ -674,7 +690,7 @@ uint32_t polar_decoder_int16(int16_t *input,
   // Extract the information bits (û to ĉ)
   uint64_t Cprime[4]= {0};
   nr_polar_info_extraction_from_u(Cprime,
-                                  polarParams->nr_polar_U,
+                                  nr_polar_U,
                                   polarParams->information_bit_pattern,
                                   polarParams->parity_check_bit_pattern,
                                   polarParams->N,
@@ -704,7 +720,8 @@ uint32_t polar_decoder_int16(int16_t *input,
   } else if (polarParams->K<129) {
     int len = polarParams->K/8;
 
-    if ((polarParams->K&7) > 0) len++;
+    if ((polarParams->K & 7) > 0)
+      len++;
 
     for (int k=0; k<len; k++) {
       B[0] |= polarParams->B_tab0[k][Cprimebyte[k]];
@@ -737,7 +754,8 @@ uint32_t polar_decoder_int16(int16_t *input,
 
   // appending 24 ones before a0 for DCI as stated in 38.212 7.3.2
   uint8_t offset = 0;
-  if (ones_flag) offset = 3;
+  if (ones_flag)
+    offset = 3;
 
   if (len<=32) {
     Ar = (uint32_t)(B[0]>>crclen);
@@ -756,7 +774,7 @@ uint32_t polar_decoder_int16(int16_t *input,
     else if (crclen == 11) crc = (uint64_t)((crc11(A32_flip,8*offset+len)>>21)&0x7ff);
     else if (crclen == 6)  crc = (uint64_t)((crc6(A32_flip,8*offset+len)>>26)&0x3f);
   } else if (len<=64) {
-    Ar = (B[0]>>crclen) | (B[1]<<(64-crclen));;
+    Ar = (B[0] >> crclen) | (B[1] << (64 - crclen));
     uint8_t A64_flip[8+offset];
     if (ones_flag) {
       A64_flip[0] = 0xff;
@@ -792,13 +810,21 @@ uint32_t polar_decoder_int16(int16_t *input,
   printf("\n\n");
 #endif
 
-#if 0
-  printf("A %llx B %llx|%llx Cprime %llx|%llx  (crc %x,rxcrc %llx %d)\n",
+#ifdef POLAR_CODING_DEBUG
+  printf("A %lx B %lx|%lx Cprime %lx|%lx (crc %x,rxcrc %lx, XOR %lx, bits%d)\n",
          Ar,
-         B[1],B[0],Cprime[1],Cprime[0],crc,
-         rxcrc,polarParams->payloadBits);
+         B[1],
+         B[0],
+         Cprime[1],
+         Cprime[0],
+         crc,
+         rxcrc,
+         crc^rxcrc,
+         polarParams->payloadBits);
 #endif
-  out[0]=Ar;
 
-  polarReturn crc^rxcrc;
+  out[0] = Ar;
+
+  polarReturn(polarParams);
+  return crc ^ rxcrc;
 }

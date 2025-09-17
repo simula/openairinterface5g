@@ -30,9 +30,6 @@
 #include "PHY/types.h"
 #include <threadPool/thread-pool.h>
 
-#include "s1ap_eNB.h"
-#include "SIMULATION/ETH_TRANSPORT/proto.h"
-
 /* help strings definition for command line options, used in CMDLINE_XXX_DESC macros and printed when -h option is used */
 #define CONFIG_HLP_RFCFGF        "Configuration file for front-end (e.g. LMS7002M)\n"
 #define CONFIG_HLP_ULMAXE        "set the eNodeB max ULSCH erros\n"
@@ -47,16 +44,14 @@
 #define CONFIG_HLP_UETXG         "set UE TX gain\n"
 #define CONFIG_HLP_UENANTR       "set UE number of rx antennas\n"
 #define CONFIG_HLP_UENANTT       "set UE number of tx antennas\n"
-#define CONFIG_HLP_UESCAN        "set UE to scan around carrier\n"
+#define CONFIG_HLP_UESCAN "set UE to scan all possible GSCN in current bandwidth\n"
 #define CONFIG_HLP_UEFO          "set UE to enable estimation and compensation of frequency offset\n"
 #define CONFIG_HLP_DUMPFRAME     "dump UE received frame to rxsig_frame0.dat and exit\n"
-#define CONFIG_HLP_DLSHIFT       "dynamic shift for LLR compuation for TM3/4 (default 0)\n"
 #define CONFIG_HLP_PHYTST        "test UE phy layer, mac disabled\n"
 #define CONFIG_HLP_DORA          "test gNB  and UE with RA procedures\n"
 #define CONFIG_HLP_DMAMAP        "use DMA memory mapping\n"
 #define CONFIG_HLP_EXCCLK        "tells hardware to use a clock reference (0:internal(default), 1:external, 2:gpsdo)\n"
 #define CONFIG_HLP_USIM          "use XOR autentication algo in case of test usim mode\n"
-#define CONFIG_HLP_NOSNGLT "Disables single-thread mode in lte-softmodem\n"
 #define CONFIG_HLP_DLF           "Set the downlink frequency for all component carriers\n"
 #define CONFIG_HLP_ULOFF         "Set the uplink frequnecy offset for all component carriers\n"
 #define CONFIG_HLP_CHOFF         "Channel id offset\n"
@@ -85,15 +80,12 @@
 #define CONFIG_HLP_TNOFORK       "to ease debugging with gdb\n"
 #define CONFIG_HLP_DISABLNBIOT   "disable nb-iot, even if defined in config\n"
 #define CONFIG_HLP_DISABLETIMECORR "disable UE timing correction\n"
-#define CONFIG_HLP_RRC_CFG_PATH  "path for RRC configuration\n"
 #define CONFIG_HLP_RE_CFG_FILE "filename for reconfig.raw in phy-test mode\n"
 #define CONFIG_HLP_RB_CFG_FILE "filename for rbconfig.raw in phy-test mode\n"
 #define CONFIG_HLP_UECAP_FILE    "path for UE Capabilities file\n"
 
 #define CONFIG_HLP_NUMEROLOGY    "adding numerology for 5G\n"
 #define CONFIG_HLP_EMULATE_RF    "Emulated RF enabled(disable by defult)\n"
-#define CONFIG_HLP_PARALLEL_CMD  "three config for level of parallelism 'PARALLEL_SINGLE_THREAD', 'PARALLEL_RU_L1_SPLIT', or 'PARALLEL_RU_L1_TRX_SPLIT'\n"
-#define CONFIG_HLP_WORKER_CMD    "two option for worker 'WORKER_DISABLE' or 'WORKER_ENABLE'\n"
 #define CONFIG_HLP_USRP_THREAD   "having extra thead for usrp tx\n"
 #define CONFIG_HLP_DISABLNBIOT   "disable nb-iot, even if defined in config\n"
 #define CONFIG_HLP_USRP_ARGS     "set the arguments to identify USRP (same syntax as in UHD)\n"
@@ -106,7 +98,6 @@
 #define CONFIG_HLP_TELN          "Start embedded telnet server \n"
 #define CONFIG_HLP_SNR           "Set average SNR in dB (for --siml1 option)\n"
 #define CONFIG_HLP_NOS1          "Disable s1 interface\n"
-#define CONFIG_HLP_NOKRNMOD      "(noS1 only): Use tun instead of namesh module \n"
 
 /*--------------------------------------------------------------------------------------------------------------------------------*/
 /*                                            command line parameters for LOG utility                                             */
@@ -135,10 +126,6 @@ extern int sync_var;
 extern uint64_t downlink_frequency[MAX_NUM_CCs][4];
 extern int32_t uplink_frequency_offset[MAX_NUM_CCs][4];
 
-extern int rx_input_level_dBm;
-extern uint64_t num_missed_slots; // counter for the number of missed slots
-
-extern int oaisim_flag;
 extern int oai_exit;
 
 extern openair0_config_t openair0_cfg[MAX_CARDS];
@@ -151,5 +138,5 @@ extern double cpuf;
 extern int emulate_rf;
 extern int numerology;
 extern int usrp_tx_thread;
-
+void wait_gNBs(void);
 #endif

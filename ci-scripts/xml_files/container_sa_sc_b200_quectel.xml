@@ -24,11 +24,11 @@
   <htmlTabRef>TEST-SA-FR1-SC-FDMA-B200</htmlTabRef>
   <htmlTabName>40 MHz TDD SA with SC-FDMA</htmlTabName>
   <htmlTabIcon>tasks</htmlTabIcon>
-  <repeatCount>1</repeatCount>
   <TestCaseRequestedList>
     300000
     311111
     210000
+    800813
     230101
     210001
     250000
@@ -46,6 +46,7 @@
     210002
     230201
     400000
+    222222
   </TestCaseRequestedList>
   <TestCaseExclusionList></TestCaseExclusionList>
 
@@ -64,6 +65,7 @@
   </testCase>
   <testCase id="400000">
     <class>Custom_Command</class>
+    <always_exec>true</always_exec>
     <desc>Enable Sleep States</desc>
     <node>ofqot</node>
     <command>sudo cpupower idle-set -E</command>
@@ -76,6 +78,7 @@
   </testCase>
   <testCase id="210002">
     <class>Terminate_UE</class>
+    <always_exec>true</always_exec>
     <desc>Terminate Quectel</desc>
     <id>idefix</id>
   </testCase>
@@ -86,10 +89,16 @@
   </testCase>
   <testCase id="210010">
     <class>Detach_UE</class>
+    <always_exec>true</always_exec>
     <desc>Detach UE</desc>
     <id>idefix</id>
   </testCase>
-
+  <testCase id="800813">
+    <class>Create_Workspace</class>
+    <desc>Create new Workspace</desc>
+    <eNB_instance>0</eNB_instance>
+    <eNB_serverId>0</eNB_serverId>
+  </testCase>
   <testCase id="230101">
     <class>Deploy_Object</class>
     <desc>Deploy gNB (TDD/Band78/40MHz/B200) with SC-FDMA in a container</desc>
@@ -141,8 +150,8 @@
 
   <testCase id="270001">
     <class>Iperf</class>
-    <desc>iperf (UL/6Mbps/UDP)(30 sec)(single-ue profile)</desc>
-    <iperf_args>-u -b 6M -t 30</iperf_args>
+    <desc>iperf (UL/18Mbps/UDP)(30 sec)</desc>
+    <iperf_args>-u -b 18M -t 30</iperf_args>
     <id>idefix</id>
     <svr_id>sabox-nepes</svr_id>
     <iperf_packetloss_threshold>1</iperf_packetloss_threshold>
@@ -159,7 +168,7 @@
 
   <testCase id="270003">
     <class>Iperf</class>
-    <desc>iperf (DL/TCP)(30 sec)(multi-ue profile)</desc>
+    <desc>iperf (DL/TCP)(30 sec)(single-ue profile)</desc>
     <iperf_args>-t 30 -R</iperf_args>
     <id>idefix</id>
     <svr_id>sabox-nepes</svr_id>
@@ -168,7 +177,7 @@
 
   <testCase id="270004">
     <class>Iperf</class>
-    <desc>iperf (UL/TCP)(30 sec)(multi-ue profile)</desc>
+    <desc>iperf (UL/TCP)(30 sec)(single-ue profile)</desc>
     <iperf_args>-t 30</iperf_args>
     <id>idefix</id>
     <svr_id>sabox-nepes</svr_id>
@@ -179,25 +188,33 @@
     <class>Custom_Command</class>
     <desc>Trigger Reestablishment</desc>
     <node>ofqot</node>
-    <command>echo ci force_reestab | nc -N 192.168.68.194 9090 | grep -E 'Reset RLC counters of UE RNTI [0-9a-f]{4} to trigger reestablishment'</command>
+    <command>echo ci force_reestab | nc -N 127.0.0.1 9090 | grep -E 'Reset RLC counters of UE RNTI [0-9a-f]{4} to trigger reestablishment'</command>
     <command_fail>yes</command_fail>
   </testCase>
   <testCase id="260002">
     <class>Custom_Command</class>
     <desc>Verify Reestablishment</desc>
     <node>ofqot</node>
-    <command>echo ci get_reestab_count | nc -N 192.168.68.194 9090 | grep -E 'UE RNTI [0-9a-f]{4} reestab 1'</command>
+    <command>echo ci get_reestab_count | nc -N 127.0.0.1 9090 | grep -E 'UE RNTI [0-9a-f]{4} reestab 1'</command>
     <command_fail>yes</command_fail>
   </testCase>
 
   <testCase id="230201">
     <class>Undeploy_Object</class>
+    <always_exec>true</always_exec>
     <desc>Undeploy gNB</desc>
     <yaml_path>ci-scripts/yaml_files/sa_sc_b200_gnb</yaml_path>
     <eNB_instance>0</eNB_instance>
     <eNB_serverId>0</eNB_serverId>
     <d_retx_th>10,100,100,100</d_retx_th>
     <u_retx_th>10,100,100,100</u_retx_th>
+  </testCase>
+
+  <testCase id="222222">
+    <class>Clean_Test_Server_Images</class>
+    <always_exec>true</always_exec>
+    <desc>Clean Test Images on Test Server</desc>
+    <test_svr_id>0</test_svr_id>
   </testCase>
 
 </testCaseList>

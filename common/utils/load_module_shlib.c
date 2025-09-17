@@ -38,6 +38,7 @@
 #include <sys/ioctl.h>
 #include <dlfcn.h>
 #include "openair1/PHY/defs_common.h"
+#include "common/oai_version.h"
 #define LOAD_MODULE_SHLIB_MAIN
 
 #include "common/config/config_userapi.h"
@@ -45,7 +46,7 @@
 void loader_init(void) {
   paramdef_t LoaderParams[] = LOADER_PARAMS_DESC;
 
-  loader_data.mainexec_buildversion =  PACKAGE_VERSION;
+  loader_data.mainexec_buildversion = OAI_PACKAGE_VERSION;
   int ret = config_get(config_get_if(), LoaderParams, sizeofArray(LoaderParams), LOADER_CONFIG_PREFIX);
   if (ret <0) {
        printf("[LOADER]  configuration couldn't be performed via config module, parameters set to default values\n");

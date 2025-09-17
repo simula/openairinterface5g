@@ -200,18 +200,21 @@ int vnf_unpack_vendor_extension_tlv(nfapi_tl_t *tl, uint8_t **ppReadPackedMessag
 }
 void install_nr_schedule_handlers(NR_IF_Module_t *if_inst);
 void install_schedule_handlers(IF_Module_t *if_inst);
-extern int single_thread_flag;
 extern uint16_t sf_ahead;
 
 void oai_create_enb(void) {
   int bodge_counter=0;
   PHY_VARS_eNB *eNB = RC.eNB[0][0];
-  NFAPI_TRACE(NFAPI_TRACE_INFO, "[VNF] RC.eNB[0][0]. Mod_id:%d CC_id:%d nb_CC[0]:%d abstraction_flag:%d single_thread_flag:%d if_inst:%p\n", eNB->Mod_id, eNB->CC_id, RC.nb_CC[0], eNB->abstraction_flag,
-         eNB->single_thread_flag, eNB->if_inst);
+  NFAPI_TRACE(NFAPI_TRACE_INFO,
+              "[VNF] RC.eNB[0][0]. Mod_id:%d CC_id:%d nb_CC[0]:%d abstraction_flag:%d if_inst:%p\n",
+              eNB->Mod_id,
+              eNB->CC_id,
+              RC.nb_CC[0],
+              eNB->abstraction_flag,
+              eNB->if_inst);
   eNB->Mod_id  = bodge_counter;
   eNB->CC_id   = bodge_counter;
   eNB->abstraction_flag   = 0;
-  eNB->single_thread_flag = 0;//single_thread_flag;
   RC.nb_CC[bodge_counter] = 1;
 
   if (eNB->if_inst==0) {
@@ -257,10 +260,8 @@ void oai_create_gnb(void) {
   PHY_VARS_gNB *gNB = RC.gNB[0];
   RC.nb_nr_CC = (int *)malloc(sizeof(int)); // TODO: find a better function to place this in
 
-  gNB->Mod_id  = bodge_counter;
-  gNB->CC_id   = bodge_counter;
-  gNB->abstraction_flag   = 0;
-  gNB->single_thread_flag = 0;//single_thread_flag;
+  gNB->Mod_id = bodge_counter;
+  gNB->CC_id = bodge_counter;
   RC.nb_nr_CC[bodge_counter] = 1;
 
   if (gNB->if_inst==0) {
@@ -1405,10 +1406,7 @@ void *vnf_p7_start_thread(void *ptr) {
   return config;
 }
 
-void set_thread_priority(int priority);
-
 void *vnf_nr_p7_thread_start(void *ptr) {
-  set_thread_priority(79);
   init_queue(&gnb_rach_ind_queue);
   init_queue(&gnb_rx_ind_queue);
   init_queue(&gnb_crc_ind_queue);
@@ -1451,7 +1449,6 @@ void *vnf_nr_p7_thread_start(void *ptr) {
 }
 
 void *vnf_p7_thread_start(void *ptr) {
-  set_thread_priority(79);
   vnf_p7_info *p7_vnf = (vnf_p7_info *)ptr;
   p7_vnf->config->port = p7_vnf->local_port;
   p7_vnf->config->sync_indication = &phy_sync_indication;
@@ -1495,7 +1492,7 @@ int pnf_nr_start_resp_cb(nfapi_vnf_config_t *config, int p5_idx, nfapi_nr_pnf_st
 
   if(p7_vnf->thread_started == 0) {
     pthread_t vnf_p7_thread;
-    pthread_create(&vnf_p7_thread, NULL, &vnf_nr_p7_thread_start, p7_vnf);
+    threadCreate(&vnf_p7_thread, &vnf_nr_p7_thread_start, p7_vnf, "vnf_p7_thread", -1, OAI_PRIORITY_RT);
     p7_vnf->thread_started = 1;
   } else {
     // P7 thread already running.
@@ -1519,7 +1516,7 @@ int pnf_start_resp_cb(nfapi_vnf_config_t *config, int p5_idx, nfapi_pnf_start_re
 
   if(p7_vnf->thread_started == 0) {
     pthread_t vnf_p7_thread;
-    pthread_create(&vnf_p7_thread, NULL, &vnf_p7_thread_start, p7_vnf);
+    threadCreate(&vnf_p7_thread, &vnf_p7_thread_start, p7_vnf, "vnf_p7_thread", -1, OAI_PRIORITY_RT);
     p7_vnf->thread_started = 1;
   } else {
     // P7 thread already running.

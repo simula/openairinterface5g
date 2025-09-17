@@ -45,6 +45,7 @@ Description Defines functions used to handle EPS bearer contexts.
 #include "esm_ebr.h"
 
 #include "esm_ebr_context.h"
+#include "common/utils/tun_if.h"
 
 #include "emm_sap.h"
 #include "system.h"
@@ -194,15 +195,6 @@ int esm_ebr_context_create(
 
         // LG ADD TEMP
         {
-          char          *tmp          = NULL;
-          char           ipv4_addr[INET_ADDRSTRLEN];
-          //char           ipv6_addr[INET6_ADDRSTRLEN];
-          int            netmask      = 32;
-          char           broadcast[INET_ADDRSTRLEN];
-          struct in_addr in_addr;
-          char           command_line[500];
-          int            res = -1;
-
           switch (pdn->type) {
             case NET_PDN_TYPE_IPV4V6:
 
@@ -210,135 +202,14 @@ int esm_ebr_context_create(
             /* TODO? */
 
             // etc
-            case NET_PDN_TYPE_IPV4:
-              // in_addr is in network byte order
-              in_addr.s_addr  = pdn->ip_addr[0] << 24                 |
-                                ((pdn->ip_addr[1] << 16) & 0x00FF0000) |
-                                ((pdn->ip_addr[2] <<  8) & 0x0000FF00) |
-                                ( pdn->ip_addr[3]        & 0x000000FF);
-              in_addr.s_addr = htonl(in_addr.s_addr);
-              tmp = inet_ntoa(in_addr);
-              //AssertFatal(tmp ,
-              //            "error in PDN IPv4 address %x",
-              //            in_addr.s_addr);
-              strcpy(ipv4_addr, tmp);
-
-              if (IN_CLASSA(ntohl(in_addr.s_addr))) {
-                netmask = 8;
-                in_addr.s_addr = pdn->ip_addr[0] << 24 |
-                                 ((255  << 16) & 0x00FF0000) |
-                                 ((255 <<  8)  & 0x0000FF00) |
-                                 ( 255         & 0x000000FF);
-                in_addr.s_addr = htonl(in_addr.s_addr);
-                tmp = inet_ntoa(in_addr);
-                //                                AssertFatal(tmp ,
-                //                                        "error in PDN IPv4 address %x",
-                //                                        in_addr.s_addr);
-                strcpy(broadcast, tmp);
-              } else if (IN_CLASSB(ntohl(in_addr.s_addr))) {
-                netmask = 16;
-                in_addr.s_addr =  pdn->ip_addr[0] << 24 |
-                                  ((pdn->ip_addr[1] << 16) & 0x00FF0000) |
-                                  ((255 <<  8)  & 0x0000FF00) |
-                                  ( 255         & 0x000000FF);
-                in_addr.s_addr = htonl(in_addr.s_addr);
-                tmp = inet_ntoa(in_addr);
-                //                                AssertFatal(tmp ,
-                //                                        "error in PDN IPv4 address %x",
-                //                                        in_addr.s_addr);
-                strcpy(broadcast, tmp);
-              } else if (IN_CLASSC(ntohl(in_addr.s_addr))) {
-                netmask = 24;
-                in_addr.s_addr = pdn->ip_addr[0] << 24 |
-                                 ((pdn->ip_addr[1] << 16) & 0x00FF0000) |
-                                 ((pdn->ip_addr[2] <<  8) & 0x0000FF00) |
-                                 ( 255         & 0x000000FF);
-                in_addr.s_addr = htonl(in_addr.s_addr);
-                tmp = inet_ntoa(in_addr);
-                //                                AssertFatal(tmp ,
-                //                                        "error in PDN IPv4 address %x",
-                //                                        in_addr.s_addr);
-                strcpy(broadcast, tmp);
-              } else {
-                netmask = 32;
-                strcpy(broadcast, ipv4_addr);
-              }
-              LOG_D(NAS, "setting commandline string: "
-                            "ip address add %s/%d broadcast %s dev %s%d && "
-                            "ip link set %s%d up && "
-                            "ip rule add from %s/32 table %d && "
-                            "ip rule add to %s/32 table %d && "
-                            "ip route add default dev %s%d table %d",
-                            ipv4_addr, netmask, broadcast,
-                            UE_NAS_USE_TUN ? "oaitun_ue" : "oip", ueid + 1,
-                            UE_NAS_USE_TUN ? "oaitun_ue" : "oip", ueid + 1,
-                            ipv4_addr, ueid + 10000,
-                            ipv4_addr, ueid + 10000,
-                            UE_NAS_USE_TUN ? "oaitun_ue" : "oip",
-                            ueid + 1, ueid + 10000);
-              if (!get_softmodem_params()->nsa)
-              {
-                res = sprintf(command_line,
-                              "ip address add %s/%d broadcast %s dev %s%d && "
-                              "ip link set %s%d up && "
-                              "ip rule add from %s/32 table %d && "
-                              "ip rule add to %s/32 table %d && "
-                              "ip route add default dev %s%d table %d",
-                              ipv4_addr, netmask, broadcast,
-                              UE_NAS_USE_TUN ? "oaitun_ue" : "oip", ueid + 1,
-                              UE_NAS_USE_TUN ? "oaitun_ue" : "oip", ueid + 1,
-                              ipv4_addr, ueid + 10000,
-                              ipv4_addr, ueid + 10000,
-                              UE_NAS_USE_TUN ? "oaitun_ue" : "oip",
-                              ueid + 1, ueid + 10000);
-
-                if ( res<0 ) {
-                  LOG_TRACE(WARNING, "ESM-PROC  - Failed to system command string");
-                }
-
-                /* Calling system() here disrupts UE's realtime processing in some cases.
-                * This may be because of the call to fork(), which, for some
-                * unidentified reason, interacts badly with other (realtime) threads.
-                * background_system() is a replacement mechanism relying on a
-                * background process that does the system() and reports result to
-                * the parent process (lte-softmodem, oaisim, ...). The background
-                * process is created very early in the life of the parent process.
-                * The processes interact through standard pipes. See
-                * common/utils/system.c for details.
-                */
-
-                LOG_TRACE(INFO, "ESM-PROC  - executing %s ",
-                        command_line);
-                if (background_system(command_line) != 0)
-                {
-                  LOG_TRACE(ERROR, "ESM-PROC - failed command '%s'", command_line);
-                }
-              }
-              else if (get_softmodem_params()->nsa) {
-                res = sprintf(command_line,
-                              "ip address add %s/%d broadcast %s dev %s%d && "
-                              "ip link set %s%d up && "
-                              "ip rule add from %s/32 table %d && "
-                              "ip rule add to %s/32 table %d && "
-                              "ip route add default dev %s%d table %d",
-                              ipv4_addr, netmask, broadcast,
-                              UE_NAS_USE_TUN ? "oaitun_nru" : "oip", ueid + 1,
-                              UE_NAS_USE_TUN ? "oaitun_nru" : "oip", ueid + 1,
-                              ipv4_addr, ueid + 10000,
-                              ipv4_addr, ueid + 10000,
-                              UE_NAS_USE_TUN ? "oaitun_nru" : "oip",
-                              ueid + 1, ueid + 10000);
-
-                if ( res<0 ) {
-                  LOG_TRACE(WARNING, "ESM-PROC  - Failed to system command string");
-                }
-                LOG_D(NAS, "Sending NAS_OAI_TUN_NSA msg to LTE UE via itti\n");
-                MessageDef *msg_p = itti_alloc_new_message(TASK_NAS_UE, 0, NAS_OAI_TUN_NSA);
-                memcpy(NAS_OAI_TUN_NSA(msg_p).buffer, command_line, sizeof(NAS_OAI_TUN_NSA(msg_p).buffer));
-                itti_send_msg_to_task(TASK_RRC_UE, 0, msg_p);
-              }
-
-              break;
+            case NET_PDN_TYPE_IPV4: {
+              char ip[20];
+              char *ip_addr = pdn->ip_addr;
+              snprintf(ip, sizeof(ip), "%d.%d.%d.%d", ip_addr[0], ip_addr[1], ip_addr[2], ip_addr[3]);
+              const char *ifn = get_softmodem_params()->nsa ? "oaitun_nru" : "oaitun_ue";
+              tun_config(1, ip, NULL, ifn);
+              setup_ue_ipv4_route(1, ip, ifn);
+            } break;
 
             case NET_PDN_TYPE_IPV6:
               break;

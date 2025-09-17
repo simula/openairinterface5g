@@ -33,6 +33,7 @@
 
 #include "NR_MIB.h"
 #include "NR_CellGroupConfig.h"
+#include "NR_UE-NR-Capability.h"
 #include "nr_mac.h"
 #include "common/utils/nr/nr_common.h"
 
@@ -230,6 +231,8 @@ NR_tda_info_t get_info_from_tda_tables(default_table_type_t table_type,
                                        int dmrs_TypeA_Position,
                                        int normal_CP);
 
+NR_tda_info_t set_tda_info_from_list(NR_PDSCH_TimeDomainResourceAllocationList_t *tdalist, int tda_index);
+
 default_table_type_t get_default_table_type(int mux_pattern);
 
 void fill_coresetZero(NR_ControlResourceSet_t *coreset0, NR_Type0_PDCCH_CSS_config_t *type0_PDCCH_CSS_config);
@@ -259,8 +262,6 @@ void find_period_offset_SR(const NR_SchedulingRequestResourceConfig_t *Schedulin
 void csi_period_offset(NR_CSI_ReportConfig_t *csirep,
                        struct NR_CSI_ResourcePeriodicityAndOffset *periodicityAndOffset,
                        int *period, int *offset);
-
-void reverse_n_bits(uint8_t *value, uint16_t bitlen);
 
 bool set_dl_ptrs_values(NR_PTRS_DownlinkConfig_t *ptrs_config,
                         uint16_t rbSize, uint8_t mcsIndex, uint8_t mcsTable,
@@ -308,12 +309,24 @@ void compute_cqi_bitlen(struct NR_CSI_ReportConfig *csi_reportconfig,
                         uint8_t ri_restriction,
                         nr_csi_report_t *csi_report);
 
-void compute_csi_bitlen(NR_CSI_MeasConfig_t *csi_MeasConfig, nr_csi_report_t *csi_report_template);
+void compute_csi_bitlen(const NR_CSI_MeasConfig_t *csi_MeasConfig, nr_csi_report_t *csi_report_template);
 
-uint16_t nr_get_csi_bitlen(nr_csi_report_t *csi_report_template, uint8_t csi_report_id);
+uint16_t nr_get_csi_bitlen(nr_csi_report_t *csi_report);
 
-uint16_t compute_PDU_length(uint32_t num_TLV, uint16_t total_length);
+uint32_t compute_PDU_length(uint32_t num_TLV, uint32_t total_length);
 
 rnti_t nr_get_ra_rnti(uint8_t s_id, uint8_t t_id, uint8_t f_id, uint8_t ul_carrier_id);
+
+rnti_t nr_get_MsgB_rnti(uint8_t s_id, uint8_t t_id, uint8_t f_id, uint8_t ul_carrier_id);
+
+bool supported_bw_comparison(int bw_mhz, NR_SupportedBandwidth_t *supported_BW, long *support_90mhz);
+
+int get_FeedbackDisabled(NR_DownlinkHARQ_FeedbackDisabled_r17_t *downlinkHARQ_FeedbackDisabled_r17, int harq_pid);
+
+int get_nrofHARQ_ProcessesForPDSCH(const NR_UE_ServingCell_Info_t *sc_info);
+
+int get_nrofHARQ_ProcessesForPUSCH(const NR_UE_ServingCell_Info_t *sc_info);
+
+int nr_get_prach_mu(const NR_MsgA_ConfigCommon_r16_t *msgacc, const NR_RACH_ConfigCommon_t *rach_ConfigCommon);
 
 #endif

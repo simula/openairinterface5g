@@ -24,24 +24,38 @@
 
 #include <arpa/inet.h>  // htonl, htons
 
-#define ENCODE_U8(buffer, value, size)    \
-    *(uint8_t*)(buffer) = value;    \
-    size += sizeof(uint8_t)
+#define ENCODE_U8(buffer, value, size) \
+  do {                                 \
+    *(uint8_t*)(buffer) = value;       \
+    size += sizeof(uint8_t);           \
+  } while (0)
 
-#define ENCODE_U16(buffer, value, size)   \
-    *(uint16_t*)(buffer) = htons(value);  \
-   size += sizeof(uint16_t)
+/* Safely encodes a 16-bit value into a buffer, handling
+   misalignment by memcpy 2 bytes to buffer in network
+   byte order (big-endian). */
+#define ENCODE_U16(buffer, value, size)        \
+  do {                                         \
+    uint16_t _val = htons(value);              \
+    memcpy((buffer), &_val, sizeof(uint16_t)); \
+    size += sizeof(uint16_t);                  \
+  } while (0)
 
-#define ENCODE_U24(buffer, value, size)   \
-    *(uint32_t*)(buffer) = htonl(value);  \
-    size += sizeof(uint8_t) + sizeof(uint16_t)
+/* Safely encodes a 24-bit value into a buffer, handling
+   misalignment by using htonl and memcpy to copy 3 bytes
+   in network byte order (big-endian). */
+#define ENCODE_U24(buffer, value, size)         \
+  do {                                          \
+    uint32_t _val = htonl(value);               \
+    memcpy((buffer), ((uint8_t*)&_val) + 1, 3); \
+    size += sizeof(uint8_t) + sizeof(uint16_t); \
+  } while (0)
 
 #define ENCODE_U32(buffer, value, size) \
-  {                                     \
+  do {                                  \
     uint32_t tmp = htonl(value);        \
     memcpy(buffer, &tmp, sizeof(tmp));  \
-  }                                     \
-  size += sizeof(uint32_t)
+    size += sizeof(uint32_t);           \
+  } while (0)
 
 #define IES_ENCODE_U8(buffer, encoded, value)   \
     ENCODE_U8(buffer + encoded, value, encoded)

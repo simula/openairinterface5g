@@ -258,6 +258,7 @@ int emm_proc_security_mode_command(nas_user_t *user, int native_ksi, int ksi,
           LOG_TRACE(INFO,
                     "EMM-PROC  - Update Current security context");
           /* Release non-current security context */
+          stream_security_container_delete(user->emm_data->security->security_container);
           _security_release(user->emm_data->security);
           user->emm_data->security = user->emm_data->non_current;
           /* Reset the uplink NAS COUNT counter */
@@ -265,6 +266,12 @@ int emm_proc_security_mode_command(nas_user_t *user, int native_ksi, int ksi,
           user->emm_data->security->ul_count.seq_num = 0;
           /* Set new security context indicator */
           security_context_is_new = true;
+          /* create contexts */
+          user->emm_data->security->security_container = stream_security_container_init(
+                  seea,
+                  seia,
+                  user->emm_data->non_current->knas_enc.value,
+                  user->emm_data->non_current->knas_int.value);
         }
       }
 

@@ -26,8 +26,11 @@
 #include "f1ap_messages_types.h"
 #include "openair2/RRC/NR/MESSAGES/asn1_msg.h"
 
+void f1_reset_cu_initiated(const f1ap_reset_t *reset);
+void f1_reset_acknowledge_du_initiated(const f1ap_reset_ack_t *ack);
 void f1_setup_response(const f1ap_setup_resp_t *resp);
 void f1_setup_failure(const f1ap_setup_failure_t *failure);
+void gnb_du_configuration_update_acknowledge(const f1ap_gnb_du_configuration_update_acknowledge_t *ack);
 NR_CellGroupConfig_t *clone_CellGroupConfig(const NR_CellGroupConfig_t *orig);
 void ue_context_setup_request(const f1ap_ue_context_setup_t *req);
 void ue_context_modification_request(const f1ap_ue_context_modif_req_t *req);

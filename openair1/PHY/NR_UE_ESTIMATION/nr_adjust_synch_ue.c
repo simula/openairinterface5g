@@ -24,7 +24,7 @@
 #include "PHY/NR_UE_ESTIMATION/nr_estimation.h"
 #include "PHY/impl_defs_top.h"
 
-#include "executables/softmodem-common.h"
+#include "executables/nr-uesoftmodem.h"
 #include "common/utils/LOG/vcd_signal_dumper.h"
 
 //#define DEBUG_PHY
@@ -43,11 +43,8 @@ int nr_adjust_synch_ue(NR_DL_FRAME_PARMS *frame_parms,
                        short coef)
 {
   int max_val = 0, max_pos = 0;
-  uint8_t sync_offset = 0;
 
   VCD_SIGNAL_DUMPER_DUMP_FUNCTION_BY_NAME(VCD_SIGNAL_DUMPER_FUNCTIONS_UE_ADJUST_SYNCH, VCD_FUNCTION_IN);
-
-  short ncoef = 32767 - coef;
 
   // search for maximum position within the cyclic prefix
   for (int i = -frame_parms->nb_prefix_samples/2; i < frame_parms->nb_prefix_samples/2; i++) {
@@ -67,31 +64,36 @@ int nr_adjust_synch_ue(NR_DL_FRAME_PARMS *frame_parms,
   }
 
   // filter position to reduce jitter
-  ue->max_pos_avg = ((ue->max_pos_avg * coef) >> 15) + (max_pos * ncoef);
+  const int ncoef = 32767 - coef;
+  ue->max_pos_iir = ((ue->max_pos_iir * coef) >> 15) + (max_pos * ncoef);
+  const int diff = (ue->max_pos_iir + 16384) >> 15;
 
-  int diff = ue->max_pos_avg >> 15;
+  // FIXME: Do we really need this hysteresis for FR2?
+  int sampleShift = diff;
+  if (frame_parms->freq_range == FR2)
+    if (abs(diff) <= 2)
+      sampleShift = 0;
 
-  if (frame_parms->freq_range==nr_FR2) 
-    sync_offset = 2;
-  else
-    sync_offset = 0;
-
-  int sampleShift = 0;
-  if (abs(diff) > (NR_SYNCH_HYST + sync_offset))
-    sampleShift = diff;
-
-  const int sample_shift = -(sampleShift / 2);
-  // reset IIR filter for next offset calculation
-  ue->max_pos_avg += sample_shift * 32768;
+  // PI controller
+  const double PID_P = get_nrUE_params()->time_sync_P;
+  const double PID_I = get_nrUE_params()->time_sync_I;
+  int sample_shift = -round(sampleShift * PID_P + ue->max_pos_acc * PID_I);
 
   LOG_D(PHY,
-        "Slot %d: diff = %i, rx_offset (final) = %i : max_pos = %d, max_pos filtered = %ld, max_power = %d\n",
+        "Frame %d, Slot %d: max_pos = %d, max_pos filtered = %f, diff = %i, sampleShift = %i, max_pos_acc = %d, sample_shift (final) = %d, max_power = %d\n",
+        frame,
         slot,
+        max_pos,
+        ue->max_pos_iir / 32768.0,
         diff,
         sampleShift,
-        max_pos,
-        ue->max_pos_avg,
+        ue->max_pos_acc,
+        sample_shift,
         max_val);
+
+  // reset IIR filter for next offset calculation
+  ue->max_pos_iir += -round(sampleShift * PID_P) * 32768;
+  ue->max_pos_acc += max_pos;
 
   VCD_SIGNAL_DUMPER_DUMP_FUNCTION_BY_NAME(VCD_SIGNAL_DUMPER_FUNCTIONS_UE_ADJUST_SYNCH, VCD_FUNCTION_OUT);
   return sample_shift;

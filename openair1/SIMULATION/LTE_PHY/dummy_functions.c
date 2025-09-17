@@ -47,8 +47,6 @@ SLDCH_t *ue_get_sldch(module_id_t module_idP, int CC_id,frame_t frameP, sub_fram
 
 SLSCH_t *ue_get_slsch(module_id_t module_idP, int CC_id,frame_t frameP, sub_frame_t subframe) {return(NULL);}
 
-void multicast_link_write_sock(int groupP, char *dataP, uint32_t sizeP) {}
-
 uint16_t
 ue_process_rar(const module_id_t module_idP,
 	       const int CC_id,

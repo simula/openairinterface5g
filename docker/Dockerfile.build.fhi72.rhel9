@@ -1,0 +1,79 @@
+#/*
+# * Licensed to the OpenAirInterface (OAI) Software Alliance under one or more
+# * contributor license agreements.  See the NOTICE file distributed with
+# * this work for additional information regarding copyright ownership.
+# * The OpenAirInterface Software Alliance licenses this file to You under
+# * the OAI Public License, Version 1.1  (the "License"); you may not use this file
+# * except in compliance with the License.
+# * You may obtain a copy of the License at
+# *
+# *      http://www.openairinterface.org/?page_id=698
+# *
+# * Unless required by applicable law or agreed to in writing, software
+# * distributed under the License is distributed on an "AS IS" BASIS,
+# * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# * See the License for the specific language governing permissions and
+# * limitations under the License.
+# *-------------------------------------------------------------------------------
+# * For more information about the OpenAirInterface (OAI) Software Alliance:
+# *      contact@openairinterface.org
+# */
+#---------------------------------------------------------------------
+#
+# Dockerfile for the Open-Air-Interface RAN Build for FHI 7.2
+#               Valid for UBI9
+#
+#---------------------------------------------------------------------
+
+FROM ran-base:latest AS ran-base
+ENV TZ=Europe
+
+RUN rm -Rf /oai-ran
+WORKDIR /oai-ran
+COPY . .
+
+## Download and build DPDK
+RUN wget http://fast.dpdk.org/rel/dpdk-20.11.9.tar.xz && \
+    tar -xvf dpdk-20.11.9.tar.xz && \
+    cd dpdk-stable-20.11.9 && \
+    meson build && \
+    ninja -C build && \
+    ninja install -C build
+
+## Build Fronthaul library
+RUN git clone https://gerrit.o-ran-sc.org/r/o-du/phy.git /opt/phy && \
+    cd /opt/phy && \
+    git checkout oran_e_maintenance_release_v1.0 &&\
+    git apply /oai-ran/cmake_targets/tools/oran_fhi_integration_patches/E/oaioran_E.patch && \
+    cd /opt/phy/fhi_lib/lib && \
+    RTE_SDK=/oai-ran/dpdk-stable-20.11.9/ XRAN_DIR=/opt/phy/fhi_lib make XRAN_LIB_SO=1 
+
+FROM ran-base AS ran-build-fhi72
+ARG E2AP_VERSION=E2AP_V3
+ARG KPM_VERSION=KPM_V3_00
+
+## Build and install OAI
+RUN /bin/sh oaienv && \ 
+    cd cmake_targets && \
+    mkdir -p log && \
+    scl enable gcc-toolset-13 "\
+    ./build_oai \
+      --gNB \
+      --build-lib 'telnetsrv enbscope uescope nrscope' \
+      -t oran_fhlib_5g --cmake-opt -Dxran_LOCATION=/opt/phy/fhi_lib/lib \
+      --build-e2 --cmake-opt -DXAPP_MULTILANGUAGE=OFF --cmake-opt -DKPM_VERSION=$KPM_VERSION --cmake-opt -DE2AP_VERSION=$E2AP_VERSION" &&\
+    # Mainly to see if the sanitize option was perfectly executed
+    ldd ran_build/build/nr-softmodem && \
+    ldd ran_build/build/liboran_fhlib_5g.so && \
+    ldd /opt/phy/fhi_lib/lib/build/libxran.so
+
+## Build FlexRIC for SM Models
+RUN mkdir -p openair2/E2AP/flexric/build && \
+    cd openair2/E2AP/flexric/build && \
+    scl enable gcc-toolset-13 "\
+    cmake -GNinja -DCMAKE_BUILD_TYPE=Release \
+          -DXAPP_MULTILANGUAGE=OFF \
+          -DKPM_VERSION=$KPM_VERSION \
+          -DE2AP_VERSION=$E2AP_VERSION .. &&\
+    ninja && \
+    ninja install"

@@ -19,11 +19,8 @@
  *      contact@openairinterface.org
  */
 
-#include <stdio.h>
-#include <stdlib.h>
 #include <math.h>
-#include <time.h>
-#include  "sim.h"
+#include "sim.h"
 
 
 static uint16_t LUTSin[ResolSinCos+1];

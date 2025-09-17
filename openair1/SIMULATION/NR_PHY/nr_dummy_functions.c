@@ -36,6 +36,8 @@ void nr_mac_rrc_msg3_ind(const module_id_t mod_id, int rnti, int gnb_id) {}
 
 void nr_mac_rrc_ra_ind(const module_id_t mod_id, int frame, bool success) {}
 
+void nr_mac_rrc_inactivity_timer_ind(const module_id_t mod_id) {}
+
 void rrc_data_ind(const protocol_ctxt_t *const ctxt_pP,
                   const rb_id_t                Srb_id,
                   const sdu_size_t             sdu_sizeP,
@@ -56,4 +58,16 @@ int8_t nr_mac_rrc_data_ind_ue(const module_id_t module_id,
 void *rrc_nrue(void *notUsed)
 {
   return NULL;
+}
+int8_t nr_mac_rrc_sl_mib_ind(const module_id_t module_id,
+                             const int CC_id,
+                             const uint8_t gNB_index,
+                             const frame_t frame,
+                             const int slot,
+                             const int channel,
+                             const uint8_t *pduP,
+                             const sdu_size_t pdu_len,
+                             const uint16_t rx_slss_id)
+{
+  return 1;
 }

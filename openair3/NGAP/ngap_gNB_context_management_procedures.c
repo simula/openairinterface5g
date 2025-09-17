@@ -50,7 +50,7 @@
 #include "ngap_gNB_management_procedures.h"
 #include "ngap_gNB_context_management_procedures.h"
 #include "NGAP_PDUSessionResourceItemCxtRelReq.h"
-
+#include "NGAP_PDUSessionResourceItemCxtRelCpl.h"
 
 int ngap_ue_context_release_complete(instance_t instance,
                                      ngap_ue_release_complete_t *ue_release_complete_p)
@@ -98,6 +98,20 @@ int ngap_ue_context_release_complete(instance_t instance,
     ie->criticality = NGAP_Criticality_ignore;
     ie->value.present = NGAP_UEContextReleaseComplete_IEs__value_PR_RAN_UE_NGAP_ID;
     ie->value.choice.RAN_UE_NGAP_ID = ue_release_complete_p->gNB_ue_ngap_id;
+  }
+
+  /* number of PDU sessions */
+  if (ue_release_complete_p->num_pdu_sessions > 0) {
+    asn1cSequenceAdd(out->protocolIEs.list, NGAP_UEContextReleaseComplete_IEs_t, ie);
+    ie->id = NGAP_ProtocolIE_ID_id_PDUSessionResourceListCxtRelCpl;
+    ie->criticality = NGAP_Criticality_reject;
+    ie->value.present = NGAP_UEContextReleaseComplete_IEs__value_PR_PDUSessionResourceListCxtRelCpl;
+    NGAP_PDUSessionResourceListCxtRelCpl_t *l = &ie->value.choice.PDUSessionResourceListCxtRelCpl;
+    DevAssert(ue_release_complete_p->num_pdu_sessions <= 256);
+    for (int i = 0; i < ue_release_complete_p->num_pdu_sessions; ++i) {
+      asn1cSequenceAdd(l->list, NGAP_PDUSessionResourceItemCxtRelCpl_t, pdu);
+      pdu->pDUSessionID = ue_release_complete_p->pdu_session_id[i];
+    }
   }
 
   if (ngap_gNB_encode_pdu(&pdu, &buffer, &length) < 0) {

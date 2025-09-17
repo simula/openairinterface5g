@@ -31,13 +31,13 @@ void nr_polar_rate_matching_pattern(uint16_t *rmp, uint16_t *J, const uint8_t *P
 
   for (int m = 0; m <= N - 1; m++) {
     i = floor((32 * m) / N);
-    J[m] = (P_i_[i] * (N / 32)) + (m % (N / 32));
+    J[m] = P_i_[i] * (N / 32)) + (m % (N / 32);
     y[m] = d[J[m]];
   }
 
   if (E >= N) { // repetition
     for (int k = 0; k <= E - 1; k++) {
-      ind = (k % N);
+      ind = k % N;
       rmp[k] = y[ind];
     }
   } else {
@@ -55,43 +55,23 @@ void nr_polar_rate_matching_pattern(uint16_t *rmp, uint16_t *J, const uint8_t *P
 
 
 void nr_polar_rate_matching(double *input, double *output, uint16_t *rmp, uint16_t K, uint16_t N, uint16_t E){
+  if (E >= N) { // repetition
+    for (int i = 0; i <= N - 1; i++)
+      output[i] = 0;
+    for (int i = 0; i <= E - 1; i++) {
+      output[rmp[i]] += input[i];
+    }
+  } else {
+    if ((K / (double)E) <= (7.0 / 16)) { // puncturing
+      for (int i = 0; i <= N - 1; i++)
+        output[i] = 0;
+    } else { // shortening
+      for (int i = 0; i <= N - 1; i++)
+        output[i] = INFINITY;
+    }
 
-	if (E>=N) { //repetition
-		for (int i=0; i<=N-1; i++) output[i]=0;
-		for (int i=0; i<=E-1; i++){
-			output[rmp[i]]+=input[i];
-		}
-	} else {
-		if ( (K/(double)E) <= (7.0/16) ) { //puncturing
-			for (int i=0; i<=N-1; i++) output[i]=0;
-		} else { //shortening
-			for (int i=0; i<=N-1; i++) output[i]=INFINITY;
-		}
-
-		for (int i=0; i<=E-1; i++){
-			output[rmp[i]]=input[i];
-		}
-	}
-
-}
-
-void nr_polar_rate_matching_int8(int16_t *input, int16_t *output, uint16_t *rmp, uint16_t K, uint16_t N, uint16_t E){
-
-	if (E>=N) { //repetition
-		for (int i=0; i<=N-1; i++) output[i]=0;
-		for (int i=0; i<=E-1; i++){
-			output[rmp[i]]+=input[i];
-		}
-	} else {
-		if ( (K/(double)E) <= (7.0/16) ) { //puncturing
-			for (int i=0; i<=N-1; i++) output[i]=0;
-		} else { //shortening
-			for (int i=0; i<=N-1; i++) output[i]=INFINITY;
-		}
-
-		for (int i=0; i<=E-1; i++){
-			output[rmp[i]]=input[i];
-		}
-	}
-
+    for (int i = 0; i <= E - 1; i++) {
+      output[rmp[i]] = input[i];
+    }
+  }
 }

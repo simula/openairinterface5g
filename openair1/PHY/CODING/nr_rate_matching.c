@@ -452,7 +452,7 @@ int nr_rate_matching_ldpc(uint32_t Tbslbrm,
   ind = (index_k0[BG-1][rvidx]*Ncb/N)*Z;
 
 #ifdef RM_DEBUG
-  printf("nr_rate_matching_ldpc: E %u, F %u, Foffset %u, k0 %u, Ncb %u, rvidx %d, Tbslbrm %u\n", E, F, Foffset,ind, Ncb, rvidx, Tbslbrm);
+  printf("nr_rate_matching_ldpc: E %u, F %u, Foffset %u, k0 %u, Ncb %u, rvidx %d, Tbslbrm %u\n", E, F, Foffset, ind, Ncb, rvidx, Tbslbrm);
 #endif
 
   if (Foffset > E) {
@@ -548,7 +548,7 @@ int nr_rate_matching_ldpc_rx(uint32_t Tbslbrm,
   }
 
 #ifdef RM_DEBUG
-  printf("nr_rate_matching_ldpc_rx: Clear %d, E %u, k0 %u, Ncb %u, rvidx %d, Tbslbrm %u\n", clear, E, ind, Ncb, rvidx, Tbslbrm);
+  printf("nr_rate_matching_ldpc_rx: Clear %d, E %u, Foffset %u, k0 %u, Ncb %u, rvidx %d, Tbslbrm %u\n", clear, E, Foffset, ind, Ncb, rvidx, Tbslbrm);
 #endif
 
   if (clear == 1)

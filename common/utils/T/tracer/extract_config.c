@@ -36,7 +36,7 @@ int main(int n, char **v)
   in = fopen(input_filename, "r");
   if (in == NULL) { perror(input_filename); abort(); }
 
-  OBUF ebuf = { osize: 0, omaxsize: 0, obuf: NULL };
+  OBUF ebuf = {.osize = 0, .omaxsize = 0, .obuf = NULL};
 
   while (1) {
     int type;

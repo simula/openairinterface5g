@@ -86,7 +86,15 @@ int get_measurgroups(telnet_measurgroupdef_t **measurgroups) {
 
 void measurcmd_display_phycpu(telnet_printfunc_t prnt) {
   PHY_VARS_NR_UE *UE = PHY_vars_UE_g[0][0];
-  telnet_cpumeasurdef_t  cpumeasur[]=CPU_PHYNRUE_MEASURE;
+  telnet_cpumeasurdef_t cpumeasur[MAX_CPU_STAT_TYPE];
+  for (int i = 0; i < MAX_CPU_STAT_TYPE; i++) {
+    sprintf(cpumeasur[i].statname, "%s", UE->phy_cpu_stats.cpu_time_stats[i].meas_name);
+    cpumeasur[i].astatptr = &UE->phy_cpu_stats.cpu_time_stats[i];
+    cpumeasur[i].statemask = 0;
+    cpumeasur[i].num_occur1 = 1;
+    cpumeasur[i].num_occur2 = 0;
+    cpumeasur[i].num_occur3 = 0;
+  }
   prnt("%s cpu (%1.1g GHz) measurements: PHY (cpustats %s) %s\n",HDR,cpufreq,
        PRINT_CPUMEAS_STATE,HDR);
   measurcmd_display_cpumeasures(prnt, cpumeasur, sizeof(cpumeasur)/sizeof(telnet_cpumeasurdef_t));

@@ -34,13 +34,6 @@ spec:
           - secret:
               name: etc-pki-entitlement
             destinationDir: etc-pki-entitlement
-        configMaps:
-          - configMap:
-              name: rhsm-conf
-            destinationDir: rhsm-conf
-          - configMap:
-              name: rhsm-ca
-            destinationDir: rhsm-ca
     strategy:
         dockerStrategy:
             dockerfilePath: "docker/Dockerfile.base.rhel9"

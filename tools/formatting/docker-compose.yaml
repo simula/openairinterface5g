@@ -1,0 +1,13 @@
+services:
+  clang-formatter:
+    image: clang-formatter
+    build:
+      dockerfile_inline: |
+        FROM ubuntu:22.04
+        RUN DEBIAN_FRONTEND=noninteractive apt update && apt install -y git clang-format
+    volumes:
+      - ../../:/code/
+    command:
+      bash -c "git config --global --add safe.directory /code && cd /code/ && \
+        git config --global clangFormat.style file && \
+        ./tools/formatting/detect_clang_format_errors.sh"

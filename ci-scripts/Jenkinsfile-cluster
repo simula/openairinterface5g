@@ -200,6 +200,8 @@ pipeline {
               if (fileExists(xmlFile)) {
                 mainPythonAllXmlFiles += "--XMLTestFile=" + xmlFile + " "
                 echo "Test XML file         :   ${xmlFile}"
+              } else {
+                echo "Test XML file ${xmlFile}: no such file"
               }
             }
             withCredentials([

@@ -394,7 +394,7 @@ static void sctp_handle_new_association_req(const instance_t instance,
   struct addrinfo *serv;
 
   int status = getaddrinfo(local, NULL, &hints, &serv);
-  AssertFatal(status == 0, "getaddrinfo() failed: %s\n", gai_strerror(status));
+  AssertFatal(status == 0, "getaddrinfo(%s) failed: %s\n", local, gai_strerror(status));
 
   int sd;
   struct addrinfo *p = NULL;
@@ -787,7 +787,7 @@ sctp_eNB_read_from_socket(
             SCTP_ERROR("sctp_recvmsg (fd %d, len %d ): %s:%d\n", sctp_cnx->sd, n, strerror(errno), errno);
 
             sctp_itti_send_association_resp(
-                sctp_cnx->task_id, sctp_cnx->instance, -1,
+                sctp_cnx->task_id, sctp_cnx->instance, sctp_cnx->assoc_id,
                 sctp_cnx->cnx_id, SCTP_STATE_UNREACHABLE, 0, 0);
 
             close(sctp_cnx->sd);

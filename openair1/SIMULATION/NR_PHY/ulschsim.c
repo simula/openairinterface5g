@@ -165,8 +165,15 @@ int main(int argc, char **argv)
   //logInit();
   randominit(0);
 
-  //while ((c = getopt(argc, argv, "df:hpg:i:j:n:l:m:r:s:S:y:z:M:N:F:R:P:")) != -1) {
-  while ((c = getopt(argc, argv, "hg:n:s:S:py:z:M:N:R:F:m:l:q:r:W:")) != -1) {
+  //while ((c = getopt(argc, argv, "--:df:hpg:i:j:n:l:m:r:s:S:y:z:M:N:F:R:P:")) != -1) {
+  while ((c = getopt(argc, argv, "--:O:hg:n:s:S:py:z:M:N:R:F:m:l:q:r:W:")) != -1) {
+
+    /* ignore long options starting with '--', option '-O' and their arguments that are handled by configmodule */
+    /* with this opstring getopt returns 1 for non-option arguments, refer to 'man 3 getopt' */
+    if (c == 1 || c == '-' || c == 'O')
+      continue;
+
+    printf("handling optarg %c\n",c);
     switch (c) {
       /*case 'f':
          write_output_file = 1;
@@ -507,7 +514,7 @@ int main(int argc, char **argv)
   ulsch_ue->pusch_pdu.target_code_rate = code_rate;
   ulsch_ue->pusch_pdu.qam_mod_order = mod_order;
   ulsch_ue->pusch_pdu.ldpcBaseGraph = get_BG(TBS, code_rate);
-  unsigned char *test_input = harq_process_ul_ue->a;
+  unsigned char *test_input = harq_process_ul_ue->payload_AB;
 
   ///////////
   ////////////////////////////////////////////////////////////////////////////////////////////

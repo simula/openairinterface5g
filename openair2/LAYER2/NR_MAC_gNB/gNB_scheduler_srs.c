@@ -430,7 +430,7 @@ static void nr_configure_srs(nfapi_nr_srs_pdu_t *srs_pdu,
   srs_pdu->num_ant_ports = srs_resource->nrofSRS_Ports;
   srs_pdu->num_symbols = srs_resource->resourceMapping.nrofSymbols;
   srs_pdu->num_repetitions = srs_resource->resourceMapping.repetitionFactor;
-  srs_pdu->time_start_position = srs_resource->resourceMapping.startPosition;
+  srs_pdu->time_start_position = NR_NUMBER_OF_SYMBOLS_PER_SLOT - 1 - srs_resource->resourceMapping.startPosition;
   srs_pdu->config_index = srs_resource->freqHopping.c_SRS;
   srs_pdu->sequence_id = srs_resource->sequenceId;
   srs_pdu->bandwidth_index = srs_resource->freqHopping.b_SRS;
@@ -470,8 +470,9 @@ static void nr_configure_srs(nfapi_nr_srs_pdu_t *srs_pdu,
     srs_pdu->beamforming.prg_size = 1;
   }
 
-  uint16_t *vrb_map_UL = &RC.nrmac[module_id]->common_channels[CC_id].vrb_map_UL[buffer_index * MAX_BWP_SIZE];
-  uint64_t mask = SL_to_bitmap(13 - srs_pdu->time_start_position, srs_pdu->num_symbols);
+  // TODO properly use beam allocation
+  uint16_t *vrb_map_UL = &RC.nrmac[module_id]->common_channels[CC_id].vrb_map_UL[0][buffer_index * MAX_BWP_SIZE];
+  uint64_t mask = SL_to_bitmap(srs_pdu->time_start_position, srs_pdu->num_symbols);
   for (int i = 0; i < srs_pdu->bwp_size; ++i)
     vrb_map_UL[i + srs_pdu->bwp_start] |= mask;
 }
@@ -512,8 +513,11 @@ static void nr_fill_nfapi_srs(int module_id,
 *********************************************************************/
 void nr_schedule_srs(int module_id, frame_t frame, int slot)
  {
-  /* already mutex protected: held in gNB_dlsch_ulsch_scheduler() */
+  const int CC_id = 0;
   gNB_MAC_INST *nrmac = RC.nrmac[module_id];
+  const NR_ServingCellConfigCommon_t *scc = nrmac->common_channels[CC_id].ServingCellConfigCommon;
+
+  /* already mutex protected: held in gNB_dlsch_ulsch_scheduler() */
   NR_SCHED_ENSURE_LOCKED(&nrmac->sched_lock);
 
   NR_UEs_t *UE_info = &nrmac->UE_info;
@@ -571,14 +575,14 @@ void nr_schedule_srs(int module_id, frame_t frame, int slot)
       int max_k2 = 0;
       // avoid last one in the list (for msg3)
       for (int i = 0; i < num_tda - 1; i++) {
-        int k2 = get_K2(tdaList, i, current_BWP->scs);
+        int k2 = get_K2(tdaList, i, current_BWP->scs, scc);
         max_k2 = k2 > max_k2 ? k2 : max_k2;
       }
 
       // we are sheduling SRS max_k2 slot in advance for the presence of SRS to be taken into account when scheduling PUSCH
       const int n_slots_frame = nr_slots_per_frame[current_BWP->scs];
       const int sched_slot = (slot + max_k2) % n_slots_frame;
-      const int sched_frame = (frame + ((slot + max_k2) / n_slots_frame)) % 1024;
+      const int sched_frame = (frame + (slot + max_k2) / n_slots_frame) % MAX_FRAME_NUMBER;
 
       const uint16_t period = srs_period[srs_resource->resourceType.choice.periodic->periodicityAndOffset_p.present];
       const uint16_t offset = get_nr_srs_offset(srs_resource->resourceType.choice.periodic->periodicityAndOffset_p);

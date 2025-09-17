@@ -893,10 +893,15 @@ generate_Msg4(module_id_t module_idP,
       ul_req_body->number_of_pdus++;
       T (T_ENB_MAC_UE_DL_PDU_WITH_DATA, T_INT (module_idP), T_INT (CC_idP), T_INT (ra->rnti), T_INT (frameP), T_INT (subframeP),
          T_INT (0 /*harq_pid always 0? */ ), T_BUFFER (&mac->UE_info.DLSCH_pdu[CC_idP][0][UE_id].payload[0], ra->msg4_TBsize));
-      trace_pdu (DIRECTION_DOWNLINK, (uint8_t *) mac->UE_info.DLSCH_pdu[CC_idP][0][(unsigned char) UE_id].payload[0],
-                 ra->msg4_rrc_sdu_length,
-                 UE_id, 3, UE_RNTI (module_idP, UE_id),
-                 mac->frame, mac->subframe, 0, 0);
+      ws_trace_t tmp = {.direction = DIRECTION_DOWNLINK,
+                        .pdu_buffer = mac->UE_info.DLSCH_pdu[CC_idP][0][(unsigned char)UE_id].payload[0],
+                        .pdu_buffer_size = ra->msg4_rrc_sdu_length,
+                        .ueid = UE_id,
+                        .rntiType = 3,
+                        .rnti = UE_RNTI(module_idP, UE_id),
+                        .sysFrame = mac->frame,
+                        .subframe = mac->subframe};
+      trace_pdu(&tmp);
     }                           // Msg4 frame/subframe
   }                             // rach_resource_type > 0
   else {
@@ -1074,12 +1079,15 @@ generate_Msg4(module_id_t module_idP,
             T_INT(subframeP), T_INT(0 /*harq_pid always 0? */ ),
             T_BUFFER(&mac->UE_info.DLSCH_pdu[CC_idP][0][UE_id].
                      payload[0], ra->msg4_TBsize));
-          trace_pdu(DIRECTION_DOWNLINK,
-                    (uint8_t *) mac->
-                    UE_info.DLSCH_pdu[CC_idP][0][(unsigned char)UE_id].payload[0],
-                    rrc_sdu_length, UE_id,  WS_C_RNTI,
-                    UE_RNTI(module_idP, UE_id), mac->frame,
-                    mac->subframe, 0, 0);
+          ws_trace_t tmp = {.direction = DIRECTION_DOWNLINK,
+                            .pdu_buffer = mac->UE_info.DLSCH_pdu[CC_idP][0][(unsigned char)UE_id].payload[0],
+                            .pdu_buffer_size = rrc_sdu_length,
+                            .ueid = UE_id,
+                            .rntiType = WS_C_RNTI,
+                            .rnti = UE_RNTI(module_idP, UE_id),
+                            .sysFrame = mac->frame,
+                            .subframe = mac->subframe};
+          trace_pdu(&tmp);
 
           if(RC.mac[module_idP]->scheduler_mode == SCHED_MODE_FAIR_RR) {
             set_dl_ue_select_msg4(CC_idP, 4, UE_id, ra->rnti);

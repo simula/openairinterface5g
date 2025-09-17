@@ -229,10 +229,6 @@ static void *feptx_thread(void *param)
       exit_fun( "ERROR pthread_cond_signal" );
       return NULL;
     }
-	/*if(opp_enabled == 1 && ru->ofdm_mod_wakeup_stats.p_time>30*3000){
-      print_meas_now(&ru->ofdm_mod_wakeup_stats,"fep wakeup",stderr);
-      printf("delay in fep wakeup in frame_tx: %d  subframe_rx: %d \n",proc->frame_tx,proc->tti_tx);
-    }*/
   }
   return(NULL);
 }
@@ -288,7 +284,7 @@ void feptx_ofdm_2thread(RU_t *ru,
   start_meas(&ru->ofdm_mod_wait_stats);
   wait_on_busy_condition(&proc->mutex_feptx,&proc->cond_feptx,&proc->instance_cnt_feptx,"feptx thread");  
   stop_meas(&ru->ofdm_mod_wait_stats);
-  /*if(opp_enabled == 1 && ru->ofdm_mod_wait_stats.p_time>30*3000){
+  /*if(cpu_meas_enabled == 1 && ru->ofdm_mod_wait_stats.p_time>30*3000){
     print_meas_now(&ru->ofdm_mod_wait_stats,"fep wakeup",stderr);
     printf("delay in feptx wait on condition in frame_rx: %d  subframe_rx: %d \n", proc->frame_tx, proc->tti_tx);
   }*/
@@ -444,7 +440,7 @@ void feptx_ofdm(RU_t *ru,
      stop_meas(&ru->ofdm_mod_stats);
      LOG_D(PHY,"feptx_ofdm (TXPATH): frame %d, subframe %d: txp (time %p) %d dB, txp (freq) %d dB\n",
 	   frame,subframe,txdata,dB_fixed(signal_energy((int32_t*)txdata,fp->samples_per_tti)),
-	   dB_fixed(signal_energy_nodc(ru->common.txdataF_BF[aa],2*slot_sizeF)));
+	   dB_fixed(signal_energy_nodc((c16_t*)ru->common.txdataF_BF[aa],2*slot_sizeF)));
     }
   }
   VCD_SIGNAL_DUMPER_DUMP_FUNCTION_BY_NAME(VCD_SIGNAL_DUMPER_FUNCTIONS_PHY_PROCEDURES_RU_FEPTX_OFDM+ru->idx , 0 );
@@ -578,7 +574,7 @@ static void *fep_thread(void *param)
       exit_fun( "ERROR pthread_cond_signal" );
       return NULL;
     }
-    /*if(opp_enabled == 1 && ru->ofdm_demod_wakeup_stats.p_time>30*3000){
+    /*if(cpu_meas_enabled == 1 && ru->ofdm_demod_wakeup_stats.p_time>30*3000){
       print_meas_now(&ru->ofdm_demod_wakeup_stats,"fep wakeup",stderr);
       printf("delay in fep wakeup in frame_rx: %d  subframe_rx: %d \n",proc->frame_rx,proc->subframe_rx);
     }*/
@@ -699,7 +695,7 @@ void ru_fep_full_2thread(RU_t *ru,
   start_meas(&ru->ofdm_demod_wait_stats);
   wait_on_busy_condition(&proc->mutex_fep[0],&proc->cond_fep[0],&proc->instance_cnt_fep[0],"fep thread");  
   stop_meas(&ru->ofdm_demod_wait_stats);
-  if(opp_enabled == 1 && ru->ofdm_demod_wakeup_stats.p_time>30*3000){
+  if (cpu_meas_enabled == 1 && ru->ofdm_demod_wakeup_stats.p_time > 30 * 3000) {
     print_meas_now(&ru->ofdm_demod_wakeup_stats,"fep wakeup",stderr);
     printf("delay in fep wait on condition in frame_rx: %d  subframe_rx: %d \n", proc->frame_rx, proc->tti_rx);
   }

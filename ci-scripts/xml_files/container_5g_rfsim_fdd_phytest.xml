@@ -24,10 +24,9 @@
         <htmlTabRef>rfsim-5gnr-fdd-phytest</htmlTabRef>
         <htmlTabName>Monolithic FDD phytest gNB</htmlTabName>
         <htmlTabIcon>wrench</htmlTabIcon>
-        <repeatCount>1</repeatCount>
         <TestCaseRequestedList>
  111111
- 100011
+ 800813
  004000
  000010
  000011
@@ -36,6 +35,7 @@
  030011
  030012
  100011
+ 222222
         </TestCaseRequestedList>
         <TestCaseExclusionList></TestCaseExclusionList>
 
@@ -49,30 +49,38 @@
         <testCase id="004000">
             <class>Custom_Command</class>
             <desc>Clean-Up any residual volume</desc>
-            <node>localhost</node>
+            <node>cacofonix</node>
             <command>docker volume rm 5g_rfsimulator_fdd_phytest_rrc.config -f</command>
         </testCase>
-
+        <testCase id="800813">
+                <class>Create_Workspace</class>
+                <desc>Create new Workspace</desc>
+                <eNB_instance>0</eNB_instance>
+                <eNB_serverId>0</eNB_serverId>
+        </testCase>
         <testCase id="000010">
-                <class>DeployGenObject</class>
+                <class>Deploy_Object</class>
                 <desc>Deploy OAI 5G gNB RF sim SA</desc>
-                <yaml_path>yaml_files/5g_rfsimulator_fdd_phytest</yaml_path>
+                <yaml_path>ci-scripts/yaml_files/5g_rfsimulator_fdd_phytest</yaml_path>
                 <services>oai-gnb</services>
-                <nb_healthy>1</nb_healthy>
+                <eNB_instance>0</eNB_instance>
+                <eNB_serverId>0</eNB_serverId>
         </testCase>
 
         <testCase id="000011">
-                <class>DeployGenObject</class>
+                <class>Deploy_Object</class>
                 <desc>Deploy OAI 5G NR-UE RF sim SA</desc>
-                <yaml_path>yaml_files/5g_rfsimulator_fdd_phytest</yaml_path>
+                <yaml_path>ci-scripts/yaml_files/5g_rfsimulator_fdd_phytest</yaml_path>
                 <services>oai-nr-ue</services>
-                <nb_healthy>2</nb_healthy>
+                <eNB_instance>0</eNB_instance>
+                <eNB_serverId>0</eNB_serverId>
         </testCase>
 
         <testCase id="020011">
                 <class>Ping</class>
                 <desc>Ping gNB from NR-UE</desc>
                 <id>rfsim5g_ue</id>
+                <nodes>cacofonix</nodes>
                 <ping_args>-c20 -i0.2 10.0.1.1</ping_args>
                 <ping_packetloss_threshold>0</ping_packetloss_threshold>
         </testCase>
@@ -81,6 +89,7 @@
                 <class>Ping</class>
                 <desc>Ping NR-UE from gNB</desc>
                 <id>rfsim5g_gnb_nos1</id>
+                <nodes>cacofonix</nodes>
                 <ping_args>-c20 -i0.2 10.0.1.2</ping_args>
                 <ping_packetloss_threshold>0</ping_packetloss_threshold>
         </testCase>
@@ -88,9 +97,11 @@
         <testCase id="030011">
                 <class>Iperf</class>
                 <desc>Iperf (DL/30kbps/UDP)(30 sec)</desc>
-                <iperf_args>-u -b 0.03M -t 30 -R -c 10.0.1.1</iperf_args>
+                <iperf_args>-u -b 0.03M -t 20 -R -c 10.0.1.1</iperf_args>
                 <id>rfsim5g_ue</id>
+                <nodes>cacofonix</nodes>
                 <svr_id>rfsim5g_gnb_nos1</svr_id>
+                <svr_node>cacofonix</svr_node>
                 <iperf_packetloss_threshold>5</iperf_packetloss_threshold>
                 <iperf_bitrate_threshold>90</iperf_bitrate_threshold>
         </testCase>
@@ -98,19 +109,31 @@
         <testCase id="030012">
                 <class>Iperf</class>
                 <desc>Iperf (UL/30kbps/UDP)(30 sec)</desc>
-                <iperf_args>-u -b 0.03M -t 30 -c 10.0.1.1</iperf_args>
+                <iperf_args>-u -b 0.03M -t 20 -c 10.0.1.1</iperf_args>
                 <id>rfsim5g_ue</id>
+                <nodes>cacofonix</nodes>
                 <svr_id>rfsim5g_gnb_nos1</svr_id>
+                <svr_node>cacofonix</svr_node>
                 <iperf_packetloss_threshold>5</iperf_packetloss_threshold>
                 <iperf_bitrate_threshold>90</iperf_bitrate_threshold>
         </testCase>
 
         <testCase id="100011">
-                <class>UndeployGenObject</class>
+                <class>Undeploy_Object</class>
+                <always_exec>true</always_exec>
                 <desc>Undeploy all OAI 5G stack</desc>
-                <yaml_path>yaml_files/5g_rfsimulator_fdd_phytest</yaml_path>
+                <yaml_path>ci-scripts/yaml_files/5g_rfsimulator_fdd_phytest</yaml_path>
                 <d_retx_th>10,100,100,100</d_retx_th> <!-- phytest: will fail at start! -->
                 <u_retx_th>10,100,100,100</u_retx_th> <!-- phytest: will fail at start! -->
+                <eNB_instance>0</eNB_instance>
+                <eNB_serverId>0</eNB_serverId>
+        </testCase>
+
+        <testCase id="222222">
+                <class>Clean_Test_Server_Images</class>
+                <always_exec>true</always_exec>
+                <desc>Clean Test Images on Test Server</desc>
+                <test_svr_id>0</test_svr_id>
         </testCase>
 
 </testCaseList>

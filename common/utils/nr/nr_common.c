@@ -36,6 +36,79 @@
 #include "nr_common.h"
 #include <complex.h>
 
+#define C_SRS_NUMBER (64)
+#define B_SRS_NUMBER (4)
+
+/* TS 38.211 Table 6.4.1.4.3-1: SRS bandwidth configuration */
+static const unsigned short srs_bandwidth_config[C_SRS_NUMBER][B_SRS_NUMBER][2] = {
+    /*           B_SRS = 0    B_SRS = 1   B_SRS = 2    B_SRS = 3     */
+    /* C SRS   m_srs0  N_0  m_srs1 N_1  m_srs2   N_2 m_srs3   N_3    */
+    /* 0  */ {{4, 1}, {4, 1}, {4, 1}, {4, 1}},
+    /* 1  */ {{8, 1}, {4, 2}, {4, 1}, {4, 1}},
+    /* 2  */ {{12, 1}, {4, 3}, {4, 1}, {4, 1}},
+    /* 3  */ {{16, 1}, {4, 4}, {4, 1}, {4, 1}},
+    /* 4  */ {{16, 1}, {8, 2}, {4, 2}, {4, 1}},
+    /* 5  */ {{20, 1}, {4, 5}, {4, 1}, {4, 1}},
+    /* 6  */ {{24, 1}, {4, 6}, {4, 1}, {4, 1}},
+    /* 7  */ {{24, 1}, {12, 2}, {4, 3}, {4, 1}},
+    /* 8  */ {{28, 1}, {4, 7}, {4, 1}, {4, 1}},
+    /* 9  */ {{32, 1}, {16, 2}, {8, 2}, {4, 2}},
+    /* 10 */ {{36, 1}, {12, 3}, {4, 3}, {4, 1}},
+    /* 11 */ {{40, 1}, {20, 2}, {4, 5}, {4, 1}},
+    /* 12 */ {{48, 1}, {16, 3}, {8, 2}, {4, 2}},
+    /* 13 */ {{48, 1}, {24, 2}, {12, 2}, {4, 3}},
+    /* 14 */ {{52, 1}, {4, 13}, {4, 1}, {4, 1}},
+    /* 15 */ {{56, 1}, {28, 2}, {4, 7}, {4, 1}},
+    /* 16 */ {{60, 1}, {20, 3}, {4, 5}, {4, 1}},
+    /* 17 */ {{64, 1}, {32, 2}, {16, 2}, {4, 4}},
+    /* 18 */ {{72, 1}, {24, 3}, {12, 2}, {4, 3}},
+    /* 19 */ {{72, 1}, {36, 2}, {12, 3}, {4, 3}},
+    /* 20 */ {{76, 1}, {4, 19}, {4, 1}, {4, 1}},
+    /* 21 */ {{80, 1}, {40, 2}, {20, 2}, {4, 5}},
+    /* 22 */ {{88, 1}, {44, 2}, {4, 11}, {4, 1}},
+    /* 23 */ {{96, 1}, {32, 3}, {16, 2}, {4, 4}},
+    /* 24 */ {{96, 1}, {48, 2}, {24, 2}, {4, 6}},
+    /* 25 */ {{104, 1}, {52, 2}, {4, 13}, {4, 1}},
+    /* 26 */ {{112, 1}, {56, 2}, {28, 2}, {4, 7}},
+    /* 27 */ {{120, 1}, {60, 2}, {20, 3}, {4, 5}},
+    /* 28 */ {{120, 1}, {40, 3}, {8, 5}, {4, 2}},
+    /* 29 */ {{120, 1}, {24, 5}, {12, 2}, {4, 3}},
+    /* 30 */ {{128, 1}, {64, 2}, {32, 2}, {4, 8}},
+    /* 31 */ {{128, 1}, {64, 2}, {16, 4}, {4, 4}},
+    /* 32 */ {{128, 1}, {16, 8}, {8, 2}, {4, 2}},
+    /* 33 */ {{132, 1}, {44, 3}, {4, 11}, {4, 1}},
+    /* 34 */ {{136, 1}, {68, 2}, {4, 17}, {4, 1}},
+    /* 35 */ {{144, 1}, {72, 2}, {36, 2}, {4, 9}},
+    /* 36 */ {{144, 1}, {48, 3}, {24, 2}, {12, 2}},
+    /* 37 */ {{144, 1}, {48, 3}, {16, 3}, {4, 4}},
+    /* 38 */ {{144, 1}, {16, 9}, {8, 2}, {4, 2}},
+    /* 39 */ {{152, 1}, {76, 2}, {4, 19}, {4, 1}},
+    /* 40 */ {{160, 1}, {80, 2}, {40, 2}, {4, 10}},
+    /* 41 */ {{160, 1}, {80, 2}, {20, 4}, {4, 5}},
+    /* 42 */ {{160, 1}, {32, 5}, {16, 2}, {4, 4}},
+    /* 43 */ {{168, 1}, {84, 2}, {28, 3}, {4, 7}},
+    /* 44 */ {{176, 1}, {88, 2}, {44, 2}, {4, 11}},
+    /* 45 */ {{184, 1}, {92, 2}, {4, 23}, {4, 1}},
+    /* 46 */ {{192, 1}, {96, 2}, {48, 2}, {4, 12}},
+    /* 47 */ {{192, 1}, {96, 2}, {24, 4}, {4, 6}},
+    /* 48 */ {{192, 1}, {64, 3}, {16, 4}, {4, 4}},
+    /* 49 */ {{192, 1}, {24, 8}, {8, 3}, {4, 2}},
+    /* 50 */ {{208, 1}, {104, 2}, {52, 2}, {4, 13}},
+    /* 51 */ {{216, 1}, {108, 2}, {36, 3}, {4, 9}},
+    /* 52 */ {{224, 1}, {112, 2}, {56, 2}, {4, 14}},
+    /* 53 */ {{240, 1}, {120, 2}, {60, 2}, {4, 15}},
+    /* 54 */ {{240, 1}, {80, 3}, {20, 4}, {4, 5}},
+    /* 55 */ {{240, 1}, {48, 5}, {16, 3}, {8, 2}},
+    /* 56 */ {{240, 1}, {24, 10}, {12, 2}, {4, 3}},
+    /* 57 */ {{256, 1}, {128, 2}, {64, 2}, {4, 16}},
+    /* 58 */ {{256, 1}, {128, 2}, {32, 4}, {4, 8}},
+    /* 59 */ {{256, 1}, {16, 16}, {8, 2}, {4, 2}},
+    /* 60 */ {{264, 1}, {132, 2}, {44, 3}, {4, 11}},
+    /* 61 */ {{272, 1}, {136, 2}, {68, 2}, {4, 17}},
+    /* 62 */ {{272, 1}, {68, 4}, {4, 17}, {4, 1}},
+    /* 63 */ {{272, 1}, {16, 17}, {8, 2}, {4, 2}},
+};
+
 const char *duplex_mode[]={"FDD","TDD"};
 
 static const uint8_t bit_reverse_table_256[] = {
@@ -105,6 +178,15 @@ int get_supported_band_index(int scs, frequency_range_t freq_range, int n_rbs)
   return (-1); // not found
 }
 
+int get_smallest_supported_bandwidth_index(int scs, frequency_range_t frequency_range, int n_rbs)
+{
+  int scs_index = scs + frequency_range;
+  for (int i = 0; i < 12; i++) {
+    if (n_rbs <= tables_5_3_2[scs_index][i])
+      return i;
+  }
+  return -1; // not found
+}
 
 // Table 5.2-1 NR operating bands in FR1 & FR2 (3GPP TS 38.101)
 // Table 5.4.2.3-1 Applicable NR-ARFCN per operating band in FR1 & FR2 (3GPP TS 38.101)
@@ -119,10 +201,12 @@ const nr_bandentry_t nr_bandtable[] = {
   {5,    824000,  849000,  869000,  894000, 20, 173800, 100},
   {7,   2500000, 2570000, 2620000, 2690000, 20, 524000, 100},
   {8,    880000,  915000,  925000,  960000, 20, 185000, 100},
-  {12,   698000,  716000,  729000,  746000, 20, 145800, 100},
+  {12,   699000,  716000,  729000,  746000, 20, 145800, 100},
+  {13,   777000,  787000,  746000,  756000, 20, 149200, 100},
   {14,   788000,  798000,  758000,  768000, 20, 151600, 100},
   {18,   815000,  830000,  860000,  875000, 20, 172000, 100},
   {20,   832000,  862000,  791000,  821000, 20, 158200, 100},
+  {24,  1627500, 1656500, 1526000, 1536000, 20, 305000, 100},
   {25,  1850000, 1915000, 1930000, 1995000, 20, 386000, 100},
   {26,   814000,  849000,  859000,  894000, 20, 171800, 100},
   {28,   703000,  758000,  758000,  813000, 20, 151600, 100},
@@ -142,6 +226,7 @@ const nr_bandentry_t nr_bandtable[] = {
   {53,  2483500, 2495000, 2483500, 2495000, 20, 496700, 100},
   {65,  1920000, 2010000, 2110000, 2200000, 20, 422000, 100},
   {66,  1710000, 1780000, 2110000, 2200000, 20, 422000, 100},
+  {67,      000,     000,  738000,  758000, 20, 147600, 100},
   {70,  1695000, 1710000, 1995000, 2020000, 20, 399000, 100},
   {71,   663000,  698000,  617000,  652000, 20, 123400, 100},
   {74,  1427000, 1470000, 1475000, 1518000, 20, 295000, 100},
@@ -158,6 +243,7 @@ const nr_bandentry_t nr_bandtable[] = {
   {82,   832000,  862000,     000,     000, 20, 166400, 100},
   {83,   703000,  748000,     000,     000, 20, 140600, 100},
   {84,  1920000, 1980000,     000,     000, 20, 384000, 100},
+  {85,   698000,  716000,  728000,  746000, 20, 145600, 100},
   {86,  1710000, 1785000,     000,     000, 20, 342000, 100},
   {89,   824000,  849000,     000,     000, 20, 342000, 100},
   {90,  2496000, 2690000, 2496000, 2690000,  3, 499200,  15},
@@ -179,64 +265,148 @@ const nr_bandentry_t nr_bandtable[] = {
   {261,27500040,28350000,27500040,28350000,  2,2070833, 120}
 };
 
+// synchronization raster per band tables (Rel.15)
+// (38.101-1 Table 5.4.3.3-1 and 38.101-2 Table 5.4.3.3-1)
+// band nb, sub-carrier spacing index, Range of gscn (First, Step size, Last)
+// clang-format off
+const sync_raster_t sync_raster[] = {
+  {1, 0, 5279, 1, 5419},
+  {2, 0, 4829, 1, 4969},
+  {3, 0, 4517, 1, 4693},
+  {5, 0, 2177, 1, 2230},
+  {5, 1, 2183, 1, 2224},
+  {7, 0, 6554, 1, 6718},
+  {8, 0, 2318, 1, 2395},
+  {12, 0, 1828, 1, 1858},
+  {13, 0, 1871, 1, 1885},
+  {14, 0, 1901, 1, 1915},
+  {18, 0, 2156, 1, 2182},
+  {20, 0, 1982, 1, 2047},
+  {24, 0, 3818, 1, 3892},
+  {24, 1, 3824, 1, 3886},
+  {25, 0, 4829, 1, 4981},
+  {26, 0, 2153, 1, 2230},
+  {28, 0, 1901, 1, 2002},
+  {29, 0, 1798, 1, 1813},
+  {30, 0, 5879, 1, 5893},
+  {34, 0, 5030, 1, 5056},
+  {34, 1, 5036, 1, 5050},
+  {38, 0, 6431, 1, 6544},
+  {38, 1, 6437, 1, 6538},
+  {39, 0, 4706, 1, 4795},
+  {39, 1, 4712, 1, 4789},
+  {40, 1, 5762, 1, 5989},
+  {41, 0, 6246, 3, 6717},
+  {41, 1, 6252, 3, 6714},
+  {48, 1, 7884, 1, 7982},
+  {50, 0, 3584, 1, 3787},
+  {51, 0, 3572, 1, 3574},
+  {53, 0, 6215, 1, 6232},
+  {53, 1, 6221, 1, 6226},
+  {65, 0, 5279, 1, 5494},
+  {66, 0, 5279, 1, 5494},
+  {66, 1, 5285, 1, 5488},
+  {67, 0, 1850, 1, 1888},
+  {70, 0, 4993, 1, 5044},
+  {71, 0, 1547, 1, 1624},
+  {74, 0, 3692, 1, 3790},
+  {75, 0, 3584, 1, 3787},
+  {76, 0, 3572, 1, 3574},
+  {77, 1, 7711, 1, 8329},
+  {78, 1, 7711, 1, 8051},
+  {79, 1, 8480, 16, 8880},
+  {85, 0, 1826, 1, 1858},
+  {90, 1, 6252, 1, 6714},
+  {91, 0, 3572, 1, 3574},
+  {92, 0, 3584, 1, 3787},
+  {93, 0, 3572, 1, 3574},
+  {94, 0, 3584, 1, 3587},
+  {257, 3, 22388, 1, 22558},
+  {257, 4, 22390, 2, 22556},
+  {258, 3, 22257, 1, 22443},
+  {258, 4, 22258, 2, 22442},
+  {260, 3, 22995, 1, 23166},
+  {260, 4, 22996, 2, 23164},
+  {261, 3, 22446, 1, 22492},
+  {261, 4, 22446, 2, 22490},
+};
+// clang-format on
+
+// Section 5.4.3 of 38.101-1 and -2
+void check_ssb_raster(uint64_t freq, int band, int scs)
+{
+  int start_gscn = 0, step_gscn = 0, end_gscn = 0;
+  for (int i = 0; i < sizeof(sync_raster) / sizeof(sync_raster_t); i++) {
+    if (sync_raster[i].band == band && sync_raster[i].scs_index == scs) {
+      start_gscn = sync_raster[i].first_gscn;
+      step_gscn = sync_raster[i].step_gscn;
+      end_gscn = sync_raster[i].last_gscn;
+      break;
+    }
+  }
+  AssertFatal(start_gscn != 0, "Couldn't find band %d with SCS %d\n", band, scs);
+  int gscn;
+  if (freq < 3000000000) {
+    int N = 0;
+    int M = 0;
+    for (int k = 0; k < 3; k++) {
+      M = (k << 1) + 1;
+      if ((freq - M * 50000) % 1200000 == 0) {
+        N = (freq - M * 50000) / 1200000;
+        break;
+      }
+    }
+    AssertFatal(N != 0, "SSB frequency %lu Hz not on the synchronization raster (N * 1200kHz + M * 50 kHz)\n", freq);
+    gscn = (3 * N) + (M - 3) / 2;
+  } else if (freq < 24250000000) {
+    AssertFatal((freq - 3000000000) % 1440000 == 0,
+                "SSB frequency %lu Hz not on the synchronization raster (3000 MHz + N * 1.44 MHz)\n",
+                freq);
+    gscn = ((freq - 3000000000) / 1440000) + 7499;
+  } else {
+    AssertFatal((freq - 24250080000) % 17280000 == 0,
+                "SSB frequency %lu Hz not on the synchronization raster (24250.08 MHz + N * 17.28 MHz)\n",
+                freq);
+    gscn = ((freq - 24250080000) / 17280000) + 22256;
+  }
+  AssertFatal(gscn >= start_gscn && gscn <= end_gscn,
+              "GSCN %d corresponding to SSB frequency %lu does not belong to GSCN range for band %d\n",
+              gscn,
+              freq,
+              band);
+  int rel_gscn = gscn - start_gscn;
+  AssertFatal(rel_gscn % step_gscn == 0,
+              "GSCN %d corresponding to SSB frequency %lu not in accordance with GSCN step for band %d\n",
+              gscn,
+              freq,
+              band);
+}
+
 int get_supported_bw_mhz(frequency_range_t frequency_range, int bw_index)
 {
   if (frequency_range == FR1) {
-    switch (bw_index) {
-      case 0 :
-        return 5; // 5MHz
-      case 1 :
-        return 10;
-      case 2 :
-        return 15;
-      case 3 :
-        return 20;
-      case 4 :
-        return 25;
-      case 5 :
-        return 30;
-      case 6 :
-        return 40;
-      case 7 :
-        return 50;
-      case 8 :
-        return 60;
-      case 9 :
-        return 80;
-      case 10 :
-        return 90;
-      case 11 :
-        return 100;
-      default :
-        AssertFatal(false, "Invalid band index for FR1 %d\n", bw_index);
-    }
-  }
-  else {
-    switch (bw_index) {
-      case 0 :
-        return 50; // 50MHz
-      case 1 :
-        return 100;
-      case 2 :
-        return 200;
-      case 3 :
-        return 400;
-      default :
-        AssertFatal(false, "Invalid band index for FR2 %d\n", bw_index);
-    }
+    int bandwidth_index_to_mhz[] = {5, 10, 15, 20, 25, 30, 40, 50, 60, 80, 90, 100};
+    AssertFatal(bw_index >= 0 && bw_index <= sizeofArray(bandwidth_index_to_mhz),
+                "Bandwidth index %d is invalid\n",
+                bw_index);
+    return bandwidth_index_to_mhz[bw_index];
+  } else {
+    int bandwidth_index_to_mhz[] = {50, 100, 200, 400};
+    AssertFatal(bw_index >= 0 && bw_index <= sizeofArray(bandwidth_index_to_mhz),
+                "Bandwidth index %d is invalid\n",
+                bw_index);
+    return bandwidth_index_to_mhz[bw_index];
   }
 }
 
-bool compare_relative_ul_channel_bw(int nr_band, int scs, int nb_ul, frame_type_t frame_type)
+bool compare_relative_ul_channel_bw(int nr_band, int scs, int channel_bandwidth, frame_type_t frame_type)
 {
   // 38.101-1 section 6.2.2
   // Relative channel bandwidth <= 4% for TDD bands and <= 3% for FDD bands
   int index = get_nr_table_idx(nr_band, scs);
-  int bw_index = get_supported_band_index(scs, nr_band > 256 ? FR2 : FR1, nb_ul);
-  int band_size_khz = get_supported_bw_mhz(nr_band > 256 ? FR2 : FR1, bw_index) * 1000;
   float limit = frame_type == TDD ? 0.04 : 0.03;
-  float rel_bw = (float) (2 * band_size_khz) / (float) (nr_bandtable[index].ul_max + nr_bandtable[index].ul_min);
-  return rel_bw <= limit;
+  float rel_bw = (float) (2 * channel_bandwidth * 1000) / (float) (nr_bandtable[index].ul_max - nr_bandtable[index].ul_min);
+  return rel_bw > limit;
 }
 
 uint16_t get_band(uint64_t downlink_frequency, int32_t delta_duplex)
@@ -268,7 +438,10 @@ uint16_t get_band(uint64_t downlink_frequency, int32_t delta_duplex)
   printf("DL frequency %"PRIu64": band %d, UL frequency %"PRIu64"\n",
         downlink_frequency, current_band, downlink_frequency+delta_duplex);
 
-  AssertFatal(current_band != 0, "Can't find EUTRA band for frequency %"PRIu64" and duplex_spacing %u\n", downlink_frequency, delta_duplex);
+  AssertFatal(current_band != 0,
+              "Can't find EUTRA band for frequency %" PRIu64 " and duplex_spacing %d\n",
+              downlink_frequency,
+              delta_duplex);
 
   return current_band;
 }
@@ -520,16 +693,9 @@ int get_dmrs_port(int nl, uint16_t dmrs_ports)
 
 frame_type_t get_frame_type(uint16_t current_band, uint8_t scs_index)
 {
-  frame_type_t current_type;
   int32_t delta_duplex = get_delta_duplex(current_band, scs_index);
-
-  if (delta_duplex == 0)
-    current_type = TDD;
-  else
-    current_type = FDD;
-
-  LOG_I(NR_MAC, "NR band %d, duplex mode %s, duplex spacing = %d KHz\n", current_band, duplex_mode[current_type], delta_duplex);
-
+  frame_type_t current_type = delta_duplex == 0 ? TDD : FDD;
+  LOG_D(NR_MAC, "NR band %d, duplex mode %s, duplex spacing = %d KHz\n", current_band, duplex_mode[current_type], delta_duplex);
   return current_type;
 }
 
@@ -540,7 +706,7 @@ int32_t get_delta_duplex(int nr_bandP, uint8_t scs_index)
 
   int32_t delta_duplex = (nr_bandtable[nr_table_idx].ul_min - nr_bandtable[nr_table_idx].dl_min);
 
-  LOG_I(NR_MAC, "NR band duplex spacing is %d KHz (nr_bandtable[%d].band = %d)\n", delta_duplex, nr_table_idx, nr_bandtable[nr_table_idx].band);
+  LOG_D(NR_MAC, "NR band duplex spacing is %d KHz (nr_bandtable[%d].band = %d)\n", delta_duplex, nr_table_idx, nr_bandtable[nr_table_idx].band);
 
   return delta_duplex;
 }
@@ -906,6 +1072,132 @@ uint32_t get_ssb_offset_to_pointA(uint32_t absoluteFrequencySSB,
   return ssb_offset_point_a;
 }
 
+static double get_start_freq(const double fc, const int nbRB, const int mu)
+{
+  const int scs = MU_SCS(mu) * 1000;
+  return fc - ((double)nbRB / 2 * NR_NB_SC_PER_RB * scs);
+}
+
+static double get_stop_freq(const double fc, const int nbRB, const int mu)
+{
+  int scs = MU_SCS(mu) * 1000;
+  return fc + ((double)nbRB / 2 * NR_NB_SC_PER_RB * scs);
+}
+
+static void compute_M_and_N(const int gscn, int *rM, int *rN)
+{
+  if (gscn > 1 && gscn < 7499) {
+    for (int M = 1; M < 6; M += 2) {
+      /* GSCN = 3N + (M-3) / 2
+         N(int) = 2 * GSCN + 3 - M
+      */
+      if (((2 * gscn + 3 - M) % 6) == 0) {
+        *rM = M;
+        *rN = (2 * gscn + 3 - M) / 6;
+        break;
+      }
+    }
+  } else if (gscn > 7498 && gscn < 22256) {
+    *rN = gscn - 7499;
+  } else if (gscn > 22255 && gscn < 26638) {
+    *rN = gscn - 22256;
+  } else {
+    LOG_E(NR_PHY, "Invalid GSCN\n");
+    abort();
+  }
+}
+
+// Section 5.4.3 of 38.101-1 and -2
+static double get_ssref_from_gscn(const int gscn)
+{
+  int M, N = -1;
+  compute_M_and_N(gscn, &M, &N);
+  if (gscn > 1 && gscn < 7499) { // Sub 3GHz
+    AssertFatal(N > 0 && N < 2500, "Invalid N\n");
+    AssertFatal(M > 0 && M < 6 && (M & 0x1), "Invalid M\n");
+    return (N * 1200e3 + M * 50e3);
+  } else if (gscn > 7498 && gscn < 22256) {
+    AssertFatal(N > -1 && N < 14757, "Invalid N\n");
+    return (3000e6 + N * 1.44e6);
+  } else if (gscn > 22255 && gscn < 26638) {
+    AssertFatal(N > -1 && N < 4382, "Invalid N\n");
+    return (24250.08e6 + N * 17.28e6);
+  } else {
+    LOG_E(NR_PHY, "Invalid GSCN\n");
+    abort();
+  }
+}
+
+static void find_gscn_to_scan(const double startFreq,
+                              const double stopFreq,
+                              const sync_raster_t gscn,
+                              int *scanGscnStart,
+                              int *scanGscnStop)
+{
+  const double scs = MU_SCS(gscn.scs_index) * 1e3;
+  const double ssbBW = 20 * NR_NB_SC_PER_RB * scs;
+
+  for (int g = gscn.first_gscn; g < gscn.last_gscn; g += gscn.step_gscn) {
+    const double centerSSBFreq = get_ssref_from_gscn(g);
+    const double startSSBFreq = centerSSBFreq - ssbBW / 2;
+    if (startSSBFreq < startFreq)
+      continue;
+
+    *scanGscnStart = g;
+    break;
+  }
+  *scanGscnStop = *scanGscnStart;
+
+  for (int g = gscn.last_gscn; g > gscn.first_gscn; g -= gscn.step_gscn) {
+    const double centerSSBFreq = get_ssref_from_gscn(g);
+    const double stopSSBFreq = centerSSBFreq + ssbBW / 2 - 1;
+    if (stopSSBFreq > stopFreq)
+      continue;
+
+    *scanGscnStop = g;
+    break;
+  }
+}
+
+static int get_ssb_first_sc(const double pointA, const double ssbCenter, const int mu)
+{
+  const double scs = MU_SCS(mu) * 1e3;
+  const int ssbRBs = 20;
+  return (int)((ssbCenter - pointA) / scs - (ssbRBs / 2 * NR_NB_SC_PER_RB));
+}
+
+/* Returns array of first SCS offset in the scanning window */
+int get_scan_ssb_first_sc(const double fc, const int nbRB, const int nrBand, const int mu, nr_gscn_info_t ssbInfo[MAX_GSCN_BAND])
+{
+  const double startFreq = get_start_freq(fc, nbRB, mu);
+  const double stopFreq = get_stop_freq(fc, nbRB, mu);
+
+  int scanGscnStart = 0;
+  int scanGscnStop = 0;
+  const sync_raster_t *tmpRaster = sync_raster;
+  const sync_raster_t * end=sync_raster + sizeofArray(sync_raster);
+  while (tmpRaster < end && (tmpRaster->band != nrBand || tmpRaster->scs_index != mu))
+    tmpRaster++;
+  if (tmpRaster >= end) {
+    LOG_E(PHY, "raster not found nrband=%d, mu=%d\n", nrBand, mu);
+    return 0;
+  }
+
+  find_gscn_to_scan(startFreq, stopFreq, *tmpRaster, &scanGscnStart, &scanGscnStop);
+
+  const double scs = MU_SCS(mu) * 1e3;
+  const double pointA = fc - ((double)nbRB / 2 * scs * NR_NB_SC_PER_RB);
+  int numGscn = 0;
+  for (int g = scanGscnStart; (g <= scanGscnStop) && (numGscn < MAX_GSCN_BAND); g += tmpRaster->step_gscn) {
+    ssbInfo[numGscn].ssRef = get_ssref_from_gscn(g);
+    ssbInfo[numGscn].ssbFirstSC = get_ssb_first_sc(pointA, ssbInfo[numGscn].ssRef, mu);
+    ssbInfo[numGscn].gscn = g;
+    numGscn++;
+  }
+
+  return numGscn;
+}
+
 int get_delay_idx(int delay, int max_delay_comp)
 {
   int delay_idx = max_delay_comp + delay;
@@ -930,36 +1222,18 @@ void init_delay_table(uint16_t ofdm_symbol_size,
   }
 }
 
-void freq2time(uint16_t ofdm_symbol_size,
-               int16_t *freq_signal,
-               int16_t *time_signal)
+int set_default_nta_offset(frequency_range_t freq_range, uint32_t samples_per_subframe)
 {
-  const idft_size_idx_t idft_size = get_idft(ofdm_symbol_size);
-  idft(idft_size, freq_signal, time_signal, 1);
-}
+  // ta_offset_samples : ta_offset = samples_per_subframe : (Δf_max x N_f / 1000)
+  // As described in Section 4.3.1 in 38.211
 
-void nr_est_delay(int ofdm_symbol_size, const c16_t *ls_est, c16_t *ch_estimates_time, delay_t *delay)
-{
-  freq2time(ofdm_symbol_size, (int16_t *)ls_est, (int16_t *)ch_estimates_time);
+  // TODO There is no way for the UE to know about LTE-NR coexistence case
+  //      as mentioned in Table 7.1.2-2 of 38.133
+  //      LTE-NR coexistence means the presence of an active LTE service in the same band as NR in current deployment
+  //      We assume no coexistence
 
-  int max_pos = delay->delay_max_pos;
-  int max_val = delay->delay_max_val;
-  const int sync_pos = 0;
-
-  for (int i = 0; i < ofdm_symbol_size; i++) {
-    int temp = c16amp2(ch_estimates_time[i]) >> 1;
-    if (temp > max_val) {
-      max_pos = i;
-      max_val = temp;
-    }
-  }
-
-  if (max_pos > ofdm_symbol_size / 2)
-    max_pos = max_pos - ofdm_symbol_size;
-
-  delay->delay_max_pos = max_pos;
-  delay->delay_max_val = max_val;
-  delay->est_delay = max_pos - sync_pos;
+  uint64_t numer = (freq_range == FR1 ? 25600 : 13792) * (uint64_t)samples_per_subframe;
+  return numer / (4096 * 480);
 }
 
 void nr_timer_start(NR_timer_t *timer)
@@ -974,9 +1248,9 @@ void nr_timer_stop(NR_timer_t *timer)
   timer->counter = 0;
 }
 
-bool is_nr_timer_active(NR_timer_t timer)
+bool nr_timer_is_active(const NR_timer_t *timer)
 {
-  return timer.active;
+  return timer->active;
 }
 
 bool nr_timer_tick(NR_timer_t *timer)
@@ -986,23 +1260,23 @@ bool nr_timer_tick(NR_timer_t *timer)
     timer->counter += timer->step;
     if (timer->target == UINT_MAX) // infinite target, never expires
       return false;
-    expired = nr_timer_expired(*timer);
+    expired = nr_timer_expired(timer);
     if (expired)
       timer->active = false;
   }
   return expired;
 }
 
-bool nr_timer_expired(NR_timer_t timer)
+bool nr_timer_expired(const NR_timer_t *timer)
 {
-  if (timer.target == UINT_MAX) // infinite target, never expires
+  if (timer->target == UINT_MAX) // infinite target, never expires
     return false;
-  return (timer.counter >= timer.target);
+  return timer->counter >= timer->target;
 }
 
-uint32_t nr_timer_elapsed_time(NR_timer_t timer)
+uint32_t nr_timer_elapsed_time(const NR_timer_t *timer)
 {
-  return timer.counter;
+  return timer->counter;
 }
 
 void nr_timer_setup(NR_timer_t *timer, const uint32_t target, const uint32_t step)
@@ -1010,4 +1284,12 @@ void nr_timer_setup(NR_timer_t *timer, const uint32_t target, const uint32_t ste
   timer->target = target;
   timer->step = step;
   nr_timer_stop(timer);
+}
+
+unsigned short get_m_srs(int c_srs, int b_srs) {
+  return srs_bandwidth_config[c_srs][b_srs][0];
+}
+
+unsigned short get_N_b_srs(int c_srs, int b_srs) {
+  return srs_bandwidth_config[c_srs][b_srs][1];
 }

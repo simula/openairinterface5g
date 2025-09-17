@@ -31,14 +31,5 @@
 #endif
 
 
-unsigned int mac_debug;
-
-//MAC_xface *mac_xface;
-
-//MACPHY_PARAMS MACPHY_params;
-
-unsigned int mac_registered;
-
-
 #endif
 

@@ -56,6 +56,7 @@
 #include "common/utils/threadPool/thread-pool.h"
 #include "executables/softmodem-common.h"
 #include <readline/history.h>
+#include "common/oai_version.h"
 
 
 #include "telnetsrv_phycmd.h"
@@ -938,10 +939,7 @@ int add_telnetcmd(char *modulename, telnetshell_vardef_t *var, telnetshell_cmdde
    against main exec version. version mismatch not considered as fatal (interfaces not supposed to change)
 */
 int  telnetsrv_checkbuildver(char *mainexec_buildversion, char **shlib_buildversion) {
-#ifndef PACKAGE_VERSION
-#define PACKAGE_VERSION "standalone built: " __DATE__ __TIME__
-#endif
-  *shlib_buildversion = PACKAGE_VERSION;
+  *shlib_buildversion = OAI_PACKAGE_VERSION;
 
   if (strcmp(mainexec_buildversion, *shlib_buildversion) != 0) {
     fprintf(stderr,"[TELNETSRV] shared lib version %s, doesn't match main version %s, compatibility should be checked\n",

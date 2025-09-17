@@ -41,10 +41,8 @@
 #include "nfapi/open-nFAPI/nfapi/public_inc/nfapi_nr_interface.h"
 
 // Table 6.4.1.1.3-1/2 from TS 38.211
-static const int delta1[8] = {0, 0, 1, 1, 0, 0, 1, 1};
 static const int wf1[8][2] = {{1, 1}, {1, -1}, {1, 1}, {1, -1}, {1, 1}, {1, -1}, {1, 1}, {1, -1}};
 static const int wt1[8][2] = {{1, 1}, {1, 1}, {1, 1}, {1, 1}, {1, -1}, {1, -1}, {1, -1}, {1, -1}};
-static const int delta2[12] = {0, 0, 2, 2, 4, 4, 0, 0, 2, 2, 4, 4};
 static const int wf2[12][2] =
     {{1, 1}, {1, -1}, {1, 1}, {1, -1}, {1, 1}, {1, -1}, {1, 1}, {1, -1}, {1, 1}, {1, -1}, {1, 1}, {1, -1}};
 static const int wt2[12][2] =
@@ -56,17 +54,9 @@ static const c16_t nr_rx_mod_table[7] =
 static const c16_t nr_rx_nmod_table[7] =
     {{0, 0}, {-23170, 23170}, {23170, -23170}, {-23170, 23170}, {-23170, -23170}, {23170, 23170}, {23170, -23170}};
 
-int nr_pusch_dmrs_delta(uint8_t dmrs_config_type, unsigned short p) {
-  if (dmrs_config_type == pusch_dmrs_type1) {
-    return delta1[p];
-  } else {
-    return delta2[p];
-  }
-}
-
 int nr_pusch_dmrs_rx(PHY_VARS_gNB *gNB,
                      unsigned int Ns,
-                     unsigned int *nr_gold_pusch,
+                     const uint32_t *nr_gold_pusch,
                      c16_t *output,
                      unsigned short p,
                      unsigned char lp,
@@ -120,9 +110,9 @@ int nr_pusch_dmrs_rx(PHY_VARS_gNB *gNB,
   return(0);
 }
 
-int nr_pdsch_dmrs_rx(PHY_VARS_NR_UE *ue,
+int nr_pdsch_dmrs_rx(const PHY_VARS_NR_UE *ue,
                      unsigned int Ns,
-                     unsigned int *nr_gold_pdsch,
+                     const unsigned int *nr_gold_pdsch,
                      c16_t *output,
                      unsigned short p,
                      unsigned char lp,
@@ -170,9 +160,9 @@ int nr_pdsch_dmrs_rx(PHY_VARS_NR_UE *ue,
   return(0);
 }
 
-int nr_pdcch_dmrs_rx(PHY_VARS_NR_UE *ue,
+int nr_pdcch_dmrs_rx(const PHY_VARS_NR_UE *ue,
                      unsigned int Ns,
-                     unsigned int *nr_gold_pdcch,
+                     const unsigned int *nr_gold_pdcch,
                      c16_t *output,
                      unsigned short p,
                      unsigned short nb_rb_coreset)
@@ -202,7 +192,7 @@ int nr_pdcch_dmrs_rx(PHY_VARS_NR_UE *ue,
   return(0);
 }
 
-void nr_pbch_dmrs_rx(int symbol, unsigned int *nr_gold_pbch, c16_t *output, bool sidelink)
+void nr_pbch_dmrs_rx(int symbol, const unsigned int *nr_gold_pbch, c16_t *output, bool sidelink)
 {
   int m,m0,m1;
   uint8_t idx=0;
@@ -245,7 +235,7 @@ void nr_pbch_dmrs_rx(int symbol, unsigned int *nr_gold_pbch, c16_t *output, bool
   \param length is number of RE in a OFDM symbol
   \param *output pointer to all ptrs RE in a OFDM symbol
 */
-void nr_gen_ref_conj_symbols(uint32_t *in, uint32_t length, c16_t *output, uint16_t offset, int mod_order)
+void nr_gen_ref_conj_symbols(const uint32_t *in, uint32_t length, c16_t *output, uint16_t offset, int mod_order)
 {
   uint8_t idx, b_idx;
   for (int i=0; i<length/mod_order; i++)

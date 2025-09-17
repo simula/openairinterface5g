@@ -81,8 +81,6 @@
 
 #define NR_MAX_NB_PORTS 32
 
-#define NR_MAX_PDSCH_TBS 3824
-
 #define MAX_NUM_NR_DLSCH_SEGMENTS_PER_LAYER 36
 
 #define MAX_NUM_NR_ULSCH_SEGMENTS_PER_LAYER 34
@@ -121,25 +119,16 @@ typedef struct {
   nfapi_nr_srs_pdu_t srs_pdu;
 } nr_srs_info_t;
 
-typedef struct {
-  uint16_t csi_gold_init;
-  uint32_t ***nr_gold_csi_rs;
-  uint8_t csi_rs_generated_signal_bits;
-  int32_t **csi_rs_generated_signal;
-  bool csi_im_meas_computed;
-  uint32_t interference_plus_noise_power;
-} nr_csi_info_t;
-
 typedef struct NR_DL_FRAME_PARMS NR_DL_FRAME_PARMS;
 
 typedef uint32_t (*get_samples_per_slot_t)(int slot, const NR_DL_FRAME_PARMS *fp);
 typedef uint32_t (*get_slot_from_timestamp_t)(openair0_timestamp timestamp_rx, const NR_DL_FRAME_PARMS *fp);
 
-typedef uint32_t (*get_samples_slot_timestamp_t)(int slot, const NR_DL_FRAME_PARMS *fp, uint8_t sl_ahead);
+typedef uint32_t (*get_samples_slot_timestamp_t)(int slot, const NR_DL_FRAME_PARMS *fp, unsigned int sl_ahead);
 
 struct NR_DL_FRAME_PARMS {
   /// frequency range
-  nr_frequency_range_e freq_range;
+  frequency_range_t freq_range;
   //  /// Placeholder to replace overlapping fields below
   //  nfapi_nr_rf_config_t rf_config;
   /// Placeholder to replace SSB overlapping fields below

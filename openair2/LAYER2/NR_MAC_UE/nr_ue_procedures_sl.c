@@ -19,7 +19,8 @@
  *      contact@openairinterface.org
  */
 
-#include "mac_defs_sl.h"
+#include "mac_defs.h"
+#include "mac_proto.h"
 
 #define SL_DEBUG
 
@@ -348,35 +349,37 @@ uint32_t sl_prepare_MIB(NR_TDD_UL_DL_ConfigCommon_t *TDD_UL_DL_Config,
   return sl_mib;
 }
 
-uint16_t sl_get_subchannel_size(NR_SL_ResourcePool_r16_t *rpool)
-{
-
-  uint16_t subch_size = 0;
-  const uint8_t subchsizes[8] = {10, 12, 15, 20, 25, 50, 75, 100};
-
-  subch_size = (rpool->sl_SubchannelSize_r16)
-                   ? subchsizes[*rpool->sl_SubchannelSize_r16] : 0;
-
-  AssertFatal(subch_size,"Subch Size cannot be 0.Resource Pool Configuration Error\n");
-
-  return subch_size;
-}
-
 uint16_t sl_get_num_subch(NR_SL_ResourcePool_r16_t *rpool)
 {
 
-  uint16_t num_subch = 0;
-  uint16_t subch_size = sl_get_subchannel_size(rpool);
+  //sl-NumSubchannel - Indicates the number of subchannels in the corresponding resource pool
+  //which consists of contiguous PRBs only.
+  uint16_t num_subch = (rpool->sl_NumSubchannel_r16) ? *rpool->sl_NumSubchannel_r16 : 0;
+
+  AssertFatal(num_subch,"NUM Subchannels cannot be 0. Resource Pool Configuration Error\n");
+
+  return num_subch;
+}
+
+uint16_t sl_get_subchannel_size(NR_SL_ResourcePool_r16_t *rpool)
+{
+
+  uint16_t num_subch = sl_get_num_subch(rpool);
+
+  //sl-RB-Number - Indicates the number of PRBs in the corresponding resource pool.
+  //which consists of contiguous PRBs only.The remaining RB cannot be used
   uint16_t num_rbs = (rpool->sl_RB_Number_r16) ? *rpool->sl_RB_Number_r16 : 0;
 
   AssertFatal(num_rbs,"NumRbs in rpool cannot be 0.Resource Pool Configuration Error\n");
 
-  num_subch = num_rbs/subch_size;
+  uint16_t subch_size = 0;
+
+  subch_size = num_rbs/num_subch;
 
   LOG_I(NR_MAC, "Subch_size:%d, numRBS:%d, num_subch:%d\n",
                                           subch_size,num_rbs,num_subch);
 
-  return (num_subch);
+  return (subch_size);
 }
 
 //This function determines SCI 1A Len in bits based on the configuration in the resource pool.
@@ -474,10 +477,11 @@ uint8_t sl_determine_sci_1a_len(uint16_t *num_subchannels,
     AssertFatal(*rpool->sl_Additional_MCS_Table_r16<=2, "additional table value cannot be > 2. Resource Pool Configuration Error.\n");
   }
 
-  LOG_D(NR_MAC,"sci 1A - additional_table:%ld, sci 1a len:%d, additional table nbits:%d\n",
-                                                                *rpool->sl_Additional_MCS_Table_r16,
-                                                                sci_1a_len,
-                                                                sci_1a->additional_mcs_table_indicator.nbits);
+  LOG_D(NR_MAC,
+        "sci 1A - additional_table:%ld, sci 1a len:%d, additional table nbits:%d\n",
+        rpool->sl_Additional_MCS_Table_r16 ? *rpool->sl_Additional_MCS_Table_r16 : 0,
+        sci_1a_len,
+        sci_1a->additional_mcs_table_indicator.nbits);
 
   uint8_t psfch_period = 0;
   if (rpool->sl_PSFCH_Config_r16 &&

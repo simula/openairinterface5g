@@ -27,15 +27,6 @@
 #include <nfapi.h>
 #include <debug.h>
 
-static uint32_t get_packed_msg_len(uintptr_t msgHead, uintptr_t msgEnd) {
-  if (msgEnd < msgHead) {
-    NFAPI_TRACE(NFAPI_TRACE_ERROR, "get_packed_msg_len: Error in pointers supplied %lu, %lu\n", msgHead, msgEnd);
-    return 0;
-  }
-
-  return (msgEnd - msgHead);
-}
-
 static uint8_t pack_opaque_data_value(void *tlv, uint8_t **ppWritePackedMsg, uint8_t *end) {
   nfapi_opaqaue_data_t *value = (nfapi_opaqaue_data_t *)tlv;
   return pusharray8(value->value, NFAPI_MAX_OPAQUE_DATA, value->length, ppWritePackedMsg, end);

@@ -158,27 +158,31 @@ size_t dump_mac_stats(gNB_MAC_INST *gNB, char *output, size_t strlen, bool reset
 
     output += snprintf(output,
                        end - output,
-                       ", ulsch_errors %"PRIu64", ulsch_DTX %d, BLER %.5f MCS (%d) %d\n",
+                       ", ulsch_errors %"PRIu64", ulsch_DTX %d, BLER %.5f MCS (%d) %d (Qm %d deltaMCS %d dB) NPRB %d  SNR %d.%d dB\n",
                        stats->ul.errors,
                        stats->ulsch_DTX,
                        sched_ctrl->ul_bler_stats.bler,
                        UE->current_UL_BWP.mcs_table,
-                       sched_ctrl->ul_bler_stats.mcs);
-
+                       sched_ctrl->ul_bler_stats.mcs,
+                       nr_get_Qm_ul(sched_ctrl->ul_bler_stats.mcs,UE->current_UL_BWP.mcs_table),
+                       UE->mac_stats.deltaMCS,
+                       UE->mac_stats.NPRB,
+                       sched_ctrl->pusch_snrx10 / 10,
+                       sched_ctrl->pusch_snrx10 % 10);
     output += snprintf(output,
                        end - output,
                        "UE %04x: MAC:    TX %14"PRIu64" RX %14"PRIu64" bytes\n",
                        UE->rnti, stats->dl.total_bytes, stats->ul.total_bytes);
 
-    for (int i = 0; i < sched_ctrl->dl_lc_num; i++) {
-      int lc_id = sched_ctrl->dl_lc_ids[i];
+    for (int i = 0; i < seq_arr_size(&sched_ctrl->lc_config); i++) {
+      const nr_lc_config_t *c = seq_arr_at(&sched_ctrl->lc_config, i);
       output += snprintf(output,
                          end - output,
                          "UE %04x: LCID %d: TX %14"PRIu64" RX %14"PRIu64" bytes\n",
                          UE->rnti,
-                         lc_id,
-                         stats->dl.lc_bytes[lc_id],
-                         stats->ul.lc_bytes[lc_id]);
+                         c->lcid,
+                         stats->dl.lc_bytes[c->lcid],
+                         stats->ul.lc_bytes[c->lcid]);
     }
   }
   NR_SCHED_UNLOCK(&gNB->UE_info.mutex);
@@ -273,7 +277,7 @@ void mac_top_init_gNB(ngran_node_t node_type,
     AssertFatal(rlc_module_init(1) == 0,"Could not initialize RLC layer\n");
 
     // These should be out of here later
-    if (get_softmodem_params()->usim_test == 0 ) nr_pdcp_layer_init(false);
+    if (get_softmodem_params()->usim_test == 0 ) nr_pdcp_layer_init();
 
     if(IS_SOFTMODEM_NOS1 && get_softmodem_params()->phy_test) {
       // get default noS1 configuration
@@ -289,7 +293,8 @@ void mac_top_init_gNB(ngran_node_t node_type,
        * will output the packets at a local interface, which is in line with
        * the noS1 mode.  Hence, below, we simply hardcode ENB_FLAG_NO */
       // setup PDCP, RLC
-      nr_pdcp_add_drbs(ENB_FLAG_NO, 0x1234, rbconfig->drb_ToAddModList, 0, NULL, NULL);
+      nr_pdcp_entity_security_keys_and_algos_t null_security_parameters = {0};
+      nr_pdcp_add_drbs(ENB_FLAG_NO, 0x1234, rbconfig->drb_ToAddModList, &null_security_parameters);
       nr_rlc_add_drb(0x1234, rbconfig->drb_ToAddModList->list.array[0]->drb_Identity, rlc_rbconfig);
 
       // free memory
@@ -310,9 +315,6 @@ void mac_top_init_gNB(ngran_node_t node_type,
   du_init_f1_ue_data();
 
   srand48(0);
-
-  // triggers also PYH initialization in case we have L1 via FAPI
-  nr_mac_config_scc(RC.nrmac[0], scc, config);
 }
 
 void nr_mac_send_f1_setup_req(void)

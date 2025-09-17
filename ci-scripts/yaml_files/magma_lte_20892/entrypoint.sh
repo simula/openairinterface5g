@@ -19,7 +19,7 @@ MME_CONF[@HSS_IP_ADDR@]="192.168.61.194"
 cp mme_fd.conf.tmplt $PREFIX/mme_fd.conf
 
 for K in "${!MME_CONF[@]}"; do 
-  egrep -lRZ "$K" $PREFIX/mme_fd.conf | xargs -0 -l sed -i -e "s|$K|${MME_CONF[$K]}|g"
+  grep -E -lRZ "$K" $PREFIX/mme_fd.conf | xargs -0 -l sed -i -e "s|$K|${MME_CONF[$K]}|g"
   ret=$?;[[ ret -ne 0 ]] && echo "Tried to replace $K with ${MME_CONF[$K]}"
 done
 

@@ -62,7 +62,7 @@ add_library(websrv MODULE
             websrv_utils.c
             ../../../openair1/PHY/TOOLS/nr_phy_scope.c
 )
-target_link_libraries(websrv PRIVATE ulfius jansson)
+target_link_libraries(websrv PRIVATE ulfius jansson asn1_nr_rrc_hdrs)
 target_compile_definitions(websrv PUBLIC WEBSRVSCOPE)
 # put websrv into build root and not under build/common/utils/websrv/
 set_target_properties(websrv PROPERTIES LIBRARY_OUTPUT_DIRECTORY ../../..)
@@ -87,6 +87,6 @@ add_custom_target(
 add_dependencies(websrv websrvfront)
 # copy frontend files to a websrv subdirectory of where oai copy all built files
 add_custom_command(TARGET websrvfront
-                   POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/frontend/dist/softmodem-ngx ${OPENAIR_BIN_DIR}/../websrv
-                              COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/helpfiles ${OPENAIR_BIN_DIR}/../websrv/helpfiles
-                   COMMENT "Moving frontend files to:\n   ${OPENAIR_BIN_DIR}/../websrv \n " )
+                   POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/frontend/dist/softmodem-ngx ${CMAKE_CURRENT_BINARY_DIR}/../websrv
+                              COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/helpfiles ${CMAKE_CURRENT_BINARY_DIR}/../websrv/helpfiles
+                   COMMENT "Moving frontend files to: ${CMAKE_CURRENT_BINARY_DIR}/../websrv" )

@@ -1,0 +1,6 @@
+add_executable(f1ap_lib_test f1ap_lib_test.c)
+add_dependencies(tests f1ap_lib_test)
+add_test(NAME f1ap_lib_test COMMAND f1ap_lib_test)
+target_link_libraries(f1ap_lib_test PRIVATE f1ap_lib)
+target_link_libraries(f1ap_lib_test PRIVATE asn1_f1ap)
+target_include_directories(f1ap_lib_test PRIVATE ${CMAKE_SOURCE_DIR})

@@ -44,7 +44,7 @@ static instance_t du_create_gtpu_instance_to_cu(const f1ap_net_config_t *nc)
 {
   openAddr_t tmp = {0};
   strncpy(tmp.originHost, nc->DU_f1u_ip_address, sizeof(tmp.originHost) - 1);
-  strncpy(tmp.destinationHost, nc->CU_f1_ip_address.ipv4_address, sizeof(tmp.destinationHost) - 1);
+  strncpy(tmp.destinationHost, nc->CU_f1_ip_address, sizeof(tmp.destinationHost) - 1);
   sprintf(tmp.originService, "%d", nc->DUport);
   sprintf(tmp.destinationService, "%d", nc->CUport);
   return gtpv1Init(tmp);
@@ -63,9 +63,20 @@ void du_task_send_sctp_association_req(instance_t instance, f1ap_net_config_t *n
   sctp_new_association_req_p->in_streams = 2; //du_inst->sctp_in_streams;
   sctp_new_association_req_p->out_streams = 2; //du_inst->sctp_out_streams;
   // remote
-  memcpy(&sctp_new_association_req_p->remote_address, &nc->CU_f1_ip_address, sizeof(nc->CU_f1_ip_address));
+  sctp_new_association_req_p->remote_address.ipv4 = 1;
+  strncpy(sctp_new_association_req_p->remote_address.ipv4_address,
+          nc->CU_f1_ip_address,
+          sizeof(sctp_new_association_req_p->remote_address.ipv4_address) - 1);
   // local
-  memcpy(&sctp_new_association_req_p->local_address, &nc->DU_f1c_ip_address, sizeof(nc->DU_f1c_ip_address));
+  sctp_new_association_req_p->local_address.ipv4 = 1;
+  strncpy(sctp_new_association_req_p->local_address.ipv4_address,
+          nc->DU_f1c_ip_address,
+          sizeof(sctp_new_association_req_p->local_address.ipv4_address) - 1);
+  LOG_D(F1AP,
+        "Local IPv4 Address: %s, Remote IPv4 Address: %s\n",
+        sctp_new_association_req_p->local_address.ipv4_address,
+        sctp_new_association_req_p->remote_address.ipv4_address);
+
   // du_f1ap_register_to_sctp
   itti_send_msg_to_task(TASK_SCTP, instance, message_p);
 }
@@ -89,6 +100,8 @@ void du_task_handle_sctp_association_resp(instance_t instance, sctp_new_associat
   f1ap_du_data->du.assoc_id = sctp_new_association_resp->assoc_id;
   f1ap_du_data->sctp_in_streams  = sctp_new_association_resp->in_streams;
   f1ap_du_data->sctp_out_streams = sctp_new_association_resp->out_streams;
+  /* next transaction ID */
+  f1ap_du_data->setupReq.transaction_id = F1AP_get_next_transaction_identifier(0, 0);
   /* setup parameters for F1U and start the server */
   DU_send_F1_SETUP_REQUEST(f1ap_du_data->du.assoc_id, &f1ap_du_data->setupReq);
 }
@@ -129,10 +142,14 @@ void *F1AP_DU_task(void *arg) {
         createF1inst(myInstance, msgSetup, nc);
         du_task_send_sctp_association_req(myInstance, nc);
         instance_t gtpInst = du_create_gtpu_instance_to_cu(nc);
-        AssertFatal(gtpInst != 0, "cannot create DU F1-U GTP module\n");
+        AssertFatal(gtpInst > 0, "cannot create DU F1-U GTP module\n");
         getCxt(myInstance)->gtpInst = gtpInst;
         DUuniqInstance = gtpInst;
       } break;
+
+      case F1AP_RESET_ACK:
+        DU_send_RESET_ACKNOWLEDGE(assoc_id, &F1AP_RESET_ACK(msg));
+        break;
 
       case F1AP_GNB_CU_CONFIGURATION_UPDATE_ACKNOWLEDGE:
         DU_send_gNB_CU_CONFIGURATION_UPDATE_ACKNOWLEDGE(assoc_id,
@@ -184,6 +201,10 @@ void *F1AP_DU_task(void *arg) {
 
       case F1AP_UE_CONTEXT_MODIFICATION_REQUIRED:
         DU_send_UE_CONTEXT_MODIFICATION_REQUIRED(assoc_id, &F1AP_UE_CONTEXT_MODIFICATION_REQUIRED(msg));
+        break;
+
+      case F1AP_GNB_DU_CONFIGURATION_UPDATE:
+        DU_send_gNB_DU_CONFIGURATION_UPDATE(assoc_id, &F1AP_GNB_DU_CONFIGURATION_UPDATE(msg));
         break;
 
       case TERMINATE_MESSAGE:

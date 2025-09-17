@@ -608,20 +608,20 @@ typedef struct eNB_RRC_UE_s {
   uint8_t                            next_security_key[SECURITY_KEY_LENGTH];
 
   /* Total number of e_rab already setup in the list */
-  uint8_t                            setup_e_rabs;
+  int                                setup_e_rabs;
   /* Number of e_rab to be setup in the list */
-  uint8_t                            nb_of_e_rabs;
+  int                                nb_of_e_rabs;
   /* Number of e_rab to be modified in the list */
-  uint8_t                            nb_of_modify_e_rabs;
-  uint8_t                            nb_of_failed_e_rabs;
-  uint8_t              nb_of_modify_endc_e_rabs;
+  int                                nb_of_modify_e_rabs;
+  int                                nb_of_failed_e_rabs;
+  int                                nb_of_modify_endc_e_rabs;
   e_rab_param_t                      modify_e_rab[NB_RB_MAX];//[S1AP_MAX_E_RAB];
   /* list of e_rab to be setup by RRC layers */
   e_rab_param_t                      e_rab[NB_RB_MAX];//[S1AP_MAX_E_RAB];
   /* UE aggregate maximum bitrate */
   ambr_t ue_ambr;
   //release e_rabs
-  uint8_t                            nb_release_of_e_rabs;
+  int                                nb_release_of_e_rabs;
   /* list of e_rab to be released by RRC layers */
   uint8_t                            e_rabs_tobereleased[NB_RB_MAX];
   e_rab_failed_t                     e_rabs_release_failed[S1AP_MAX_E_RAB];
@@ -634,7 +634,7 @@ typedef struct eNB_RRC_UE_s {
   transport_layer_addr_t             gnb_gtp_endc_addrs[S1AP_MAX_E_RAB];
   rb_id_t                            gnb_gtp_endc_ebi[S1AP_MAX_E_RAB];
   /* Total number of e_rab already setup in the list */
-  uint8_t                            nb_x2u_e_rabs;
+  int                                nb_x2u_e_rabs;
   // LG: For GTPV1 TUNNELS(X2U)
   uint32_t                           enb_gtp_x2u_teid[S1AP_MAX_E_RAB];
   transport_layer_addr_t             enb_gtp_x2u_addrs[S1AP_MAX_E_RAB];
@@ -674,19 +674,19 @@ typedef struct rrc_eNB_ue_context_s {
 
 typedef struct {
   uint8_t                           *MIB;
-  uint8_t                           sizeof_MIB;
+  int                               sizeof_MIB;
   uint8_t                           *SIB1;
-  uint8_t                           sizeof_SIB1;
+  int                               sizeof_SIB1;
   uint8_t                           *SIB23;
-  uint8_t                           sizeof_SIB23;
+  int                               sizeof_SIB23;
   uint8_t                           *SIB1_BR;
-  uint8_t                           sizeof_SIB1_BR;
+  int                               sizeof_SIB1_BR;
   uint8_t                           *SIB23_BR;
-  uint8_t                           sizeof_SIB23_BR;
+  int                               sizeof_SIB23_BR;
   uint8_t                           *MIB_FeMBMS;
-  uint8_t                           sizeof_MIB_FeMBMS;
+  int                               sizeof_MIB_FeMBMS;
   uint8_t                           *SIB1_MBMS;
-  uint8_t                           sizeof_SIB1_MBMS;
+  int                               sizeof_SIB1_MBMS;
   int                                   physCellId;
   int                                   Ncp;
   int                                   p_eNB;
@@ -716,14 +716,14 @@ typedef struct {
   uint8_t       FeMBMS_flag;
   LTE_SystemInformationBlockType13_r9_t *sib13;
   uint8_t                           MBMS_flag;
-  uint8_t                           num_mbsfn_sync_area;
+  int                               num_mbsfn_sync_area;
   uint8_t                           **MCCH_MESSAGE; //  MAX_MBSFN_AREA
-  uint8_t                           sizeof_MCCH_MESSAGE[8];// MAX_MBSFN_AREA
+  int                               sizeof_MCCH_MESSAGE[8];// MAX_MBSFN_AREA
   LTE_MCCH_Message_t                mcch;
   LTE_MBSFNAreaConfiguration_r9_t  *mcch_message;
   SRB_INFO                          MCCH_MESS[8];// MAX_MBSFN_AREA
   uint8_t                           **MCCH_MESSAGE_COUNTING; //  MAX_MBSFN_AREA
-  uint8_t                           sizeof_MCCH_MESSAGE_COUNTING[8];// MAX_MBSFN_AREA
+  int                               sizeof_MCCH_MESSAGE_COUNTING[8];// MAX_MBSFN_AREA
   LTE_MCCH_Message_t                mcch_counting;
   LTE_MBMSCountingRequest_r10_t    *mcch_message_counting;
   SRB_INFO                          MCCH_MESS_COUNTING[8];// MAX_MBSFN_AREA
@@ -735,7 +735,7 @@ typedef struct {
   // End - TTN
   SRB_INFO                          SI;
   uint8_t                           *paging[MAX_MOBILES_PER_ENB];
-  uint32_t                           sizeof_paging[MAX_MOBILES_PER_ENB];
+  int                                sizeof_paging[MAX_MOBILES_PER_ENB];
 } rrc_eNB_carrier_data_t;
 
 
@@ -748,7 +748,7 @@ typedef struct eNB_RRC_INST_s {
   uid_allocator_t                 uid_allocator;
   RB_HEAD(rrc_ue_tree_s, rrc_eNB_ue_context_s)     rrc_ue_head; // ue_context tree key search by rnti
   uint8_t                           HO_flag;
-  uint8_t                            Nb_ue;
+  int                                Nb_ue;
   hash_table_t                      *initial_id2_s1ap_ids; // key is    content is rrc_ue_s1ap_ids_t
   hash_table_t                      *s1ap_id2_s1ap_ids   ; // key is    content is rrc_ue_s1ap_ids_t
 
@@ -801,10 +801,10 @@ typedef struct eNB_RRC_INST_s {
 
 } eNB_RRC_INST;
 
-#define MAX_UE_CAPABILITY_SIZE 255
+#define MAX_UE_CAPABILITY_SIZE 8192
 typedef struct OAI_UECapability_s {
   uint8_t sdu[MAX_UE_CAPABILITY_SIZE];
-  uint8_t sdu_size;
+  int     sdu_size;
   LTE_UE_EUTRA_Capability_t *UE_EUTRA_Capability;
 } OAI_UECapability_t;
 
@@ -817,22 +817,22 @@ typedef struct UE_RRC_INST_s {
   as_nas_info_t   initialNasMsg;
   OAI_UECapability_t *UECap;
   uint8_t *UECapability;
-  uint8_t UECapability_size;
+  int     UECapability_size;
   UE_RRC_INFO Info[NB_SIG_CNX_UE];
   SRB_INFO Srb0[NB_SIG_CNX_UE];
   SRB_INFO_TABLE_ENTRY Srb1[NB_CNX_UE];
   SRB_INFO_TABLE_ENTRY Srb2[NB_CNX_UE];
   HANDOVER_INFO_UE HandoverInfoUe;
   uint8_t *SIB1[NB_CNX_UE];
-  uint8_t sizeof_SIB1[NB_CNX_UE];
+  int     sizeof_SIB1[NB_CNX_UE];
   uint8_t *SI[NB_CNX_UE];
-  uint8_t sizeof_SI[NB_CNX_UE];
+  int     sizeof_SI[NB_CNX_UE];
   uint8_t SIB1Status[NB_CNX_UE];
   uint8_t SIStatus[NB_CNX_UE];
   uint8_t *SIB1_MBMS[NB_CNX_UE];
-  uint8_t sizeof_SIB1_MBMS[NB_CNX_UE];
+  int     sizeof_SIB1_MBMS[NB_CNX_UE];
   uint8_t *SI_MBMS[NB_CNX_UE];
-  uint8_t sizeof_SI_MBMS[NB_CNX_UE];
+  int     sizeof_SI_MBMS[NB_CNX_UE];
   uint8_t SIB1Status_MBMS[NB_CNX_UE];
   uint8_t SIStatus_MBMS[NB_CNX_UE];
   LTE_SystemInformationBlockType1_t *sib1[NB_CNX_UE];
@@ -870,14 +870,14 @@ typedef struct UE_RRC_INST_s {
   SRB_INFO SL_Discovery[NB_CNX_UE];
   uint8_t MBMS_flag;
   uint8_t *MCCH_MESSAGE[NB_CNX_UE];
-  uint8_t sizeof_MCCH_MESSAGE[NB_CNX_UE];
+  int     sizeof_MCCH_MESSAGE[NB_CNX_UE];
   uint8_t MCCH_MESSAGEStatus[NB_CNX_UE];
   LTE_MBSFNAreaConfiguration_r9_t       *mcch_message[NB_CNX_UE];
   LTE_SystemInformationBlockType12_r9_t *sib12[NB_CNX_UE];
   LTE_SystemInformationBlockType13_r9_t *sib13[NB_CNX_UE];
   LTE_SystemInformationBlockType13_r9_t *sib13_MBMS[NB_CNX_UE];
   uint8_t           FeMBMS_flag;
-  uint8_t                         num_srb;
+  int                             num_srb;
   struct LTE_SRB_ToAddMod         *SRB1_config[NB_CNX_UE];
   struct LTE_SRB_ToAddMod         *SRB2_config[NB_CNX_UE];
   struct LTE_DRB_ToAddMod         *DRB_config[NB_CNX_UE][8];

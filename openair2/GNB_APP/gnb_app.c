@@ -236,10 +236,10 @@ void *gNB_app_task(void *args_p)
 
     case F1AP_GNB_CU_CONFIGURATION_UPDATE:
       AssertFatal(NODE_IS_DU(node_type), "Should not have received F1AP_GNB_CU_CONFIGURATION_UPDATE in CU/gNB\n");
-
-      LOG_I(GNB_APP, "Received %s: associated ngran_gNB_CU %s with %d cells to activate\n", ITTI_MSG_NAME (msg_p),
-      F1AP_GNB_CU_CONFIGURATION_UPDATE(msg_p).gNB_CU_name,F1AP_GNB_CU_CONFIGURATION_UPDATE(msg_p).num_cells_to_activate);
-      
+      LOG_I(GNB_APP,
+            "Received %s: associated with %d cells to activate\n",
+            ITTI_MSG_NAME(msg_p),
+            F1AP_GNB_CU_CONFIGURATION_UPDATE(msg_p).num_cells_to_activate);
       cell_to_activate += F1AP_GNB_CU_CONFIGURATION_UPDATE(msg_p).num_cells_to_activate;
       gNB_app_handle_f1ap_gnb_cu_configuration_update(&F1AP_GNB_CU_CONFIGURATION_UPDATE(msg_p));
 
@@ -247,6 +247,11 @@ void *gNB_app_task(void *args_p)
       AssertFatal(cell_to_activate == 1,"No cells to activate or cells > 1 %d\n",cell_to_activate);
 
       break;
+
+    case F1AP_GNB_DU_CONFIGURATION_UPDATE_ACKNOWLEDGE:
+      LOG_E(GNB_APP, "[gNB %ld] Handling of %s message not implemented yet\n", instance, msg_name);
+      break;
+
     case NGAP_DEREGISTERED_GNB_IND:
       LOG_W(GNB_APP, "[gNB %ld] Received %s: associated AMF %d\n", instance, msg_name,
             NGAP_DEREGISTERED_GNB_IND(msg_p).nb_amf);

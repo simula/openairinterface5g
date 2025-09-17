@@ -1,4 +1,3 @@
-version: '3.8'
 services:
     mysql:
         container_name: "l2sim-mysql"
@@ -82,9 +81,10 @@ services:
             timeout: 5s
             retries: 5
     oai-gnb:
-        image: oaisoftwarealliance/oai-gnb:develop
-        privileged: true
+        image: ${REGISTRY:-oaisoftwarealliance}/${GNB_IMG:-oai-gnb}:${TAG:-develop}
         container_name: "l2sim-oai-gnb"
+        cap_drop:
+            - ALL
         network_mode: "host"
         environment:
             TZ: Europe/Paris
@@ -103,8 +103,9 @@ services:
 
     proxy:
         image: oai-lte-multi-ue-proxy:latest
-        privileged: true
         container_name: "l2sim-proxy"
+        cap_drop:
+            - ALL
         network_mode: "host"
         environment:
             TZ: Europe/Paris
@@ -118,15 +119,21 @@ services:
             retries: 5
 
     oai-nr-ue0:
-        image: oaisoftwarealliance/oai-nr-ue:develop
-        privileged: true
+        image: ${REGISTRY:-oaisoftwarealliance}/${NRUE_IMG:-oai-nr-ue}:${TAG:-develop}
         container_name: "l2sim-oai-nr-ue0"
+        cap_drop:
+            - ALL
+        cap_add:
+            - NET_ADMIN  # for interface bringup
+            - NET_RAW    # for ping
         network_mode: "host"
         environment:
             TZ: Europe/Paris
             OPENAIR_DIR: /opt/oai-nr-ue
             USE_ADDITIONAL_OPTIONS: --nfapi STANDALONE_PNF --node-number 2 --sa --emulate-l1 --log_config.global_log_options level,time,thread_id,nocolor
             ASAN_OPTIONS: detect_leaks=0
+        devices:
+             - /dev/net/tun:/dev/net/tun
         volumes:
             - ../../conf_files/nrue.band78.106prb.l2sim.conf:/opt/oai-nr-ue/etc/nr-ue.conf
             - ../../../openair1/SIMULATION/LTE_PHY/BLER_SIMULATIONS/AWGN/AWGN_results:/opt/oai-nr-ue/openair1/SIMULATION/LTE_PHY/BLER_SIMULATIONS/AWGN/AWGN_results

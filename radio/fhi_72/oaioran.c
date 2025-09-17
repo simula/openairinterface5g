@@ -92,10 +92,19 @@ void oai_xran_fh_rx_callback(void *pCallbackTag, xran_status_t status)
 
   rx_sym = callback_tag->symbol;
   uint32_t ru_id = callback_tag->oXuId;
+
+  LOG_D(NR_PHY,
+        "rx_callback frame %d, subframe %d, slot %d, second %lld, rx_sym %d ru_id %d\n",
+        frame,
+        subframe,
+        slot,
+        (unsigned long long)second,
+        rx_sym,
+        ru_id);
   if (rx_sym == 7) {
     if (first_call_set) {
       if (!first_rx_set) {
-        LOG_I(NR_PHY, "first_rx is set (num_ports %d)\n", num_ports);
+        LOG_I(NR_PHY, "first_rx is set (num_ports %d), first_read_set %d\n", num_ports, first_read_set);
       }
       first_rx_set = 1;
       if (first_read_set == 1) {

@@ -25,10 +25,16 @@
 	<htmlTabName>Build Container Images</htmlTabName>
 	<htmlTabIcon>wrench</htmlTabIcon>
 	<TestCaseRequestedList>
+ 100001
  000001
 	</TestCaseRequestedList>
 	<TestCaseExclusionList></TestCaseExclusionList>
-
+	<testCase id="100001">
+		<class>Create_Workspace</class>
+		<desc>Create new Workspace</desc>
+		<eNB_instance>0</eNB_instance>
+		<eNB_serverId>0</eNB_serverId>
+	</testCase>
 	<testCase id="000001">
 		<class>Build_Image</class>
 		<desc>Cross-Compile for ARM64</desc>

@@ -32,65 +32,40 @@ or
 phy_scope_gNB(0, phy_vars_gnb, phy_vars_ru, UE_id)
 ```
 
-# Qt-based Scope
+# ImScope
 
-## Building Instructions
-For the new qt-based scope designed for NR, please consider the following:
+ImScope is a scope based on imgui & implot. This scope uses a different concurrency model than xforms scope, with thread
+safety being priority. The goal is to never show incorrect data on the screen and be able to use the scope with real radios.
+If correctness cannot be achieved e.g. due to performance issues when using thread safe implementation user should be warned
+clearly on the screen.
 
-1. run the gNB or the UE with the option '--dqt'.
-2. make sure to install the Qt5 packages before running the scope. Otherwise, the scope will NOT be displayed! Note that Qt6 does NOT work.
-3. To build the new scope, add 'nrqtscope' after the '--build-lib' option. So, the complete command would be
+![image](./imscope/imscope_screenshot.png)
 
-   ```
-   ./build_oai --gNB -w USRP --nrUE --build-lib nrqtscope
-   ```
+## Prerequisites
 
-## New Features
+ImScope uses imgui, implot, glfw3 and opengl. imgui and implot should be downloaded automatically when configuring the project
+with `-DENABLE_IMSCOPE=ON`, using [CPM](https://github.com/cpm-cmake/CPM.cmake). CPM is used because imgui and implot do not have
+an official binary release. glfw3 and opengl should be installed with your system, on ubuntu these are contained in packages
+libglfw3-dev and libopengl-dev respectivly.
 
-1. New KPIs for both gNB and UE, e.g., BLER, MCS, throughout, and number of scheduled RBs.
-2. For each of the gNB and UE, a main widget is created with a 3x2 grid of sub-widgets, each to display one KPI.
-3. Each of the sub-widgets has a drop-down list to choose the KPI to show in that sub-widget.
-4. Both of the gNB and UE scopes can be resized using the mouse movement.
+## Building
 
-## Troubleshoot
+Add `-DENABLE_IMSCOPE=ON` to your `cmake` command. Build target `imscope`
 
-Similar as with the Xforms-based scope, you should allow root to open X
-windows if using Xorg:
-```
-xhost +si:localuser:root
-```
+## Running
 
-If you run on Wayland (e.g., Gnome on Ubuntu 22), you might get this error:
-```
-Warning: Ignoring XDG_SESSION_TYPE=wayland on Gnome. Use QT_QPA_PLATFORM=wayland to run on Wayland anyway.
-Authorization required, but no authorization protocol specified
-qt.qpa.xcb: could not connect to display :0
-qt.qpa.plugin: Could not load the Qt platform plugin "xcb" in "" even though it was found.
-This application failed to start because no Qt platform plugin could be initialized. Reinstalling the application may fix this problem.
-```
+Run with `--imscope` flag
 
-We have to force the use of Wayland. Before that, make sure that the Qt-Wayland
-plugin is installed. Also, there seems to be a problem with the qt5-gtk
-platform theme, so remove it:
-```
-sudo apt-get install qtwayland5
-sudo apt-get remove qt5-gtk-platformtheme
-```
+## Usage notes
 
-Now, force the Wayland plugin; also make sure to pass `-E` to sudo:
-```
-sudo -E QT_QPA_PLATFORM=wayland ./nr-softmodem --sa -O <conf> --dqt
-```
+ - It's experimental and might contain bugs
+ - It uses tree nodes to hide/show scopes (layout is subject to change). If a scope is not visible or is frozen it costs nearly
+ nothing in the PHY threads. If its unfrozen every time the data is displayed the PHY thread would have to perform the copy. By
+ default this can happen up to 24 times per second. User is informed on the estimated impact on PHY threads at the top of the
+ window. You can use FPS target to limit the impact on PHY threads and maintain scope functionality while minimizing the effect
+ on realtime operation.
 
-Furthermore, if you get the following warning, _followed by a segfault_ (i.e.,
-if it runs, you can ignore this)
-```
-QStandardPaths: wrong ownership on runtime directory /run/user/1000, 1000 instead of 0
-```
-You can set the XDG runtime directory like one of the following options (try in
-order, keep `QT_QPA_PLATFORM` if necessary)
-```
-sudo -E XDG_RUNTIME_DIR=/run/user/0 ./nr-softmodem ...
-sudo -E XDG_RUNTIME_DIR=/tmp/runtime-root ./nr-softmodem ...
-sudo -E XDG_RUNTIME_DIR= ./nr-softmodem ...
-```
+## Reporting bugs and feature requests
+
+Report bugs and feature requests on [gitlab](https://gitlab.eurecom.fr/oai/openairinterface5g/-/issues). There is two demo windows
+enabled in the scope that showcase imgui/implot, if you find something of interest it can be implemented in the scope.

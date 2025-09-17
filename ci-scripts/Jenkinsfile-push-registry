@@ -76,7 +76,7 @@ pipeline {
           withCredentials([
             [$class: 'UsernamePasswordMultiBinding', credentialsId: "${params.DH_Credentials}", usernameVariable: 'DH_Username', passwordVariable: 'DH_Password']
           ]) {
-            def listOfImages = ["oai-enb", "oai-gnb", "oai-lte-ue", "oai-nr-ue", "oai-nr-cuup"]
+            def listOfImages = ["oai-enb", "oai-gnb", "oai-lte-ue", "oai-nr-ue", "oai-nr-cuup", "oai-gnb-fhi72"]
             // Logging in on both registries
             sh "docker login -u ${DH_Username} -p ${DH_Password} > /dev/null 2>&1"
             sh "docker login -u oaicicd -p oaicicd porcepix.sboai.cs.eurecom.fr > /dev/null 2>&1"

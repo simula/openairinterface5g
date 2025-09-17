@@ -1,9 +1,13 @@
 services:
     oai-gnb:
-        image: oai-gnb:latest
-        privileged: true
+        image: ${REGISTRY:-oaisoftwarealliance}/${GNB_IMG:-oai-gnb}:${TAG:-develop}
         network_mode: "host"
         container_name: oai-gnb
+        cap_drop:
+            - ALL
+        cap_add:
+            - SYS_NICE
+            - IPC_LOCK
         environment:
             TZ: Europe/Paris
             USE_ADDITIONAL_OPTIONS: --log_config.global_log_options level,nocolor,time

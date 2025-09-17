@@ -28,7 +28,7 @@
 */
 
 #ifndef __LOG_H__
-#    define __LOG_H__
+#define __LOG_H__
 
 /*--- INCLUDES ---------------------------------------------------------------*/
 #include <unistd.h>
@@ -52,6 +52,9 @@
 #endif
 #include <pthread.h>
 #include <common/utils/utils.h>
+#if ENABLE_LTTNG
+#include "lttng-log.h"
+#endif
 /*----------------------------------------------------------------------------*/
 #include <assert.h>
 #ifdef NDEBUG
@@ -234,6 +237,10 @@ void logTerm (void);
 int  isLogInitDone (void);
 void logRecord_mt(const char *file, const char *func, int line,int comp, int level, const char *format, ...) __attribute__ ((format (printf, 6, 7)));
 void vlogRecord_mt(const char *file, const char *func, int line, int comp, int level, const char *format, va_list args );
+#if ENABLE_LTTNG
+void logRecord_lttng(const char *file, const char *func, int line, int comp, int level, const char *format, ...)
+    __attribute__((format(printf, 6, 7)));
+#endif
 void log_dump(int component, void *buffer, int buffsize,int datatype, const char *format, ... );
 int  set_log(int component, int level);
 void set_glog(int level);
@@ -425,9 +432,50 @@ int32_t write_file_matlab(const char *fname, const char *vname, void *data, int 
 
 /* define variable only used in LOG macro's */
 #define LOG_VAR(A, B) A B
-
-#else /* no T_TRACER */
-
+#else /* T_TRACER */
+#if ENABLE_LTTNG
+#define LOG_E(c, x...)                                                     \
+  do {                                                                     \
+    if (g_log->log_component[c].level >= OAILOG_ERR) {                     \
+      logRecord_lttng(__FILE__, __FUNCTION__, __LINE__, c, OAILOG_ERR, x); \
+    }                                                                      \
+  } while (0)
+#define LOG_W(c, x...)                                                         \
+  do {                                                                         \
+    if (g_log->log_component[c].level >= OAILOG_WARNING) {                     \
+      logRecord_lttng(__FILE__, __FUNCTION__, __LINE__, c, OAILOG_WARNING, x); \
+    }                                                                          \
+  } while (0)
+#define LOG_A(c, x...)                                                          \
+  do {                                                                          \
+    if (g_log->log_component[c].level >= OAILOG_ANALYSIS) {                     \
+      logRecord_lttng(__FILE__, __FUNCTION__, __LINE__, c, OAILOG_ANALYSIS, x); \
+    }                                                                           \
+  } while (0)
+#define LOG_I(c, x...)                                                      \
+  do {                                                                      \
+    if (g_log->log_component[c].level >= OAILOG_INFO) {                     \
+      logRecord_lttng(__FILE__, __FUNCTION__, __LINE__, c, OAILOG_INFO, x); \
+    }                                                                       \
+  } while (0)
+#define LOG_D(c, x...)                                                       \
+  do {                                                                       \
+    if (g_log->log_component[c].level >= OAILOG_DEBUG) {                     \
+      logRecord_lttng(__FILE__, __FUNCTION__, __LINE__, c, OAILOG_DEBUG, x); \
+    }                                                                        \
+  } while (0)
+#define LOG_T(c, x...)                                                       \
+  do {                                                                       \
+    if (g_log->log_component[c].level >= OAILOG_TRACE) {                     \
+      logRecord_lttng(__FILE__, __FUNCTION__, __LINE__, c, OAILOG_TRACE, x); \
+    }                                                                        \
+  } while (0)
+#define LOG_DDUMP(c, b, s, f, x...)                    \
+  do {                                                 \
+    if (g_log->log_component[c].level >= OAILOG_DEBUG) \
+      log_dump(c, b, s, f, x);                         \
+  } while (0)
+#else
 #define LOG_E(c, x...)                                                  \
   do {                                                                  \
     if (g_log->log_component[c].level >= OAILOG_ERR)                    \
@@ -469,6 +517,7 @@ int32_t write_file_matlab(const char *fname, const char *vname, void *data, int 
     if (g_log->log_component[c].level >= OAILOG_TRACE)                    \
       logRecord_mt(__FILE__, __FUNCTION__, __LINE__, c, OAILOG_TRACE, x); \
   } while (0)
+#endif
 
 #define VLOG(c, l, f, args)                                           \
   do {                                                                \
@@ -477,8 +526,8 @@ int32_t write_file_matlab(const char *fname, const char *vname, void *data, int 
   } while (0)
 
 #define nfapi_log(FILE, FNC, LN, COMP, LVL, FMT...)
-#define LOG_DEBUGFLAG(D) (g_log->dump_mask & D)
-#define LOG_DUMPFLAG(D) (g_log->debug_mask & D)
+#define LOG_DEBUGFLAG(D) (g_log->debug_mask & D)
+#define LOG_DUMPFLAG(D) (g_log->dump_mask & D)
 #define LOG_DUMPMSG(c, f, b, s, x...)      \
   do {                                     \
     if (g_log->dump_mask & f)              \

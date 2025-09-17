@@ -269,3 +269,20 @@ int openair0_write_reorder(openair0_device *device, openair0_timestamp timestamp
   }
   return nsamps;
 }
+
+void openair0_write_reorder_clear_context(openair0_device *device)
+{
+  LOG_I(HW, "received write reorder clear context\n");
+  re_order_t *ctx = &device->reOrder;
+  if (!ctx->initDone)
+    return;
+  if (pthread_mutex_trylock(&ctx->mutex_write) == 0)
+    LOG_E(HW, "write_reorder_clear_context call while still writing on the device\n");
+  pthread_mutex_destroy(&ctx->mutex_write);
+  pthread_mutex_lock(&ctx->mutex_store);
+  for (int i = 0; i < WRITE_QUEUE_SZ; i++)
+    ctx->queue[i].active = false;
+  pthread_mutex_unlock(&ctx->mutex_store);
+  pthread_mutex_destroy(&ctx->mutex_store);
+  ctx->initDone = false;
+}

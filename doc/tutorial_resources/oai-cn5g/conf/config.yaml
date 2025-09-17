@@ -114,11 +114,7 @@ database:
 ## general single_nssai configuration
 ## Defines YAML anchors, which are reused in the config file
 snssais:
-  - &embb_slice1
-    sst: 1
-  - &embb_slice2
-    sst: 1
-  - &embb_slice3
+  - &embb_slice
     sst: 1
 
 ############## NF-specific configuration
@@ -145,9 +141,7 @@ amf:
       mnc: 01
       tac: 0x0001
       nssai:
-        - *embb_slice1
-        - *embb_slice2
-        - *embb_slice3
+        - *embb_slice
   supported_integrity_algorithms:
     - "NIA1"
     - "NIA2"
@@ -178,29 +172,25 @@ smf:
   # follows the SmfInfo datatype from 3GPP TS 29.510
   smf_info:
     sNssaiSmfInfoList:
-      - sNssai: *embb_slice1
+      - sNssai: *embb_slice
         dnnSmfInfoList:
           - dnn: "oai"
-      - sNssai: *embb_slice2
-        dnnSmfInfoList:
           - dnn: "openairinterface"
-      - sNssai: *embb_slice3
-        dnnSmfInfoList:
           - dnn: "ims"
   local_subscription_infos:
-    - single_nssai: *embb_slice1
+    - single_nssai: *embb_slice
       dnn: "oai"
       qos_profile:
         5qi: 9
         session_ambr_ul: "10Gbps"
         session_ambr_dl: "10Gbps"
-    - single_nssai: *embb_slice2
+    - single_nssai: *embb_slice
       dnn: "openairinterface"
       qos_profile:
         5qi: 9
         session_ambr_ul: "10Gbps"
         session_ambr_dl: "10Gbps"
-    - single_nssai: *embb_slice3
+    - single_nssai: *embb_slice
       dnn: "ims"
       qos_profile:
         5qi: 9
@@ -216,14 +206,10 @@ upf:
     - host: oai-smf            # To be used for PFCP association in case of no-NRF
   upf_info:
     sNssaiUpfInfoList:
-      - sNssai: *embb_slice1
+      - sNssai: *embb_slice
         dnnUpfInfoList:
           - dnn: "oai"
-      - sNssai: *embb_slice2
-        dnnUpfInfoList:
           - dnn: "openairinterface"
-      - sNssai: *embb_slice3
-        dnnUpfInfoList:
           - dnn: "ims"
 
 ## DNN configuration

@@ -76,8 +76,17 @@
 #define SYNCF_TMP_SIZE                 (SYNCHRO_FFT_SIZE_MAX*IQ_SIZE)
 
 void init_context_synchro_nr(NR_DL_FRAME_PARMS *frame_parms_ue);
-void free_context_synchro_nr(void);
-int pss_synchro_nr(PHY_VARS_NR_UE *PHY_vars_UE, int is, int rate_change);
+int pss_synchro_nr(const c16_t **rxdata,
+                   const NR_DL_FRAME_PARMS *frame_parms,
+                   const c16_t pssTime[NUMBER_PSS_SEQUENCE][frame_parms->ofdm_symbol_size],
+                   int is,
+                   bool fo_flag,
+                   int target_Nid_cell,
+                   int *nid2,
+                   int *f_off,
+                   int *pssPeak,
+                   int *pssAvg);
+void generate_pss_nr_time(const NR_DL_FRAME_PARMS *fp, const int N_ID_2, int ssbFirstSCS, c16_t pssTime[fp->ofdm_symbol_size]);
 int16_t *get_primary_synchro_nr2(const int nid2);
 
 #endif /* PSS_NR_H */

@@ -23,6 +23,7 @@
 #define _SYSTEM_H_OAI_
 #include <stdint.h>
 #include <pthread.h>
+#include <stdbool.h>
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -42,8 +43,9 @@ int background_system(char *command);
 
 void start_background_system(void);
 
-void set_latency_target(void);
+void lock_memory_to_ram(void);
 
+bool has_cap_sys_nice(void);
 void threadCreate(pthread_t *t, void *(*func)(void *), void *param, char *name, int affinity, int priority);
 
 #define SCHED_OAI SCHED_RR
@@ -61,9 +63,6 @@ void thread_top_init(char *thread_name,
  * Functions to check system at runtime.
  ****************************************************/
 
-int checkIfFedoraDistribution(void);
-int checkIfGenericKernelOnFedora(void);
-int checkIfInsideContainer(void);
 int rt_sleep_ns (uint64_t x);
 #ifdef __cplusplus
 }

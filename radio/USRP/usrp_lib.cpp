@@ -313,6 +313,8 @@ static int trx_usrp_start(openair0_device *device) {
 #endif
 
   switch (device->openair0_cfg->gpio_controller) {
+    case RU_GPIO_CONTROL_NONE:
+      break;
     case RU_GPIO_CONTROL_GENERIC:
       trx_usrp_start_generic_gpio(device, s);
       break;
@@ -643,6 +645,8 @@ void *trx_usrp_write_thread(void * arg){
       ret = (int)s->tx_stream->send(&(((int16_t *)buff_tx[0])[0]), nsamps, s->tx_md);
     }
 
+    T(T_USRP_TX_ANT0, T_INT(timestamp), T_BUFFER(buff_tx[0], nsamps*4));
+
     if (ret != nsamps) LOG_E(HW,"[xmit] tx samples %d != %d\n",ret,nsamps);
     VCD_SIGNAL_DUMPER_DUMP_VARIABLE_BY_NAME( VCD_SIGNAL_DUMPER_VARIABLES_USRP_SEND_RETURN, ret );
     VCD_SIGNAL_DUMPER_DUMP_FUNCTION_BY_NAME( VCD_SIGNAL_DUMPER_FUNCTIONS_TRX_WRITE_THREAD, 0 );
@@ -768,6 +772,8 @@ static int trx_usrp_read(openair0_device *device, openair0_timestamp *ptimestamp
   s->rx_timestamp = s->rx_md.time_spec.to_ticks(s->sample_rate);
   *ptimestamp = s->rx_timestamp;
 
+  T(T_USRP_RX_ANT0, T_INT(s->rx_timestamp), T_BUFFER(buff[0], samples_received*4));
+
   recplay_state_t *recPlay=device->recplay_state;
 
   if (device->openair0_cfg->recplay_mode == RECPLAY_RECORDMODE) { // record mode
@@ -867,7 +873,8 @@ int trx_usrp_set_gains(openair0_device *device,
   if (openair0_cfg[0].rx_gain[0]-openair0_cfg[0].rx_gain_offset[0] > gain_range.stop()) {
     LOG_E(HW,"RX Gain 0 too high, reduce by %f dB\n",
           openair0_cfg[0].rx_gain[0]-openair0_cfg[0].rx_gain_offset[0] - gain_range.stop());
-    exit(-1);
+    int gain_diff = gain_range.stop() - (openair0_cfg[0].rx_gain[0] - openair0_cfg[0].rx_gain_offset[0]);
+    return gain_diff;
   }
 
   s->usrp->set_rx_gain(openair0_cfg[0].rx_gain[0]-openair0_cfg[0].rx_gain_offset[0]);
@@ -1010,6 +1017,28 @@ int trx_usrp_get_stats(openair0_device *device) {
  */
 int trx_usrp_reset_stats(openair0_device *device) {
   return(0);
+}
+
+/*! \brief synch the USRP time accross devices using the host clock (ideally syched with PTP, but also NTP works) and assuming all
+ * devices are synched by octoclock */
+static void usrp_sync_pps(usrp_state_t *s)
+{
+  // First, wait for PPS.
+  uhd::time_spec_t time_last_pps = s->usrp->get_time_last_pps();
+
+  while (time_last_pps == s->usrp->get_time_last_pps()) {
+    boost::this_thread::sleep(boost::posix_time::milliseconds(1));
+  }
+
+  // get host time
+  struct timespec tp;
+  if (clock_gettime(CLOCK_TAI, &tp) != 0)
+    LOG_W(PHY, "error getting system time\n");
+  double tai_sec = (double)tp.tv_sec;
+
+  // set USRP time to host time at next pps
+  s->usrp->set_time_next_pps(uhd::time_spec_t(tai_sec));
+  LOG_I(HW, "USRP clock set to %f sec\n", tai_sec);
 }
 
 extern "C" {
@@ -1188,8 +1217,12 @@ extern "C" {
       exit(EXIT_FAILURE);
     }
   } else {
-    s->usrp->set_time_next_pps(uhd::time_spec_t(0.0));
- 
+    if (s->usrp->get_time_source(0) == "external") {
+      usrp_sync_pps(s);
+    } else {
+      s->usrp->set_time_next_pps(uhd::time_spec_t(0.0));
+    }
+
     if (s->usrp->get_clock_source(0) == "external") {
       if (check_ref_locked(s,0)) {
 	LOG_I(HW,"USRP locked to external reference!\n");
@@ -1220,12 +1253,20 @@ extern "C" {
     LOG_I(HW,"%s() sample_rate:%u\n", __FUNCTION__, (int)openair0_cfg[0].sample_rate);
 
     switch ((int)openair0_cfg[0].sample_rate) {
+      case 245760000:
+        // from usrp_time_offset
+        // openair0_cfg[0].samples_per_packet    = 2048;
+        openair0_cfg[0].tx_sample_advance = 15; // to be checked
+        openair0_cfg[0].tx_bw = 200e6;
+        openair0_cfg[0].rx_bw = 200e6;
+        break;
+
       case 184320000:
         // from usrp_time_offset
-        //openair0_cfg[0].samples_per_packet    = 2048;
-        openair0_cfg[0].tx_sample_advance     = 15; //to be checked
-	openair0_cfg[0].tx_bw                 = 100e6;
-        openair0_cfg[0].rx_bw                 = 100e6;
+        // openair0_cfg[0].samples_per_packet    = 2048;
+        openair0_cfg[0].tx_sample_advance = 15; // to be checked
+        openair0_cfg[0].tx_bw = 100e6;
+        openair0_cfg[0].rx_bw = 100e6;
         break;
 
       case 122880000:
@@ -1388,25 +1429,27 @@ extern "C" {
   }
 
   for(int i=0; i<((int) s->usrp->get_rx_num_channels()); i++) {
-    if (i<openair0_cfg[0].rx_num_channels) {
-      s->usrp->set_rx_rate(openair0_cfg[0].sample_rate,i+choffset);
-      uhd::tune_request_t rx_tune_req(openair0_cfg[0].rx_freq[i],
-                                      openair0_cfg[0].tune_offset);
+    openair0_config_t *cfg = &openair0_cfg[0];
+    if (i < cfg->rx_num_channels) {
+      s->usrp->set_rx_rate(cfg->sample_rate, i + choffset);
+      uhd::tune_request_t rx_tune_req(cfg->rx_freq[i], cfg->tune_offset);
       s->usrp->set_rx_freq(rx_tune_req, i+choffset);
-      set_rx_gain_offset(&openair0_cfg[0],i,bw_gain_adjust);
+      set_rx_gain_offset(cfg, i, bw_gain_adjust);
       ::uhd::gain_range_t gain_range = s->usrp->get_rx_gain_range(i+choffset);
       // limit to maximum gain
-      double gain=openair0_cfg[0].rx_gain[i]-openair0_cfg[0].rx_gain_offset[i];
+      double gain = cfg->rx_gain[i] - cfg->rx_gain_offset[i];
       if ( gain > gain_range.stop())  {
-                   LOG_E(HW,"RX Gain too high, lower by %f dB\n",
-                   gain - gain_range.stop());
-               gain=gain_range.stop();
+        LOG_E(HW, "RX Gain too high, lower by %f dB\n", gain - gain_range.stop());
+        gain = gain_range.stop();
       }
-
       s->usrp->set_rx_gain(gain,i+choffset);
-      LOG_I(HW,"RX Gain %d %f (%f) => %f (max %f)\n",i,
-            openair0_cfg[0].rx_gain[i],openair0_cfg[0].rx_gain_offset[i],
-            openair0_cfg[0].rx_gain[i]-openair0_cfg[0].rx_gain_offset[i],gain_range.stop());
+      LOG_I(HW,
+            "RX Gain %d %f (%f) => %f (max %f)\n",
+            i,
+            cfg->rx_gain[i],
+            cfg->rx_gain_offset[i],
+            cfg->rx_gain[i] - cfg->rx_gain_offset[i],
+            gain_range.stop());
     }
   }
 

@@ -1,0 +1,43 @@
+Connecting to host 192.172.0.1, port 5002
+Reverse mode, remote host 192.172.0.1 is sending
+[  5] local 192.172.0.2 port 44733 connected to 192.172.0.1 port 5002
+[ ID] Interval           Transfer     Bitrate         Jitter    Lost/Total Datagrams
+[  5]   0.00-1.00   sec  8.55 MBytes  71.7 Mbits/sec  0.407 ms  66/6256 (1.1%)  (omitted)
+[  5]   1.00-2.00   sec  10.4 MBytes  87.3 Mbits/sec  0.355 ms  0/7540 (0%)  (omitted)
+[  5]   2.00-3.00   sec  9.55 MBytes  80.1 Mbits/sec  0.333 ms  0/6913 (0%)  (omitted)
+[  5]   3.00-4.00   sec  9.54 MBytes  80.0 Mbits/sec  0.344 ms  0/6906 (0%)  (omitted)
+[  5]   4.00-5.00   sec  9.54 MBytes  80.0 Mbits/sec  0.338 ms  0/6906 (0%)  (omitted)
+[  5]   0.00-1.00   sec  9.53 MBytes  80.0 Mbits/sec  0.398 ms  0/6903 (0%)
+[  5]   1.00-2.00   sec  9.54 MBytes  80.0 Mbits/sec  0.393 ms  0/6907 (0%)
+[  5]   2.00-3.00   sec  9.53 MBytes  80.0 Mbits/sec  0.338 ms  0/6902 (0%)
+[  5]   3.00-4.00   sec  4.50 MBytes  37.7 Mbits/sec  3.847 ms  9/3269 (0.28%)
+[  5]   4.00-5.00   sec  0.00 Bytes  0.00 bits/sec  3.847 ms  0/0 (0%)
+[  5]   5.00-6.00   sec  0.00 Bytes  0.00 bits/sec  3.847 ms  0/0 (0%)
+[  5]   6.00-7.00   sec  0.00 Bytes  0.00 bits/sec  3.847 ms  0/0 (0%)
+[  5]   7.00-8.00   sec  0.00 Bytes  0.00 bits/sec  3.847 ms  0/0 (0%)
+[  5]   8.00-9.00   sec  0.00 Bytes  0.00 bits/sec  3.847 ms  0/0 (0%)
+[  5]   9.00-10.00  sec  0.00 Bytes  0.00 bits/sec  3.847 ms  0/0 (0%)
+[  5]  10.00-11.00  sec  0.00 Bytes  0.00 bits/sec  3.847 ms  0/0 (0%)
+[  5]  11.00-12.00  sec  0.00 Bytes  0.00 bits/sec  3.847 ms  0/0 (0%)
+[  5]  12.00-13.00  sec  0.00 Bytes  0.00 bits/sec  3.847 ms  0/0 (0%)
+[  5]  13.00-14.00  sec  0.00 Bytes  0.00 bits/sec  3.847 ms  0/0 (0%)
+[  5]  14.00-15.00  sec  0.00 Bytes  0.00 bits/sec  3.847 ms  0/0 (0%)
+[  5]  15.00-16.00  sec  0.00 Bytes  0.00 bits/sec  3.847 ms  0/0 (0%)
+[  5]  16.00-17.00  sec  0.00 Bytes  0.00 bits/sec  3.847 ms  0/0 (0%)
+[  5]  17.00-18.00  sec  0.00 Bytes  0.00 bits/sec  3.847 ms  0/0 (0%)
+[  5]  18.00-19.00  sec  0.00 Bytes  0.00 bits/sec  3.847 ms  0/0 (0%)
+[  5]  19.00-20.00  sec  0.00 Bytes  0.00 bits/sec  3.847 ms  0/0 (0%)
+[  5]  20.00-21.00  sec  0.00 Bytes  0.00 bits/sec  3.847 ms  0/0 (0%)
+[  5]  21.00-22.00  sec  0.00 Bytes  0.00 bits/sec  3.847 ms  0/0 (0%)
+[  5]  22.00-23.00  sec  0.00 Bytes  0.00 bits/sec  3.847 ms  0/0 (0%)
+[  5]  23.00-24.00  sec  0.00 Bytes  0.00 bits/sec  3.847 ms  0/0 (0%)
+[  5]  24.00-25.00  sec  0.00 Bytes  0.00 bits/sec  3.847 ms  0/0 (0%)
+[  5]  25.00-26.00  sec  0.00 Bytes  0.00 bits/sec  3.847 ms  0/0 (0%)
+[  5]  26.00-27.00  sec  0.00 Bytes  0.00 bits/sec  3.847 ms  0/0 (0%)
+[  5]  27.00-28.00  sec  0.00 Bytes  0.00 bits/sec  3.847 ms  0/0 (0%)
+[  5]  28.00-29.00  sec  0.00 Bytes  0.00 bits/sec  3.847 ms  0/0 (0%)
+[  5]  30.00-69.84  sec  0.00 Bytes  0.00 bits/sec  3.847 ms  0/0 (0%)
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate         Jitter    Lost/Total Datagrams
+[  5]   0.00-69.84  sec  0.00 Bytes  0.00 bits/sec  0.000 ms  0/-34521 (0%)  sender
+[  5]   0.00-69.84  sec  33.1 MBytes  3.98 Mbits/sec  3.847 ms  9/23981 (0.038%)  receiver

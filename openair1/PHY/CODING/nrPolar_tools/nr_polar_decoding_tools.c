@@ -45,9 +45,9 @@ static inline void updateBit(uint8_t listSize,
 			     uint8_t bit[xlen][ylen][zlen],
 			     uint8_t bitU[xlen][ylen])
 {
-  uint16_t offset = (xlen / (pow(2, (ylen - col))));
+  const uint offset = (xlen / (pow(2, (ylen - col))));
 
-  for (uint8_t i = 0; i < listSize; i++) {
+  for (uint i = 0; i < listSize; i++) {
     if (((row) % (2 * offset)) >= offset) {
       if (bitU[row][col - 1] == 0)
         updateBit(listSize, row, (col - 1), xlen, ylen, zlen, bit, bitU);
@@ -89,8 +89,8 @@ void updateLLR(uint8_t listSize,
                uint8_t bit[xlen][ylen][zlen],
                uint8_t bitU[xlen][ylen])
 {
-  uint16_t offset = (xlen / (pow(2, (ylen - col - 1))));
-  for (uint8_t i = 0; i < listSize; i++) {
+  const uint offset = (xlen / (pow(2, (ylen - col - 1))));
+  for (uint i = 0; i < listSize; i++) {
     if ((row % (2 * offset)) >= offset) {
       if (bitU[row - offset][col] == 0)
         updateBit(listSize, (row - offset), col, xlen, ylen, zlen, bit, bitU);
@@ -122,10 +122,9 @@ void updatePathMetric(double *pathMetric,
 		      double llr[xlen][ylen][zlen]
 		      )
 {
-	int8_t multiplier = (2*bitValue) - 1;
-	for (uint8_t i=0; i<listSize; i++)
-		pathMetric[i] += log ( 1 + exp(multiplier*llr[row][0][i]) ) ; //eq. (11b)
-
+  const int multiplier = (2 * bitValue) - 1;
+  for (uint i = 0; i < listSize; i++)
+    pathMetric[i] += log(1 + exp(multiplier * llr[row][0][i])); // eq. (11b)
 }
 
 void updatePathMetric2(double *pathMetric,
@@ -136,19 +135,18 @@ void updatePathMetric2(double *pathMetric,
 		       int zlen,
 		       double llr[xlen][ylen][zlen])
 {
-	double tempPM[listSize];
-	memcpy(tempPM, pathMetric, (sizeof(double) * listSize));
+  double tempPM[listSize];
+  memcpy(tempPM, pathMetric, (sizeof(double) * listSize));
 
-	uint8_t bitValue = 0;
-	int8_t multiplier = (2 * bitValue) - 1;
-	for (uint8_t i = 0; i < listSize; i++)
-		pathMetric[i] += log(1 + exp(multiplier * llr[row][0][i])); //eq. (11b)
+  uint bitValue = 0;
+  int multiplier = (2 * bitValue) - 1;
+  for (uint i = 0; i < listSize; i++)
+    pathMetric[i] += log(1 + exp(multiplier * llr[row][0][i])); // eq. (11b)
 
-	bitValue = 1;
-	multiplier = (2 * bitValue) - 1;
-	for (uint8_t i = listSize; i < 2*listSize; i++)
-		pathMetric[i] = tempPM[(i-listSize)] + log(1 + exp(multiplier * llr[row][0][(i-listSize)])); //eq. (11b)
-
+  bitValue = 1;
+  multiplier = (2 * bitValue) - 1;
+  for (uint i = listSize; i < 2 * listSize; i++)
+    pathMetric[i] = tempPM[(i - listSize)] + log(1 + exp(multiplier * llr[row][0][(i - listSize)])); // eq. (11b)
 }
 
 decoder_node_t *new_decoder_node(int first_leaf_index, int level) {
@@ -189,13 +187,13 @@ decoder_node_t *add_nodes(int level, int first_leaf_index, t_nrPolar_params *pol
 
   for (int i=0;i<Nv;i++) {
     if (polarParams->information_bit_pattern[i+first_leaf_index]>0) {
-    	  all_frozen_below=0;
-        break;
+      all_frozen_below = 0;
+      break;
     }
   }
 
   if (all_frozen_below==0)
-	  new_node->left=add_nodes(level-1, first_leaf_index, polarParams);
+    new_node->left = add_nodes(level - 1, first_leaf_index, polarParams);
   else {
 #ifdef DEBUG_NEW_IMPL
     printf("aggregating frozen bits %d ... %d at level %d (%s)\n",first_leaf_index,first_leaf_index+Nv-1,level,((first_leaf_index/Nv)&1)==0?"left":"right");
@@ -204,7 +202,7 @@ decoder_node_t *add_nodes(int level, int first_leaf_index, t_nrPolar_params *pol
     new_node->all_frozen=1;
   }
   if (all_frozen_below==0)
-	  new_node->right=add_nodes(level-1,first_leaf_index+(Nv/2),polarParams);
+    new_node->right = add_nodes(level - 1, first_leaf_index + (Nv / 2), polarParams);
 
 #ifdef DEBUG_NEW_IMPL
   printf("new_node (%d): first_leaf_index %d, left %p, right %p\n",Nv,first_leaf_index,new_node->left,new_node->right);
@@ -239,7 +237,8 @@ void build_decoder_tree(t_nrPolar_params *polarParams)
 #endif
 }
 
-void applyFtoleft(const t_nrPolar_params *pp, decoder_node_t *node) {
+static void applyFtoleft(const t_nrPolar_params *pp, decoder_node_t *node, uint8_t *output)
+{
   int16_t *alpha_v=node->alpha;
   int16_t *alpha_l=node->left->alpha;
   int16_t *betal = node->left->beta;
@@ -248,11 +247,9 @@ void applyFtoleft(const t_nrPolar_params *pp, decoder_node_t *node) {
 #ifdef DEBUG_NEW_IMPL
   printf("applyFtoleft %d, Nv %d (level %d,node->left (leaf %d, AF %d))\n",node->first_leaf_index,node->Nv,node->level,node->left->leaf,node->left->all_frozen);
 
-
-  for (int i=0;i<node->Nv;i++) printf("i%d (frozen %d): alpha_v[i] = %d\n",i,1-pp->information_bit_pattern[node->first_leaf_index+i],alpha_v[i]);
+  for (int i = 0; i < node->Nv; i++)
+    printf("i%d (frozen %d): alpha_v[i] = %d\n", i, 1 - pp->information_bit_pattern[node->first_leaf_index + i], alpha_v[i]);
 #endif
-
- 
 
   if (node->left->all_frozen == 0) {
     int avx2mod = (node->Nv/2)&15;
@@ -307,7 +304,7 @@ void applyFtoleft(const t_nrPolar_params *pp, decoder_node_t *node) {
 #ifdef DEBUG_NEW_IMPL
       printf("betal[0] %d (%p)\n",betal[0],&betal[0]);
 #endif
-      pp->nr_polar_U[node->first_leaf_index] = (1+betal[0])>>1; 
+      output[node->first_leaf_index] = (1 + betal[0]) >> 1;
 #ifdef DEBUG_NEW_IMPL
       printf("Setting bit %d to %d (LLR %d)\n",node->first_leaf_index,(betal[0]+1)>>1,alpha_l[0]);
 #endif
@@ -315,8 +312,8 @@ void applyFtoleft(const t_nrPolar_params *pp, decoder_node_t *node) {
   }
 }
 
-void applyGtoright(const t_nrPolar_params *pp,decoder_node_t *node) {
-
+static void applyGtoright(const t_nrPolar_params *pp, decoder_node_t *node, uint8_t *output)
+{
   int16_t *alpha_v=node->alpha;
   int16_t *alpha_r=node->right->alpha;
   int16_t *betal = node->left->beta;
@@ -332,10 +329,9 @@ void applyGtoright(const t_nrPolar_params *pp,decoder_node_t *node) {
       int avx2len = node->Nv/2/16;
       
       for (int i=0;i<avx2len;i++) {
-	((simde__m256i *)alpha_r)[i] = 
-	  simde_mm256_subs_epi16(((simde__m256i *)alpha_v)[i+avx2len],
-			    simde_mm256_sign_epi16(((simde__m256i *)alpha_v)[i],
-					      ((simde__m256i *)betal)[i]));	
+        ((simde__m256i *)alpha_r)[i] =
+            simde_mm256_subs_epi16(((simde__m256i *)alpha_v)[i + avx2len],
+                                   simde_mm256_sign_epi16(((simde__m256i *)alpha_v)[i], ((simde__m256i *)betal)[i]));
       }
     }
     else if (avx2mod == 8) {
@@ -360,7 +356,7 @@ void applyGtoright(const t_nrPolar_params *pp,decoder_node_t *node) {
       }
     if (node->Nv == 2) { // apply hard decision on right node
       betar[0] = (alpha_r[0]>0) ? -1 : 1;
-      pp->nr_polar_U[node->first_leaf_index+1] = (1+betar[0])>>1;
+      output[node->first_leaf_index + 1] = (1 + betar[0]) >> 1;
 #ifdef DEBUG_NEW_IMPL
       printf("Setting bit %d to %d (LLR %d)\n",node->first_leaf_index+1,(betar[0]+1)>>1,alpha_r[0]);
 #endif
@@ -407,18 +403,17 @@ void computeBeta(const t_nrPolar_params *pp,decoder_node_t *node) {
   memcpy((void*)&betav[node->Nv/2],betar,(node->Nv/2)*sizeof(int16_t));
 }
 
-void generic_polar_decoder(const t_nrPolar_params *pp,decoder_node_t *node) {
-
-
+void generic_polar_decoder(const t_nrPolar_params *pp, decoder_node_t *node, uint8_t *nr_polar_U)
+{
   // Apply F to left
-  applyFtoleft(pp, node);
+  applyFtoleft(pp, node, nr_polar_U);
   // if left is not a leaf recurse down to the left
   if (node->left->leaf==0)
-    generic_polar_decoder(pp, node->left);
+    generic_polar_decoder(pp, node->left, nr_polar_U);
 
-  applyGtoright(pp, node);
-  if (node->right->leaf==0) generic_polar_decoder(pp, node->right);
+  applyGtoright(pp, node, nr_polar_U);
+  if (node->right->leaf == 0)
+    generic_polar_decoder(pp, node->right, nr_polar_U);
 
   computeBeta(pp, node);
-
-} 
+}

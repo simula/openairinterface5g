@@ -42,7 +42,7 @@ typedef struct {
  * @param f Function representing the predicate
  * @return Whether the predicate was fullfilled and the iterator to the element if true
  */
-elm_arr_t find_if_arr(seq_arr_t* arr, void* value, bool (*f)(const void* value, const void* it));
+elm_arr_t find_if(seq_arr_t* arr, void* value, bool (*f)(const void* value, const void* it));
 
 /**
  * @brief Find elements in an array in the semi-open range [start_it, end_it)

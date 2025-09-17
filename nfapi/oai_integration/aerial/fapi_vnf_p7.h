@@ -30,7 +30,6 @@
 * \warning
  */
 
-#ifdef ENABLE_AERIAL
 #ifndef OPENAIRINTERFACE_FAPI_VNF_P7_H
 #define OPENAIRINTERFACE_FAPI_VNF_P7_H
 
@@ -45,6 +44,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+#include "nfapi_interface.h"
 #include "nfapi_nr_interface_scf.h"
 #include "nfapi_vnf_interface.h"
 #include "nfapi_vnf.h"
@@ -179,21 +179,10 @@ typedef struct {
 
 } vnf_info;
 
-int aerial_wake_gNB_rxtx(PHY_VARS_gNB *gNB, uint16_t sfn, uint16_t slot);
-int aerial_wake_eNB_rxtx(PHY_VARS_eNB *eNB, uint16_t sfn, uint16_t sf);
-int aerial_phy_sync_indication(struct nfapi_vnf_p7_config *config, uint8_t sync);
-int aerial_phy_slot_indication(struct nfapi_vnf_p7_config *config, uint16_t phy_id, uint16_t sfn, uint16_t slot);
-int aerial_phy_harq_indication(struct nfapi_vnf_p7_config *config, nfapi_harq_indication_t *ind);
 int aerial_phy_nr_crc_indication(nfapi_nr_crc_indication_t *ind);
 int aerial_phy_nr_rx_data_indication(nfapi_nr_rx_data_indication_t *ind);
 int aerial_phy_nr_rach_indication(nfapi_nr_rach_indication_t *ind);
 int aerial_phy_nr_uci_indication(nfapi_nr_uci_indication_t *ind);
-int aerial_phy_srs_indication(struct nfapi_vnf_p7_config *config, nfapi_srs_indication_t *ind);
-int aerial_phy_sr_indication(struct nfapi_vnf_p7_config *config, nfapi_sr_indication_t *ind);
-int aerial_phy_cqi_indication(struct nfapi_vnf_p7_config *config, nfapi_cqi_indication_t *ind);
-int aerial_phy_lbt_dl_indication(struct nfapi_vnf_p7_config *config, nfapi_lbt_dl_indication_t *ind);
-int aerial_phy_nb_harq_indication(struct nfapi_vnf_p7_config *config, nfapi_nb_harq_indication_t *ind);
-int aerial_phy_nrach_indication(struct nfapi_vnf_p7_config *config, nfapi_nrach_indication_t *ind);
 int aerial_phy_nr_slot_indication(nfapi_nr_slot_indication_scf_t *ind);
 int aerial_phy_nr_srs_indication(nfapi_nr_srs_indication_t *ind);
 void *aerial_vnf_allocate(size_t size);
@@ -240,4 +229,3 @@ uint8_t aerial_unpack_nr_rach_indication(uint8_t **ppReadPackedMsg,
 // int fapi_nr_p7_message_pack(void *pMessageBuf, void *pPackedBuf, uint32_t packedBufLen, nfapi_p7_codec_config_t* config);
 int fapi_nr_pack_and_send_p7_message(vnf_p7_t *vnf_p7, nfapi_p7_message_header_t *header);
 #endif // OPENAIRINTERFACE_FAPI_VNF_P7_H
-#endif

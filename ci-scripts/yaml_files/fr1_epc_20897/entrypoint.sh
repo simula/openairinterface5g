@@ -11,7 +11,7 @@ then
     ifconfig ${MME_INTERFACE_NAME_FOR_S10} ${MME_IPV4_ADDRESS_FOR_S10} up
 fi
 
-LIST_OF_NETWORKS=`ifconfig -s | egrep -v "^Iface|^lo" | cut -d' ' -f1`
+LIST_OF_NETWORKS=`ifconfig -s | grep -E -v "^Iface|^lo" | cut -d' ' -f1`
 
 for if_name in $LIST_OF_NETWORKS
 do

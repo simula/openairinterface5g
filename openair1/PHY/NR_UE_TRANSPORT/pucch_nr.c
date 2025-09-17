@@ -40,6 +40,7 @@
 #include <openair1/PHY/CODING/nrSmallBlock/nr_small_block_defs.h>
 #include "common/utils/LOG/log.h"
 #include "common/utils/LOG/vcd_signal_dumper.h"
+#include "openair1/PHY/NR_REFSIG/nr_refsig.h"
 
 #include "T.h"
 //#define NR_UNIT_TEST 1
@@ -484,45 +485,31 @@ void nr_generate_pucch1(const PHY_VARS_NR_UE *ue,
   }
 }
 
-static inline void nr_pucch2_3_4_scrambling(uint16_t M_bit,uint16_t rnti,uint16_t n_id,uint64_t *B64,uint8_t *btilde) {
-  uint32_t x1 = 0, x2 = 0, s = 0;
-  int i;
-  uint8_t c;
+static inline void nr_pucch2_3_4_scrambling(uint16_t M_bit, uint16_t rnti, uint16_t n_id, uint64_t *B64, uint8_t *btilde)
+{
   // c_init=nRNTI*2^15+n_id according to TS 38.211 Subclause 6.3.2.6.1
-  //x2 = (rnti) + ((uint32_t)(1+nr_slot_tx)<<16)*(1+(fp->Nid_cell<<1));
-  x2 = ((rnti)<<15)+n_id;
+  const int roundedSz = (M_bit + 31) / 32;
+  uint32_t *seq = gold_cache((rnti << 15) + n_id, roundedSz);
 #ifdef DEBUG_NR_PUCCH_TX
   printf("\t\t [nr_pucch2_3_4_scrambling] gold sequence s=%x, M_bit %d\n",s,M_bit);
 #endif
 
-  uint8_t *btildep=btilde;
-  int M_bit2=M_bit > 31 ? 32 : (M_bit&31), M_bit3=M_bit;
-  uint32_t B;
-  for (int iprime=0;iprime<=(M_bit>>5);iprime++,btildep+=32) {
-    s = lte_gold_generic(&x1, &x2, (iprime==0) ? 1 : 0);
-    B=((uint32_t*)B64)[iprime];
-    for (int n=0;n<M_bit2;n+=8)
-      LOG_D(PHY,"PUCCH2 encoded %d : %d,%d,%d,%d,%d,%d,%d,%d\n",n,
-	    (B>>n)&1,
-	    (B>>(n+1))&1,
-	    (B>>(n+2))&1,
-	    (B>>(n+3))&1,
-	    (B>>(n+4))&1,
-	    (B>>(n+5))&1,
-	    (B>>(n+6))&1,
-	    (B>>(n+7))&1
-	    );
-    for (i=0; i<M_bit2; i++) {
-      c = (uint8_t)((s>>i)&1);
+  uint8_t *btildep = btilde;
+  uint32_t *B32 = (uint32_t *)B64;
+
+  for (int iprime = 0; iprime < roundedSz; iprime++, btildep += 32) {
+    const uint32_t s = seq[iprime];
+    const uint32_t B = B32[iprime];
+    LOG_D(PHY, "PUCCH2 encoded: %02x\n", B);
+    int M_bit2 = iprime == M_bit / 32 ? M_bit % 32 : 32;
+    for (int i = 0; i < M_bit2; i++) {
+      uint8_t c = (uint8_t)((s >> i) & 1);
       btildep[i] = (((B>>i)&1) ^ c);
 #ifdef DEBUG_NR_PUCCH_TX
       printf("\t\t\t btilde[%d]=%x from unscrambled bit %d and scrambling %d (%x)\n",i+(iprime<<5),btilde[i],((B>>i)&1),c,s>>i);
 #endif
     }
-    M_bit3-=32;
-    M_bit2=M_bit3 > 31 ? 32 : (M_bit3&31);
   }
-
 
 #ifdef DEBUG_NR_PUCCH_TX
   printf("\t\t [nr_pucch2_3_4_scrambling] scrambling M_bit=%d bits\n", M_bit);
@@ -721,9 +708,7 @@ void nr_generate_pucch2(const PHY_VARS_NR_UE *ue,
    * Implementing TS 38.211 Subclause 6.3.2.5.3 Mapping to physical resources
    */
   // int32_t *txptr;
-  uint32_t x1 = 0, x2 = 0, s = 0;
-  int i=0;
-  int m=0;
+  int outSample = 0;
   uint8_t  startingSymbolIndex = pucch_pdu->start_symbol_index;
   uint16_t startingPRB = pucch_pdu->prb_start + pucch_pdu->bwp_start;
 
@@ -732,14 +717,10 @@ void nr_generate_pucch2(const PHY_VARS_NR_UE *ue,
     uint64_t temp_x2 = 1ll << 17;
     temp_x2 *= 14UL * nr_slot_tx + l + startingSymbolIndex + 1;
     temp_x2 *= 2UL * pucch_pdu->dmrs_scrambling_id + 1;
-    x2 = (temp_x2 + 2UL * pucch_pdu->dmrs_scrambling_id) % (1UL << 31);
-
-    int reset = 1;
-    for (int ii=0; ii<=(startingPRB>>2); ii++) {
-      s = lte_gold_generic(&x1, &x2, reset);
-      reset = 0;
-    }
-    m = 0;
+    temp_x2 = (temp_x2 + 2ULL * pucch_pdu->dmrs_scrambling_id) % (1UL << 31);
+    uint idxGold = startingPRB >> 2;
+    uint32_t *seq = gold_cache(temp_x2, idxGold + pucch_pdu->prb_size);
+    int m = 0;
     for (int rb=0; rb<pucch_pdu->prb_size; rb++) {
       //startingPRB = startingPRB + rb;
       const bool nb_rb_is_even = frame_parms->N_RB_DL & 1;
@@ -773,7 +754,7 @@ void nr_generate_pucch2(const PHY_VARS_NR_UE *ue,
         }
 
         if (n%3 != 1) { // mapping PUCCH according to TS38.211 subclause 6.3.2.5.3
-          txdataF[0][re_offset] = d[i + k];
+          txdataF[0][re_offset] = d[outSample + k];
 #ifdef DEBUG_NR_PUCCH_TX
           printf(
               "\t [nr_generate_pucch2] (n=%d,i=%d) mapping PUCCH to RE \t amp=%d \tofdm_symbol_size=%d \tN_RB_DL=%d "
@@ -795,8 +776,8 @@ void nr_generate_pucch2(const PHY_VARS_NR_UE *ue,
         }
 
         if (n%3 == 1) { // mapping DM-RS signal according to TS38.211 subclause 6.4.1.3.2
-          txdataF[0][re_offset].r = (int16_t)(baseVal * (1 - (2 * ((uint8_t)((s >> (2 * m)) & 1)))));
-          txdataF[0][re_offset].i = (int16_t)(baseVal * (1 - (2 * ((uint8_t)((s >> (2 * m + 1)) & 1)))));
+          txdataF[0][re_offset].r = (int16_t)(baseVal * (1 - (2 * ((uint8_t)((seq[idxGold] >> (2 * m)) & 1)))));
+          txdataF[0][re_offset].i = (int16_t)(baseVal * (1 - (2 * ((uint8_t)((seq[idxGold] >> (2 * m + 1)) & 1)))));
           m++;
 #ifdef DEBUG_NR_PUCCH_TX
           printf(
@@ -821,10 +802,10 @@ void nr_generate_pucch2(const PHY_VARS_NR_UE *ue,
         re_offset++;
       }
 
-      i+=8;
+      outSample += 8;
 
-      if ((m&((1<<4)-1))==0) {
-        s = lte_gold_generic(&x1, &x2, 0);
+      if (m % 16 == 0) {
+        idxGold++;
         m = 0;
       }
     }

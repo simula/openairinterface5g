@@ -45,13 +45,13 @@ static void f1ap_read_drb_qos_param(const F1AP_QoSFlowLevelQoSParameters_t *asn1
   const F1AP_QoS_Characteristics_t *dRB_QoS_Char = &asn1_qos->qoS_Characteristics;
 
   if (dRB_QoS_Char->present == F1AP_QoS_Characteristics_PR_non_Dynamic_5QI) {
-    drb_qos_char->qos_type = non_dynamic;
+    drb_qos_char->qos_type = NON_DYNAMIC;
     drb_qos_char->non_dynamic.fiveqi = dRB_QoS_Char->choice.non_Dynamic_5QI->fiveQI;
     drb_qos_char->non_dynamic.qos_priority_level = (dRB_QoS_Char->choice.non_Dynamic_5QI->qoSPriorityLevel != NULL)
                                                        ? *dRB_QoS_Char->choice.non_Dynamic_5QI->qoSPriorityLevel
                                                        : -1;
   } else {
-    drb_qos_char->qos_type = dynamic;
+    drb_qos_char->qos_type = DYNAMIC;
     drb_qos_char->dynamic.fiveqi =
         (dRB_QoS_Char->choice.dynamic_5QI->fiveQI != NULL) ? *dRB_QoS_Char->choice.dynamic_5QI->fiveQI : -1;
     drb_qos_char->dynamic.qos_priority_level = dRB_QoS_Char->choice.dynamic_5QI->qoSPriorityLevel;
@@ -84,13 +84,13 @@ static void f1ap_read_flows_mapped(const F1AP_Flows_Mapped_To_DRB_List_t *asn1_f
       const F1AP_QoS_Characteristics_t *Flow_QoS_Char = &Flow_QoS->qoS_Characteristics;
 
       if (Flow_QoS_Char->present == F1AP_QoS_Characteristics_PR_non_Dynamic_5QI) {
-        flow_qos_char->qos_type = non_dynamic;
+        flow_qos_char->qos_type = NON_DYNAMIC;
         flow_qos_char->non_dynamic.fiveqi = Flow_QoS_Char->choice.non_Dynamic_5QI->fiveQI;
         flow_qos_char->non_dynamic.qos_priority_level = (Flow_QoS_Char->choice.non_Dynamic_5QI->qoSPriorityLevel != NULL)
                                                             ? *Flow_QoS_Char->choice.non_Dynamic_5QI->qoSPriorityLevel
                                                             : -1;
       } else {
-        flow_qos_char->qos_type = dynamic;
+        flow_qos_char->qos_type = DYNAMIC;
         flow_qos_char->dynamic.fiveqi =
             (Flow_QoS_Char->choice.dynamic_5QI->fiveQI != NULL) ? *Flow_QoS_Char->choice.dynamic_5QI->fiveQI : -1;
         flow_qos_char->dynamic.qos_priority_level = Flow_QoS_Char->choice.dynamic_5QI->qoSPriorityLevel;
@@ -111,8 +111,9 @@ static void f1ap_read_drb_nssai(const F1AP_SNSSAI_t *asn1_nssai, nssai_t *nssai)
 {
   OCTET_STRING_TO_INT8(&asn1_nssai->sST, nssai->sst);
   nssai->sd = 0xffffff;
-  if (asn1_nssai->sD != NULL)
-    memcpy((uint8_t *)&nssai->sd, asn1_nssai->sD->buf, 3);
+  if (asn1_nssai->sD != NULL) {
+    BUFFER_TO_INT24(asn1_nssai->sD->buf, nssai->sd);
+  }
 }
 
 int DU_handle_UE_CONTEXT_SETUP_REQUEST(instance_t instance, sctp_assoc_t assoc_id, uint32_t stream, F1AP_F1AP_PDU_t *pdu)
@@ -209,11 +210,14 @@ int DU_handle_UE_CONTEXT_SETUP_REQUEST(instance_t instance, sctp_assoc_t assoc_i
 
       switch (drbs_tobesetup_item_p->rLCMode) {
         case F1AP_RLCMode_rlc_am:
-          drb_p->rlc_mode = RLC_MODE_AM;
+          drb_p->rlc_mode = F1AP_RLC_MODE_AM;
           break;
-
+        case F1AP_RLCMode_rlc_um_bidirectional:
+          drb_p->rlc_mode = F1AP_RLC_MODE_UM_BIDIR;
+          break;
         default:
-          drb_p->rlc_mode = RLC_MODE_TM;
+          LOG_W(F1AP, "unsupported RLC Mode %ld received: setting UM bidir\n", drbs_tobesetup_item_p->rLCMode);
+          drb_p->rlc_mode = F1AP_RLC_MODE_UM_BIDIR;
           break;
       }
 
@@ -281,12 +285,9 @@ int DU_handle_UE_CONTEXT_SETUP_REQUEST(instance_t instance, sctp_assoc_t assoc_i
       memcpy(f1ap_ue_context_setup_req->rrc_container,
              ieRRC->value.choice.RRCContainer.buf, ieRRC->value.choice.RRCContainer.size);
       f1ap_ue_context_setup_req->rrc_container_length = ieRRC->value.choice.RRCContainer.size;
-      // AssertFatal(0, "check configuration, send to appropriate handler\n");
     } else {
       LOG_E(F1AP, " RRCContainer in UEContextSetupRequestIEs size id 0\n");
     }
-  } else {
-    LOG_W(F1AP, "can't find RRCContainer in UEContextSetupRequestIEs by id %ld \n", F1AP_ProtocolIE_ID_id_RRCContainer);
   }
 
   ue_context_setup_request(f1ap_ue_context_setup_req);
@@ -596,6 +597,7 @@ int DU_send_UE_CONTEXT_SETUP_RESPONSE(sctp_assoc_t assoc_id, f1ap_ue_context_set
     F1AP_SRBs_Setup_Item_t *srbs_setup_item=&srbs_setup_item_ies->value.choice.SRBs_Setup_Item;
     /* sRBID */
     srbs_setup_item->sRBID = resp->srbs_to_be_setup[i].srb_id;
+    srbs_setup_item->lCID = resp->srbs_to_be_setup[i].lcid;
   }
   }
 
@@ -932,13 +934,16 @@ int DU_handle_UE_CONTEXT_MODIFICATION_REQUEST(instance_t instance, sctp_assoc_t 
       drb_p->up_ul_tnl[0].port = getCxt(instance)->net_config.CUport;
 
       switch (drbs_tobesetupmod_item_p->rLCMode) {
-      case F1AP_RLCMode_rlc_am:
-        drb_p->rlc_mode = RLC_MODE_AM;
-        break;
-
-      default:
-        drb_p->rlc_mode = RLC_MODE_TM;
-        break;
+        case F1AP_RLCMode_rlc_am:
+          drb_p->rlc_mode = F1AP_RLC_MODE_AM;
+          break;
+        case F1AP_RLCMode_rlc_um_bidirectional:
+          drb_p->rlc_mode = F1AP_RLC_MODE_UM_BIDIR;
+          break;
+        default:
+          LOG_W(F1AP, "unsupported RLC Mode %ld received: setting UM bidir\n", drbs_tobesetupmod_item_p->rLCMode);
+          drb_p->rlc_mode = F1AP_RLC_MODE_UM_BIDIR;
+          break;
       }
 
       if (drbs_tobesetupmod_item_p->qoSInformation.present == F1AP_QoSInformation_PR_eUTRANQoS) {

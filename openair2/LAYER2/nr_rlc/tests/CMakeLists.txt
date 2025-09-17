@@ -12,3 +12,13 @@ add_test(NAME nr_rlc_tests
   COMMAND exec_nr_rlc_test.sh ${CMAKE_CURRENT_BINARY_DIR}
          WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
+add_executable(test_nr_rlc_am_entity test_nr_rlc_am_entity.cpp)
+target_link_libraries(test_nr_rlc_am_entity PRIVATE nr_rlc_core GTest::gtest minimal_lib)
+add_dependencies(tests test_nr_rlc_am_entity)
+add_test(NAME test_nr_rlc_am_entity COMMAND ./test_nr_rlc_am_entity)
+
+add_executable(benchmark_nr_rlc_am_entity benchmark_nr_rlc_am_entity.cpp)
+target_link_libraries(benchmark_nr_rlc_am_entity PRIVATE benchmark::benchmark nr_rlc_core UTIL ${T_LIB} minimal_lib)
+add_dependencies(tests benchmark_nr_rlc_am_entity)
+add_test(NAME benchmark_nr_rlc_am_entity
+  COMMAND ./benchmark_nr_rlc_am_entity)

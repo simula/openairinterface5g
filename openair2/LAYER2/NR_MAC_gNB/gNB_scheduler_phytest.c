@@ -60,6 +60,12 @@ void nr_preprocessor_phytest(module_id_t module_id,
   NR_UE_DL_BWP_t *dl_bwp = &UE->current_DL_BWP;
   const int CC_id = 0;
 
+  /* return if all DL HARQ processes wait for feedback */
+  if (sched_ctrl->retrans_dl_harq.head == -1 && sched_ctrl->available_dl_harq.head == -1) {
+    LOG_D(NR_MAC, "[UE %04x][%4d.%2d] UE has no free DL HARQ process, skipping\n", UE->rnti, frame, slot);
+    return;
+  }
+
   const int tda = get_dl_tda(RC.nrmac[module_id], scc, slot);
   NR_tda_info_t tda_info = get_dl_tda_info(dl_bwp,
                                            sched_ctrl->search_space->searchSpaceType->present,
@@ -69,6 +75,8 @@ void nr_preprocessor_phytest(module_id_t module_id,
                                            TYPE_C_RNTI_,
                                            sched_ctrl->coreset->controlResourceSetId,
                                            false);
+  if(!tda_info.valid_tda)
+    return;
 
   sched_ctrl->sched_pdsch.tda_info = tda_info;
   sched_ctrl->sched_pdsch.time_domain_allocation = tda;
@@ -77,11 +85,14 @@ void nr_preprocessor_phytest(module_id_t module_id,
   const int bwpSize = dl_bwp->BWPSize;
   const int BWPStart = dl_bwp->BWPStart;
 
+  // TODO implement beam procedures for phy-test mode
+  int beam = 0;
+
   int rbStart = 0;
   int rbSize = 0;
   if (target_dl_bw>bwpSize)
     target_dl_bw = bwpSize;
-  uint16_t *vrb_map = RC.nrmac[module_id]->common_channels[CC_id].vrb_map;
+  uint16_t *vrb_map = RC.nrmac[module_id]->common_channels[CC_id].vrb_map[beam];
   /* loop ensures that we allocate exactly target_dl_bw, or return */
   while (true) {
     /* advance to first free RB */
@@ -104,9 +115,9 @@ void nr_preprocessor_phytest(module_id_t module_id,
   }
 
   sched_ctrl->num_total_bytes = 0;
-  sched_ctrl->dl_lc_num = 1;
-  const int lcid = DL_SCH_LCID_DTCH;
-  sched_ctrl->dl_lc_ids[sched_ctrl->dl_lc_num - 1] = lcid;
+  DevAssert(seq_arr_size(&sched_ctrl->lc_config) == 1);
+  const nr_lc_config_t *c = seq_arr_at(&sched_ctrl->lc_config, 0);
+  const int lcid = c->lcid;
   const uint16_t rnti = UE->rnti;
   /* update sched_ctrl->num_total_bytes so that postprocessor schedules data,
    * if available */
@@ -125,6 +136,7 @@ void nr_preprocessor_phytest(module_id_t module_id,
   int CCEIndex = get_cce_index(RC.nrmac[module_id],
                                CC_id, slot, UE->rnti,
                                &sched_ctrl->aggregation_level,
+                               beam,
                                sched_ctrl->search_space,
                                sched_ctrl->coreset,
                                &sched_ctrl->sched_pdcch,
@@ -134,16 +146,22 @@ void nr_preprocessor_phytest(module_id_t module_id,
               __func__,
               UE->rnti);
 
-  int r_pucch = nr_get_pucch_resource(sched_ctrl->coreset, UE->current_UL_BWP.pucch_Config, CCEIndex);
-  const int alloc = nr_acknack_scheduling(RC.nrmac[module_id], UE, frame, slot, r_pucch, 0);
-  if (alloc < 0) {
-    LOG_D(MAC,
-          "%s(): could not find PUCCH for UE %04x@%d.%d\n",
-          __func__,
-          rnti,
-          frame,
-          slot);
-    return;
+  NR_sched_pdsch_t *sched_pdsch = &sched_ctrl->sched_pdsch;
+  if (sched_pdsch->dl_harq_pid == -1)
+    sched_pdsch->dl_harq_pid = sched_ctrl->available_dl_harq.head;
+
+  int alloc = -1;
+  if (!get_FeedbackDisabled(UE->sc_info.downlinkHARQ_FeedbackDisabled_r17, sched_pdsch->dl_harq_pid)) {
+    int r_pucch = nr_get_pucch_resource(sched_ctrl->coreset, UE->current_UL_BWP.pucch_Config, CCEIndex);
+    alloc = nr_acknack_scheduling(RC.nrmac[module_id], UE, frame, slot, 0, r_pucch, 0);
+    if (alloc < 0) {
+      LOG_D(MAC,
+            "Could not find PUCCH for UE %04x@%d.%d\n",
+            rnti,
+            frame,
+            slot);
+      return;
+    }
   }
 
   sched_ctrl->cce_index = CCEIndex;
@@ -152,13 +170,13 @@ void nr_preprocessor_phytest(module_id_t module_id,
                      CC_id,
                      &sched_ctrl->sched_pdcch,
                      CCEIndex,
-                     sched_ctrl->aggregation_level);
+                     sched_ctrl->aggregation_level,
+                     beam);
 
   //AssertFatal(alloc,
   //            "could not find uplink slot for PUCCH (RNTI %04x@%d.%d)!\n",
   //            rnti, frame, slot);
 
-  NR_sched_pdsch_t *sched_pdsch = &sched_ctrl->sched_pdsch;
   sched_pdsch->pucch_allocation = alloc;
   sched_pdsch->rbStart = rbStart;
   sched_pdsch->rbSize = rbSize;
@@ -216,6 +234,12 @@ bool nr_ul_preprocessor_phytest(module_id_t module_id, frame_t frame, sub_frame_
   NR_UE_UL_BWP_t *ul_bwp = &UE->current_UL_BWP;
   const int mu = ul_bwp->scs;
 
+  /* return if all UL HARQ processes wait for feedback */
+  if (sched_ctrl->retrans_ul_harq.head == -1 && sched_ctrl->available_ul_harq.head == -1) {
+    LOG_D(NR_MAC, "[UE %04x][%4d.%2d] UE has no free UL HARQ process, skipping\n", UE->rnti, frame, slot);
+    return false;
+  }
+
   NR_PUSCH_TimeDomainResourceAllocationList_t *tdaList = get_ul_tdalist(ul_bwp,
                                                                         sched_ctrl->coreset->controlResourceSetId,
                                                                         sched_ctrl->search_space->searchSpaceType->present,
@@ -227,8 +251,8 @@ bool nr_ul_preprocessor_phytest(module_id_t module_id, frame_t frame, sub_frame_
               "time domain assignment %d >= %d\n",
               temp_tda,
               tdaList->list.count);
-  int K2 = get_K2(tdaList, temp_tda, mu);
-  const int sched_frame = frame + (slot + K2 >= nr_slots_per_frame[mu]);
+  int K2 = get_K2(tdaList, temp_tda, mu, scc);
+  const int sched_frame = (frame + (slot + K2) / nr_slots_per_frame[mu]) % MAX_FRAME_NUMBER;
   const int sched_slot = (slot + K2) % nr_slots_per_frame[mu];
   const int tda = get_ul_tda(nr_mac, scc, sched_frame, sched_slot);
   if (tda < 0)
@@ -259,18 +283,19 @@ bool nr_ul_preprocessor_phytest(module_id_t module_id, frame_t frame, sub_frame_
                                            sched_ctrl->search_space->searchSpaceType->present,
                                            TYPE_C_RNTI_,
                                            tda);
+  if (!tda_info.valid_tda)
+    return false;
   sched_ctrl->sched_pusch.tda_info = tda_info;
+  sched_ctrl->sched_pusch.time_domain_allocation = tda;
+
+  // TODO implement beam procedures for phy-test mode
+  int beam = 0;
 
   const int buffer_index = ul_buffer_index(sched_frame, sched_slot, mu, nr_mac->vrb_map_UL_size);
-  uint16_t *vrb_map_UL = &nr_mac->common_channels[CC_id].vrb_map_UL[buffer_index * MAX_BWP_SIZE];
+  uint16_t *vrb_map_UL = &nr_mac->common_channels[CC_id].vrb_map_UL[beam][buffer_index * MAX_BWP_SIZE];
   for (int i = rbStart; i < rbStart + rbSize; ++i) {
     if ((vrb_map_UL[i+BWPStart] & SL_to_bitmap(tda_info.startSymbolIndex, tda_info.nrOfSymbols)) != 0) {
-      LOG_E(MAC,
-            "%s(): %4d.%2d RB %d is already reserved, cannot schedule UE\n",
-            __func__,
-            frame,
-            slot,
-            i);
+      LOG_E(MAC, "%4d.%2d RB %d is already reserved, cannot schedule UE\n", frame, slot, i);
       return false;
     }
   }
@@ -281,6 +306,7 @@ bool nr_ul_preprocessor_phytest(module_id_t module_id, frame_t frame, sub_frame_
   int CCEIndex = get_cce_index(nr_mac,
                                CC_id, slot, UE->rnti,
                                &sched_ctrl->aggregation_level,
+                               beam,
                                sched_ctrl->search_space,
                                sched_ctrl->coreset,
                                &sched_ctrl->sched_pdcch,
@@ -332,7 +358,8 @@ bool nr_ul_preprocessor_phytest(module_id_t module_id, frame_t frame, sub_frame_
                      CC_id,
                      &sched_ctrl->sched_pdcch,
                      CCEIndex,
-                     sched_ctrl->aggregation_level);
+                     sched_ctrl->aggregation_level,
+                     beam);
 
   for (int rb = rbStart; rb < rbStart + rbSize; rb++)
     vrb_map_UL[rb+BWPStart] |= SL_to_bitmap(tda_info.startSymbolIndex, tda_info.nrOfSymbols);

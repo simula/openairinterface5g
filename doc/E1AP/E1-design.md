@@ -79,7 +79,7 @@ More details about the E1AP procedures in OAI are available in this document: [E
 
 # 2. Running the E1 Split
 
-The setup is assuming that all modules are running on the same machine. The user can refer to the [F1 design document](./../F1-design.md) for local deployment of the DU.
+The setup is assuming that all modules are running on the same machine. The user can refer to the [F1 design document](./../F1AP/F1-design.md) for local deployment of the DU.
 
 ## 2.1 Configuration File
 
@@ -169,9 +169,9 @@ sudo ./nr-uesoftmodem -r 106 --numerology 1 --band 78 -C 3619200000 --rfsim --sa
 
 You can also run the nodes on different machines. If you do so please change the interface parameters accordingly and make sure the interfaces are reachable. Please refer to the following figure for an overview of all parameters.
 
-![E1/F1/NG parameters](images/e1-archi.png){width=1200}
+![E1/F1/NG parameters](./images/e1-archi.png){width=1200}
 
-[PDF version](images/e1-archi.pdf) | [LaTeX/TikZ version](img/e1-archi.tex) if you want to modify to reflect your setup
+[PDF version](./images/e1-archi.pdf) | [LaTeX/TikZ version](./images/e1-archi.tex) if you want to modify to reflect your setup
 
 # 4. Multiple CU-UP
 

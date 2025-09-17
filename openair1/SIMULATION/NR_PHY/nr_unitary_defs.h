@@ -65,6 +65,7 @@ int oai_nfapi_ul_config_req(nfapi_ul_config_request_t *ul_config_req) { return(0
 void fill_scc_sim(NR_ServingCellConfigCommon_t *scc,uint64_t *ssb_bitmap,int N_RB_DL,int N_RB_UL,int mu_dl,int mu_ul);
 void fix_scc(NR_ServingCellConfigCommon_t *scc,uint64_t ssbmap);
 void prepare_scc(NR_ServingCellConfigCommon_t *scc);
+void prepare_msgA_scc(NR_ServingCellConfigCommon_t *scc);
 void prepare_scd(NR_ServingCellConfig_t *scd);
 uint32_t ngap_generate_gNB_id(void) {return 0;}
 

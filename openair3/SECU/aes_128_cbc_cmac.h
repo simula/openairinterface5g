@@ -31,17 +31,13 @@
 #include <stdlib.h>
 
 typedef struct {
-  void* lib_ctx;
-  void* mac;
+  void *mac_implementation;
+  void *mac_context;
   uint8_t key[16];
 } cbc_cmac_ctx_t ;
 
-void aes_128_cbc_cmac(const aes_128_t* k_iv, byte_array_t msg, size_t len_out, uint8_t out[len_out]);
-
-cbc_cmac_ctx_t init_aes_128_cbc_cmac(uint8_t key[16]);
-
+cbc_cmac_ctx_t init_aes_128_cbc_cmac(const uint8_t key[16]);
 void cipher_aes_128_cbc_cmac(cbc_cmac_ctx_t const* ctx, const aes_128_t* k_iv, byte_array_t msg, size_t len_out, uint8_t out[len_out]);
-
 void free_aes_128_cbc_cmac(cbc_cmac_ctx_t const* ctx);
 
 #endif

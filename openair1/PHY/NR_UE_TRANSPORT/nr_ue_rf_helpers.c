@@ -47,15 +47,7 @@ void nr_get_carrier_frequencies(PHY_VARS_NR_UE *ue, uint64_t *dl_carrier, uint64
 }
 
 
-void nr_get_carrier_frequencies_sl(PHY_VARS_NR_UE *ue, uint64_t *sl_carrier) {
 
-  NR_DL_FRAME_PARMS *fp = &ue->frame_parms;
-  if (ue->if_freq!=0) {
-    *sl_carrier = ue->if_freq;
-  } else {
-    *sl_carrier = fp->sl_CarrierFreq;
-  }
-}
 
 void nr_rf_card_config_gain(openair0_config_t *openair0_cfg,
                             double rx_gain_off){

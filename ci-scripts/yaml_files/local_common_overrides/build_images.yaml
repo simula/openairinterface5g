@@ -1,0 +1,45 @@
+services:
+  build-ran-base:
+    image: ran-base
+    build:
+      context: ../../../
+      dockerfile: docker/Dockerfile.base.ubuntu22
+      tags:
+        - ran-base
+
+  build-ran-build:
+    image: ran-build
+    build:
+      context: ../../../
+      dockerfile: docker/Dockerfile.build.ubuntu22
+      tags:
+        - ran-build
+    depends_on:
+      build-ran-base:
+        condition: service_completed_successfully
+  
+  build-gnb-image:
+    image: gnb-local
+    build:
+      context: ../../../
+      dockerfile: docker/Dockerfile.gNB.ubuntu22
+      tags:
+        - gnb-local
+    depends_on:
+      build-ran-build:
+        condition: service_completed_successfully
+    entrypoint: ""
+    command: echo "gnb-image built"
+
+  build-ue-image:
+    image: ue-local
+    build:
+      context: ../../../
+      dockerfile: docker/Dockerfile.nrUE.ubuntu22
+      tags:
+        - ue-local
+    depends_on:
+      build-ran-build:
+        condition: service_completed_successfully
+    entrypoint: ""
+    command: echo "ue-image built"

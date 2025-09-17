@@ -30,11 +30,11 @@ global:
     nrpsbchsim: dedale
     nrprachsim: dedale
     nrpucchsim: dedale
-    nrulschsim: theseus
-    nrulsim3gpp: theseus
-    nrulsimmimo: theseus
-    nrulsimmisc: theseus
-    nrulsimscfdma: theseus
-    polartest: theseus
-    smallblocktest: theseus
-    ulsim: theseus
+    nrulschsim: demophon
+    nrulsim3gpp: demophon
+    nrulsimmimo: demophon
+    nrulsimmisc: demophon
+    nrulsimscfdma: demophon
+    polartest: demophon
+    smallblocktest: demophon
+    ulsim: demophon

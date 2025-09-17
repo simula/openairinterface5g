@@ -78,8 +78,7 @@
 #include "T.h"
 #include "LTE_MeasResults.h"
 
-#include "RRC/NAS/nas_config.h"
-#include "RRC/NAS/rb_config.h"
+#include "common/utils/tun_if.h"
 
 #include "rrc_eNB_S1AP.h"
 #include "rrc_eNB_GTPV1U.h"
@@ -5144,7 +5143,6 @@ rrc_eNB_process_RRCConnectionReconfigurationComplete(
 {
   int                                 drb_id;
   int                                 oip_ifup = 0;
-  int                                 dest_ip_offset = 0;
   uint8_t kRRCenc[32] = {0};
   uint8_t kRRCint[32] = {0};
   uint8_t kUPenc[32] = {0};
@@ -5257,26 +5255,18 @@ rrc_eNB_process_RRCConnectionReconfigurationComplete(
             LOG_I(OIP, "[eNB %d] trying to bring up the OAI interface oai%d\n",
                   ctxt_pP->module_id,
                   ctxt_pP->module_id);
-            oip_ifup = nas_config(ctxt_pP->module_id,   // interface index
-                                  ctxt_pP->module_id + 1,   // third octet
-                                  ctxt_pP->module_id + 1,   // fourth octet
-                                  "oai");
+            char ip[20];
+            snprintf(ip, sizeof(ip), "10.0.%d.%d", ctxt_pP->module_id + 1, ctxt_pP->module_id + 1);
+            oip_ifup = tun_config(ctxt_pP->module_id, ip, NULL, "oaitun_oai");
 
             if (oip_ifup == 0) { // interface is up --> send a config the DRB
               module_id_t ue_module_id;
-              dest_ip_offset = 8;
               LOG_I(OIP,
                     "[eNB %d] Config the oai%d to send/receive pkt on DRB %ld to/from the protocol stack\n",
                     ctxt_pP->module_id, ctxt_pP->module_id,
                     (long int)((ue_context_pP->local_uid * LTE_maxDRB) + DRB_configList->list.array[i]->drb_Identity));
               ue_module_id = 0; // Was oai_emulation.info.eNB_ue_local_uid_to_ue_module_id[ctxt_pP->module_id][ue_context_pP->local_uid];
-              rb_conf_ipv4(0, //add
-                           ue_module_id,  //cx
-                           ctxt_pP->module_id,    //inst
-                           (ue_module_id * LTE_maxDRB) + DRB_configList->list.array[i]->drb_Identity, // RB
-                           0,    //dscp
-                           ipv4_address(ctxt_pP->module_id + 1, ctxt_pP->module_id + 1),  //saddr
-                           ipv4_address(ctxt_pP->module_id + 1, dest_ip_offset + ue_module_id + 1));  //daddr
+              AssertFatal(false, "not implemented\n");
               LOG_D(RRC, "[eNB %d] State = Attached (UE rnti %x module id %u)\n",
                     ctxt_pP->module_id, ue_context_pP->ue_context.rnti, ue_module_id);
             } /* oip_ifup */

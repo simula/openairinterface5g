@@ -29,8 +29,8 @@
  */
 
 #include <sys/socket.h>
+#include <sys/types.h>
 #include <netinet/in.h>
-#include <netinet/tcp.h>
 #include <arpa/inet.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -39,7 +39,7 @@
 #include <stdbool.h>
 #include <errno.h>
 #include <sys/epoll.h>
-#include <string.h>
+#include <netdb.h>
 
 #include <common/utils/assertions.h>
 #include <common/utils/LOG/log.h>
@@ -47,8 +47,6 @@
 #include <common/utils/telnetsrv/telnetsrv.h>
 #include <common/config/config_userapi.h>
 #include "common_lib.h"
-#include <openair1/PHY/defs_eNB.h>
-#include "openair1/PHY/defs_UE.h"
 #define CHANNELMOD_DYNAMICLOAD
 #include <openair1/SIMULATION/TOOLS/sim.h>
 #include "rfsimulator.h"
@@ -66,7 +64,7 @@
 // The default value is chosen for 10ms buffering which makes 23040*20 = 460800 samples
 // The previous value is kept below in comment it was computed for 100ms 1x 20MHz
 // #define CirSize 6144000 // 100ms SiSo 20MHz LTE
-#define CirSize 460800 // 10ms  SiSo 40Mhz 3/4 sampling NR78 FR1
+#define minCirSize 460800 // 10ms  SiSo 40Mhz 3/4 sampling NR78 FR1
 #define sampleToByte(a,b) ((a)*(b)*sizeof(sample_t))
 #define byteToSample(a,b) ((a)/(sizeof(sample_t)*(b)))
 
@@ -86,8 +84,7 @@
 //
 // #define MAX_FD_RFSIMU FD_SETSIZE
 #define MAX_FD_RFSIMU 250
-#define SYSCTL_MEM_VALUE 134217728 // Kernel network buffer size
-#define SEND_BUFF_SIZE SYSCTL_MEM_VALUE // Socket buffer size
+#define SEND_BUFF_SIZE 100000000 // Socket buffer size
 
 // Simulator role
 typedef enum { SIMU_ROLE_SERVER = 1, SIMU_ROLE_CLIENT } simuRole;
@@ -114,7 +111,8 @@ typedef enum { SIMU_ROLE_SERVER = 1, SIMU_ROLE_CLIENT } simuRole;
     {"modelname",              "<channel model name>\n",              simOpt,  .strptr=&modelname,                     .defstrval="AWGN",                TYPE_STRING,    0 },\
     {"ploss",                  "<channel path loss in dB>\n",         simOpt,  .dblptr=&(rfsimulator->chan_pathloss),  .defdblval=0,                     TYPE_DOUBLE,    0 },\
     {"forgetfact",             "<channel forget factor ((0 to 1)>\n", simOpt,  .dblptr=&(rfsimulator->chan_forgetfact),.defdblval=0,                     TYPE_DOUBLE,    0 },\
-    {"offset",                 "<channel offset in samps>\n",         simOpt,  .iptr=&(rfsimulator->chan_offset),      .defintval=0,                     TYPE_INT,       0 },\
+    {"offset",                 "<channel offset in samps>\n",         simOpt,  .u64ptr=&(rfsimulator->chan_offset),    .defint64val=0,                   TYPE_UINT64,    0 },\
+    {"prop_delay",             "<propagation delay in ms>\n",         simOpt,  .dblptr=&(rfsimulator->prop_delay_ms),  .defdblval=0.0,                   TYPE_DOUBLE,    0 },\
     {"wait_timeout",           "<wait timeout if no UE connected>\n", simOpt,  .iptr=&(rfsimulator->wait_timeout),     .defintval=1,                     TYPE_INT,       0 },\
   };
 
@@ -137,6 +135,8 @@ static telnetshell_cmddef_t *setmodel_cmddef = &(rfsimu_cmdarray[1]);
 static telnetshell_vardef_t rfsimu_vardef[] = {{"", 0, 0, NULL}};
 pthread_mutex_t Sockmutex;
 unsigned int nb_ue = 0;
+
+static uint64_t CirSize = minCirSize;
 
 typedef c16_t sample_t; // 2*16 bits complex number
 
@@ -165,21 +165,25 @@ typedef struct {
   int rx_num_channels;
   int tx_num_channels;
   double sample_rate;
+  double rx_freq;
   double tx_bw;
   int channelmod;
   double chan_pathloss;
   double chan_forgetfact;
-  int    chan_offset;
+  uint64_t chan_offset;
   float  noise_power_dB;
   void *telnetcmd_qid;
   poll_telnetcmdq_func_t poll_telnetcmdq;
   int wait_timeout;
+  double prop_delay_ms;
 } rfsimulator_state_t;
 
 static int allocCirBuf(rfsimulator_state_t *bridge, int sock)
 {
+  /* TODO: cleanup code so that this AssertFatal becomes useless */
+  AssertFatal(sock >= 0 && sock < sizeofArray(bridge->buf), "socket %d is not in range\n", sock);
   buffer_t *ptr=&bridge->buf[sock];
-  ptr->circularBuf = malloc(sampleToByte(CirSize, 1));
+  ptr->circularBuf = calloc(1, sampleToByte(CirSize, 1));
   if (ptr->circularBuf == NULL) {
     LOG_E(HW, "malloc(%lu) failed\n", sampleToByte(CirSize, 1));
     return -1;
@@ -298,7 +302,12 @@ static void fullwrite(int fd, void *_buf, ssize_t count, rfsimulator_state_t *t)
   while (count) {
     l = write(fd, buf, count);
 
-    if (l <= 0) {
+    if (l == 0) {
+        LOG_E(HW, "write() failed, returned 0\n");
+        return;
+    }
+
+    if (l < 0) {
       if (errno==EINTR)
         continue;
 
@@ -306,8 +315,10 @@ static void fullwrite(int fd, void *_buf, ssize_t count, rfsimulator_state_t *t)
         LOG_D(HW, "write() failed, errno(%d)\n", errno);
         usleep(250);
         continue;
-      } else
+      } else {
+        LOG_E(HW, "write() failed, errno(%d)\n", errno);
         return;
+      }
     }
 
     count -= l;
@@ -339,7 +350,7 @@ static void rfsimulator_readconfig(rfsimulator_state_t *rfsimulator) {
       break;
     } else if (strcmp(rfsimu_params[p].strlistptr[i],"chanmod") == 0) {
       init_channelmod();
-      load_channellist(rfsimulator->tx_num_channels, rfsimulator->rx_num_channels, rfsimulator->sample_rate, rfsimulator->tx_bw);
+      load_channellist(rfsimulator->tx_num_channels, rfsimulator->rx_num_channels, rfsimulator->sample_rate, rfsimulator->rx_freq, rfsimulator->tx_bw);
       rfsimulator->channelmod=true;
     } else {
       fprintf(stderr, "unknown rfsimulator option: %s\n", rfsimu_params[p].strlistptr[i]);
@@ -397,13 +408,13 @@ static int rfsimu_setchanmod_cmd(char *buff, int debug, telnet_printfunc_t prnt,
                                                           t->rx_num_channels,
                                                           channelmod,
                                                           t->sample_rate,
-                                                          0,
+                                                          t->rx_freq,
                                                           t->tx_bw,
                                                           30e-9, // TDL delay-spread parameter
                                                           0.0,
                                                           CORR_LEVEL_LOW,
                                                           t->chan_forgetfact, // forgetting_factor
-                                                          t->chan_offset, // maybe used for TA
+                                                          t->chan_offset, // propagation delay in samples
                                                           t->chan_pathloss,
                                                           t->noise_power_dB); // path_loss in dB
           set_channeldesc_owner(newmodel, RFSIMU_MODULEID);
@@ -460,60 +471,6 @@ static void getset_currentchannels_type(char *buf, int debug, webdatadef_t *tdat
 //  printf("\n");
 //}
 
-static void rfsimu_offset_change_cirBuf(struct complex16 *circularBuf,
-                                        uint64_t firstSample,
-                                        uint32_t cirSize,
-                                        int old_offset,
-                                        int new_offset,
-                                        int nbTx)
-{
-  //int start = max(new_offset, old_offset) + 10;
-  //int end = 10;
-  //printf("new_offset %d old_offset %d start %d end %d\n", new_offset, old_offset, start, end);
-  //printf("ringbuffer before:\n");
-  //print_cirBuf(circularBuf, firstSample, cirSize, start, end, nbTx);
-
-  int doffset = new_offset - old_offset;
-  if (doffset > 0) {
-    /* Moving away, creating a gap. We need to insert "zero" samples between
-     * the previous (end of the) slot and the new slot (at the ringbuffer
-     * index) to prevent that the receiving side detects things that are not
-     * in the channel (e.g., samples that have already been delivered). */
-    for (int i = new_offset; i > 0; --i) {
-      for (int txAnt = 0; txAnt < nbTx; txAnt++) {
-        const int newidx = ((firstSample - i) * nbTx + txAnt + cirSize) % cirSize;
-        if (i > doffset) {
-          // shift samples not read yet
-          const int oldidx = (newidx + doffset) % cirSize;
-          circularBuf[newidx] = circularBuf[oldidx];
-        } else {
-          // create zero samples between slots
-          const struct complex16 nullsample = {0, 0};
-          circularBuf[newidx] = nullsample;
-        }
-      }
-    }
-  } else {
-    /* Moving closer, creating overlap between samples. For simplicity, we
-     * simply drop `doffset` samples at the end of the previous slot
-     * (this is, in a sense, arbitrary). In a real channel, there would be
-     * some overlap between samples, e.g., for `doffset == 1` we could add
-     * two samples. I think that we cannot do that for multiple samples,
-     * though, and so we just drop some */
-    // drop the last -doffset samples of the previous slot
-    for (int i = old_offset; i > -doffset; --i) {
-      for (int txAnt = 0; txAnt < nbTx; txAnt++) {
-        const int oldidx = ((firstSample - i) * nbTx + txAnt + cirSize) % cirSize;
-        const int newidx = (oldidx - doffset) % cirSize;
-        circularBuf[newidx] = circularBuf[oldidx];
-      }
-    }
-  }
-
-  //printf("ringbuffer after:\n");
-  //print_cirBuf(circularBuf, firstSample, cirSize, start, end, nbTx);
-}
-
 static int rfsimu_setdistance_cmd(char *buff, int debug, telnet_printfunc_t prnt, void *arg)
 {
   if (debug)
@@ -531,10 +488,13 @@ static int rfsimu_setdistance_cmd(char *buff, int debug, telnet_printfunc_t prnt
   const double sample_rate = t->sample_rate;
   const double c = 299792458; /* 3e8 */
 
-  const int new_offset = (double) distance * sample_rate / c;
+  const uint64_t new_offset = (double) distance * sample_rate / c;
   const double new_distance = (double) new_offset * c / sample_rate;
+  const double new_delay_ms = new_offset * 1000.0 / sample_rate;
 
-  prnt("\n%s: new_offset %d new (exact) distance %.3f m\n", __func__, new_offset, new_distance);
+  prnt("\n%s: new_offset %lu, new (exact) distance %.3f m, new delay %f ms\n", __func__, new_offset, new_distance, new_delay_ms);
+  t->prop_delay_ms = new_delay_ms;
+  t->chan_offset = new_offset;
 
   /* Set distance in rfsim and channel model, update channel and ringbuffer */
   for (int i = 0; i < MAX_FD_RFSIMU; i++) {
@@ -546,12 +506,7 @@ static int rfsimu_setdistance_cmd(char *buff, int debug, telnet_printfunc_t prnt
     }
 
     channel_desc_t *cd = b->channel_model;
-    const int old_offset = cd->channel_offset;
     cd->channel_offset = new_offset;
-
-    const int nbTx = cd->nb_tx;
-    prnt("  %s: Modifying model %s...\n", __func__, modelname);
-    rfsimu_offset_change_cirBuf(b->circularBuf, t->nextRxTstamp, CirSize, old_offset, new_offset, nbTx);
   }
 
   free(modelname);
@@ -574,10 +529,11 @@ static int rfsimu_getdistance_cmd(char *buff, int debug, telnet_printfunc_t prnt
       continue;
 
     channel_desc_t *cd = b->channel_model;
-    const int offset = cd->channel_offset;
+    const uint64_t offset = cd->channel_offset;
     const double distance = (double) offset * c / sample_rate;
-    prnt("%s: \%s offset %d distance %.3f m\n", __func__, cd->model_name, offset, distance);
+    prnt("%s: %s offset %lu distance %.3f m\n", __func__, cd->model_name, offset, distance);
   }
+  prnt("%s: <default> offset %lu delay %f ms\n", __func__, t->chan_offset, t->prop_delay_ms);
 
   return CMDSTATUS_FOUND;
 }
@@ -591,65 +547,68 @@ static int rfsimu_vtime_cmd(char *buff, int debug, telnet_printfunc_t prnt, void
   return CMDSTATUS_FOUND;
 }
 
-static void customNetForPerf()
+static int startServer(openair0_device *device)
 {
-  int res = 0;
-  char sysctlmem[256];
-  memset(sysctlmem, 0, 256);
-  sprintf(sysctlmem, "/sbin/sysctl -n -e -q -w net.core.rmem_default=%d", SYSCTL_MEM_VALUE);
-  LOG_W(HW, "running command \"%s\" to increase RFsim performance\n", sysctlmem);
-  res = system(sysctlmem);
-  if (res != 0) {
-    LOG_W(HW, "Cannot set net.core.rmem_default to %d\n", SYSCTL_MEM_VALUE);
-  }
-  memset(sysctlmem, 0, 256);
-  sprintf(sysctlmem, "/sbin/sysctl -n -e -q -w net.core.rmem_max=%d", SYSCTL_MEM_VALUE);
-  LOG_W(HW, "running command \"%s\" to increase RFsim performance\n", sysctlmem);
-  res = system(sysctlmem);
-  if (res != 0) {
-    LOG_W(HW, "Cannot set net.core.rmem_max to %d\n", SYSCTL_MEM_VALUE);
-  }
-  memset(sysctlmem, 0, 256);
-  sprintf(sysctlmem, "/sbin/sysctl -n -e -q -w net.core.wmem_default=%d", SYSCTL_MEM_VALUE);
-  LOG_W(HW, "running command \"%s\" to increase RFsim performance\n", sysctlmem);
-  res = system(sysctlmem);
-  if (res != 0) {
-    LOG_W(HW, "Cannot set net.core.wmem_default to %d\n", SYSCTL_MEM_VALUE);
-  }
-  memset(sysctlmem, 0, 256);
-  sprintf(sysctlmem, "/sbin/sysctl -n -e -q -w net.core.wmem_max=%d", SYSCTL_MEM_VALUE);
-  LOG_W(HW, "running command \"%s\" to increase RFsim performance\n", sysctlmem);
-  res = system(sysctlmem);
-  if (res != 0) {
-    LOG_W(HW, "Cannot set net.core.wmem_max to %d\n", SYSCTL_MEM_VALUE);
-  }
-}
+  int sock = -1;
+  struct addrinfo *results = NULL;
+  struct addrinfo *rp= NULL;
 
-static int startServer(openair0_device *device) {
-  rfsimulator_state_t *t = (rfsimulator_state_t *) device->priv;
+  rfsimulator_state_t *t = (rfsimulator_state_t *)device->priv;
   t->role = SIMU_ROLE_SERVER;
-  t->listen_sock = socket(AF_INET, SOCK_STREAM, 0);
-  if (t->listen_sock < 0) {
-    LOG_E(HW, "socket(SOCK_STREAM) failed, errno(%d)\n", errno);
+
+  char port[6];
+  snprintf(port, sizeof(port), "%d", t->port);
+
+  struct addrinfo hints = {
+   .ai_family = AF_INET6,
+   .ai_socktype = SOCK_STREAM,
+   .ai_flags = AI_PASSIVE,
+  };
+
+  int s = getaddrinfo(NULL, port, &hints, &results);
+  if (s != 0) {
+    LOG_E(HW, "getaddrinfo: %s\n", gai_strerror(s));
+    freeaddrinfo(results);
     return -1;
   }
+
   int enable = 1;
-  if (setsockopt(t->listen_sock, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) != 0) {
-    LOG_E(HW, "setsockopt(SO_REUSEADDR) failed, errno(%d)\n", errno);
+  int disable = 0;
+  for (rp = results; rp != NULL; rp = rp->ai_next) {
+    sock = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+    if (sock == -1) {
+      continue;
+    }
+
+    if (setsockopt(sock, IPPROTO_IPV6, IPV6_V6ONLY, &disable, sizeof(int)) != 0) {
+      continue;
+    }
+
+    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) != 0) {
+      continue;
+    }
+
+    if (bind(sock, rp->ai_addr, rp->ai_addrlen) == 0) {
+      break;
+    }
+
+    close(sock);
+    sock = -1;
+  }
+
+  freeaddrinfo(results);
+
+  if (sock <= 0) {
+    LOG_E(HW, "could not open a socket\n");
     return -1;
   }
-  struct sockaddr_in addr = {.sin_family = AF_INET, .sin_port = htons(t->port), .sin_addr = {.s_addr = INADDR_ANY}};
-  customNetForPerf();
-  int rc = bind(t->listen_sock, (struct sockaddr *)&addr, sizeof(addr));
-  if (rc < 0) {
-    LOG_E(HW, "bind() failed, errno(%d)\n", errno);
-    return -1;
-  }
+  t->listen_sock = sock;
+
   if (listen(t->listen_sock, 5) != 0) {
     LOG_E(HW, "listen() failed, errno(%d)\n", errno);
     return -1;
   }
-  struct epoll_event ev= {0};
+  struct epoll_event ev = {0};
   ev.events = EPOLLIN;
   ev.data.fd = t->listen_sock;
   if (epoll_ctl(t->epollfd, EPOLL_CTL_ADD, t->listen_sock, &ev) != 0) {
@@ -659,25 +618,58 @@ static int startServer(openair0_device *device) {
   return 0;
 }
 
-static int startClient(openair0_device *device) {
+static int client_try_connect(const char *host, uint16_t port)
+{
+  int sock = -1;
+  int s;
+  struct addrinfo *result = NULL;
+  struct addrinfo *rp = NULL;
+
+  char dport[6];
+  snprintf(dport, sizeof(dport), "%d", port);
+
+  struct addrinfo hints = {
+   .ai_family = AF_UNSPEC,
+   .ai_socktype = SOCK_STREAM,
+  };
+
+  s = getaddrinfo(host, dport, &hints, &result);
+  if (s != 0) {
+    LOG_E(HW, "getaddrinfo: %s\n", gai_strerror(s));
+    return -1;
+  }
+  for (rp = result; rp != NULL; rp = rp->ai_next) {
+    sock = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+    if (sock == -1) {
+      continue;
+    }
+
+    if (connect(sock, rp->ai_addr, rp->ai_addrlen) != -1) {
+      break;
+    }
+
+    close(sock);
+    sock = -1;
+  }
+
+  freeaddrinfo(result);
+
+  return sock;
+}
+
+static int startClient(openair0_device *device)
+{
   rfsimulator_state_t *t = device->priv;
   t->role = SIMU_ROLE_CLIENT;
   int sock;
-  if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-    LOG_E(HW, "socket(SOCK_STREAM) failed, errno(%d)\n", errno);
-    return -1;
-  }
-  struct sockaddr_in addr = {.sin_family = AF_INET, .sin_port = htons(t->port), .sin_addr = {.s_addr = INADDR_ANY}};
-  addr.sin_addr.s_addr = inet_addr(t->ip);
-  bool connected=false;
 
-  customNetForPerf();
-  while(!connected) {
+  while (true) {
     LOG_I(HW, "Trying to connect to %s:%d\n", t->ip, t->port);
+    sock = client_try_connect(t->ip, t->port);
 
-    if (connect(sock, (struct sockaddr *)&addr, sizeof(addr)) == 0) {
+    if (sock > 0) {
       LOG_I(HW, "Connection to %s:%d established\n", t->ip, t->port);
-      connected=true;
+      break;
     }
 
     LOG_I(HW, "connect() to %s:%d failed, errno(%d)\n", t->ip, t->port, errno);
@@ -726,8 +718,15 @@ static int rfsimulator_write_internal(rfsimulator_state_t *t, openair0_timestamp
   if ( t->lastWroteTS != 0 && fabs((double)t->lastWroteTS-timestamp) > (double)CirSize)
     LOG_W(HW, "Discontinuous TX gap too large Tx:%lu, %lu\n", t->lastWroteTS, timestamp);
 
-  if (t->lastWroteTS > timestamp+nsamps)
+  if (t->lastWroteTS > timestamp)
     LOG_W(HW, "Not supported to send Tx out of order %lu, %lu\n", t->lastWroteTS, timestamp);
+
+  if ((flags != TX_BURST_START) && (flags != TX_BURST_START_AND_END) && (t->lastWroteTS < timestamp))
+    LOG_W(HW,
+          "Gap in writing to USRP: last written %lu, now %lu, gap %lu\n",
+          t->lastWroteTS,
+          timestamp,
+          timestamp - t->lastWroteTS);
 
   t->lastWroteTS=timestamp+nsamps;
 
@@ -789,6 +788,10 @@ static bool flushInput(rfsimulator_state_t *t, int timeout, int nsamps_for_initi
         samplesVoid[i]=(void *)&v;
 
       rfsimulator_write_internal(t, t->lastWroteTS > 1 ? t->lastWroteTS - 1 : 0, samplesVoid, 1, t->tx_num_channels, 1, false);
+
+      buffer_t *b = &t->buf[conn_sock];
+      if (b->channel_model)
+        b->channel_model->start_TS = t->lastWroteTS;
     } else {
       if ( events[nbEv].events & (EPOLLHUP | EPOLLERR | EPOLLRDHUP) ) {
         socketError(t,fd);
@@ -841,6 +844,8 @@ static bool flushInput(rfsimulator_state_t *t, int timeout, int nsamps_for_initi
                             nsamps_for_initial;
           LOG_D(HW, "UE got first timestamp: starting at %lu\n", t->nextRxTstamp);
           b->trashingPacket=true;
+          if (b->channel_model)
+            b->channel_model->start_TS = t->nextRxTstamp;
         } else if (b->lastReceivedTS < b->th.timestamp) {
           int nbAnt= b->th.nbAnt;
 
@@ -912,7 +917,7 @@ static int rfsimulator_read(openair0_device *device, openair0_timestamp *ptimest
   if (first_sock == MAX_FD_RFSIMU) {
     // no connected device (we are eNB, no UE is connected)
     if ( t->nextRxTstamp == 0)
-      LOG_W(HW, "No connected device, generating void samples...\n");
+      LOG_I(HW, "No connected device, generating void samples...\n");
 
     if (!flushInput(t, t->wait_timeout,  nsamps)) {
       for (int x=0; x < nbAnt; x++)
@@ -983,16 +988,16 @@ static int rfsimulator_read(openair0_device *device, openair0_timestamp *ptimest
         }
         else { // no channel modeling
           int nbAnt_tx = ptr->th.nbAnt; // number of Tx antennas
+          int firstIndex = (CirSize + t->nextRxTstamp - t->chan_offset) % CirSize;
+          sample_t *out = (sample_t *)samplesVoid[a];
           if ((nbAnt_tx == 1) && ((nb_ue == 1) || (t->role == SIMU_ROLE_CLIENT))) { // optimized for 1 Tx and 1 UE
-            sample_t *out = (sample_t *)samplesVoid[a];
-            int firstIndex = t->nextRxTstamp % CirSize;
             sample_t *firstSample = (sample_t *)&(ptr->circularBuf[firstIndex]);
             if (firstIndex + nsamps > CirSize) {
               int tailSz = CirSize - firstIndex;
-              memcpy(out, firstSample, sampleToByte(tailSz, nbAnt_tx));
-              memcpy(out + tailSz, &ptr->circularBuf[0], sampleToByte(nsamps - tailSz, nbAnt_tx));
+              memcpy(out, firstSample, sampleToByte(tailSz, 1));
+              memcpy(out + tailSz, &ptr->circularBuf[0], sampleToByte(nsamps - tailSz, 1));
             } else {
-              memcpy(out, firstSample, nsamps * 4);
+              memcpy(out, firstSample, sampleToByte(nsamps, 1));
             }
           } else {
             // SIMD (with simde) optimization might be added here later
@@ -1001,13 +1006,11 @@ static int rfsimulator_read(openair0_device *device, openair0_timestamp *ptimest
                                         {0.1, 0.2, 1.0, 0.2}, // rx 2
                                         {0.05, 0.1, 0.2, 1.0}}; // rx 3
 
-            sample_t *out = (sample_t *)samplesVoid[a];
-
             LOG_D(HW, "nbAnt_tx %d\n", nbAnt_tx);
             for (int i = 0; i < nsamps; i++) { // loop over nsamps
               for (int a_tx = 0; a_tx < nbAnt_tx; a_tx++) { // sum up signals from nbAnt_tx antennas
-                out[i].r += (short)(ptr->circularBuf[((t->nextRxTstamp + i) * nbAnt_tx + a_tx) % CirSize].r * H_awgn_mimo[a][a_tx]);
-                out[i].i += (short)(ptr->circularBuf[((t->nextRxTstamp + i) * nbAnt_tx + a_tx) % CirSize].i * H_awgn_mimo[a][a_tx]);
+                out[i].r += (short)(ptr->circularBuf[((firstIndex + i) * nbAnt_tx + a_tx) % CirSize].r * H_awgn_mimo[a][a_tx]);
+                out[i].i += (short)(ptr->circularBuf[((firstIndex + i) * nbAnt_tx + a_tx) % CirSize].i * H_awgn_mimo[a][a_tx]);
               } // end for a_tx
             } // end for i (number of samps)
           } // end of 1 tx antenna optimization
@@ -1046,6 +1049,8 @@ static int rfsimulator_stop(openair0_device *device) {
   return 0;
 }
 static int rfsimulator_set_freq(openair0_device *device, openair0_config_t *openair0_cfg) {
+  rfsimulator_state_t* s = device->priv;
+  s->rx_freq = openair0_cfg->rx_freq[0];
   return 0;
 }
 static int rfsimulator_set_gains(openair0_device *device, openair0_config_t *openair0_cfg) {
@@ -1063,9 +1068,19 @@ int device_init(openair0_device *device, openair0_config_t *openair0_cfg) {
   rfsimulator->tx_num_channels=openair0_cfg->tx_num_channels;
   rfsimulator->rx_num_channels=openair0_cfg->rx_num_channels;
   rfsimulator->sample_rate=openair0_cfg->sample_rate;
+  rfsimulator->rx_freq=openair0_cfg->rx_freq[0];
   rfsimulator->tx_bw=openair0_cfg->tx_bw;  
   rfsimulator_readconfig(rfsimulator);
-  LOG_W(HW, "sample_rate %f\n", rfsimulator->sample_rate);
+  if (rfsimulator->prop_delay_ms > 0.0)
+    rfsimulator->chan_offset = ceil(rfsimulator->sample_rate * rfsimulator->prop_delay_ms / 1000);
+  if (rfsimulator->chan_offset != 0) {
+    if (CirSize < minCirSize + rfsimulator->chan_offset) {
+      CirSize = minCirSize + rfsimulator->chan_offset;
+      LOG_I(HW, "CirSize = %lu\n", CirSize);
+    }
+    rfsimulator->prop_delay_ms = rfsimulator->chan_offset * 1000 / rfsimulator->sample_rate;
+    LOG_I(HW, "propagation delay %f ms, %lu samples\n", rfsimulator->prop_delay_ms, rfsimulator->chan_offset);
+  }
   pthread_mutex_init(&Sockmutex, NULL);
   LOG_I(HW,
         "Running as %s\n",

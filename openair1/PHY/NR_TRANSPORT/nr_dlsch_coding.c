@@ -73,13 +73,6 @@ void free_gNB_dlsch(NR_gNB_DLSCH_t *dlsch, uint16_t N_RB, const NR_DL_FRAME_PARM
   }
   free(harq->c);
   free(harq->pdu);
-
-  for (int layer = 0; layer < max_layers; layer++) {
-    for (int aa = 0; aa < 64; aa++)
-      free(dlsch->ue_spec_bf_weights[layer][aa]);
-    free(dlsch->ue_spec_bf_weights[layer]);
-  }
-  free(dlsch->ue_spec_bf_weights);
 }
 
 NR_gNB_DLSCH_t new_gNB_dlsch(NR_DL_FRAME_PARMS *frame_parms, uint16_t N_RB)
@@ -95,19 +88,6 @@ NR_gNB_DLSCH_t new_gNB_dlsch(NR_DL_FRAME_PARMS *frame_parms, uint16_t N_RB)
   LOG_D(PHY,"Allocating %d segments (MAX %d, N_PRB %d)\n",a_segments,MAX_NUM_NR_DLSCH_SEGMENTS_PER_LAYER,N_RB);
   uint32_t dlsch_bytes = a_segments*1056;  // allocated bytes per segment
   NR_gNB_DLSCH_t dlsch;
-
-  dlsch.ue_spec_bf_weights = (int32_t ***)malloc16(max_layers * sizeof(int32_t **));
-  for (int layer=0; layer<max_layers; layer++) {
-    dlsch.ue_spec_bf_weights[layer] = (int32_t **)malloc16(64 * sizeof(int32_t *));
-
-    for (int aa=0; aa<64; aa++) {
-      dlsch.ue_spec_bf_weights[layer][aa] = (int32_t *)malloc16(OFDM_SYMBOL_SIZE_COMPLEX_SAMPLES * sizeof(int32_t));
-
-      for (int re=0; re<OFDM_SYMBOL_SIZE_COMPLEX_SAMPLES; re++) {
-        dlsch.ue_spec_bf_weights[layer][aa][re] = 0x00007fff;
-      }
-    }
-  }
 
   NR_DL_gNB_HARQ_t *harq = &dlsch.harq_process;
   bzero(harq, sizeof(NR_DL_gNB_HARQ_t));
@@ -276,8 +256,21 @@ int nr_dlsch_encoding(PHY_VARS_gNB *gNB,
   VCD_SIGNAL_DUMPER_DUMP_FUNCTION_BY_NAME(VCD_SIGNAL_DUMPER_FUNCTIONS_gNB_DLSCH_ENCODING, VCD_FUNCTION_IN);
   uint32_t A = rel15->TBSize[0]<<3;
   unsigned char *a=harq->pdu;
-  if (rel15->rnti != SI_RNTI)
-    trace_NRpdu(DIRECTION_DOWNLINK, a, rel15->TBSize[0], WS_C_RNTI, rel15->rnti, frame, slot,0, 0);
+  if (rel15->rnti != SI_RNTI) {
+    ws_trace_t tmp = {.nr = true,
+                      .direction = DIRECTION_DOWNLINK,
+                      .pdu_buffer = a,
+                      .pdu_buffer_size = rel15->TBSize[0],
+                      .ueid = 0,
+                      .rntiType = WS_C_RNTI,
+                      .rnti = rel15->rnti,
+                      .sysFrame = frame,
+                      .subframe = slot,
+                      .harq_pid = 0, // difficult to find the harq pid here
+                      .oob_event = 0,
+                      .oob_event_value = 0};
+    trace_pdu(&tmp);
+  }
 
   NR_gNB_PHY_STATS_t *phy_stats = NULL;
   if (rel15->rnti != 0xFFFF)
@@ -360,6 +353,7 @@ int nr_dlsch_encoding(PHY_VARS_gNB *gNB,
   impp.harq = harq;
   if (gNB->ldpc_offload_flag) {
     impp.Qm = rel15->qamModOrder[0];
+    impp.Tbslbrm = rel15->maintenance_parms_v3.tbSizeLbrmBytes;
     impp.rv = rel15->rvIndex[0];
     int nb_re_dmrs =
         (rel15->dmrsConfigType == NFAPI_NR_DMRS_TYPE1) ? (6 * rel15->numDmrsCdmGrpsNoData) : (4 * rel15->numDmrsCdmGrpsNoData);
@@ -370,13 +364,10 @@ int nr_dlsch_encoding(PHY_VARS_gNB *gNB,
                       harq->unav_res,
                       rel15->qamModOrder[0],
                       rel15->nrOfLayers);
-    int r_offset = 0;
     for (int r = 0; r < impp.n_segments; r++) {
-      impp.E = nr_get_E(impp.G, impp.n_segments, impp.Qm, rel15->nrOfLayers, r);
-      uint8_t *f = impp.output + r_offset;
-      ldpc_interface_offload.LDPCencoder(&harq->c[r], &f, &impp);
-      r_offset += impp.E;
+      impp.perCB[r].E_cb = nr_get_E(impp.G, impp.n_segments, impp.Qm, rel15->nrOfLayers, r);
     }
+    ldpc_interface_offload.LDPCencoder(harq->c, &impp.output, &impp);
   } else {
     notifiedFIFO_t nf;
     initNotifiedFIFO(&nf);

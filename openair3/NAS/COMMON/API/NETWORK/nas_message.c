@@ -1009,8 +1009,7 @@ static int _nas_message_decrypt(
                 (direction == SECU_DIRECTION_UPLINK) ? "UPLINK":"DOWNLINK",
                 (direction == SECU_DIRECTION_UPLINK) ? emm_security_context->ul_count.seq_num:emm_security_context->dl_count.seq_num,
                 count);
-      stream_cipher.key        = emm_security_context->knas_enc.value;
-      stream_cipher.key_length = AUTH_KNAS_ENC_SIZE;
+      stream_cipher.context    = emm_security_context->security_container->ciphering_context;
       stream_cipher.count      = count;
       stream_cipher.bearer     = 0x00; //33.401 section 8.1.1
       stream_cipher.direction  = direction;
@@ -1045,15 +1044,14 @@ static int _nas_message_decrypt(
                 (direction == SECU_DIRECTION_UPLINK) ? "UPLINK":"DOWNLINK",
                 (direction == SECU_DIRECTION_UPLINK) ? emm_security_context->ul_count.seq_num:emm_security_context->dl_count.seq_num,
                 count);
-      stream_cipher.key        = emm_security_context->knas_enc.value;
-      stream_cipher.key_length = AUTH_KNAS_ENC_SIZE;
+      stream_cipher.context    = emm_security_context->security_container->ciphering_context;
       stream_cipher.count      = count;
       stream_cipher.bearer     = 0x00; //33.401 section 8.1.1
       stream_cipher.direction  = direction;
       stream_cipher.message    = (unsigned char *)src;
       /* length in bits */
       stream_cipher.blength    = length << 3;
-      stream_compute_encrypt(EEA1_128_ALG_ID, &stream_cipher, (unsigned char *)dest);
+      stream_compute_encrypt(EEA2_128_ALG_ID, &stream_cipher, (unsigned char *)dest);
 
       /* Decode the first octet (security header type or EPS bearer identity,
        * and protocol discriminator) */
@@ -1178,8 +1176,7 @@ static int _nas_message_encrypt(
                 (direction == SECU_DIRECTION_UPLINK) ? "UPLINK":"DOWNLINK",
                 (direction == SECU_DIRECTION_UPLINK) ? emm_security_context->ul_count.seq_num:emm_security_context->dl_count.seq_num,
                 count);
-      stream_cipher.key        = emm_security_context->knas_enc.value;
-      stream_cipher.key_length = AUTH_KNAS_ENC_SIZE;
+      stream_cipher.context    = emm_security_context->security_container->ciphering_context;
       stream_cipher.count      = count;
       stream_cipher.bearer     = 0x00; //33.401 section 8.1.1
       stream_cipher.direction  = direction;
@@ -1208,8 +1205,7 @@ static int _nas_message_encrypt(
                 (direction == SECU_DIRECTION_UPLINK) ? "UPLINK":"DOWNLINK",
                 (direction == SECU_DIRECTION_UPLINK) ? emm_security_context->ul_count.seq_num:emm_security_context->dl_count.seq_num,
                 count);
-      stream_cipher.key        = emm_security_context->knas_enc.value;
-      stream_cipher.key_length = AUTH_KNAS_ENC_SIZE;
+      stream_cipher.context    = emm_security_context->security_container->ciphering_context;
       stream_cipher.count      = count;
       stream_cipher.bearer     = 0x00; //33.401 section 8.1.1
       stream_cipher.direction  = direction;
@@ -1347,8 +1343,7 @@ static uint32_t _nas_message_get_mac(
     fflush(stderr);
 #endif
 
-    stream_cipher.key        = emm_security_context->knas_int.value;
-    stream_cipher.key_length = AUTH_KNAS_INT_SIZE;
+    stream_cipher.context    = emm_security_context->security_container->integrity_context;
     stream_cipher.count      = count;
     stream_cipher.bearer     = 0x00; //33.401 section 8.1.1
     stream_cipher.direction  = direction;
@@ -1391,8 +1386,7 @@ static uint32_t _nas_message_get_mac(
               (direction == SECU_DIRECTION_UPLINK) ? emm_security_context->ul_count.seq_num:emm_security_context->dl_count.seq_num,
               count);
 
-    stream_cipher.key        = emm_security_context->knas_int.value;
-    stream_cipher.key_length = AUTH_KNAS_INT_SIZE;
+    stream_cipher.context    = emm_security_context->security_container->integrity_context;
     stream_cipher.count      = count;
     stream_cipher.bearer     = 0x00; //33.401 section 8.1.1
     stream_cipher.direction  = direction;

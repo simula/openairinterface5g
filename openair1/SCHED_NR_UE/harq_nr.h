@@ -35,13 +35,7 @@
 
 /************** DEFINE ********************************************/
 
-#define NR_DEFAULT_DLSCH_HARQ_PROCESSES          (8)                      /* TS 38.214 5.1 */
-
-#define DL_ACKNACK_NO_SET                        (2)
-#define DL_NACK                                  (0)
-#define DL_ACK                                   (1)
-#define DL_DAI_NO_SET                            (0xFF)
-#define UL_DAI_NO_SET                            (DL_DAI_NO_SET)
+#define NR_DEFAULT_DLSCH_HARQ_PROCESSES (8) /* TS 38.214 5.1 */
 
 /************** INCLUDE *******************************************/
 

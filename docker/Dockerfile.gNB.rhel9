@@ -31,22 +31,26 @@ FROM ran-build:latest AS gnb-build
 
 
 #start from scratch for target executable
-FROM registry.access.redhat.com/ubi9/ubi:latest as oai-gnb
+FROM registry.access.redhat.com/ubi9/ubi:latest AS oai-gnb
 ENV TZ=Europe/Paris
+
+# Install EPEL for RHEL9
+RUN dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm
 
 RUN dnf update -y && \
     dnf install -y \
         procps-ng \
         libXpm \
         libX11 \
-        atlas \
+        libusbx \
         lksctp-tools \
         tzdata \
         gdb \
         python3 \
         python3-pip \
         net-tools \
-        iputils && \
+        iputils \
+        yaml-cpp-devel && \
     pip3 install six && \
     pip3 install requests && \
     echo "/usr/local/lib" > /etc/ld.so.conf.d/local-lib.conf && \
@@ -67,15 +71,12 @@ COPY --from=gnb-build \
     /oai-ran/cmake_targets/ran_build/build/libldpc*.so \
     /oai-ran/cmake_targets/ran_build/build/libtelnetsrv.so \
     /oai-ran/cmake_targets/ran_build/build/libtelnetsrv_ci.so \
+    /oai-ran/cmake_targets/ran_build/build/libparams_yaml.so \
     /usr/local/lib/
 
 COPY --from=gnb-base \
     /lib64/libconfig.so.11 \
     /lib64/libforms.so.2 \
-    /lib64/libblas.so.3 \
-    /lib64/libcblas.so.3 \
-    /lib64/liblapack.so.3 \
-    /lib64/liblapacke.so.3 \
     /lib64/libboost_chrono.so.1.75.0 \
     /lib64/libboost_date_time.so.1.75.0 \
     /lib64/libboost_filesystem.so.1.75.0 \
@@ -97,11 +98,27 @@ COPY --from=gnb-base /usr/local/bin/uhd_find_devices /usr/local/bin
 COPY --from=gnb-base /usr/local/lib64/libuhd.so.4.4.0 /usr/local/lib64
 COPY --from=gnb-base /usr/local/lib64/uhd/utils/uhd_images_downloader.py /opt/oai-gnb/bin
 
+## Copy E2 SM models
+COPY --from=gnb-build /usr/local/lib64/flexric /usr/local/lib64/flexric
+
 WORKDIR /usr/local/share/uhd/rfnoc
 COPY --from=gnb-base /usr/local/share/uhd/rfnoc/ .
 
 RUN /bin/bash -c "ln -s /usr/local/lib/liboai_usrpdevif.so /usr/local/lib/liboai_device.so" && \
-    ldconfig
+    ldconfig && \
+    echo "---- ldd on executable nr-softmodem ----" && \
+    ldd /opt/oai-gnb/bin/nr-softmodem && \
+    echo "---- ldd on shared libraries ----" && \
+    ldd /usr/local/lib/liboai_eth_transpro.so \
+        /usr/local/lib/librfsimulator.so \
+        /usr/local/lib/liboai_usrpdevif.so \
+        /usr/local/lib/libcoding.so \
+        /usr/local/lib/libparams_libconfig.so \
+        /usr/local/lib/libdfts.so \
+        /usr/local/lib/libldpc*.so \
+        /usr/local/lib/libtelnetsrv.so \
+        /usr/local/lib/libtelnetsrv_ci.so \
+        /usr/local/lib64/libuhd.so.4.4.0
 
 WORKDIR /opt/oai-gnb
 #EXPOSE 2152/udp  # S1U, GTP/UDP
@@ -113,4 +130,4 @@ WORKDIR /opt/oai-gnb
 
 COPY --from=gnb-base /tini /tini
 ENTRYPOINT ["/tini", "-v", "--", "/opt/oai-gnb/bin/entrypoint.sh"]
-CMD ["/opt/oai-gnb/bin/nr-softmodem", "-O", "/opt/oai-gnb/etc/gnb.conf"]
+CMD ["/opt/oai-gnb/bin/nr-softmodem"]

@@ -44,29 +44,25 @@
 
 extern RAN_CONTEXT_t RC;
 
-int rrc_gNB_process_GTPV1U_CREATE_TUNNEL_RESP(const protocol_ctxt_t *const ctxt_pP, const gtpv1u_enb_create_tunnel_resp_t *const create_tunnel_resp_pP, uint8_t *inde_list)
+int rrc_gNB_process_GTPV1U_CREATE_TUNNEL_RESP(gNB_RRC_UE_t *ue,
+                                              const gtpv1u_enb_create_tunnel_resp_t *const create_tunnel_resp_pP,
+                                              uint8_t *inde_list)
 {
   if (!create_tunnel_resp_pP) {
     LOG_E(NR_RRC, "create_tunnel_resp_pP error\n");
     return -1;
   }
 
-  LOG_D(RRC, PROTOCOL_RRC_CTXT_UE_FMT " RX CREATE_TUNNEL_RESP num tunnels %u \n", PROTOCOL_RRC_CTXT_UE_ARGS(ctxt_pP), create_tunnel_resp_pP->num_tunnels);
-  /* we look up by CU UE ID! Do NOT change back to RNTI! */
-  rrc_gNB_ue_context_t *ue_context_p = rrc_gNB_get_ue_context(RC.nrrrc[ctxt_pP->module_id], ctxt_pP->rntiMaybeUEid);
-  if (!ue_context_p) {
-    LOG_E(NR_RRC, "UE table error\n");
-    return -1;
-  }
   for (int i = 0; i < create_tunnel_resp_pP->num_tunnels; i++) {
-    ue_context_p->ue_context.nsa_gtp_teid[inde_list[i]] = create_tunnel_resp_pP->enb_S1u_teid[i];
-    ue_context_p->ue_context.nsa_gtp_addrs[inde_list[i]] = create_tunnel_resp_pP->enb_addr;
-    ue_context_p->ue_context.nsa_gtp_ebi[inde_list[i]] = create_tunnel_resp_pP->eps_bearer_id[i];
+    ue->nsa_gtp_teid[inde_list[i]] = create_tunnel_resp_pP->enb_S1u_teid[i];
+    ue->nsa_gtp_addrs[inde_list[i]] = create_tunnel_resp_pP->enb_addr;
+    ue->nsa_gtp_ebi[inde_list[i]] = create_tunnel_resp_pP->eps_bearer_id[i];
     LOG_I(RRC,
-          PROTOCOL_RRC_CTXT_UE_FMT " rrc_eNB_process_GTPV1U_CREATE_TUNNEL_RESP tunnel (%u, %u) bearer UE context index %u, msg index %u, id %u, gtp addr len %d \n",
-          PROTOCOL_RRC_CTXT_UE_ARGS(ctxt_pP),
+          "UE %d: rrc_eNB_process_GTPV1U_CREATE_TUNNEL_RESP tunnel (%u, %u) bearer UE context index %u, msg index %u, id %u, gtp "
+          "addr len %d \n",
+          ue->rrc_ue_id,
           create_tunnel_resp_pP->enb_S1u_teid[i],
-          ue_context_p->ue_context.nsa_gtp_teid[inde_list[i]],
+          ue->nsa_gtp_teid[inde_list[i]],
           inde_list[i],
           i,
           create_tunnel_resp_pP->eps_bearer_id[i],

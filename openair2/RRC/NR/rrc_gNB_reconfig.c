@@ -49,14 +49,10 @@
 #include "nr_rrc_config.h"
 #include "MESSAGES/asn1_msg.h"
 
-void fill_default_reconfig(NR_ServingCellConfigCommon_t *servingcellconfigcommon,
-                           NR_ServingCellConfig_t *servingcellconfigdedicated,
-                           NR_RRCReconfiguration_IEs_t *reconfig,
-                           NR_CellGroupConfig_t *secondaryCellGroup,
-                           NR_UE_NR_Capability_t *uecap,
-                           int uid) {
-  AssertFatal(servingcellconfigcommon!=NULL,"servingcellconfigcommon is null\n");
-  AssertFatal(reconfig!=NULL,"reconfig is null\n");
+NR_RRCReconfiguration_IEs_t *get_default_reconfig(const NR_CellGroupConfig_t *secondaryCellGroup)
+{
+  NR_RRCReconfiguration_IEs_t *reconfig = calloc(1, sizeof(NR_RRCReconfiguration_IEs_t));
+  AssertFatal(reconfig != NULL, "out of memory\n");
   AssertFatal(secondaryCellGroup!=NULL,"secondaryCellGroup is null\n");
   // radioBearerConfig
   reconfig->radioBearerConfig=NULL;
@@ -74,6 +70,7 @@ void fill_default_reconfig(NR_ServingCellConfigCommon_t *servingcellconfigcommon
   reconfig->lateNonCriticalExtension = NULL;
   // nonCriticalExtension
   reconfig->nonCriticalExtension = NULL;
+  return reconfig;
 }
 
 /* Function to set or overwrite PTRS DL RRC parameters */

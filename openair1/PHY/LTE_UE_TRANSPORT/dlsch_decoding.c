@@ -277,7 +277,6 @@ uint32_t dlsch_decoding(PHY_VARS_UE *phy_vars_ue,
 #ifdef DEBUG_DLSCH_DECODING
   printf("Segmentation: C %d, Cminus %d, Kminus %d, Kplus %d\n",harq_process->C,harq_process->Cminus,harq_process->Kminus,harq_process->Kplus);
 #endif
-  opp_enabled=1;
   set_abort(&harq_process->abort_decode, false);
   for (r=0; r<harq_process->C; r++) {
     // Get Turbo interleaver parameters

@@ -1,4 +1,3 @@
-version: '3.8'
 services:
     mysql:
         container_name: "mysql"
@@ -168,14 +167,11 @@ services:
             public_net:
                 ipv4_address: 192.168.70.135
 networks:
-    # public_net:
-    #     external:
-    #         name: demo-oai-public-net
     public_net:
         driver: bridge
-        name: demo-oai-public-net
+        name: oai-cn5g-public-net
         ipam:
             config:
                 - subnet: 192.168.70.128/26
         driver_opts:
-            com.docker.network.bridge.name: "demo-oai"
+            com.docker.network.bridge.name: "oai-cn5g"

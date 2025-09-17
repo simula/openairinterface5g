@@ -65,7 +65,7 @@ int32_t generate_nr_prach(PHY_VARS_NR_UE *ue, uint8_t gNB_id, int frame, uint8_t
   c16_t prach[(4688 + 4 * 24576) * 2] __attribute__((aligned(32))) = {0};
   int16_t prachF_tmp[(4688+4*24576)*4*2] __attribute__((aligned(32))) = {0};
 
-  int16_t Ncp = 0;
+  int Ncp = 0;
   int prach_start, prach_sequence_length, i, prach_len, dftlen, mu, kbar, K, n_ra_prb, k, prachStartSymbol, sample_offset_slot;
 
   fd_occasion             = 0;
@@ -225,7 +225,9 @@ int32_t generate_nr_prach(PHY_VARS_NR_UE *ue, uint8_t gNB_id, int frame, uint8_t
   k += kbar;
   k *= 2;
 
-  LOG_I(PHY, "PRACH [UE %d] in frame.slot %d.%d, placing PRACH in position %d, msg1 frequency start %d (k1 %d), preamble_offset %d, first_nonzero_root_idx %d\n",
+  LOG_I(PHY,
+        "PRACH [UE %d] in frame.slot %d.%d, placing PRACH in position %d, Msg1/MsgA-Preamble frequency start %d (k1 %d), "
+        "preamble_offset %d, first_nonzero_root_idx %d\n",
         Mod_id,
         frame,
         slot,
@@ -332,6 +334,12 @@ int32_t generate_nr_prach(PHY_VARS_NR_UE *ue, uint8_t gNB_id, int frame, uint8_t
     dftlen >>= 1;
     break;
 
+  case 23040:
+    // 20 MHz @ 23.04 Ms/s
+    Ncp = (Ncp * 3) / 4;
+    dftlen = (dftlen * 3) / 4;
+    break;
+
   case 30720:
     // 20, 25, 30 MHz @ 30.72 Ms/s
     break;
@@ -364,6 +372,12 @@ int32_t generate_nr_prach(PHY_VARS_NR_UE *ue, uint8_t gNB_id, int frame, uint8_t
     // 100 MHz @ 184.32 Ms/s
     Ncp = Ncp*6;
     dftlen = dftlen*6;
+    break;
+
+  case 245760:
+    // 200 MHz @ 245.76 Ms/s
+    Ncp <<= 3;
+    dftlen <<= 3;
     break;
 
   default:

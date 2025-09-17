@@ -189,7 +189,7 @@ int main(int argc, char **argv) {
   uint32_t Nsoft;
   int CCE_table[800];
   int threequarter_fs=0;
-  opp_enabled=1; // to enable the time meas
+  cpu_meas_enabled = 1; // to enable the time meas
 #if defined(__arm__) || defined(__aarch64__)
   FILE    *proc_fd = NULL;
   char buf[64];

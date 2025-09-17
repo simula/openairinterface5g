@@ -20,6 +20,7 @@
  */
 
 #include "openair2/RRC/NR_UE/rrc_proto.h"
+#include "executables/softmodem-common.h"
 
 void init_SI_timers(NR_UE_RRC_SI_INFO *SInfo)
 {
@@ -39,6 +40,7 @@ void init_SI_timers(NR_UE_RRC_SI_INFO *SInfo)
   nr_timer_setup(&SInfo->sib12_timer, 10800000, 10);
   nr_timer_setup(&SInfo->sib13_timer, 10800000, 10);
   nr_timer_setup(&SInfo->sib14_timer, 10800000, 10);
+  nr_timer_setup(&SInfo->SInfo_r17.sib19_timer, 10800000, 10);
 }
 
 void nr_rrc_SI_timers(NR_UE_RRC_SI_INFO *SInfo)
@@ -113,11 +115,20 @@ void nr_rrc_SI_timers(NR_UE_RRC_SI_INFO *SInfo)
    if (sib14_expired)
      asn1cFreeStruc(asn_DEF_NR_SIB14_r16, SInfo->sib14);
   }
+  if (SInfo->SInfo_r17.sib19) {
+   bool sib19_expired = nr_timer_tick(&SInfo->SInfo_r17.sib19_timer);
+   if (sib19_expired)
+     asn1cFreeStruc(asn_DEF_NR_SIB19_r17, SInfo->SInfo_r17.sib19);
+  }
 }
 
 void nr_rrc_handle_timers(NR_UE_RRC_INST_t *rrc)
 {
   NR_UE_Timers_Constants_t *timers = &rrc->timers_and_constants;
+
+  bool release_timer_expired = nr_timer_tick(&rrc->release_timer);
+  if (release_timer_expired)
+    handle_RRCRelease(rrc);
 
   bool t300_expired = nr_timer_tick(&timers->T300);
   if(t300_expired) {
@@ -556,7 +567,7 @@ void handle_rlf_sync(NR_UE_Timers_Constants_t *tac,
 {
   if (sync_msg == IN_SYNC) {
     tac->N310_cnt = 0;
-    if (is_nr_timer_active(tac->T310)) {
+    if (nr_timer_is_active(&tac->T310)) {
       tac->N311_cnt++;
       // Upon receiving N311 consecutive "in-sync" indications
       if (tac->N311_cnt >= tac->N311_k) {
@@ -569,12 +580,13 @@ void handle_rlf_sync(NR_UE_Timers_Constants_t *tac,
   else {
     // OUT_OF_SYNC
     tac->N311_cnt = 0;
-    if(is_nr_timer_active(tac->T300) ||
-       is_nr_timer_active(tac->T301) ||
-       is_nr_timer_active(tac->T304) ||
-       is_nr_timer_active(tac->T310) ||
-       is_nr_timer_active(tac->T311) ||
-       is_nr_timer_active(tac->T319))
+    if(get_softmodem_params()->phy_test ||
+       nr_timer_is_active(&tac->T300) ||
+       nr_timer_is_active(&tac->T301) ||
+       nr_timer_is_active(&tac->T304) ||
+       nr_timer_is_active(&tac->T310) ||
+       nr_timer_is_active(&tac->T311) ||
+       nr_timer_is_active(&tac->T319))
       return;
     tac->N310_cnt++;
     // upon receiving N310 consecutive "out-of-sync" indications

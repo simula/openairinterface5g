@@ -187,13 +187,14 @@ void insert_sss_nr(int16_t *sss_time,
 *
 *********************************************************************/
 
-static int pss_ch_est_nr(PHY_VARS_NR_UE *ue,
+static int pss_ch_est_nr(const NR_DL_FRAME_PARMS *frame_parms,
+                         int nid2,
                          c16_t pss_ext[NB_ANTENNAS_RX][LENGTH_PSS_NR],
                          c16_t sss_ext[NB_ANTENNAS_RX][LENGTH_SSS_NR])
 {
-  int16_t *pss = get_primary_synchro_nr2(ue->common_vars.nid2);
+  int16_t *pss = get_primary_synchro_nr2(nid2);
 
-  for (int aarx = 0; aarx < ue->frame_parms.nb_antennas_rx; aarx++) {
+  for (int aarx = 0; aarx < frame_parms->nb_antennas_rx; aarx++) {
     c16_t *sss_ext2 = sss_ext[aarx];
     c16_t *pss_ext2 = pss_ext[aarx];
     for (int i = 0; i < LENGTH_PSS_NR; i++) {
@@ -250,16 +251,15 @@ static int pss_ch_est_nr(PHY_VARS_NR_UE *ue,
 *********************************************************************/
 
 static int do_pss_sss_extract_nr(
-    PHY_VARS_NR_UE *ue,
-    const UE_nr_rxtx_proc_t *proc,
+    const NR_DL_FRAME_PARMS *frame_parms,
     c16_t pss_ext[NB_ANTENNAS_RX][LENGTH_PSS_NR],
     c16_t sss_ext[NB_ANTENNAS_RX][LENGTH_SSS_NR],
     uint8_t doPss,
     uint8_t doSss,
     uint8_t subframe,
-    c16_t rxdataF[][ue->frame_parms.samples_per_slot_wCP]) // add flag to indicate extracting only PSS, only SSS, or both
+    int ssb_start_subcarrier,
+    c16_t rxdataF[][frame_parms->samples_per_slot_wCP]) // add flag to indicate extracting only PSS, only SSS, or both
 {
-  NR_DL_FRAME_PARMS *frame_parms = &ue->frame_parms;
   AssertFatal(frame_parms->nb_antennas_rx > 0, "UB as sss_ext is not set to any value\n");
 
   for (int aarx = 0; aarx < frame_parms->nb_antennas_rx; aarx++) {
@@ -275,11 +275,8 @@ static int do_pss_sss_extract_nr(
     c16_t *pss_rxF_ext = pss_ext[aarx];
     c16_t *sss_rxF_ext = sss_ext[aarx];
 
-    unsigned int k = frame_parms->first_carrier_offset +
-                     frame_parms->ssb_start_subcarrier +
-                     ((get_softmodem_params()->sl_mode == 0) ?
-                     PSS_SSS_SUB_CARRIER_START :
-                     PSS_SSS_SUB_CARRIER_START_SL);
+    unsigned int k = frame_parms->first_carrier_offset + ssb_start_subcarrier
+                     + ((get_softmodem_params()->sl_mode == 0) ? PSS_SSS_SUB_CARRIER_START : PSS_SSS_SUB_CARRIER_START_SL);
 
     if (k>= frame_parms->ofdm_symbol_size) k-=frame_parms->ofdm_symbol_size;
 
@@ -333,14 +330,21 @@ static int do_pss_sss_extract_nr(
 *
 *********************************************************************/
 
-static int pss_sss_extract_nr(PHY_VARS_NR_UE *phy_vars_ue,
-                              const UE_nr_rxtx_proc_t *proc,
+static int pss_sss_extract_nr(const NR_DL_FRAME_PARMS *frame_parms,
                               c16_t pss_ext[NB_ANTENNAS_RX][LENGTH_PSS_NR],
                               c16_t sss_ext[NB_ANTENNAS_RX][LENGTH_SSS_NR],
                               uint8_t subframe,
-                              c16_t rxdataF[][phy_vars_ue->frame_parms.samples_per_slot_wCP])
+                              int ssb_start_subcarrier,
+                              c16_t rxdataF[][frame_parms->samples_per_slot_wCP])
 {
-  return do_pss_sss_extract_nr(phy_vars_ue, proc, pss_ext, sss_ext, 1 /* doPss */, 1 /* doSss */, subframe, rxdataF);
+  return do_pss_sss_extract_nr(frame_parms,
+                               pss_ext,
+                               sss_ext,
+                               1 /* doPss */,
+                               1 /* doSss */,
+                               subframe,
+                               ssb_start_subcarrier,
+                               rxdataF);
 }
 
 /*******************************************************************
@@ -355,31 +359,29 @@ static int pss_sss_extract_nr(PHY_VARS_NR_UE *phy_vars_ue,
  *                so Nid_cell in ue context is set according to Nid1 & Nid2
  *
  *********************************************************************/
-bool rx_sss_nr(PHY_VARS_NR_UE *ue,
-               const UE_nr_rxtx_proc_t *proc,
+bool rx_sss_nr(const NR_DL_FRAME_PARMS *frame_parms,
+               int nid2,
+               int target_Nid_cell,
+               int freq_offset_pss,
+               int ssb_start_subcarrier,
+               int *Nid_cell,
                int32_t *tot_metric,
                uint8_t *phase_max,
                int *freq_offset_sss,
-               c16_t rxdataF[][ue->frame_parms.samples_per_slot_wCP])
+               c16_t rxdataF[][frame_parms->samples_per_slot_wCP])
 {
   uint8_t i;
   c16_t pss_ext[NB_ANTENNAS_RX][LENGTH_PSS_NR] = {0};
   c16_t sss_ext[NB_ANTENNAS_RX][LENGTH_SSS_NR] = {0};
-  uint8_t Nid2 = GET_NID2(ue->common_vars.nid2);
+  uint8_t Nid2 = GET_NID2(nid2);
   uint16_t Nid1;
   uint8_t phase;
-  NR_DL_FRAME_PARMS *frame_parms=&ue->frame_parms;
   int32_t metric, metric_re;
   int16_t *d;
 
 
   // pss sss extraction
-  pss_sss_extract_nr(ue,
-                     proc,
-                     pss_ext,
-                     sss_ext,
-                     0,
-                     rxdataF);          /* subframe */
+  pss_sss_extract_nr(frame_parms, pss_ext, sss_ext, 0, ssb_start_subcarrier, rxdataF); /* subframe */
 
 #ifdef DEBUG_PLOT_SSS
 
@@ -406,9 +408,7 @@ bool rx_sss_nr(PHY_VARS_NR_UE *ue,
   // get conjugated channel estimate from PSS, H* = R* \cdot PSS
   // and do channel estimation and compensation based on PSS
 
-  pss_ch_est_nr(ue,
-                pss_ext,
-                sss_ext);
+  pss_ch_est_nr(frame_parms, nid2, pss_ext, sss_ext);
 
   // now do the SSS detection based on the precomputed sequences in PHY/LTE_TRANSPORT/sss.h
   *tot_metric = INT_MIN;
@@ -453,8 +453,8 @@ bool rx_sss_nr(PHY_VARS_NR_UE *ue,
 
   uint16_t Nid1_start = 0;
   uint16_t Nid1_end = N_ID_1_NUMBER;
-  if (ue->target_Nid_cell != -1) {
-    Nid1_start = GET_NID1(ue->target_Nid_cell);
+  if (target_Nid_cell != -1) {
+    Nid1_start = GET_NID1(target_Nid_cell);
     Nid1_end = Nid1_start + 1;
   }
 
@@ -476,7 +476,7 @@ bool rx_sss_nr(PHY_VARS_NR_UE *ue,
       // if the current metric is better than the last save it
       if (metric > *tot_metric) {
         *tot_metric = metric;
-        ue->frame_parms.Nid_cell = Nid2+(3*Nid1);
+        *Nid_cell = Nid2 + (3 * Nid1);
         *phase_max = phase;
 
 #ifdef DEBUG_SSS_NR
@@ -490,9 +490,9 @@ bool rx_sss_nr(PHY_VARS_NR_UE *ue,
 
 //#ifdef DEBUG_SSS_NR
 #define SSS_METRIC_FLOOR_NR   (30000)
-  if (*tot_metric > SSS_METRIC_FLOOR_NR) {	
-    Nid2 = GET_NID2(frame_parms->Nid_cell);
-    Nid1 = GET_NID1(frame_parms->Nid_cell);
+  if (*tot_metric > SSS_METRIC_FLOOR_NR) {
+    Nid2 = GET_NID2(*Nid_cell);
+    Nid1 = GET_NID1(*Nid_cell);
     LOG_D(PHY,"Nid2 %d Nid1 %d tot_metric %d, phase_max %d \n", Nid2, Nid1, *tot_metric, *phase_max);
   }
 // #endif
@@ -500,11 +500,11 @@ bool rx_sss_nr(PHY_VARS_NR_UE *ue,
   int re = 0;
   int im = 0;
   if (Nid1 == N_ID_1_NUMBER) {
-    LOG_W(PHY,
+    LOG_D(PHY,
           "Failed to detect SSS after PSS, metric of SSS %d, threshold to consider SSS valid %d, detected PCI: %d\n",
           *tot_metric,
           SSS_METRIC_FLOOR_NR,
-          frame_parms->Nid_cell);
+          *Nid_cell);
     return false;
   }
   d = (int16_t *)&d_sss[Nid2][Nid1];
@@ -515,10 +515,10 @@ bool rx_sss_nr(PHY_VARS_NR_UE *ue,
   double ffo_sss = atan2(im,re)/M_PI/4.3;
   *freq_offset_sss = (int)(ffo_sss*frame_parms->subcarrier_spacing);
 
-  double ffo_pss = ((double)ue->common_vars.freq_offset)/frame_parms->subcarrier_spacing;
-  LOG_W(NR_PHY,
+  double ffo_pss = ((double)freq_offset_pss) / frame_parms->subcarrier_spacing;
+  LOG_D(NR_PHY,
         "SSS detected, PCI: %d, ffo_pss %f (%i Hz), ffo_sss %f (%i Hz),  ffo_pss+ffo_sss %f (%i Hz), nid1: %d, nid2: %d\n",
-        frame_parms->Nid_cell,
+        *Nid_cell,
         ffo_pss,
         (int)(ffo_pss * frame_parms->subcarrier_spacing),
         ffo_sss,

@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
     cassandra:
         image: cassandra:2.1
@@ -32,7 +30,7 @@ services:
         entrypoint: /bin/bash -c "cqlsh --file /home/oai_db.cql 192.168.68.2 && echo 'OK'"
 
     oai_hss:
-        image: oai-hss:latest
+        image: oaisoftwarealliance/oai-hss:latest
         container_name: rfsim4g-oai-hss
         privileged: true
         depends_on: [cassandra]
@@ -75,7 +73,7 @@ services:
             retries: 5
 
     magma_mme:
-        image: magma-mme:latest
+        image: oaisoftwarealliance/magma-mme:latest
         container_name: rfsim4g-magma-mme
         hostname: mme
         privileged: true
@@ -104,7 +102,7 @@ services:
             retries: 5
 
     oai_spgwc:
-        image: oai-spgwc:latest
+        image: oaisoftwarealliance/oai-spgwc:latest
         privileged: true
         depends_on: [magma_mme]
         container_name: rfsim4g-oai-spgwc
@@ -136,7 +134,7 @@ services:
             retries: 5
 
     oai_spgwu:
-        image: oai-spgwu-tiny:latest
+        image: oaisoftwarealliance/oai-spgwu-tiny:latest
         privileged: true
         container_name: rfsim4g-oai-spgwu-tiny
         depends_on: [oai_spgwc]
@@ -180,7 +178,7 @@ services:
             retries: 5
 
     oai_enb0:
-        image: oaisoftwarealliance/oai-enb:develop
+        image: ${REGISTRY:-oaisoftwarealliance}/oai-enb:${TAG:-develop}
         privileged: true
         container_name: rfsim4g-oai-enb
         networks:
@@ -198,7 +196,7 @@ services:
             retries: 5
 
     oai_ue0:
-        image: oaisoftwarealliance/oai-lte-ue:develop
+        image: ${REGISTRY:-oaisoftwarealliance}/oai-lte-ue:${TAG:-develop}
         privileged: true
         container_name: rfsim4g-oai-lte-ue0
         networks:

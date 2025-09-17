@@ -36,6 +36,7 @@ add_library(telnetsrv MODULE
 )
 target_link_libraries(telnetsrv PRIVATE history)
 target_link_libraries(telnetsrv PRIVATE asn1_nr_rrc_hdrs asn1_lte_rrc_hdrs)
+target_link_libraries(telnetsrv PRIVATE UTIL)
 
 message(STATUS "Add enb specific telnet functions in libtelnetsrv_enb.so")
 add_library(telnetsrv_enb MODULE

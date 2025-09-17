@@ -1,15 +1,20 @@
-version: '3.8'
 services:
     oai-gnb:
-        image: oaisoftwarealliance/oai-gnb:develop
-        privileged: true
+        image: ${REGISTRY:-oaisoftwarealliance}/${GNB_IMG:-oai-gnb}:${TAG:-develop}
         container_name: rfsim5g-oai-gnb
+        cap_drop:
+            - ALL
+        cap_add:
+            - NET_ADMIN  # for interface bringup
+            - NET_RAW    # for ping
         environment:
             USE_ADDITIONAL_OPTIONS: --do-ra --rfsim --rfsimulator.wait_timeout 20 --noS1 --log_config.global_log_options level,nocolor,time
             ASAN_OPTIONS: detect_leaks=0
         networks:
             public_net:
                 ipv4_address: 192.168.71.140
+        devices:
+            - /dev/net/tun:/dev/net/tun
         volumes:
             - ../../conf_files/gnb.band78.106prb.rfsim.phytest-dora.conf:/opt/oai-gnb/etc/gnb.conf
             - rrc.config:/opt/oai-gnb/
@@ -20,12 +25,18 @@ services:
             retries: 5
 
     oai-nr-ue:
-        image: oaisoftwarealliance/oai-nr-ue:develop
-        privileged: true
+        image: ${REGISTRY:-oaisoftwarealliance}/${NRUE_IMG:-oai-nr-ue}:${TAG:-develop}
         container_name: rfsim5g-oai-nr-ue
+        cap_drop:
+            - ALL
+        cap_add:
+            - NET_ADMIN  # for interface bringup
+            - NET_RAW    # for ping
         environment:
             USE_ADDITIONAL_OPTIONS: --do-ra --rfsim --noS1 --reconfig-file etc/rrc/reconfig.raw --rbconfig-file etc/rrc/rbconfig.raw --rfsimulator.serveraddr 192.168.71.140 --log_config.global_log_options level,nocolor,time
             ASAN_OPTIONS: detect_leaks=0
+        devices:
+            - /dev/net/tun:/dev/net/tun
         volumes:
             - ../../conf_files/nrue.uicc.conf:/opt/oai-nr-ue/etc/nr-ue.conf
             - rrc.config:/opt/oai-nr-ue/etc/rrc/

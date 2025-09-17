@@ -40,7 +40,7 @@ extern "C"
 // depth of trace in slots
 #define RT_PROF_DEPTH 100
 typedef struct {
-   int absslot_rx[RT_PROF_DEPTH];
+   int64_t absslot_rx[RT_PROF_DEPTH];
    struct timespec return_RU_south_in[RT_PROF_DEPTH];
    struct timespec return_RU_feprx[RT_PROF_DEPTH];
    struct timespec return_RU_prachrx[RT_PROF_DEPTH];
@@ -50,7 +50,7 @@ typedef struct {
 } rt_ru_profiling_t;
 
 typedef struct {
-   int absslot_ux[RT_PROF_DEPTH];
+   int64_t absslot_ux[RT_PROF_DEPTH];
    struct timespec start_L1_RX[RT_PROF_DEPTH];
    struct timespec return_L1_RX[RT_PROF_DEPTH];
    struct timespec start_L1_TX[RT_PROF_DEPTH];

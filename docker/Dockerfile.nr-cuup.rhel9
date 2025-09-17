@@ -32,7 +32,7 @@ FROM ran-build:latest AS gnb-build
 RUN cp /oai-ran/docker/scripts/gnb_entrypoint.sh /oai-ran/docker/scripts/entrypoint.sh
 
 #start from scratch for target executable
-FROM registry.access.redhat.com/ubi9/ubi:latest as oai-nr-cuup
+FROM registry.access.redhat.com/ubi9/ubi:latest AS oai-nr-cuup
 ENV TZ=Europe/Paris
 
 RUN yum repolist --disablerepo=* && \
@@ -41,7 +41,6 @@ RUN yum repolist --disablerepo=* && \
         procps-ng \
         lksctp-tools \
         tzdata \
-        atlas \
         net-tools \
         iputils && \
     echo "/usr/local/lib" > /etc/ld.so.conf.d/local-lib.conf && \
@@ -60,11 +59,10 @@ COPY --from=gnb-build \
 
 COPY --from=gnb-base \
     /lib64/libconfig.so.11 \
-    /lib64/libblas.so.3 \
-    /lib64/libcblas.so.3 \
-    /lib64/liblapack.so.3 \
-    /lib64/liblapacke.so.3 \
     /lib64/
+
+## Copy E2 SM models
+COPY --from=gnb-build /usr/local/lib64/flexric /usr/local/lib64/flexric
 
 RUN ldconfig && \
     echo "ldd on nr-cuup" && ldd /opt/oai-gnb/bin/nr-cuup && \

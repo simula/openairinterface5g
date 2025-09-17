@@ -186,22 +186,3 @@ void pucch_procedures_ue_nr(PHY_VARS_NR_UE *ue, const UE_nr_rxtx_proc_t *proc, n
     pucch_vars->active[i] = false;
   }
 }
-
-int      dummy_csi_status = 0;
-uint32_t dummy_csi_payload = 0;
-
-
-/* FFS TODO_NR code that should be removed */
-
-void set_csi_nr(int csi_status, uint32_t csi_payload)
-{
-  dummy_csi_status = csi_status;
-
-  if (dummy_csi_status == 0) {
-    dummy_csi_payload = 0;
-  }
-  else {
-    dummy_csi_payload = csi_payload;
-  }
-}
-

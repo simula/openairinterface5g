@@ -55,7 +55,6 @@ class RANManagement():
 
 	def __init__(self):
 		
-		self.prematureExit = False
 		self.ranRepository = ''
 		self.ranBranch = ''
 		self.ranAllowMerge = False
@@ -105,242 +104,6 @@ class RANManagement():
 #-----------------------------------------------------------
 # RAN management functions
 #-----------------------------------------------------------
-
-	def BuildeNB(self, HTML):
-		if self.ranRepository == '' or self.ranBranch == '' or self.ranCommitID == '':
-			HELP.GenericHelp(CONST.Version)
-			sys.exit('Insufficient Parameter')
-		if self.eNB_serverId[self.eNB_instance] == '0':
-			lIpAddr = self.eNBIPAddress
-			lUserName = self.eNBUserName
-			lPassWord = self.eNBPassword
-			lSourcePath = self.eNBSourceCodePath
-		elif self.eNB_serverId[self.eNB_instance] == '1':
-			lIpAddr = self.eNB1IPAddress
-			lUserName = self.eNB1UserName
-			lPassWord = self.eNB1Password
-			lSourcePath = self.eNB1SourceCodePath
-		elif self.eNB_serverId[self.eNB_instance] == '2':
-			lIpAddr = self.eNB2IPAddress
-			lUserName = self.eNB2UserName
-			lPassWord = self.eNB2Password
-			lSourcePath = self.eNB2SourceCodePath
-		if lIpAddr == '' or lUserName == '' or lPassWord == '' or lSourcePath == '':
-			HELP.GenericHelp(CONST.Version)
-			sys.exit('Insufficient Parameter')
-		logging.debug('Building on server: ' + lIpAddr)
-		mySSH = SSH.SSHConnection()
-		mySSH.open(lIpAddr, lUserName, lPassWord)
-		
-		# Check if we build an 5G-NR gNB or an LTE eNB
-		result = re.search('--RU', self.Build_eNB_args)
-		if result is not None:
-			self.air_interface[self.eNB_instance] = 'oairu'
-		else:
-			result = re.search('--gNB', self.Build_eNB_args)
-			if result is not None:
-				self.air_interface[self.eNB_instance] = 'nr-softmodem'
-			else:
-				self.air_interface[self.eNB_instance] = 'lte-softmodem'
-		
-		# Worakround for some servers, we need to erase completely the workspace
-		if self.Build_eNB_forced_workspace_cleanup:
-			mySSH.command('echo ' + lPassWord + ' | sudo -S rm -Rf ' + lSourcePath, '\$', 15)
-		self.testCase_id = HTML.testCase_id
-		# on RedHat/CentOS .git extension is mandatory
-		result = re.search('([a-zA-Z0-9\:\-\.\/])+\.git', self.ranRepository)
-		if result is not None:
-			full_ran_repo_name = self.ranRepository.replace('git/', 'git')
-		else:
-			full_ran_repo_name = self.ranRepository + '.git'
-		mySSH.command('mkdir -p ' + lSourcePath, '\$', 5)
-		mySSH.command('cd ' + lSourcePath, '\$', 5)
-		mySSH.command('if [ ! -e .git ]; then stdbuf -o0 git clone ' + full_ran_repo_name + ' .; else stdbuf -o0 git fetch --prune; fi', '\$', 600)
-		# Raphael: here add a check if git clone or git fetch went smoothly
-		mySSH.command('git config user.email "jenkins@openairinterface.org"', '\$', 5)
-		mySSH.command('git config user.name "OAI Jenkins"', '\$', 5)
-		mySSH.command('git advice.detachedHead false', '\$', 5)
-		# Checking the BUILD INFO file
-		if not self.backgroundBuild:
-			mySSH.command('ls *.txt', '\$', 5)
-			result = re.search('LAST_BUILD_INFO', mySSH.getBefore())
-			if result is not None:
-				mismatch = False
-				mySSH.command('grep --colour=never SRC_COMMIT LAST_BUILD_INFO.txt', '\$', 2)
-				result = re.search(self.ranCommitID, mySSH.getBefore())
-				if result is None:
-					mismatch = True
-				mySSH.command('grep --colour=never MERGED_W_TGT_BRANCH LAST_BUILD_INFO.txt', '\$', 2)
-				if (self.ranAllowMerge):
-					result = re.search('YES', mySSH.getBefore())
-					if result is None:
-						mismatch = True
-					mySSH.command('grep --colour=never TGT_BRANCH LAST_BUILD_INFO.txt', '\$', 2)
-					if self.ranTargetBranch == '':
-						result = re.search('develop', mySSH.getBefore())
-					else:
-						result = re.search(self.ranTargetBranch, mySSH.getBefore())
-					if result is None:
-						mismatch = True
-				else:
-					result = re.search('NO', mySSH.getBefore())
-					if result is None:
-						mismatch = True
-				if not mismatch:
-					mySSH.close()
-					HTML.CreateHtmlTestRow(self.Build_eNB_args, 'OK', CONST.ALL_PROCESSES_OK)
-					return
-
-		mySSH.command('echo ' + lPassWord + ' | sudo -S git clean -x -d -ff', '\$', 30)
-		# if the commit ID is provided use it to point to it
-		if self.ranCommitID != '':
-			mySSH.command('git checkout -f ' + self.ranCommitID, '\$', 30)
-		# if the branch is not develop, then it is a merge request and we need to do 
-		# the potential merge. Note that merge conflicts should already been checked earlier
-		if (self.ranAllowMerge):
-			if self.ranTargetBranch == '':
-				if (self.ranBranch != 'develop') and (self.ranBranch != 'origin/develop'):
-					mySSH.command('git merge --ff origin/develop -m "Temporary merge for CI"', '\$', 30)
-			else:
-				logging.debug('Merging with the target branch: ' + self.ranTargetBranch)
-				mySSH.command('git merge --ff origin/' + self.ranTargetBranch + ' -m "Temporary merge for CI"', '\$', 30)
-		logging.debug(mySSH.getBefore()) # print what git said when merging/checking out
-		mySSH.command('source oaienv', '\$', 5)
-		mySSH.command('cd cmake_targets', '\$', 5)
-		mySSH.command('mkdir -p log', '\$', 5)
-		mySSH.command('chmod 777 log', '\$', 5)
-		# no need to remove in log (git clean did the trick)
-		if self.backgroundBuild:
-			mySSH.command('echo "./build_oai ' + self.Build_eNB_args + '" > ./my-lte-softmodem-build.sh', '\$', 5)
-			mySSH.command('chmod 775 ./my-lte-softmodem-build.sh', '\$', 5)
-			mySSH.command('echo ' + lPassWord + ' | sudo -S ls', '\$', 5)
-			logging.debug(mySSH.getBefore()) # print current directory contents for verification
-			mySSH.command('echo $USER; nohup sudo -E ./my-lte-softmodem-build.sh' + ' > ' + lSourcePath + '/cmake_targets/compile_oai_enb.log ' + ' 2>&1 &', lUserName, 5)
-			mySSH.close()
-			HTML.CreateHtmlTestRow(self.Build_eNB_args, 'OK', CONST.ALL_PROCESSES_OK)
-			self.backgroundBuildTestId[int(self.eNB_instance)] = self.testCase_id
-			return
-		mySSH.command('stdbuf -o0 ./build_oai ' + self.Build_eNB_args + ' 2>&1 | stdbuf -o0 tee compile_oai_enb.log', 'BUILD SHOULD BE SUCCESSFUL|build have failed', 900)
-		mySSH.close()
-		self.checkBuildeNB(lIpAddr, lUserName, lPassWord, lSourcePath, self.testCase_id, HTML)
-
-	def WaitBuildeNBisFinished(self, HTML):
-		if self.eNB_serverId[self.eNB_instance] == '0':
-			lIpAddr = self.eNBIPAddress
-			lUserName = self.eNBUserName
-			lPassWord = self.eNBPassword
-			lSourcePath = self.eNBSourceCodePath
-		elif self.eNB_serverId[self.eNB_instance] == '1':
-			lIpAddr = self.eNB1IPAddress
-			lUserName = self.eNB1UserName
-			lPassWord = self.eNB1Password
-			lSourcePath = self.eNB1SourceCodePath
-		elif self.eNB_serverId[self.eNB_instance] == '2':
-			lIpAddr = self.eNB2IPAddress
-			lUserName = self.eNB2UserName
-			lPassWord = self.eNB2Password
-			lSourcePath = self.eNB2SourceCodePath
-		if lIpAddr == '' or lUserName == '' or lPassWord == '' or lSourcePath == '':
-			HELP.GenericHelp(CONST.Version)
-			sys.exit('Insufficient Parameter')
-		logging.debug('Waiting for end of build on server: ' + lIpAddr)
-		mySSH = SSH.SSHConnection()
-		mySSH.open(lIpAddr, lUserName, lPassWord)
-		count = 40
-		buildOAIprocess = True
-		while (count > 0) and buildOAIprocess:
-			mySSH.command('ps aux | grep --color=never build_ | grep -v grep', '\$', 6)
-			result = re.search('build_oai', mySSH.getBefore())
-			if result is None:
-				buildOAIprocess = False
-			else:
-				count -= 1
-				time.sleep(30)
-		mySSH.close()
-		self.checkBuildeNB(lIpAddr, lUserName, lPassWord, lSourcePath, self.backgroundBuildTestId[int(self.eNB_instance)], HTML)
-
-	def CustomCommand(self, HTML):
-		logging.info(f"Executing custom command on {self.node}")
-		cmd = cls_cmd.getConnection(self.node)
-		ret = cmd.run(self.command)
-		cmd.close()
-		logging.debug(f"CustomCommand: {self.command} on node: {self.node} - {'OK, command succeeded' if ret.returncode == 0 else f'Error, return code: {ret.returncode}'}")
-		status = 'OK'
-		message = []
-		if ret.returncode != 0 and not self.command_fail:
-			message = [ret.stdout]
-			logging.warning(f'CustomCommand output: {message}')
-			status = 'Warning'
-		if self.command_fail: # important command since it would make the pipeline fail, so show output in HTML
-			message = [ret.stdout]
-		if ret.returncode != 0 and self.command_fail:
-			message = [ret.stdout]
-			logging.error(f'CustomCommand failed: output: {message}')
-			status = 'KO'
-			self.prematureExit = True
-		HTML.CreateHtmlTestRowQueue(self.command, status, message)
-
-	def checkBuildeNB(self, lIpAddr, lUserName, lPassWord, lSourcePath, testcaseId, HTML):
-		HTML.testCase_id=testcaseId
-
-		mySSH = SSH.SSHConnection()
-		mySSH.open(lIpAddr, lUserName, lPassWord)
-		mySSH.command('cd ' + lSourcePath + '/cmake_targets', '\$', 3)
-		mySSH.command('ls ran_build/build', '\$', 3)
-		mySSH.command('ls ran_build/build', '\$', 3)
-
-		#check if we have the build corresponding to the air interface keywords (nr-softmode, lte-softmodem)
-		logging.info('CHECK Build with IP='+lIpAddr+' SourcePath='+lSourcePath)
-		result = re.search(self.air_interface[self.eNB_instance], mySSH.getBefore())
-		if result is None:
-			buildStatus = False #if not, build failed
-		else:
-			buildStatus = True 
-			# Generating a BUILD INFO file
-			mySSH.command('echo "SRC_BRANCH: ' + self.ranBranch + '" > ../LAST_BUILD_INFO.txt', '\$', 2)
-			mySSH.command('echo "SRC_COMMIT: ' + self.ranCommitID + '" >> ../LAST_BUILD_INFO.txt', '\$', 2)
-			if (self.ranAllowMerge):
-				mySSH.command('echo "MERGED_W_TGT_BRANCH: YES" >> ../LAST_BUILD_INFO.txt', '\$', 2)
-				if self.ranTargetBranch == '':
-					mySSH.command('echo "TGT_BRANCH: develop" >> ../LAST_BUILD_INFO.txt', '\$', 2)
-				else:
-					mySSH.command('echo "TGT_BRANCH: ' + self.ranTargetBranch + '" >> ../LAST_BUILD_INFO.txt', '\$', 2)
-			else:
-				mySSH.command('echo "MERGED_W_TGT_BRANCH: NO" >> ../LAST_BUILD_INFO.txt', '\$', 2)
-				
-				
-		mySSH.command('mkdir -p build_log_' + testcaseId, '\$', 5)
-		mySSH.command('mv log/* ' + 'build_log_' + testcaseId, '\$', 5)
-		mySSH.command('mv compile_oai_enb.log ' + 'build_log_' + testcaseId, '\$', 5)
-		if self.eNB_serverId[self.eNB_instance] != '0':
-			mySSH.command('cd cmake_targets', '\$', 5)
-			mySSH.command('if [ -e tmp_build' + testcaseId + '.zip ]; then rm -f tmp_build' + testcaseId + '.zip; fi', '\$', 5)
-			mySSH.command('zip -r -qq tmp_build' + testcaseId + '.zip build_log_' + testcaseId, '\$', 5)
-			mySSH.close()
-			if (os.path.isfile('./tmp_build' + testcaseId + '.zip')):
-				os.remove('./tmp_build' + testcaseId + '.zip')
-			mySSH.copyin(lIpAddr, lUserName, lPassWord, lSourcePath + '/cmake_targets/tmp_build' + testcaseId + '.zip', '.')
-			if (os.path.isfile('./tmp_build' + testcaseId + '.zip')):
-				mySSH.copyout(self.eNBIPAddress, self.eNBUserName, self.eNBPassword, './tmp_build' + testcaseId + '.zip', self.eNBSourceCodePath + '/cmake_targets/.')
-				os.remove('./tmp_build' + testcaseId + '.zip')
-				mySSH.open(self.eNBIPAddress, self.eNBUserName, self.eNBPassword)
-				mySSH.command('cd ' + self.eNBSourceCodePath + '/cmake_targets', '\$', 5)
-				#-qq quiet / -u update orcreate files
-				mySSH.command('unzip -o -u -qq -DD tmp_build' + testcaseId + '.zip', '\$', 5)
-				mySSH.command('rm -f tmp_build' + testcaseId + '.zip', '\$', 5)
-				mySSH.close()
-		else:
-			mySSH.close()
-
-		#generate logging info depending on buildStatus and air interface
-		if buildStatus:
-			logging.info('\u001B[1m Building OAI ' + self.air_interface[self.eNB_instance] + ' Pass\u001B[0m')
-			HTML.CreateHtmlTestRow(self.Build_eNB_args, 'OK', CONST.ALL_PROCESSES_OK)
-		else:
-			logging.error('\u001B[1m Building OAI ' + self.air_interface[self.eNB_instance] + ' Failed\u001B[0m')
-			HTML.CreateHtmlTestRow(self.Build_eNB_args, 'KO', CONST.ALL_PROCESSES_OK)
-			HTML.CreateHtmlTabFooter(False)
-			sys.exit(1)
 
 	def InitializeeNB(self, HTML, EPC):
 		if self.eNB_serverId[self.eNB_instance] == '0':
@@ -509,10 +272,9 @@ class RANManagement():
 					copyin_res = mySSH.copyin(localEpcIpAddr, localEpcUserName, localEpcPassword, '/tmp/' + self.epcPcapFile, '.')
 					if (copyin_res == 0):
 						mySSH.copyout(lIpAddr, lUserName, lPassWord, self.epcPcapFile, lSourcePath + '/cmake_targets/.')
-				self.prematureExit = True
-				return
+				return False
 			else:
-				mySSH.command('stdbuf -o0 cat enb_' + self.testCase_id + '.log | egrep --text --color=never -i "wait|sync|Starting|Started"', '\$', 4)
+				mySSH.command('stdbuf -o0 cat enb_' + self.testCase_id + '.log | grep -E --text --color=never -i "wait|sync|Starting|Started"', '\$', 4)
 				if rruCheck:
 					result = re.search('wait RUs', mySSH.getBefore())
 				else:
@@ -548,45 +310,44 @@ class RANManagement():
 
 		mySSH.close()
 
-
 		HTML.CreateHtmlTestRow(f'{self.cmd_prefix} {self.air_interface[self.eNB_instance]} -O {config_file} {extra_options}', 'OK', CONST.ALL_PROCESSES_OK)
 		logging.debug('\u001B[1m Initialize eNB/gNB Completed\u001B[0m')
+		return enbDidSync
 
 	def CheckeNBProcess(self, status_queue):
-		try:
-			# At least the instance 0 SHALL be on!
-			if self.eNBstatuses[0] == 0:
-				lIpAddr = self.eNBIPAddress
-				lUserName = self.eNBUserName
-				lPassWord = self.eNBPassword
-			elif self.eNBstatuses[0] == 1:
-				lIpAddr = self.eNB1IPAddress
-				lUserName = self.eNB1UserName
-				lPassWord = self.eNB1Password
-			elif self.eNBstatuses[0] == 2:
-				lIpAddr = self.eNB2IPAddress
-				lUserName = self.eNB2UserName
-				lPassWord = self.eNB2Password
-			else:
-				lIpAddr = self.eNBIPAddress
-				lUserName = self.eNBUserName
-				lPassWord = self.eNBPassword
-			mySSH = SSH.SSHConnection()
-			mySSH.open(lIpAddr, lUserName, lPassWord)
-			if self.air_interface[self.eNB_instance] == '':
-				pattern = 'softmodem'
-			else:
-				pattern = self.air_interface[self.eNB_instance]
-			mySSH.command('stdbuf -o0 ps -aux | grep --color=never ' + pattern + ' | grep -v grep', '\$', 5)
-			result = re.search(pattern, mySSH.getBefore())
-			if result is None:
-				logging.debug('\u001B[1;37;41m eNB Process Not Found! \u001B[0m')
-				status_queue.put(CONST.ENB_PROCESS_FAILED)
-			else:
-				status_queue.put(CONST.ENB_PROCESS_OK)
-			mySSH.close()
-		except:
-			os.kill(os.getppid(),signal.SIGUSR1)
+		# At least the instance 0 SHALL be on!
+		if self.eNBstatuses[0] == 0:
+			lIpAddr = self.eNBIPAddress
+			lUserName = self.eNBUserName
+			lPassWord = self.eNBPassword
+		elif self.eNBstatuses[0] == 1:
+			lIpAddr = self.eNB1IPAddress
+			lUserName = self.eNB1UserName
+			lPassWord = self.eNB1Password
+		elif self.eNBstatuses[0] == 2:
+			lIpAddr = self.eNB2IPAddress
+			lUserName = self.eNB2UserName
+			lPassWord = self.eNB2Password
+		else:
+			lIpAddr = self.eNBIPAddress
+			lUserName = self.eNBUserName
+			lPassWord = self.eNBPassword
+		mySSH = SSH.SSHConnection()
+		mySSH.open(lIpAddr, lUserName, lPassWord)
+		if self.air_interface[self.eNB_instance] == '':
+			pattern = 'softmodem'
+		else:
+			pattern = self.air_interface[self.eNB_instance]
+		mySSH.command('stdbuf -o0 ps -aux | grep --color=never ' + pattern + ' | grep -v grep', '\$', 5)
+		result = re.search(pattern, mySSH.getBefore())
+		success = result is not None
+		if not success:
+			logging.debug('\u001B[1;37;41m eNB Process Not Found! \u001B[0m')
+			status_queue.put(CONST.ENB_PROCESS_FAILED)
+		else:
+			status_queue.put(CONST.ENB_PROCESS_OK)
+		mySSH.close()
+		return success
 
 	def TerminateeNB(self, HTML, EPC):
 		if self.eNB_serverId[self.eNB_instance] == '0':
@@ -666,6 +427,7 @@ class RANManagement():
 			logStatus = self.AnalyzeLogFile_eNB(extracted_log_file, HTML, self.ran_checkers)
 			HTML.CreateHtmlTestRow(self.runtime_stats, 'OK', CONST.ALL_PROCESSES_OK)
 			self.eNBLogFiles[int(self.eNB_instance)] = ''
+			return True
 		else:
 			analyzeFile = False
 			if self.eNBLogFiles[int(self.eNB_instance)] != '':
@@ -684,7 +446,7 @@ class RANManagement():
 					HTML.htmleNBFailureMsg='Could not copy ' + nodeB_prefix + 'NB logfile to analyze it!'
 					HTML.CreateHtmlTestRow('N/A', 'KO', CONST.ENB_PROCESS_NOLOGFILE_TO_ANALYZE)
 					self.eNBmbmsEnables[int(self.eNB_instance)] = False
-					return
+					return False
 				if self.eNB_serverId[self.eNB_instance] != '0':
 					#*stats.log files + pickle + png
 
@@ -702,9 +464,8 @@ class RANManagement():
 					#display rt stats for gNB only
 					if len(self.datalog_rt_stats)!=0 and nodeB_prefix == 'g':
 						HTML.CreateHtmlDataLogTable(self.datalog_rt_stats)
-					self.prematureExit = True
 					self.eNBmbmsEnables[int(self.eNB_instance)] = False
-					return
+					return False
 				else:
 					HTML.CreateHtmlTestRow(self.runtime_stats, 'OK', CONST.ALL_PROCESSES_OK)
 			else:
@@ -714,6 +475,7 @@ class RANManagement():
 			HTML.CreateHtmlDataLogTable(self.datalog_rt_stats)
 		self.eNBmbmsEnables[int(self.eNB_instance)] = False
 		self.eNBstatuses[int(self.eNB_instance)] = -1
+		return True
 
 	def LogCollecteNB(self):
 		mySSH = SSH.SSHConnection()
@@ -1327,7 +1089,6 @@ class RANManagement():
 					rruMsg = 'Slave RRU DID NOT receive the RRU_frame_resynch command from RAU'
 					logging.debug('\u001B[1;37;41m ' + rruMsg + ' \u001B[0m')
 					htmleNBFailureMsg += rruMsg + '\n'
-					self.prematureExit = True
 					global_status = CONST.ENB_PROCESS_SLAVE_RRU_NOT_SYNCED
 		if foundSegFault:
 			logging.debug('\u001B[1;37;41m ' + nodeB_prefix + 'NB ended with a Segmentation Fault! \u001B[0m')

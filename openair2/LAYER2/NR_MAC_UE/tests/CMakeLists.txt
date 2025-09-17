@@ -1,0 +1,6 @@
+add_executable(test_nr_ue_power_procedures
+  test_nr_ue_power_procedures.cpp)
+target_link_libraries(test_nr_ue_power_procedures PRIVATE nr_ue_power_procedures GTest::gtest minimal_lib)
+add_dependencies(tests test_nr_ue_power_procedures)
+add_test(NAME test_nr_ue_power_procedures
+  COMMAND ./test_nr_ue_power_procedures)

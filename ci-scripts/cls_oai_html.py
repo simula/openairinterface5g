@@ -65,10 +65,6 @@ class HTMLManagement():
 		self.htmlTabIcons = []
 		self.testXMLfiles = []
 
-		self.testUnstable = False
-		self.testMinStableId = '999999'
-		self.testStabilityPointReached = False
-
 		self.htmleNBFailureMsg = ''
 		self.htmlUEFailureMsg = ''
 
@@ -219,20 +215,13 @@ class HTMLManagement():
 
 	def CreateHtmlTabFooter(self, passStatus):
 		if ((not self.htmlFooterCreated) and (self.htmlHeaderCreated)):
-			testOkEvenIfUnstable = False
-			if self.testUnstable and not passStatus:
-				if self.testStabilityPointReached or self.testMinStableId == '999999':
-					testOkEvenIfUnstable = True
 			self.htmlFile = open('test_results.html', 'a')
 			self.htmlFile.write('      <tr>\n')
 			self.htmlFile.write('        <th bgcolor = "#33CCFF" colspan="3">Final Tab Status</th>\n')
 			if passStatus:
 				self.htmlFile.write('        <th bgcolor = "green" colspan="3"><font color="white">PASS <span class="glyphicon glyphicon-ok"></span> </font></th>\n')
 			else:
-				if testOkEvenIfUnstable:
-					self.htmlFile.write('        <th bgcolor = "orange" colspan="3"><font color="white">KNOWN UNSTABLE SCENARIO <span class="glyphicon glyphicon-exclamation-sign"></span> </font></th>\n')
-				else:
-					self.htmlFile.write('        <th bgcolor = "red" colspan="3"><font color="white">FAIL <span class="glyphicon glyphicon-remove"></span> </font></th>\n')
+				self.htmlFile.write('        <th bgcolor = "red" colspan="3"><font color="white">FAIL <span class="glyphicon glyphicon-remove"></span> </font></th>\n')
 			self.htmlFile.write('      </tr>\n')
 			self.htmlFile.write('  </table>\n')
 			self.htmlFile.write('  </div>\n')
@@ -242,10 +231,7 @@ class HTMLManagement():
 				cmd = "sed -i -e 's/__STATE_" + self.htmlTabNames[0] + "__//' test_results.html"
 				subprocess.run(cmd, shell=True)
 			else:
-				if testOkEvenIfUnstable:
-					cmd = "sed -i -e 's/__STATE_" + self.htmlTabNames[0] + "__/<span class=\"glyphicon glyphicon-exclamation-sign\"><\/span>/' test_results.html"
-				else:
-					cmd = "sed -i -e 's/__STATE_" + self.htmlTabNames[0] + "__/<span class=\"glyphicon glyphicon-remove\"><\/span>/' test_results.html"
+				cmd = "sed -i -e 's/__STATE_" + self.htmlTabNames[0] + "__/<span class=\"glyphicon glyphicon-remove\"><\/span>/' test_results.html"
 				subprocess.run(cmd, shell=True)
 		self.htmlFooterCreated = False
 
@@ -277,14 +263,6 @@ class HTMLManagement():
 			self.htmlFile.write('  <div class="well well-lg">End of Test Report -- Copyright <span class="glyphicon glyphicon-copyright-mark"></span> 2018 <a href="http://www.openairinterface.org/">OpenAirInterface</a>. All Rights Reserved.</div>\n')
 			self.htmlFile.write('</div></body>\n')
 			self.htmlFile.write('</html>\n')
-			self.htmlFile.close()
-
-	def CreateHtmlRetrySeparator(self, cntnumfails):
-		if ((not self.htmlFooterCreated) and (self.htmlHeaderCreated)):
-			self.htmlFile = open('test_results.html', 'a')
-			self.htmlFile.write('      <tr bgcolor = "#F0F0F0" >\n')
-			self.htmlFile.write('        <td colspan="6"><b> ---- Try Run #' + str(cntnumfails) + ' ---- </b></td>\n')
-			self.htmlFile.write('      </tr>\n')
 			self.htmlFile.close()
 
 	def CreateHtmlTestRow(self, options, status, processesStatus, machine='eNB'):
@@ -468,6 +446,8 @@ class HTMLManagement():
 				self.htmlFile.write(f'        <td bgcolor = "lightgreen" >{status}</td>\n')
 			elif (str(status) == 'KO'):
 				self.htmlFile.write(f'        <td bgcolor = "lightcoral" >{status}</td>\n')
+			elif str(status) == 'SKIP':
+				self.htmlFile.write(f'        <td bgcolor = "lightgray" >{status}</td>\n')
 			else:
 				addOrangeBK = True
 				self.htmlFile.write(f'        <td bgcolor = "orange" >{status}</td>\n')

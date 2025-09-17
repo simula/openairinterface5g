@@ -76,7 +76,6 @@
 #define NR_INVALID_LCGID (NR_MAX_NUM_LCGID)
 
 #define MAX_NUM_BWP_UE 5
-#define NUM_SLOT_FRAME 10
 #define NR_MAX_SR_ID 8  // SchedulingRequestId ::= INTEGER (0..7)
 
 /*!\brief value for indicating BSR Timer is not running */
@@ -172,6 +171,12 @@
   UE_STATE(UE_CONNECTED) \
   UE_STATE(UE_DETACHING)
 
+typedef enum {
+  phr_cause_prohibit_timer = 0,
+  phr_cause_periodic_timer,
+  phr_cause_phr_config,
+} NR_UE_PHR_Reporting_cause_t;
+
 /*!\brief UE layer 2 status */
 typedef enum {
 #define UE_STATE(state) state,
@@ -185,11 +190,6 @@ typedef enum {
   T300_EXPIRY,
   RE_ESTABLISHMENT
 } NR_UE_MAC_reset_cause_t;
-
-typedef enum {
-  RA_2STEP = 0,
-  RA_4STEP
-} nr_ra_type_e;
 
 typedef struct {
   // after multiplexing buffer remain for each lcid
@@ -222,6 +222,24 @@ typedef struct {
   uint32_t maxTransmissions;
 } nr_sr_info_t;
 
+typedef struct {
+  bool is_configured;
+  ///timer before triggering a periodic PHR
+  NR_timer_t periodicPHR_Timer;
+  ///timer before triggering a prohibit PHR
+  NR_timer_t prohibitPHR_Timer;
+  ///DL Pathloss change value
+  uint16_t PathlossLastValue;
+  ///number of subframe before triggering a periodic PHR
+  int16_t periodicPHR_SF;
+  ///number of subframe before triggering a prohibit PHR
+  int16_t prohibitPHR_SF;
+  ///DL Pathloss Change in db
+  uint16_t PathlossChange_db;
+  int phr_reporting;
+  bool was_mac_reset;
+} nr_phr_info_t;
+
 // LTE structure, might need to be adapted for NR
 typedef struct {
   // lcs scheduling info
@@ -240,31 +258,22 @@ typedef struct {
   NR_timer_t retxBSR_Timer;
   /// periodicBSR-Timer
   NR_timer_t periodicBSR_Timer;
-  ///timer before triggering a periodic PHR
-  uint16_t periodicPHR_Timer;
-  ///timer before triggering a prohibit PHR
-  uint16_t prohibitPHR_Timer;
-  ///DL Pathloss change value
-  uint16_t PathlossChange;
-  ///number of subframe before triggering a periodic PHR
-  int16_t periodicPHR_SF;
-  ///number of subframe before triggering a prohibit PHR
-  int16_t prohibitPHR_SF;
-  ///DL Pathloss Change in db
-  uint16_t PathlossChange_db;
+
+  nr_phr_info_t phr_info;
 } NR_UE_SCHEDULING_INFO;
 
 typedef enum {
-  nrRA_UE_IDLE = 0,
-  nrRA_GENERATE_PREAMBLE = 1,
-  nrRA_WAIT_RAR = 2,
-  nrRA_WAIT_CONTENTION_RESOLUTION = 3,
-  nrRA_SUCCEEDED = 4,
-  nrRA_FAILED = 5
+  nrRA_UE_IDLE,
+  nrRA_GENERATE_PREAMBLE,
+  nrRA_WAIT_RAR,
+  nrRA_WAIT_MSGB,
+  nrRA_WAIT_CONTENTION_RESOLUTION,
+  nrRA_SUCCEEDED,
+  nrRA_FAILED,
 } nrRA_UE_state_t;
 
 static const char *const nrra_ue_text[] =
-    {"UE_IDLE", "GENERATE_PREAMBLE", "WAIT_RAR", "WAIT_CONTENTION_RESOLUTION", "RA_SUCCEEDED", "RA_FAILED"};
+    {"UE_IDLE", "GENERATE_PREAMBLE", "WAIT_RAR", "WAIT_MSGB", "WAIT_CONTENTION_RESOLUTION", "RA_SUCCEEDED", "RA_FAILED"};
 
 typedef struct {
   /// PRACH format retrieved from prach_ConfigIndex
@@ -286,7 +295,7 @@ typedef struct {
   ///
   uint8_t RA_SCALING_FACTOR_BI;
   /// Indicating whether it is 2-step or 4-step RA
-  nr_ra_type_e RA_TYPE;
+  nr_ra_type_t RA_TYPE;
   /// UE configured maximum output power
   int RA_PCMAX;
 } NR_PRACH_RESOURCES_t;
@@ -299,16 +308,27 @@ typedef struct {
   nrRA_UE_state_t ra_state;
   /// RA contention type
   uint8_t cfra;
+  /// RA type
+  nr_ra_type_t ra_type;
   /// RA rx frame offset: compensate RA rx offset introduced by OAI gNB.
   uint8_t RA_offset;
+  /// MsgB SuccessRAR MAC subheader
+  int8_t MsgB_R;
+  int8_t MsgB_CH_ACESS_CPEXT;
+  uint8_t MsgB_TPC;
+  int8_t MsgB_HARQ_FTI;
+  uint16_t timing_advance_command;
+  int8_t PUCCH_RI;
   /// RA-rnti
   uint16_t ra_rnti;
+  /// MsgB RNTI
+  uint16_t MsgB_rnti;
   /// Temporary CRNTI
   uint16_t t_crnti;
   /// number of attempt for rach
   uint8_t RA_attempt_number;
   /// Random-access procedure flag
-  uint8_t RA_active;
+  bool RA_active;
   /// Random-access preamble index
   int ra_PreambleIndex;
   // When multiple SSBs per RO is configured, this indicates which one is selected in this RO -> this is used to properly compute the PRACH preamble
@@ -340,6 +360,8 @@ typedef struct {
   uint8_t Msg3_size;
   /// Msg3 buffer
   uint8_t *Msg3_buffer;
+
+  bool msg3_C_RNTI;
 
   /// Random-access Contention Resolution Timer
   NR_timer_t contention_resolution_timer;
@@ -392,7 +414,6 @@ typedef struct {
   int n_harq;
   int n_CCE;
   int N_CCE;
-  int delta_pucch;
   int initial_pucch_id;
 } PUCCH_sched_t;
 
@@ -409,10 +430,9 @@ typedef enum ta_type {
 } ta_type_t;
 
 typedef struct NR_UL_TIME_ALIGNMENT {
-  /// TA command and TAGID received from the gNB
+  /// TA command received from the gNB
   ta_type_t ta_apply;
   int ta_command;
-  uint32_t tag_id;
   int frame;
   int slot;
 } NR_UL_TIME_ALIGNMENT_t;
@@ -480,6 +500,19 @@ typedef struct {
   A_SEQUENCE_OF(NR_SearchSpace_t) list_SS;
 } NR_BWP_PDCCH_t;
 
+typedef struct csi_payload {
+  uint32_t part1_payload;
+  uint32_t part2_payload;
+  int p1_bits;
+  int p2_bits;
+} csi_payload_t;
+
+typedef enum {
+  WIDEBAND_ON_PUCCH,
+  SUBBAND_ON_PUCCH,
+  ON_PUSCH
+} CSI_mapping_t;
+
 /*!\brief Top level UE MAC structure */
 typedef struct NR_UE_MAC_INST_s {
   module_id_t ue_id;
@@ -491,6 +524,7 @@ typedef struct NR_UE_MAC_INST_s {
   bool get_otherSI;
   NR_MIB_t *mib;
   struct NR_SI_SchedulingInfo *si_SchedulingInfo;
+  struct NR_SI_SchedulingInfo_v1700 *si_SchedulingInfo_v1700;
   int si_window_start;
   ssb_list_info_t ssb_list[MAX_NUM_BWP_UE];
   prach_association_pattern_t prach_assoc_pattern[MAX_NUM_BWP_UE];
@@ -513,8 +547,6 @@ typedef struct NR_UE_MAC_INST_s {
 
   NR_UL_TIME_ALIGNMENT_t ul_time_alignment;
   NR_TDD_UL_DL_ConfigCommon_t *tdd_UL_DL_ConfigurationCommon;
-
-  bool phy_config_request_sent;
   frame_type_t frame_type;
 
   /* Random Access */
@@ -543,15 +575,13 @@ typedef struct NR_UE_MAC_INST_s {
 
   // order lc info
   A_SEQUENCE_OF(nr_lcordered_info_t) lc_ordered_list;
-
   NR_UE_SCHEDULING_INFO scheduling_info;
-
-  /// PHR
-  uint8_t PHR_reporting_active;
+  NR_timer_t *data_inactivity_timer;
 
   int dmrs_TypeA_Position;
   int p_Max;
   int p_Max_alt;
+  int n_ta_offset; // -1 not present, otherwise value to be applied
 
   long pdsch_HARQ_ACK_Codebook;
 
@@ -570,13 +600,23 @@ typedef struct NR_UE_MAC_INST_s {
   NR_UE_HARQ_STATUS_t dl_harq_info[NR_MAX_HARQ_PROCESSES];
   NR_UL_HARQ_INFO_t ul_harq_info[NR_MAX_HARQ_PROCESSES];
 
+  NR_TAG_Id_t tag_Id;
+  A_SEQUENCE_OF(NR_TAG_t) TAG_list;
+  NR_TimeAlignmentTimer_t timeAlignmentTimerCommon;
+  NR_timer_t time_alignment_timer;
+
   nr_emulated_l1_t nr_ue_emul_l1;
 
   pthread_mutex_t mutex_dl_info;
 
   //SIDELINK MAC PARAMETERS
   sl_nr_ue_mac_params_t *SL_MAC_PARAMS;
-
+  // PUCCH closed loop power control state
+  int G_b_f_c;
+  bool pucch_power_control_initialized;
+  int f_b_f_c;
+  bool pusch_power_control_initialized;
+  int delta_msg2;
 } NR_UE_MAC_INST_t;
 
 /*@}*/

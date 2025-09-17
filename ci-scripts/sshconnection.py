@@ -100,7 +100,7 @@ class SSHConnection():
 		if connect_status:
 			self.command('unset HISTFILE', prompt, 5, silent=True)
 		else:
-			sys.exit('SSH Connection Failed')
+			raise ConnectionError('SSH Connection Failed')
 		self.ipaddress = ipaddress
 		self.username = username
 
@@ -136,20 +136,20 @@ class SSHConnection():
 			logging.error('\u001B[1;37;41m Unexpected EOF \u001B[0m')
 			logging.error('Expected Line : ' + expectedline)
 			logging.error(str(self.ssh.before))
-			sys.exit(self.sshresponse)
+			raise ConnectionError(self.sshresponse)
 		elif self.sshresponse == 2:
 			logging.error('\u001B[1;37;41m Unexpected TIMEOUT \u001B[0m')
 			logging.error('Expected Line : ' + expectedline)
 			result = re.search('ping |iperf |picocom', str(commandline))
 			if result is None:
 				logging.warning(str(self.ssh.before))
-				sys.exit(self.sshresponse)
+				raise ConnectionError(self.sshresponse)
 			else:
 				return -1
 		else:
 			logging.error('\u001B[1;37;41m Unexpected Others \u001B[0m')
 			logging.error('Expected Line : ' + expectedline)
-			sys.exit(self.sshresponse)
+			raise ConnectionError(self.sshresponse)
 
 	def command2(self, commandline, timeout, silent=False):
 		if not silent:
@@ -275,7 +275,7 @@ class SSHConnection():
 		if copy_status:
 			pass
 		else:
-			sys.exit('SCP failed')
+			raise ConnectionError('SCP failed')
 
 	def getBefore(self):
 		return self.ssh.before.decode('utf-8')

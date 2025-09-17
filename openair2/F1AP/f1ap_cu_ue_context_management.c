@@ -44,7 +44,7 @@ static void f1ap_write_drb_qos_param(const f1ap_qos_flow_level_qos_parameters_t 
   int type = drb_qos_in->qos_characteristics.qos_type;
 
   const f1ap_qos_characteristics_t *drb_qos_char_in = &drb_qos_in->qos_characteristics;
-  if (type == non_dynamic) {
+  if (type == NON_DYNAMIC) {
     asn1_qosparam->qoS_Characteristics.present = F1AP_QoS_Characteristics_PR_non_Dynamic_5QI;
     asn1cCalloc(asn1_qosparam->qoS_Characteristics.choice.non_Dynamic_5QI, tmp);
 
@@ -108,8 +108,12 @@ static void f1ap_write_drb_nssai(const nssai_t *nssai, F1AP_SNSSAI_t *asn1_nssai
   OCTET_STRING_fromBuf(&asn1_nssai->sST, (char *)&nssai->sst, 1);
 
   /* OPTIONAL */
-  if (nssai->sd != 0xffffff)
-    OCTET_STRING_fromBuf(asn1_nssai->sD, (char *)&nssai->sd, 3);
+  if (nssai->sd != 0xffffff) {
+    char sd_buffer[3];
+    INT24_TO_BUFFER(nssai->sd, sd_buffer);
+    asn1cCalloc(asn1_nssai->sD, sD);
+    OCTET_STRING_fromBuf(sD, sd_buffer, 3);
+  }
 }
 
 static void f1ap_write_flows_mapped(const f1ap_flows_mapped_to_drb_t *flows_mapped, F1AP_Flows_Mapped_To_DRB_List_t *asn1_flows_mapped, int n)
@@ -130,7 +134,7 @@ static void f1ap_write_flows_mapped(const f1ap_flows_mapped_to_drb_t *flows_mapp
     const f1ap_qos_characteristics_t *flow_qos_char_in = &flow_qos_params_in->qos_characteristics;
 
     int type = flow_qos_params_in->qos_characteristics.qos_type;
-    if (type == non_dynamic) {
+    if (type == NON_DYNAMIC) {
       QosParams->present = F1AP_QoS_Characteristics_PR_non_Dynamic_5QI;
       asn1cCalloc(QosParams->choice.non_Dynamic_5QI, tmp);
 
@@ -273,27 +277,27 @@ int CU_send_UE_CONTEXT_SETUP_REQUEST(sctp_assoc_t assoc_id, f1ap_ue_context_setu
         f1ap_ue_context_setup_req->cu_to_du_rrc_information->measConfig_length);
     }
   }
-  
 
-  /* mandatory */
-  /* c7. Candidate_SpCell_List */
-  asn1cSequenceAdd(out->protocolIEs.list, F1AP_UEContextSetupRequestIEs_t, ie7);
-  ie7->id                             = F1AP_ProtocolIE_ID_id_Candidate_SpCell_List;  //90
-  ie7->criticality                    = F1AP_Criticality_ignore;
-  ie7->value.present                  = F1AP_UEContextSetupRequestIEs__value_PR_Candidate_SpCell_List;
+  /* optional */
+  if (0) {
+    /* c7. Candidate_SpCell_List */
+    asn1cSequenceAdd(out->protocolIEs.list, F1AP_UEContextSetupRequestIEs_t, ie7);
+    ie7->id = F1AP_ProtocolIE_ID_id_Candidate_SpCell_List; // 90
+    ie7->criticality = F1AP_Criticality_ignore;
+    ie7->value.present = F1AP_UEContextSetupRequestIEs__value_PR_Candidate_SpCell_List;
 
-  for (int i=0;   i<1;  i++) {
-    asn1cSequenceAdd(ie7->value.choice.Candidate_SpCell_List.list,F1AP_Candidate_SpCell_ItemIEs_t, candidate_spCell_item_ies);
-    candidate_spCell_item_ies->id            = F1AP_ProtocolIE_ID_id_Candidate_SpCell_Item; // 91
-    candidate_spCell_item_ies->criticality   = F1AP_Criticality_reject;
-    candidate_spCell_item_ies->value.present = F1AP_Candidate_SpCell_ItemIEs__value_PR_Candidate_SpCell_Item;
-    /* 7.1 Candidate_SpCell_Item */
-    F1AP_Candidate_SpCell_Item_t *candidate_spCell_item=
-      &candidate_spCell_item_ies->value.choice.Candidate_SpCell_Item;
-    /* - candidate_SpCell_ID */
-    //FixMe: first cell ???
-    addnRCGI(candidate_spCell_item->candidate_SpCell_ID,f1ap_ue_context_setup_req);
-    /* TODO add correct mcc/mnc */
+    for (int i = 0; i < 1; i++) {
+      asn1cSequenceAdd(ie7->value.choice.Candidate_SpCell_List.list, F1AP_Candidate_SpCell_ItemIEs_t, candidate_spCell_item_ies);
+      candidate_spCell_item_ies->id = F1AP_ProtocolIE_ID_id_Candidate_SpCell_Item; // 91
+      candidate_spCell_item_ies->criticality = F1AP_Criticality_ignore;
+      candidate_spCell_item_ies->value.present = F1AP_Candidate_SpCell_ItemIEs__value_PR_Candidate_SpCell_Item;
+      /* 7.1 Candidate_SpCell_Item */
+      F1AP_Candidate_SpCell_Item_t *candidate_spCell_item = &candidate_spCell_item_ies->value.choice.Candidate_SpCell_Item;
+      /* - candidate_SpCell_ID */
+      // FixMe: first cell ???
+      addnRCGI(candidate_spCell_item->candidate_SpCell_ID, f1ap_ue_context_setup_req);
+      /* TODO add correct mcc/mnc */
+    }
   }
 
   /* optional */
@@ -335,32 +339,33 @@ int CU_send_UE_CONTEXT_SETUP_REQUEST(sctp_assoc_t assoc_id, f1ap_ue_context_setu
                          strlen("asdsa1d32sa1d31asd31as"));
   }
 
-  /* mandatory */
-  /* c10. SCell_ToBeSetup_List */
-  asn1cSequenceAdd(out->protocolIEs.list, F1AP_UEContextSetupRequestIEs_t, ie10);
-  ie10->id                             = F1AP_ProtocolIE_ID_id_SCell_ToBeSetup_List;
-  ie10->criticality                    = F1AP_Criticality_ignore;
-  ie10->value.present                  = F1AP_UEContextSetupRequestIEs__value_PR_SCell_ToBeSetup_List;
+  /* optional */
+  if (0) {
+    /* c10. SCell_ToBeSetup_List */
+    asn1cSequenceAdd(out->protocolIEs.list, F1AP_UEContextSetupRequestIEs_t, ie10);
+    ie10->id = F1AP_ProtocolIE_ID_id_SCell_ToBeSetup_List;
+    ie10->criticality = F1AP_Criticality_ignore;
+    ie10->value.present = F1AP_UEContextSetupRequestIEs__value_PR_SCell_ToBeSetup_List;
 
-  for (int i=0; i<1; i++) {
-    //
-    asn1cSequenceAdd(ie10->value.choice.SCell_ToBeSetup_List.list, F1AP_SCell_ToBeSetup_ItemIEs_t, scell_toBeSetup_item_ies);
-    scell_toBeSetup_item_ies->id            = F1AP_ProtocolIE_ID_id_SCell_ToBeSetup_Item; //53
-    scell_toBeSetup_item_ies->criticality   = F1AP_Criticality_ignore;
-    scell_toBeSetup_item_ies->value.present = F1AP_SCell_ToBeSetup_ItemIEs__value_PR_SCell_ToBeSetup_Item;
-    /* 10.1 SCell_ToBeSetup_Item */
-    F1AP_SCell_ToBeSetup_Item_t *scell_toBeSetup_item=&scell_toBeSetup_item_ies->value.choice.SCell_ToBeSetup_Item;
-    /* 10.1.1 sCell_ID */
-    addnRCGI(scell_toBeSetup_item->sCell_ID, f1ap_ue_context_setup_req);
-    /* TODO correct MCC/MNC */
-    /* 10.1.2 sCellIndex */
-    scell_toBeSetup_item->sCellIndex = 3;  // issue here
+    for (int i = 0; i < 1; i++) {
+      asn1cSequenceAdd(ie10->value.choice.SCell_ToBeSetup_List.list, F1AP_SCell_ToBeSetup_ItemIEs_t, scell_toBeSetup_item_ies);
+      scell_toBeSetup_item_ies->id = F1AP_ProtocolIE_ID_id_SCell_ToBeSetup_Item; // 53
+      scell_toBeSetup_item_ies->criticality = F1AP_Criticality_ignore;
+      scell_toBeSetup_item_ies->value.present = F1AP_SCell_ToBeSetup_ItemIEs__value_PR_SCell_ToBeSetup_Item;
+      /* 10.1 SCell_ToBeSetup_Item */
+      F1AP_SCell_ToBeSetup_Item_t *scell_toBeSetup_item = &scell_toBeSetup_item_ies->value.choice.SCell_ToBeSetup_Item;
+      /* 10.1.1 sCell_ID */
+      addnRCGI(scell_toBeSetup_item->sCell_ID, f1ap_ue_context_setup_req);
+      /* TODO correct MCC/MNC */
+      /* 10.1.2 sCellIndex */
+      scell_toBeSetup_item->sCellIndex = 3; // issue here
 
-    /* OPTIONAL */
-    /* 10.1.3 sCellULConfigured*/
-    if (0) {
-      asn1cCallocOne(scell_toBeSetup_item->sCellULConfigured,
-                     F1AP_CellULConfigured_ul_and_sul); // enum
+      /* OPTIONAL */
+      /* 10.1.3 sCellULConfigured*/
+      if (0) {
+        asn1cCallocOne(scell_toBeSetup_item->sCellULConfigured,
+                       F1AP_CellULConfigured_ul_and_sul); // enum
+      }
     }
   }
 
@@ -375,7 +380,7 @@ int CU_send_UE_CONTEXT_SETUP_REQUEST(sctp_assoc_t assoc_id, f1ap_ue_context_setu
     for (int i=0; i<f1ap_ue_context_setup_req->srbs_to_be_setup_length; i++) {
       asn1cSequenceAdd(ie11->value.choice.SRBs_ToBeSetup_List.list, F1AP_SRBs_ToBeSetup_ItemIEs_t, srbs_toBeSetup_item_ies);
       srbs_toBeSetup_item_ies->id            = F1AP_ProtocolIE_ID_id_SRBs_ToBeSetup_Item; // 73
-      srbs_toBeSetup_item_ies->criticality   = F1AP_Criticality_ignore;
+      srbs_toBeSetup_item_ies->criticality = F1AP_Criticality_reject;
       srbs_toBeSetup_item_ies->value.present = F1AP_SRBs_ToBeSetup_ItemIEs__value_PR_SRBs_ToBeSetup_Item;
       /* 11.1 SRBs_ToBeSetup_Item */
       F1AP_SRBs_ToBeSetup_Item_t *srbs_toBeSetup_item=&srbs_toBeSetup_item_ies->value.choice.SRBs_ToBeSetup_Item;
@@ -482,12 +487,15 @@ int CU_send_UE_CONTEXT_SETUP_REQUEST(sctp_assoc_t assoc_id, f1ap_ue_context_setu
       /* 12.1.4 rLCMode */
       /* TODO use rlc_mode from f1ap_drb_to_be_setup */
       switch (f1ap_ue_context_setup_req->drbs_to_be_setup[i].rlc_mode) {
-        case RLC_MODE_AM:
+        case F1AP_RLC_MODE_AM:
           drbs_toBeSetup_item->rLCMode = F1AP_RLCMode_rlc_am;
           break;
-
-        default:
+        case F1AP_RLC_MODE_UM_BIDIR:
           drbs_toBeSetup_item->rLCMode = F1AP_RLCMode_rlc_um_bidirectional;
+          break;
+        default:
+          AssertFatal(false, "modes other than AM/UM-Bidir not supported\n");
+          break;
       }
 
       /* OPTIONAL */
@@ -539,7 +547,7 @@ int CU_send_UE_CONTEXT_SETUP_REQUEST(sctp_assoc_t assoc_id, f1ap_ue_context_setu
   if(f1ap_ue_context_setup_req->rrc_container_length > 0) {
     asn1cSequenceAdd(out->protocolIEs.list, F1AP_UEContextSetupRequestIEs_t, ie14);
     ie14->id                             = F1AP_ProtocolIE_ID_id_RRCContainer;
-    ie14->criticality                    = F1AP_Criticality_reject;
+    ie14->criticality = F1AP_Criticality_ignore;
     ie14->value.present                  = F1AP_UEContextSetupRequestIEs__value_PR_RRCContainer;
     OCTET_STRING_fromBuf(&ie14->value.choice.RRCContainer, (const char *)f1ap_ue_context_setup_req->rrc_container,
                          f1ap_ue_context_setup_req->rrc_container_length);
@@ -1217,12 +1225,15 @@ int CU_send_UE_CONTEXT_MODIFICATION_REQUEST(sctp_assoc_t assoc_id, f1ap_ue_conte
       /* 12.1.4 rLCMode */
       /* TODO use rlc_mode from f1ap_drb_to_be_setup */
       switch (f1ap_ue_context_modification_req->drbs_to_be_setup[i].rlc_mode) {
-        case RLC_MODE_AM:
+        case F1AP_RLC_MODE_AM:
           drbs_toBeSetupMod_item->rLCMode = F1AP_RLCMode_rlc_am;
           break;
-
-        default:
+        case F1AP_RLC_MODE_UM_BIDIR:
           drbs_toBeSetupMod_item->rLCMode = F1AP_RLCMode_rlc_um_bidirectional;
+          break;
+        default:
+          AssertFatal(false, "modes other than AM/UM-Bidir not supported\n");
+          break;
       }
 
       /* OPTIONAL */

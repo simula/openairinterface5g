@@ -23,7 +23,6 @@
   <htmlTabRef>build-offload</htmlTabRef>
   <htmlTabName>Build physical simulators</htmlTabName>
   <htmlTabIcon>tasks</htmlTabIcon>
-  <repeatCount>1</repeatCount>
   <TestCaseRequestedList>000001</TestCaseRequestedList>
   <TestCaseExclusionList></TestCaseExclusionList>
 

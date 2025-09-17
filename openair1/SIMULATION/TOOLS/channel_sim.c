@@ -21,21 +21,12 @@
 
 #include <string.h>
 #include <math.h>
-#include <unistd.h>
 #include <stdint.h>
 #include <stdio.h>
-#include <time.h>
 
 #include "SIMULATION/TOOLS/sim.h"
 #include "SIMULATION/RF/rf.h"
-#include "PHY/types.h"
-#include "PHY/defs_eNB.h"
-#include "PHY/phy_extern.h"
 #include "PHY/phy_extern_ue.h"
-
-#include "common/utils/LOG/log.h"
-#include "PHY_INTERFACE/phy_interface_extern.h"
-#include "UTIL/OPT/opt.h" // to test OPT
 #include "common/ran_context.h"
 
 #define RF

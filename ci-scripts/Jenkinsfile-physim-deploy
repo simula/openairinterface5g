@@ -186,6 +186,8 @@ pipeline {
                 if (fileExists(xmlFile)) {
                   mainPythonAllXmlFiles += "--XMLTestFile=" + xmlFile + " "
                   echo "Test XML file         :   ${xmlFile}"
+                } else {
+                  echo "Test XML file ${xmlFile}: no such file"
                 }
               }
             }
@@ -221,6 +223,10 @@ pipeline {
             // Zipping all archived log files
               sh "mkdir test_logs"
               sh "mv *.log* test_logs || true"
+              // Zip all log files matching cmake_targets/{*.log*,log/*} into test_logs_XXXX.zip
+              if (fileExists('../cmake_targets/log')) {
+                sh "mv ../cmake_targets/log/* test_logs || true"
+              }
               sh "zip -r -qq test_logs_${env.BUILD_ID}.zip *test_log*/"
               sh "rm -rf *test_log*/"
               if (fileExists("test_logs_${env.BUILD_ID}.zip")) {

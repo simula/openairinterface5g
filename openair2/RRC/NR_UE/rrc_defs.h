@@ -91,17 +91,6 @@ typedef enum Rrc_State_NR_e {
   RRC_STATE_DETACH_NR,
 } Rrc_State_NR_t;
 
-typedef enum requested_SI_List_e {
-  SIB2  = 1,
-  SIB3  = 2,
-  SIB4  = 4,
-  SIB5  = 8,
-  SIB6  = 16,
-  SIB7  = 32,
-  SIB8  = 64,
-  SIB9  = 128
-} requested_SI_List_t;
-
 // 3GPP TS 38.300 Section 9.2.6
 typedef enum RA_trigger_e {
   RA_NOT_RUNNING,
@@ -114,6 +103,24 @@ typedef enum RA_trigger_e {
   REQUEST_FOR_OTHER_SI,
   BEAM_FAILURE_RECOVERY,
 } RA_trigger_t;
+
+typedef struct UE_RRC_SI_INFO_NR_r17_s {
+  uint32_t default_otherSI_map_r17;
+  NR_SIB15_r17_t *sib15;
+  NR_timer_t sib15_timer;
+  NR_SIB16_r17_t *sib16;
+  NR_timer_t sib16_timer;
+  NR_SIB17_r17_t *sib17;
+  NR_timer_t sib17_timer;
+  NR_SIB18_r17_t *sib18;
+  NR_timer_t sib18_timer;
+  NR_SIB19_r17_t *sib19;
+  NR_timer_t sib19_timer;
+  NR_SIB20_r17_t *sib20;
+  NR_timer_t sib20_timer;
+  NR_SIB21_r17_t *sib21;
+  NR_timer_t sib21_timer;
+} NR_UE_RRC_SI_INFO_r17;
 
 typedef struct UE_RRC_SI_INFO_NR_s {
   uint32_t default_otherSI_map;
@@ -145,6 +152,7 @@ typedef struct UE_RRC_SI_INFO_NR_s {
   NR_timer_t sib13_timer;
   NR_SIB14_r16_t *sib14;
   NR_timer_t sib14_timer;
+  NR_UE_RRC_SI_INFO_r17 SInfo_r17;
 } NR_UE_RRC_SI_INFO;
 
 typedef struct NR_UE_Timers_Constants_s {
@@ -159,6 +167,7 @@ typedef struct NR_UE_Timers_Constants_s {
   NR_timer_t T320;
   NR_timer_t T321;
   NR_timer_t T325;
+  NR_timer_t T380;
   NR_timer_t T390;
   // counters
   uint32_t N310_cnt;
@@ -217,10 +226,10 @@ typedef struct NR_UE_RRC_INST_s {
   long keyToUse;
   bool as_security_activated;
   bool detach_after_release;
-
-  long               selected_plmn_identity;
-  Rrc_State_NR_t     nrRrcState;
-  as_nas_info_t      initialNasMsg;
+  NR_timer_t release_timer;
+  NR_RRCRelease_t *RRCRelease;
+  long selected_plmn_identity;
+  Rrc_State_NR_t nrRrcState;
 
   //Sidelink params
   NR_SL_PreconfigurationNR_r16_t *sl_preconfig;

@@ -603,6 +603,25 @@ void logRecord_mt(const char *file,
   log_output_memory(c, file,func,line,comp,level,format,args);
   va_end(args);
 }
+#if ENABLE_LTTNG
+void logRecord_lttng(const char *file, const char *func, int line, int comp, int level, const char *format, ...)
+{
+  log_component_t *c = &g_log->log_component[comp];
+  char header[48];
+  char buf[MAX_LOG_TOTAL];
+  va_list args;
+  va_start(args, format);
+  vsnprintf(buf, sizeof(buf) - 1, format, args);
+  va_end(args);
+
+  if (map_int_to_str(log_level_names, level) != NULL)
+    snprintf(header, sizeof(header), "OAI-%s %s", c->name, map_int_to_str(log_level_names, level));
+  else
+    snprintf(header, sizeof(header), "OAI-%s", c->name);
+
+  LOG_FC(header, func, line, buf);
+}
+#endif
 
 void vlogRecord_mt(const char *file,
 		   const char *func,

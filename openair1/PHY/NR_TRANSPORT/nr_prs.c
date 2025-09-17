@@ -3,18 +3,18 @@
 #include "PHY/LTE_REFSIG/lte_refsig.h"
 #include "PHY/NR_REFSIG/nr_refsig.h"
 #include "PHY/sse_intrin.h"
-
+#include "openair1/PHY/NR_REFSIG/refsig_defs_ue.h"
 //#define DEBUG_PRS_MOD
 //#define DEBUG_PRS_MAP
 
 extern short nr_qpsk_mod_table[8];
 
-int nr_generate_prs(uint32_t **nr_gold_prs,
-                          c16_t *txdataF,
-                          int16_t amp,
-                          prs_config_t *prs_cfg,
-                          nfapi_nr_config_request_scf_t *config,
-                          NR_DL_FRAME_PARMS *frame_parms)
+int nr_generate_prs(int slot,
+                    c16_t *txdataF,
+                    int16_t amp,
+                    prs_config_t *prs_cfg,
+                    nfapi_nr_config_request_scf_t *config,
+                    NR_DL_FRAME_PARMS *frame_parms)
 {
   
   int k_prime = 0, k = 0, idx;
@@ -42,8 +42,9 @@ int nr_generate_prs(uint32_t **nr_gold_prs,
     k = (prs_cfg->REOffset+k_prime) % prs_cfg->CombSize + prs_cfg->RBOffset*12 + frame_parms->first_carrier_offset;
     
     // QPSK modulation
+    uint32_t *gold = nr_gold_prs(prs_cfg->NPRSID, slot, l);
     for (int m = 0; m < (12/prs_cfg->CombSize) * prs_cfg->NumRB; m++) {
-      idx = (((nr_gold_prs[l][(m<<1)>>5])>>((m<<1)&0x1f))&3);
+      idx = (((gold[(m << 1) >> 5]) >> ((m << 1) & 0x1f)) & 3);
       mod_prs[m<<1] = nr_qpsk_mod_table[idx<<1];
       mod_prs[(m<<1)+1] = nr_qpsk_mod_table[(idx<<1) + 1];
       

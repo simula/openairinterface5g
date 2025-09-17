@@ -686,7 +686,7 @@ static int fill_BEARER_CONTEXT_SETUP_REQUEST(e1ap_bearer_setup_req_t *const bear
         ieC6_1_1_1->qoS_Flow_Identifier = k->qfi;
         /* QoS Characteristics */
         qos_characteristics_t *qos_char_in = &k->qos_params.qos_characteristics;
-        if (qos_char_in->qos_type == non_dynamic) { // non Dynamic 5QI
+        if (qos_char_in->qos_type == NON_DYNAMIC) { // non Dynamic 5QI
           ieC6_1_1_1->qoSFlowLevelQoSParameters.qoS_Characteristics.present = E1AP_QoS_Characteristics_PR_non_Dynamic_5QI;
           asn1cCalloc(ieC6_1_1_1->qoSFlowLevelQoSParameters.qoS_Characteristics.choice.non_Dynamic_5QI, non_Dynamic_5QI);
           non_Dynamic_5QI->fiveQI = qos_char_in->non_dynamic.fiveqi;
@@ -1002,12 +1002,12 @@ static void extract_BEARER_CONTEXT_SETUP_REQUEST(const E1AP_E1AP_PDU_t *pdu, e1a
 
               qos_characteristics_t *qos_char = &qos_flow->qos_params.qos_characteristics;
               if (qos2Setup->qoSFlowLevelQoSParameters.qoS_Characteristics.present == E1AP_QoS_Characteristics_PR_non_Dynamic_5QI) {
-                qos_char->qos_type = non_dynamic;
+                qos_char->qos_type = NON_DYNAMIC;
                 qos_char->non_dynamic.fiveqi =
                     qos2Setup->qoSFlowLevelQoSParameters.qoS_Characteristics.choice.non_Dynamic_5QI->fiveQI;
               } else {
                 E1AP_Dynamic5QIDescriptor_t *dynamic5QI = qos2Setup->qoSFlowLevelQoSParameters.qoS_Characteristics.choice.dynamic_5QI;
-                qos_char->qos_type = dynamic;
+                qos_char->qos_type = DYNAMIC;
                 qos_char->dynamic.qos_priority_level = dynamic5QI->qoSPriorityLevel;
                 qos_char->dynamic.packet_delay_budget = dynamic5QI->packetDelayBudget;
                 qos_char->dynamic.packet_error_rate.per_scalar = dynamic5QI->packetErrorRate.pER_Scalar;
@@ -1192,7 +1192,7 @@ static int fill_BEARER_CONTEXT_MODIFICATION_REQUEST(e1ap_bearer_setup_req_t *con
   ieC2->value.present              = E1AP_BearerContextModificationRequestIEs__value_PR_GNB_CU_UP_UE_E1AP_ID;
   ieC2->value.choice.GNB_CU_UP_UE_E1AP_ID = bearerCxt->gNB_cu_up_ue_id;
   /* optional */
-  /*  */
+  /* c3. E1AP_ProtocolIE_ID_id_System_BearerContextModificationRequest */
   asn1cSequenceAdd(out->protocolIEs.list, E1AP_BearerContextModificationRequestIEs_t, ieC3);
   ieC3->id            = E1AP_ProtocolIE_ID_id_System_BearerContextModificationRequest;
   ieC3->criticality   = E1AP_Criticality_reject;
@@ -1229,6 +1229,15 @@ static int fill_BEARER_CONTEXT_MODIFICATION_REQUEST(e1ap_bearer_setup_req_t *con
         }
       }
     }
+  }
+  /* c4. E1AP_ProtocolIE_ID_id_BearerContextStatusChange */
+  if (bearerCxt->bearerContextStatus == BEARER_SUSPEND) {
+    asn1cSequenceAdd(out->protocolIEs.list, E1AP_BearerContextModificationRequestIEs_t, ieC4);
+    ieC4->id            = E1AP_ProtocolIE_ID_id_BearerContextStatusChange;
+    ieC4->criticality   = E1AP_Criticality_reject;
+    ieC4->value.present = E1AP_BearerContextModificationRequestIEs__value_PR_BearerContextStatusChange;
+    /* Bearer Context Status Change */
+    ieC4->value.choice.BearerContextStatusChange = E1AP_BearerContextStatusChange_suspend;
   }
   return 0;
 }
@@ -1388,6 +1397,13 @@ static void extract_BEARER_CONTEXT_MODIFICATION_REQUEST(const E1AP_E1AP_PDU_t *p
             }
           }
         }
+        break;
+
+      case E1AP_ProtocolIE_ID_id_BearerContextStatusChange:
+        /* Bearer Context Status Change */
+        DevAssert(ie->criticality == E1AP_Criticality_reject);
+        DevAssert(ie->value.present == E1AP_BearerContextModificationRequestIEs__value_PR_BearerContextStatusChange);
+        bearerCxt->bearerContextStatus = (ie->value.choice.BearerContextStatusChange == E1AP_BearerContextStatusChange_suspend) ? BEARER_SUSPEND : BEARER_ACTIVE;
         break;
 
       default:
@@ -1646,7 +1662,7 @@ void extract_BEARER_CONTEXT_RELEASE_COMMAND(const E1AP_E1AP_PDU_t *pdu, e1ap_bea
         if ((ie->value.choice.Cause.present != E1AP_Cause_PR_NOTHING) &&
             (ie->value.choice.Cause.present != E1AP_Cause_PR_choice_extension))
           bearerCxt->cause = ie->value.choice.Cause.choice.radioNetwork;
-
+        break;
                                                  
       default:
         LOG_E(E1AP, "Handle for this IE is not implemented (or) invalid IE detected\n");

@@ -25,10 +25,14 @@
 	<htmlTabName>CPPCHECK Analysis</htmlTabName>
 	<htmlTabIcon>wrench</htmlTabIcon>
 	<TestCaseRequestedList>
+ 000002
  000001
 	</TestCaseRequestedList>
 	<TestCaseExclusionList></TestCaseExclusionList>
-
+    <testCase id="000002">
+        <class>Create_Workspace</class>
+        <desc>Create new Workspace</desc>
+    </testCase>
 	<testCase id="000001">
 		<class>Cppcheck_Analysis</class>
 		<desc>Static Code Analysis with cppcheck</desc>

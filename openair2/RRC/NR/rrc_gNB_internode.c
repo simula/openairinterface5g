@@ -79,17 +79,14 @@ int parse_CG_ConfigInfo(gNB_RRC_INST *rrc, NR_CG_ConfigInfo_t *CG_ConfigInfo, x2
   return(0);
 }
 
-
-int generate_CG_Config(gNB_RRC_INST *rrc,
-                       NR_CG_Config_t *cg_Config,
-                       NR_RRCReconfiguration_t *reconfig,
-                       NR_RadioBearerConfig_t *rbconfig) {
+NR_CG_Config_t *generate_CG_Config(const NR_RRCReconfiguration_t *reconfig, const NR_RadioBearerConfig_t *rbconfig)
+{
+  NR_CG_Config_t *cg_Config = calloc(1, sizeof(*cg_Config));
   cg_Config->criticalExtensions.present = NR_CG_Config__criticalExtensions_PR_c1;
   cg_Config->criticalExtensions.choice.c1 = calloc(1,sizeof(*cg_Config->criticalExtensions.choice.c1));
   cg_Config->criticalExtensions.choice.c1->present = NR_CG_Config__criticalExtensions__c1_PR_cg_Config;
   cg_Config->criticalExtensions.choice.c1->choice.cg_Config = calloc(1,sizeof(NR_CG_Config_IEs_t));
   char buffer[1024];
-  int total_size;
   asn_enc_rval_t enc_rval = uper_encode_to_buffer(&asn_DEF_NR_RRCReconfiguration, NULL, (void *)reconfig, buffer, 1024);
   AssertFatal (enc_rval.encoded > 0, "ASN1 message encoding failed (%s, %jd)!\n",
                enc_rval.failed_type->name, enc_rval.encoded);
@@ -97,7 +94,6 @@ int generate_CG_Config(gNB_RRC_INST *rrc,
   OCTET_STRING_fromBuf(cg_Config->criticalExtensions.choice.c1->choice.cg_Config->scg_CellGroupConfig,
                        (const char *)buffer,
                        (enc_rval.encoded+7)>>3);
-  total_size = (enc_rval.encoded+7)>>3;
 
   FILE *fd; // file to be generated for nr-ue
   if (get_softmodem_params()->phy_test==1 || get_softmodem_params()->do_ra > 0 || get_softmodem_params()->sa == 1) {
@@ -140,8 +136,7 @@ int generate_CG_Config(gNB_RRC_INST *rrc,
     }
   }
   
-  total_size = total_size + ((enc_rval.encoded+7)>>3);
-  return(total_size);
+  return cg_Config;
 }
 
 #endif

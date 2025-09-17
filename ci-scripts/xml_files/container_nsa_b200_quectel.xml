@@ -24,7 +24,6 @@
 	<htmlTabRef>TEST-NSA-FR1-TM1-B200</htmlTabRef>
 	<htmlTabName>NSA SanityCheck with QUECTEL</htmlTabName>
 	<htmlTabIcon>tasks</htmlTabIcon>
-	<repeatCount>1</repeatCount>
 	<TestCaseRequestedList>
  200000
  100000
@@ -32,7 +31,9 @@
  111110
  111111
  010000
+ 800833
  030101
+ 800834
  030102
  010001
  050000
@@ -48,6 +49,8 @@
  030201
  300000
  600000
+ 222220
+ 222221
 	</TestCaseRequestedList>
 	<TestCaseExclusionList></TestCaseExclusionList>
 
@@ -80,6 +83,7 @@
 	</testCase>
 	<testCase id="300000">
 		<class>Custom_Command</class>
+    <always_exec>true</always_exec>
 		<desc>Enable Sleep States (nepes)</desc>
 		<node>nepes</node>
 		<command>sudo cpupower idle-set -E</command>
@@ -92,6 +96,7 @@
 	</testCase>
 	<testCase id="600000">
 		<class>Custom_Command</class>
+    <always_exec>true</always_exec>
 		<desc>Enable Sleep States (ofqot)</desc>
 		<node>ofqot</node>
 		<command>sudo cpupower idle-set -E</command>
@@ -104,6 +109,7 @@
 	</testCase>
 	<testCase id="010002">
 		<class>Terminate_UE</class>
+    <always_exec>true</always_exec>
 		<desc>Terminate Quectel</desc>
 		<id>idefix</id>
 	</testCase>
@@ -111,13 +117,19 @@
 		<class>Attach_UE</class>
 		<desc>Attach UE</desc>
 		<id>idefix</id>
-  </testCase>
+  	</testCase>
 	<testCase id= "010010">
 		<class>Detach_UE</class>
+    <always_exec>true</always_exec>
 		<desc>Detach UE</desc>
 		<id>idefix</id>
 	</testCase>
-
+	<testCase id="800833">
+		<class>Create_Workspace</class>
+		<desc>Create new Workspace</desc>
+		<eNB_instance>0</eNB_instance>
+		<eNB_serverId>0</eNB_serverId>
+	</testCase>
 	<testCase id="030101">
 		<class>Deploy_Object</class>
 		<desc>Deploy eNB (FDD/Band7/5MHz/B200) in a container</desc>
@@ -125,7 +137,12 @@
 		<eNB_instance>0</eNB_instance>
 		<eNB_serverId>0</eNB_serverId>
 	</testCase>
-
+	<testCase id="800834">
+		<class>Create_Workspace</class>
+		<desc>Create new Workspace</desc>
+		<eNB_instance>1</eNB_instance>
+		<eNB_serverId>1</eNB_serverId>
+	</testCase>
 	<testCase id="030102">
 		<class>Deploy_Object</class>
 		<desc>Deploy gNB (TDD/Band78/40MHz/B200) in a container</desc>
@@ -213,6 +230,7 @@
 
     <testCase id="030201">
         <class>Undeploy_Object</class>
+        <always_exec>true</always_exec>
         <desc>Undeploy eNB</desc>
 		<yaml_path>ci-scripts/yaml_files/nsa_b200_enb</yaml_path>
         <eNB_instance>0</eNB_instance>
@@ -221,6 +239,7 @@
 
     <testCase id="030202">
         <class>Undeploy_Object</class>
+        <always_exec>true</always_exec>
         <desc>Undeploy gNB</desc>
 		<yaml_path>ci-scripts/yaml_files/nsa_b200_gnb</yaml_path>
         <eNB_instance>1</eNB_instance>
@@ -228,6 +247,20 @@
         <d_retx_th>10,100,100,100</d_retx_th>
         <u_retx_th>10,100,100,100</u_retx_th>
     </testCase>
+
+	<testCase id="222220">
+		<class>Clean_Test_Server_Images</class>
+    <always_exec>true</always_exec>
+		<desc>Clean Test Images on Test Server</desc>
+		<test_svr_id>0</test_svr_id>
+	</testCase>
+
+	<testCase id="222221">
+		<class>Clean_Test_Server_Images</class>
+    <always_exec>true</always_exec>
+		<desc>Clean Test Images on Test Server</desc>
+		<test_svr_id>1</test_svr_id>
+	</testCase>
 
 </testCaseList>
 

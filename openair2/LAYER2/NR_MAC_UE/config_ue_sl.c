@@ -23,10 +23,8 @@
 #include "NR_SidelinkPreconfigNR-r16.h"
 #include "mac_proto.h"
 
-void sl_ue_mac_free(uint8_t module_id)
+void sl_ue_mac_free(NR_UE_MAC_INST_t *mac)
 {
-
-  NR_UE_MAC_INST_t *mac = get_mac_inst(module_id);
 
   sl_nr_phy_config_request_t *sl_config =
                     &mac->SL_MAC_PARAMS->sl_phy_config.sl_config_req;
@@ -140,9 +138,7 @@ static void  sl_prepare_phy_config(int module_id,
 
   AssertFatal(carriercfg, "SCS_SpecificCarrier cannot be NULL");
 
-  int bw_index = get_supported_band_index(carriercfg->subcarrierSpacing,
-                                          sl_band > 256 ? FR2 : FR1,
-                                          carriercfg->carrierBandwidth);
+  int bw_index = get_supported_band_index(carriercfg->subcarrierSpacing, FR1, carriercfg->carrierBandwidth);
   phycfg->sl_carrier_config.sl_bandwidth = get_supported_bw_mhz(FR1, bw_index);
 
   phycfg->sl_carrier_config.sl_frequency =
@@ -375,6 +371,9 @@ int nr_rrc_mac_config_req_sl_preconfig(module_id_t module_id,
     AssertFatal((tdd_uldl_config->pattern2 == NULL), "Sidelink MAC CFG: pattern2 not yet supported");
 
     sl_mac->sl_TDD_config = sl_preconfig->sl_PreconfigGeneral_r16->sl_TDD_Configuration_r16;
+
+    // Sync source is identified, timing needs to be adjusted.
+    sl_mac->timing_acquired = true;
   }
 
   //Do not copy TDD config yet as SYNC source is not yet found
@@ -477,12 +476,13 @@ void nr_rrc_mac_config_req_sl_mib(module_id_t module_id,
   sl_nr_phy_config_request_t *sl_config = &sl_mac->sl_phy_config.sl_config_req;
 
   //Update configs if Sync source is not set else nothing to be done
-  if (  sl_config->sl_sync_source.sync_source == SL_SYNC_SOURCE_NONE) {
+  if (sl_config->sl_sync_source.sync_source == SL_SYNC_SOURCE_NONE) {
     //Set SYNC source as SYNC REF UE and send the remaining config to PHY
     sl_config->config_mask = 0xF;//all configs done.
     sl_config->sl_sync_source.sync_source = SL_SYNC_SOURCE_SYNC_REF_UE;
     sl_config->sl_sync_source.rx_slss_id = rx_slss_id;
 
+    sl_mac->timing_acquired = true;
 
     sl_mac->rx_sl_bch.status = 1;
     sl_mac->rx_sl_bch.slss_id = rx_slss_id;
@@ -527,7 +527,8 @@ void nr_rrc_mac_config_req_sl_mib(module_id_t module_id,
                             sl_mac->sl_TDD_config->pattern1.nrofDownlinkSlots, sl_mac->sl_TDD_config->pattern1.nrofUplinkSlots,
                             sl_mac->sl_TDD_config->pattern1.nrofDownlinkSymbols,sl_mac->sl_TDD_config->pattern1.nrofUplinkSymbols);
 
+    DevAssert(mac->if_module != NULL && mac->if_module->sl_phy_config_request != NULL);
+    mac->if_module->sl_phy_config_request(&sl_mac->sl_phy_config);
   }
-
 }
 

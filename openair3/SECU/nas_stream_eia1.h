@@ -26,4 +26,7 @@
 
 void nas_stream_encrypt_eia1(nas_stream_cipher_t const* stream_cipher, uint8_t out[4]);
 
+stream_security_context_t *stream_integrity_init_eia1(const uint8_t *integrity_key);
+void stream_integrity_free_eia1(stream_security_context_t *integrity_context);
+
 #endif

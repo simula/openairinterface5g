@@ -1,0 +1,64 @@
+{
+    "version": 3,
+    "configurePresets": [
+        {
+            "name": "default",
+            "displayName": "Default Config",
+            "description": "Default build using Ninja generator",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/cmake_targets/ran_build/build",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+            }
+        },
+        {
+            "name": "tests",
+            "displayName": "Default unit test config",
+            "inherits": "default",
+            "binaryDir": "${sourceDir}/cmake_targets/ran_build/build_test",
+            "cacheVariables": {
+                "ENABLE_TESTS": "ON",
+                "SANITIZE_ADDRESS": "ON",
+                "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+            }
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "5gdefault",
+            "configurePreset": "default",
+            "targets": [
+                "nr-uesoftmodem",
+                "nr-softmodem",
+                "rfsimulator",
+                "dfts",
+                "ldpc",
+                "params_libconfig",
+                "params_yaml"
+            ]
+        },
+        {
+            "name": "default",
+            "inherits": "5gdefault"
+        },
+        {
+            "name": "4gdefault",
+            "configurePreset": "default",
+            "targets": [
+                "lte-softmodem",
+                "lte-uesoftmodem",
+                "dfts",
+                "coding",
+                "rfsimulator",
+                "params_libconfig"
+            ]
+        },
+        {
+            "name": "tests",
+            "configurePreset": "tests",
+            "targets": [
+                "tests"
+            ]
+        }
+    ]
+}

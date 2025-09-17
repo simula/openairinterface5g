@@ -25,21 +25,22 @@
   <htmlTabRef>TEST-LTE-2x2-N3XXi-TM2</htmlTabRef>
   <htmlTabName>2.6 Ghz TDD LTE 2x2 TM2</htmlTabName>
   <htmlTabIcon>tasks</htmlTabIcon>
-  <repeatCount>1</repeatCount>
   <TestCaseRequestedList>
 
 111111
 100000
 010010
-030101
+800833
+031101
 010001
 000001
-050000
-050001
-070000
-070001
+051000
+051001
+071000
+071001
 010010
-030201
+031201
+333333
 
 </TestCaseRequestedList>
   <TestCaseExclusionList></TestCaseExclusionList>
@@ -64,8 +65,13 @@
     <node>obelix</node>
     <command>sudo cpupower idle-set -E</command>
   </testCase>
-
-  <testCase id="030101">
+  <testCase id="800833">
+    <class>Create_Workspace</class>
+    <desc>Create new Workspace</desc>
+    <eNB_instance>0</eNB_instance>
+    <eNB_serverId>0</eNB_serverId>
+  </testCase>
+  <testCase id="031101">
     <class>Deploy_Object</class>
     <desc>Deploy eNB (TDD/Band38/2.6Ghz/N3XX) in a container</desc>
     <yaml_path>ci-scripts/yaml_files/lte_n3xx_tdd_2x2_tm2</yaml_path>
@@ -85,7 +91,7 @@
     <id>up2</id>
   </testCase>
 
-  <testCase id="050000">
+  <testCase id="051000">
     <class>Ping</class>
     <desc>Ping: 20 pings</desc>
     <id>up2</id>
@@ -94,7 +100,7 @@
     <ping_rttavg_threshold>60</ping_rttavg_threshold>
   </testCase>
 
- <testCase id="050001">
+ <testCase id="051001">
     <class>Ping</class>
     <desc>Ping: 100 pings, size 1024</desc>
     <id>up2</id>
@@ -103,7 +109,7 @@
     <ping_rttavg_threshold>60</ping_rttavg_threshold>
    </testCase>
 
-  <testCase id="070000">
+  <testCase id="071000">
     <class>Iperf</class>
     <desc>iperf (DL/26Mbps/UDP)(60 sec)(single-ue profile)</desc>
     <iperf_args>-u -b 1M -t 60 -R</iperf_args>
@@ -113,7 +119,7 @@
     <iperf_bitrate_threshold>95</iperf_bitrate_threshold>
    </testCase>
 
-   <testCase id="070001">
+   <testCase id="071001">
      <class>Iperf</class>
      <desc>iperf (UL/7Mbps/UDP)(60 sec)(single-ue profile)</desc>
      <iperf_args>-u -b 7M -t 60</iperf_args>
@@ -125,12 +131,14 @@
 
   <testCase id="010010">
     <class>Detach_UE</class>
+    <always_exec>true</always_exec>
     <desc>Detach UE</desc>
     <id>up2</id>
   </testCase>
 
-  <testCase id="030201">
+  <testCase id="031201">
     <class>Undeploy_Object</class>
+    <always_exec>true</always_exec>
     <desc>Undeploy gNB</desc>
     <yaml_path>ci-scripts/yaml_files/lte_n3xx_tdd_2x2_tm2</yaml_path>
     <eNB_instance>0</eNB_instance>
@@ -140,6 +148,14 @@
 		    ?
     -->
   </testCase>
+
+    <testCase id="333333">
+        <class>Clean_Test_Server_Images</class>
+        <always_exec>true</always_exec>
+        <desc>Clean Test Images</desc>
+        <test_svr_id>0</test_svr_id>
+    </testCase>
+
 
 </testCaseList>
 

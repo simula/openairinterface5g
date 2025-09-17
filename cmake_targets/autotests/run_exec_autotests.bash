@@ -30,7 +30,6 @@ fi
 
 source $OPENAIR_DIR/cmake_targets/tools/test_helper
 
-SUDO="sudo -E"
 tdir=$OPENAIR_DIR/cmake_targets/autotests
 rm -fr $tdir/bin
 mkdir -p $tdir/bin
@@ -178,8 +177,6 @@ RUN_GROUP=0
 test_case_group=""
 test_case_group_array=()
 test_case_array=()
-echo_info "Note that the user should be sudoer for executing certain commands, for example loading kernel modules"
-
 
 until [ -z "$1" ]; do
   case "$1" in
@@ -206,15 +203,6 @@ until [ -z "$1" ]; do
       break;;
   esac
 done
-
-tmpfile=`mktemp`
-$SUDO echo $HOME > $tmpfile
-tstsudo=`cat $tmpfile`
-if [ "$tstsudo" != "$HOME" ]; then
-  echo_error "$USER does not have sudo privileges. Exiting"
-  exit
-fi
-rm -fr $tmpfile
 
 test_case_excl_list=`xmlstarlet sel -t -v "/testCaseList/TestCaseExclusionList" $xml_conf`
 test_case_excl_list=`sed "s/\+/\*/g" <<< "$test_case_excl_list" ` # Replace + with * for bash string substituion

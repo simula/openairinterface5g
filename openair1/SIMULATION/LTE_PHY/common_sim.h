@@ -62,18 +62,20 @@ void printDistribution(time_stats_t *ptr, varArray_t *sortedList, char *txt) {
 }
 
 void printStatIndent(time_stats_t *ptr, char *txt) {
-  printf("|__ %-38s %6.2f us (%3d trials)\n",
+  printf("|__ %-38s %6.2f us (%3d trials)\t\t(%6.2f total [ms])\n",
          txt,
          ptr->trials?inMicroS(ptr->diff/ptr->trials):0,
-         ptr->trials);
+         ptr->trials,
+         ptr->trials?inMicroS(ptr->diff)/1000:0);
 }
 
 void printStatIndent2(time_stats_t *ptr, char *txt) {
   double timeBase=1/(1000*get_cpu_freq_GHz());
-  printf("    |__ %-34s %6.2f us (%3d trials)\n",
+  printf("    |__ %-34s %6.2f us (%3d trials)\t\t(%6.2f total [ms])\n",
          txt,
          ptr->trials?((double)ptr->diff)/ptr->trials*timeBase:0,
-	 ptr->trials);
+         ptr->trials,
+         ptr->trials?inMicroS(ptr->diff)/1000:0);
 }
 
 void printStatIndent3(time_stats_t *ptr, char *txt) {

@@ -661,7 +661,7 @@ int main(int argc, char **argv) {
   uint32_t Nsoft;
   int sf;
   int CCE_table[800];
-  opp_enabled=1; // to enable the time meas
+  cpu_meas_enabled = 1; // to enable the time meas
   FILE *csv_fd=NULL;
   char csv_fname[FILENAME_MAX];
   int DLSCH_RB_ALLOC = 0;

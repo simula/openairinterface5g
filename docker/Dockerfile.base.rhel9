@@ -21,23 +21,21 @@
 #---------------------------------------------------------------------
 #
 # Dockerfile for the Open-Air-Interface BUILD service
-#   Valid for RHEL9
+#   Valid for UBI9
 #
 #---------------------------------------------------------------------
 
 
 FROM registry.access.redhat.com/ubi9/ubi:latest AS ran-base
+LABEL MAINTAINER OpenAirInterface <contact@openairinterface.org>
 ARG NEEDED_GIT_PROXY
+ARG TARGETARCH
 ENV TZ=Europe/Paris
 ENV BUILD_UHD_FROM_SOURCE=True
 ENV UHD_VERSION=4.4.0.0
 
 # Copy the entitlements
 COPY ./etc-pki-entitlement /etc/pki/entitlement
-
-# Copy the subscription manager configurations
-COPY ./rhsm-conf /etc/rhsm
-COPY ./rhsm-ca /etc/rhsm/ca
 
 ENV SMDEV_CONTAINER_OFF=1
 #install developers pkg/repo
@@ -47,11 +45,22 @@ RUN rm -f /etc/rhsm-host && \
     cat /etc/os-release && \
     dnf install -y \
        #gcc needed for build_oai
-       gcc gcc-c++ \ 
        diffutils \
        file \
        psmisc \
        git \
+       meson \
+       wget \
+       xz \
+       pkg-config \
+       pcre2-devel \
+       m4 \
+       python3-devel \
+       numactl-libs \
+       numactl-devel \
+       #use gcc-13 to avoid problems of default gcc-11 in FlexRIC
+       gcc-toolset-13-gcc \
+       gcc-toolset-13-gcc-c++ \
        # python3-pip and pyyaml are used for conf template generation
        python3-pip && \
     pip3 install --ignore-installed pyyaml && \
@@ -60,8 +69,8 @@ RUN rm -f /etc/rhsm-host && \
 
 # Add "Tini - A tiny but valid init for containers", https://github.com/krallin/tini
 # it will be copied into target containers, to print exit numbers and handle signals properly
-ENV TINI_VERSION v0.19.0
-ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini /tini
+ENV TINI_VERSION=v0.19.0
+ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini-${TARGETARCH} /tini
 RUN chmod +x /tini
 
 # In some network environments, GIT proxy is required
@@ -80,8 +89,9 @@ WORKDIR /oai-ran
 COPY oaienv .
 
 #run build_oai -I to get the builder image
-RUN /bin/sh oaienv && \ 
+RUN /bin/sh oaienv && \
     cd cmake_targets && \
     mkdir -p log && \
-    ./build_oai -I --install-optional-packages -w USRP && \
+    scl enable gcc-toolset-13 "\
+    ./build_oai -I --install-optional-packages -w USRP" && \
     rm /etc/pki/entitlement/*pem

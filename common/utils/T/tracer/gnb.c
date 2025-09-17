@@ -265,7 +265,7 @@ int main(int n, char **v)
 
   gnb_main_gui(&eg, g, h, database, &gnb_data);
 
-  OBUF ebuf = { osize: 0, omaxsize: 0, obuf: NULL };
+  OBUF ebuf = {.osize = 0, .omaxsize = 0, .obuf = NULL};
 
 restart:
   clear_remote_config();

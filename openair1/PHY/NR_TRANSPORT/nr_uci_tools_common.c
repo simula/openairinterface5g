@@ -63,11 +63,7 @@ void nr_group_sequence_hopping(pucch_GroupHopping_t PUCCH_GroupHopping,
 #endif
   uint8_t f_ss=0,f_gh=0;
   *u=0;
-  *v=0;
-  uint32_t c_init = 0; 
-  uint32_t x1,s; // TS 38.211 Subclause 5.2.1
-  int l = 32, minShift = ((2*nr_slot_tx+n_hop)<<3);
-  int tmpShift =0;
+  *v = 0;
 #ifdef DEBUG_NR_PUCCH_TX
   printf("\t\t [nr_group_sequence_hopping] calculating u,v -> ");
 #endif
@@ -77,41 +73,39 @@ void nr_group_sequence_hopping(pucch_GroupHopping_t PUCCH_GroupHopping,
   }
 
   if (PUCCH_GroupHopping == enable) { // PUCCH_GroupHopping 'enabled'
-    c_init = floor(n_id/30); // we initialize c_init to calculate u,v according to 6.3.2.2.1 of 38.211
-    s = lte_gold_generic(&x1, &c_init, 1); // TS 38.211 Subclause 5.2.1
+    uint32_t c_init = floor(n_id / 30); // we initialize c_init to calculate u,v according to 6.3.2.2.1 of 38.211
+    int l = 32, minShift = (2 * nr_slot_tx + n_hop) << 3;
+    uint32_t *seq = gold_cache(c_init, (minShift + 31) / 32 + 8); // TS 38.211 Subclause 5.2.1
+    int goldIdx = 0;
     for (int m=0; m<8; m++) {
       while(minShift >= l) {
-        s = lte_gold_generic(&x1, &c_init, 0);
+        goldIdx++;
         l = l+32;
       }
-
-      tmpShift = (minShift&((1<<5)-1)); //minShift%32;
-      f_gh = f_gh + ((1<<m)*((uint8_t)((s>>tmpShift)&1)));
+      AssertFatal(goldIdx < 8 + (minShift + 31) / 32, "");
+      int tmpShift = (minShift & ((1 << 5) - 1)); // minShift%32;
+      f_gh = f_gh + ((1 << m) * ((uint8_t)((seq[goldIdx] >> tmpShift) & 1)));
       minShift ++;
     }
 
     f_gh = f_gh%30;
-    f_ss = n_id%30;
-    /*    for (int m=0; m<8; m++){
-          f_gh = f_gh + ((1<<m)*((uint8_t)((s>>(8*(2*nr_slot_tx+n_hop)+m))&1))); // Not sure we have to use nr_slot_tx FIXME!!!
-        }
-        f_gh = f_gh%30;
-        f_ss = n_id%30;*/
+    f_ss = n_id % 30;
   }
 
   if (PUCCH_GroupHopping == disable) { // PUCCH_GroupHopping 'disabled'
-    c_init = (1<<5)*floor(n_id/30)+(n_id%30); // we initialize c_init to calculate u,v
-    s = lte_gold_generic(&x1, &c_init, 1); // TS 38.211 Subclause 5.2.1
+    uint32_t c_init = (1 << 5) * floor(n_id / 30) + (n_id % 30); // we initialize c_init to calculate u,v
+    int goldIdx = 0;
     f_ss = n_id%30;
-    l = 32, minShift = (2*nr_slot_tx+n_hop);
+    int l = 32, minShift = (2 * nr_slot_tx + n_hop);
 
     while(minShift >= l) {
-      s = lte_gold_generic(&x1, &c_init, 0);
+      goldIdx++;
       l = l+32;
     }
-
-    tmpShift = (minShift&((1<<5)-1)); //minShift%32;
-    *v = (uint8_t)((s>>tmpShift)&1);
+    // TS 38.211 Subclause 5.2.1
+    uint32_t *seq = gold_cache(c_init, goldIdx + 1);
+    int tmpShift = (minShift & ((1 << 5) - 1)); // minShift%32;
+    *v = (uint8_t)((seq[goldIdx] >> tmpShift) & 1);
     //    *v = (uint8_t)((s>>(2*nr_slot_tx+n_hop))&1); // Not sure we have to use nr_slot_tx FIXME!!!
   }
 
@@ -139,28 +133,27 @@ double nr_cyclic_shift_hopping(uint32_t n_id,
   double alpha = 0.5235987756;
   uint32_t c_init = n_id; // we initialize c_init again to calculate n_cs
 
-  uint32_t x1,s = lte_gold_generic(&x1, &c_init, 1); // TS 38.211 Subclause 5.2.1
   uint8_t n_cs=0;
-  int l = 32, minShift = (14*8*nr_slot_tx )+ 8*(lnormal+lprime);
-  int tmpShift =0;
+  int l = 32, minShift = (14 * 8 * nr_slot_tx) + 8 * (lnormal + lprime);
 #ifdef DEBUG_NR_PUCCH_TX
   printf("\t\t [nr_cyclic_shift_hopping] calculating alpha (cyclic shift) using c_init=%u -> \n",c_init);
 #endif
-
+  uint32_t *seq = gold_cache(c_init, 8 + (minShift + 31) / 32); // TS 38.211 Subclause 5.2.1
+  int goldIdx = 0;
   for (int m=0; m<8; m++) {
     while(minShift >= l) {
-      s = lte_gold_generic(&x1, &c_init, 0);
+      goldIdx++;
       l = l+32;
     }
-
-    tmpShift = (minShift&((1<<5)-1)); //minShift%32;
+    AssertFatal(goldIdx < 8 + (minShift + 31) / 32, "");
+    int tmpShift = (minShift & ((1 << 5) - 1)); // minShift%32;
     minShift ++;
-    n_cs = n_cs+((1<<m)*((uint8_t)((s>>tmpShift)&1)));
+    n_cs += (1 << m) * (uint8_t)((seq[goldIdx] >> tmpShift) & 1);
     // calculating n_cs (Not sure we have to use nr_slot_tx FIXME!!!)
     // n_cs = n_cs+((1<<m)*((uint8_t)((s>>((14*8*nr_slot_tx) + 8*(lnormal+lprime) + m))&1)));
   }
 
-  alpha = (alpha * (double)((m0+mcs+n_cs)%12));
+  alpha = alpha * (double)((m0 + mcs + n_cs) % 12);
 #ifdef DEBUG_NR_PUCCH_TX
   printf("n_cs=%d -> %lf\n",n_cs,alpha);
 #endif

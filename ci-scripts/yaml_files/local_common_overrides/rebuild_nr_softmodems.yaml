@@ -1,0 +1,13 @@
+services:
+  rebuild-nr-softmodems:
+    image: ran-build
+    volumes:
+      - ../../../:/oai-dir/
+    command:
+      bash -c "cd /oai-dir/ && mkdir -p cmake_targets/ran_build/build && cd cmake_targets/ran_build/build && cmake ../../../ -GNinja && cmake --build . --target nr-uesoftmodem rfsimulator nr-softmodem"
+    entrypoint: ""
+    depends_on:
+      build-gnb-image:
+        condition: service_completed_successfully
+      build-ue-image:
+        condition: service_completed_successfully

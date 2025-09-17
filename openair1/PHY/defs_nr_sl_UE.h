@@ -70,6 +70,7 @@
 #define SL_NR_NUM_IDs_IN_PSS 2
 #define SL_NR_NUM_IDs_IN_SSS 336
 #define SL_NR_NUM_SLSS_IDs 672
+#define SL_NR_PSBCH_REPETITION_IN_FRAMES 16
 
 typedef enum sl_nr_sidelink_mode { SL_NOT_SUPPORTED = 0, SL_MODE1_SUPPORTED, SL_MODE2_SUPPORTED } sl_nr_sidelink_mode_t;
 

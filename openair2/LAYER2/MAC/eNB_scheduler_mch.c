@@ -1055,16 +1055,22 @@ schedule_MBMS_NFAPI(module_id_t module_idP, uint8_t CC_id, frame_t frameP,
 
 	/* Tracing of PDU is done on UE side */
 	//if (opt_enabled == 1) {
-	trace_pdu(DIRECTION_DOWNLINK, (uint8_t *) cc->MCH_pdu.payload, TBS, module_idP, WS_M_RNTI , 0xfffd,	// M_RNTI = 6 in wirehsark
-	          RC.mac[module_idP]->frame,
-	          RC.mac[module_idP]->subframe, 0, 0);
-	LOG_D(OPT, "[eNB %d][MCH] CC_id %d Frame %d : MAC PDU with size %d\n",
-		  module_idP, CC_id, frameP, TBS);
-	//}
+  ws_trace_t tmp = {.direction = DIRECTION_DOWNLINK,
+                    .pdu_buffer = (uint8_t *)cc->MCH_pdu.payload,
+                    .pdu_buffer_size = TBS,
+                    .ueid = module_idP,
+                    .rntiType = WS_M_RNTI,
+                    .rnti = 0xfffd, // M_RNTI = 6 in wireshark
+                    .sysFrame = RC.mac[module_idP]->frame,
+                    .subframe = RC.mac[module_idP]->subframe};
+  trace_pdu(&tmp);
 
-       	eNB_MAC_INST *eNB = RC.mac[module_idP];
-    	dl_req = &eNB->DL_req[CC_id].dl_config_request_body;
-	dl_req->tl.tag = NFAPI_DL_CONFIG_REQUEST_BODY_TAG;
+  LOG_D(OPT, "[eNB %d][MCH] CC_id %d Frame %d : MAC PDU with size %d\n", module_idP, CC_id, frameP, TBS);
+  //}
+
+  eNB_MAC_INST *eNB = RC.mac[module_idP];
+  dl_req = &eNB->DL_req[CC_id].dl_config_request_body;
+  dl_req->tl.tag = NFAPI_DL_CONFIG_REQUEST_BODY_TAG;
     	fill_nfapi_mch_config(
 			dl_req,
 			TBS,
@@ -1830,19 +1836,23 @@ schedule_MBMS(module_id_t module_idP, uint8_t CC_id, frame_t frameP,
 
 	/* Tracing of PDU is done on UE side */
 	//if (opt_enabled == 1) {
-	    trace_pdu(DIRECTION_DOWNLINK, (uint8_t *) cc->MCH_pdu.payload, TBS, module_idP, WS_M_RNTI , 0xffff,	// M_RNTI = 6 in wirehsark
-		      RC.mac[module_idP]->frame,
-		      RC.mac[module_idP]->subframe, 0, 0);
-	    LOG_D(OPT,
-		  "[eNB %d][MCH] CC_id %d Frame %d : MAC PDU with size %d\n",
-		  module_idP, CC_id, frameP, TBS);
-	//}
+  ws_trace_t tmp = {.direction = DIRECTION_DOWNLINK,
+                    .pdu_buffer = (uint8_t *)cc->MCH_pdu.payload,
+                    .pdu_buffer_size = TBS,
+                    .ueid = module_idP,
+                    .rntiType = WS_M_RNTI,
+                    .rnti = 0xffff, // M_RNTI = 6 in wireshark
+                    .sysFrame = RC.mac[module_idP]->frame,
+                    .subframe = RC.mac[module_idP]->subframe};
+  trace_pdu(&tmp);
+  LOG_D(OPT, "[eNB %d][MCH] CC_id %d Frame %d : MAC PDU with size %d\n", module_idP, CC_id, frameP, TBS);
+  //}
 
-	/*
-	   for (j=0;j<sdu_length_total;j++)
-	   printf("%2x.",RC.mac[module_idP]->MCH_pdu.payload[j+offset]);
-	   printf(" \n"); */
-	return 1;
+  /*
+     for (j=0;j<sdu_length_total;j++)
+     printf("%2x.",RC.mac[module_idP]->MCH_pdu.payload[j+offset]);
+     printf(" \n"); */
+  return 1;
     } else {
 	cc->MCH_pdu.Pdu_size = 0;
 	cc->MCH_pdu.sync_area = 0;

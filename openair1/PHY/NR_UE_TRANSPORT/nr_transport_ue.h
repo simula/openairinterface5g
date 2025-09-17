@@ -47,7 +47,7 @@ typedef struct {
   /// HARQ tx status
   harq_result_t tx_status;
   /// Status Flag indicating for this ULSCH (idle,active,disabled)
-  SCH_status_t status;
+  SCH_status_t ULstatus;
   /// Last TPC command
   uint8_t TPC;
   /// Length of ACK information (bits)
@@ -55,9 +55,7 @@ typedef struct {
   /// Index of current HARQ round for this ULSCH
   uint8_t round;
   /// pointer to pdu from MAC interface (TS 36.212 V15.4.0, Sec 5.1 p. 8)
-  unsigned char *a;
-  /// Pointer to the payload + CRC 
-  uint8_t *b;
+  unsigned char *payload_AB;
   /// Pointers to transport block segments
   uint8_t **c;
   /// LDPC-code outputs
@@ -106,8 +104,6 @@ typedef struct {
   uint8_t first_rx;
   /// DLSCH status flag indicating
   SCH_status_t status;
-  /// Transport block size
-  uint32_t TBS;
   /// Pointers to transport block segments
   uint8_t **c;
   /// soft bits for each received segment ("d"-sequence)(for definition see 36-212 V8.6 2009-03, p.15)
@@ -126,7 +122,7 @@ typedef struct {
   /// codeword this transport block is mapped to
   uint8_t codeword;
   /// HARQ-ACKs
-  uint8_t ack;
+  bool decodeResult;
   /// Last index of LLR buffer that contains information.
   /// Used for computing LDPC decoder R
   int llrLen;

@@ -24,11 +24,11 @@
   <htmlTabRef>TEST-SA-FR1-N310-2x2-60MHz</htmlTabRef>
   <htmlTabName>60 MHz 2x2 TDD SA</htmlTabName>
   <htmlTabIcon>tasks</htmlTabIcon>
-  <repeatCount>1</repeatCount>
   <TestCaseRequestedList>
     100000
     111111
     010010
+    800813
     030101
     010001
     050001
@@ -39,6 +39,7 @@
     000001
     030201
     200000
+    333333
   </TestCaseRequestedList>
   <TestCaseExclusionList></TestCaseExclusionList>
 
@@ -58,6 +59,7 @@
 
   <testCase id="200000">
     <class>Custom_Command</class>
+    <always_exec>true</always_exec>
     <desc>Enable Sleep States</desc>
     <node>matix</node>
     <command>sudo cpupower idle-set -E</command>
@@ -71,16 +73,22 @@
 
   <testCase id="010010">
     <class>Detach_UE</class>
+    <always_exec>true</always_exec>
     <desc>Detach UE</desc>
     <id>up2</id>
   </testCase>
-
+  <testCase id="800813">
+      <class>Create_Workspace</class>
+      <desc>Create new Workspace</desc>
+      <eNB_instance>0</eNB_instance>
+      <eNB_serverId>0</eNB_serverId>
+  </testCase>
   <testCase id="030101">
-    <class>Deploy_Object</class>
-    <desc>Deploy gNB (TDD/Band77/60MHz/N310) in a container</desc>
-    <yaml_path>ci-scripts/yaml_files/5g_sa_n310_2x2_60MHz</yaml_path>
-    <eNB_instance>0</eNB_instance>
-    <eNB_serverId>0</eNB_serverId>
+      <class>Deploy_Object</class>
+      <desc>Deploy gNB (TDD/Band77/60MHz/N310) in a container</desc>
+      <yaml_path>ci-scripts/yaml_files/5g_sa_n310_2x2_60MHz</yaml_path>
+      <eNB_instance>0</eNB_instance>
+      <eNB_serverId>0</eNB_serverId>
   </testCase>
 
   <testCase id="000001">
@@ -116,8 +124,8 @@
 
   <testCase id="071001">
     <class>Iperf</class>
-    <desc>iperf (UL/130Mbps/UDP)(30 sec)(single-ue profile)</desc>
-    <iperf_args>-u -b 130M -t 30</iperf_args>
+    <desc>iperf (UL/180Mbps/UDP)(30 sec)(single-ue profile)</desc>
+    <iperf_args>-u -b 180M -t 30</iperf_args>
     <svr_id>matix-cn5g</svr_id>
     <id>up2</id>
     <iperf_packetloss_threshold>10</iperf_packetloss_threshold>
@@ -134,6 +142,7 @@
 
   <testCase id="030201">
     <class>Undeploy_Object</class>
+    <always_exec>true</always_exec>
     <desc>Undeploy gNB</desc>
     <yaml_path>ci-scripts/yaml_files/5g_sa_n310_2x2_60MHz</yaml_path>
     <eNB_instance>0</eNB_instance>
@@ -141,6 +150,13 @@
     <services>oai-gnb</services>
     <d_retx_th>10,100,100,100</d_retx_th>
     <u_retx_th>10,100,100,100</u_retx_th>
+  </testCase>
+
+  <testCase id="333333">
+    <class>Clean_Test_Server_Images</class>
+    <always_exec>true</always_exec>
+    <desc>Clean Test Images on Test Server</desc>
+    <test_svr_id>0</test_svr_id>
   </testCase>
 
 </testCaseList>

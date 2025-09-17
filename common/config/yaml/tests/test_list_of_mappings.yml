@@ -1,0 +1,14 @@
+test:
+  list:
+    - value1: 1
+      value2: 3
+      list:
+        - value1
+        - value2
+        - value3
+    - value: 2
+      value2: 6
+      list:
+        - value4
+        - value5
+        - value6

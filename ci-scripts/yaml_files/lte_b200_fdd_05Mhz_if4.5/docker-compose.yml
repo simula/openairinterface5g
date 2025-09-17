@@ -1,8 +1,6 @@
-version: '3.8'
-
 services:
     rru_fdd:
-        image: oai-enb:latest
+        image: ${REGISTRY:-oaisoftwarealliance}/oai-enb:${TAG:-develop}
         privileged: true
         container_name: lte-b200-rru-fdd-05Mhz-tm1
         network_mode: "host"
@@ -19,7 +17,7 @@ services:
             timeout: 5s
             retries: 5
     rcc_fdd:
-        image: oai-enb:latest
+        image: ${REGISTRY:-oaisoftwarealliance}/oai-enb:${TAG:-develop}
         privileged: true
         container_name: lte-b200-rcc-fdd-05Mhz-tm1
         network_mode: "host"

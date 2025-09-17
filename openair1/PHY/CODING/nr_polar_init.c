@@ -50,30 +50,17 @@ static void nr_polar_delete_list(t_nrPolar_params * polarParams) {
   
   delete_decoder_tree(polarParams);
   // From build_polar_tables()
-  free(polarParams->G_N_tab);
   free(polarParams->rm_tab);
   if (polarParams->crc_generator_matrix)
     free(polarParams->crc_generator_matrix);
-  //polar_encoder vectors:
-  free(polarParams->nr_polar_crc);
-  free(polarParams->nr_polar_aPrime);
-  free(polarParams->nr_polar_APrime);
-  free(polarParams->nr_polar_D);
-  free(polarParams->nr_polar_E);
-    //Polar Coding vectors
-  free(polarParams->nr_polar_U);
-  free(polarParams->nr_polar_CPrime);
-  free(polarParams->nr_polar_B);
-  free(polarParams->nr_polar_A);
+  // Polar Coding vectors
   free(polarParams->interleaving_pattern);
-  free(polarParams->deinterleaving_pattern);
   free(polarParams->rate_matching_pattern);
   free(polarParams->information_bit_pattern);
   free(polarParams->parity_check_bit_pattern);
   free(polarParams->Q_I_N);
   free(polarParams->Q_F_N);
   free(polarParams->Q_PC_N);
-  free(polarParams->channel_interleaver_pattern);
   free(polarParams);
 }
 
@@ -113,11 +100,12 @@ t_nrPolar_params *nr_polar_params(int8_t messageType, uint16_t messageLength, ui
   t_nrPolar_params *newPolarInitNode = calloc(sizeof(t_nrPolar_params),1);
   AssertFatal(newPolarInitNode, "[nr_polar_init] New t_nrPolar_params * could not be created");
   newPolarInitNode->busy = true;
+  newPolarInitNode->nextPtr = NULL;
+  newPolarInitNode->nextPtr = PolarList;
+  PolarList = newPolarInitNode;
   pthread_mutex_unlock(&PolarListMutex);
-  
   //   LOG_D(PHY,"Setting new polarParams index %d, messageType %d, messageLength %d, aggregation_prime %d\n",(messageType * messageLength * aggregation_prime),messageType,messageLength,aggregation_prime);
   newPolarInitNode->idx = PolarKey;
-  newPolarInitNode->nextPtr = NULL;
   //printf("newPolarInitNode->idx %d, (%d,%d,%d:%d)\n",newPolarInitNode->idx,messageType,messageLength,aggregation_prime,aggregation_level);
 
   if (messageType == NR_POLAR_PBCH_MESSAGE_TYPE) {
@@ -217,26 +205,12 @@ t_nrPolar_params *nr_polar_params(int8_t messageType, uint16_t messageLength, ui
                                                newPolarInitNode->n_max);
   newPolarInitNode->n = log2(newPolarInitNode->N);
   newPolarInitNode->G_N = nr_polar_kronecker_power_matrices(newPolarInitNode->n);
-  //polar_encoder vectors:
-  newPolarInitNode->nr_polar_crc = malloc(sizeof(uint8_t) * newPolarInitNode->crcParityBits);
-  newPolarInitNode->nr_polar_aPrime = malloc(sizeof(uint8_t) * ((ceil((newPolarInitNode->payloadBits)/32.0)*4)+3));
-  newPolarInitNode->nr_polar_APrime = malloc(sizeof(uint8_t) * newPolarInitNode->K);
-  newPolarInitNode->nr_polar_D = malloc(sizeof(uint8_t) * newPolarInitNode->N);
-  newPolarInitNode->nr_polar_E = malloc(sizeof(uint8_t) * newPolarInitNode->encoderLength);
-  //Polar Coding vectors
-  newPolarInitNode->nr_polar_U = malloc(sizeof(uint8_t) * newPolarInitNode->N); //Decoder: nr_polar_uHat
-  newPolarInitNode->nr_polar_CPrime = malloc(sizeof(uint8_t) * newPolarInitNode->K); //Decoder: nr_polar_cHat
-  newPolarInitNode->nr_polar_B = malloc(sizeof(uint8_t) * newPolarInitNode->K); //Decoder: nr_polar_bHat
-  newPolarInitNode->nr_polar_A = malloc(sizeof(uint8_t) * newPolarInitNode->payloadBits); //Decoder: nr_polar_aHat
+  // polar_encoder vectors:
   newPolarInitNode->Q_0_Nminus1 = nr_polar_sequence_pattern(newPolarInitNode->n);
   newPolarInitNode->interleaving_pattern = malloc(sizeof(uint16_t) * newPolarInitNode->K);
   nr_polar_interleaving_pattern(newPolarInitNode->K,
                                 newPolarInitNode->i_il,
                                 newPolarInitNode->interleaving_pattern);
-  newPolarInitNode->deinterleaving_pattern = malloc(sizeof(uint16_t) * newPolarInitNode->K);
-
-  for (int i=0; i<newPolarInitNode->K; i++)
-    newPolarInitNode->deinterleaving_pattern[newPolarInitNode->interleaving_pattern[i]] = i;
 
   newPolarInitNode->rate_matching_pattern = malloc(sizeof(uint16_t) * newPolarInitNode->encoderLength);
   uint16_t J[newPolarInitNode->N];
@@ -270,18 +244,12 @@ t_nrPolar_params *nr_polar_params(int8_t messageType, uint16_t messageLength, ui
 
   // sort the Q_I_N array in ascending order (first K positions)
   qsort((void *)newPolarInitNode->Q_I_N,newPolarInitNode->K,sizeof(int16_t),intcmp);
-  newPolarInitNode->channel_interleaver_pattern = malloc(sizeof(uint16_t) * newPolarInitNode->encoderLength);
-  nr_polar_channel_interleaver_pattern(newPolarInitNode->channel_interleaver_pattern,
-                                       newPolarInitNode->i_bil,
-                                       newPolarInitNode->encoderLength);
+
   if (decoder_flag == 1) 
     build_decoder_tree(newPolarInitNode);
   build_polar_tables(newPolarInitNode);
-  init_polar_deinterleaver_table(newPolarInitNode);
-  //printf("decoder tree nodes %d\n",newPolarInitNode->tree.num_nodes);
 
-  newPolarInitNode->nextPtr=PolarList;
-  PolarList=newPolarInitNode;
+  init_polar_deinterleaver_table(newPolarInitNode);
   return newPolarInitNode;
 }
 

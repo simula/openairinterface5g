@@ -498,7 +498,7 @@ static bool set_fh_io_cfg(struct xran_io_cfg *io_cfg, const paramdef_t *fhip, in
   //io_cfg->bbdev_dev = NULL;
   io_cfg->bbdev_mode = XRAN_BBDEV_NOT_USED; // none
   io_cfg->dpdkIoVaMode = 0; /* IOVA mode */
-  io_cfg->dpdkMemorySize = 0; /* DPDK memory size */
+  io_cfg->dpdkMemorySize = *gpd(fhip, nump, ORAN_CONFIG_DPDK_MEM_SIZE)->uptr;
   io_cfg->core = *gpd(fhip, nump, ORAN_CONFIG_IO_CORE)->iptr;
   io_cfg->system_core = *gpd(fhip, nump, ORAN_CONFIG_SYSTEM_CORE)->iptr;
   io_cfg->pkt_proc_core = get_u64_mask(gpd(fhip, nump, ORAN_CONFIG_WORKER_CORES));
@@ -729,7 +729,7 @@ static bool set_fh_frame_config(const openair0_config_t *oai0, struct xran_frame
   return true;
 }
 
-static bool set_fh_ru_config(const paramdef_t *rup, int nru, struct xran_ru_config *ru_config)
+static bool set_fh_ru_config(const paramdef_t *rup, uint16_t fftSize, int nru, struct xran_ru_config *ru_config)
 {
   ru_config->xranTech = XRAN_RAN_5GNR;
   ru_config->xranCat = XRAN_CATEGORY_A;
@@ -740,7 +740,8 @@ static bool set_fh_ru_config(const paramdef_t *rup, int nru, struct xran_ru_conf
   ru_config->iqWidth_PRACH = *gpd(rup, nru, ORAN_RU_CONFIG_IQWIDTH_PRACH)->uptr;
   AssertFatal(ru_config->iqWidth_PRACH <= 16, "IQ Width for PRACH cannot be > 16!\n");
   ru_config->compMeth_PRACH = ru_config->iqWidth_PRACH < 16 ? XRAN_COMPMETHOD_BLKFLOAT : XRAN_COMPMETHOD_NONE;
-  ru_config->fftSize = *gpd(rup, nru, ORAN_RU_CONFIG_FFT_SIZE)->uptr;
+  AssertFatal(fftSize > 0, "FFT size cannot be 0\n");
+  ru_config->fftSize = fftSize;
   ru_config->byteOrder = XRAN_NE_BE_BYTE_ORDER;
   ru_config->iqOrder = XRAN_I_Q_ORDER;
   ru_config->xran_max_frame = 0;
@@ -779,6 +780,7 @@ bool set_fh_config(int ru_idx, int num_rus, const openair0_config_t *oai0, struc
     DevAssert(oai0->rx_freq[0] == oai0->rx_freq[i]);
   DevAssert(oai0->nr_band > 0);
   DevAssert(oai0->nr_scs_for_raster > 0);
+  AssertFatal(oai0->threequarter_fs == 0, "cannot use three-quarter sampling with O-RAN 7.2 split\n");
 
   // we simply assume that the loading process provides function to_nrarfcn()
   // to calculate the ARFCN numbers from frequency. That is not clean, but the
@@ -869,7 +871,7 @@ bool set_fh_config(int ru_idx, int num_rus, const openair0_config_t *oai0, struc
     return false;
   if (!set_fh_frame_config(oai0, &fh_config->frame_conf))
     return false;
-  if (!set_fh_ru_config(rup, nru, &fh_config->ru_conf))
+  if (!set_fh_ru_config(rup, oai0->split7.fftSize, nru, &fh_config->ru_conf))
     return false;
 
   fh_config->bbdev_enc = NULL;

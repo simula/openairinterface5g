@@ -39,6 +39,7 @@
 #include "PHY/sse_intrin.h"
 #include "common/utils/nr/nr_common.h"
 #include <openair1/PHY/TOOLS/phy_scope_interface.h>
+#include "openair1/PHY/NR_REFSIG/nr_refsig_common.h"
 
 #include "assertions.h"
 #include "T.h"
@@ -169,35 +170,16 @@ static void nr_pdcch_demapping_deinterleaving(c16_t *llr,
   }
 
   int rb_count = 0;
-  int data_sc = 9; // 9 sub-carriers with data per PRB
+  const int data_sc = 9; // 9 sub-carriers with data per PRB
   for (int c_id = 0; c_id < number_of_candidates; c_id++) {
     for (int symbol_idx = start_symbol; symbol_idx < start_symbol + coreset_time_dur; symbol_idx++) {
       for (int cce_count = 0; cce_count < L[c_id]; cce_count++) {
         for (int k = 0; k < NR_NB_REG_PER_CCE / reg_bundle_size_L; k++) { // loop over REG bundles
           int f = f_bundle_j_list_ord[c_id][k + NR_NB_REG_PER_CCE * cce_count / reg_bundle_size_L];
-          for (int rb = 0; rb < B_rb; rb++) { // loop over the RBs of the bundle
-            c16_t *out = e_rx + data_sc * rb_count;
-            c16_t *in = llr + (uint16_t)(f * B_rb + rb + symbol_idx * coreset_nbr_rb) * data_sc;
-            for (int i = 0; i < data_sc; i++) {
-              out[i] = in[i];
-#ifdef NR_PDCCH_DCI_DEBUG
-              LOG_I(NR_PHY_DCI,
-                    "[candidate=%d,symbol_idx=%d,cce=%d,REG bundle=%d,PRB=%d] z[%d]=(%d,%d) <-> \t llr[%d]=(%d,%d) \n",
-                    c_id,
-                    symbol_idx,
-                    cce_count,
-                    k,
-                    f * B_rb + rb,
-                    (index_z + i),
-                    out->r,
-                    out->i,
-                    index_llr + i,
-                    in.r,
-                    in.i);
-#endif
-            }
-            rb_count++;
-          }
+          c16_t *in = llr + (f * B_rb + symbol_idx * coreset_nbr_rb) * data_sc;
+          // loop over the RBs of the bundle
+          memcpy(e_rx + data_sc * rb_count, in, B_rb * data_sc * sizeof(*e_rx));
+          rb_count += B_rb;
         }
       }
     }
@@ -655,59 +637,17 @@ static void nr_pdcch_unscrambling(c16_t *e_rx,
                                   uint16_t pdcch_DMRS_scrambling_id,
                                   int16_t *z2)
 {
-  int i;
-  uint8_t reset;
-  uint32_t x1 = 0, x2 = 0, s = 0;
-  uint16_t n_id; //{0,1,...,65535}
   uint32_t rnti = (uint32_t) scrambling_RNTI;
-  reset = 1;
-  // x1 is set in first call to lte_gold_generic
-  n_id = pdcch_DMRS_scrambling_id;
-  x2 = ((rnti << 16) + n_id) % (1U << 31); // this is c_init in 38.211 v15.1.0 Section 7.3.2.3
-
-  LOG_D(NR_PHY_DCI, "PDCCH Unscrambling x2 %x : scrambling_RNTI %x\n", x2, rnti);
+  uint16_t n_id = pdcch_DMRS_scrambling_id;
+  uint32_t *seq = gold_cache(((rnti << 16) + n_id) % (1U << 31), length / 32); // this is c_init in 38.211 v15.1.0 Section 7.3.2.3
+  LOG_D(NR_PHY_DCI, "PDCCH Unscrambling: scrambling_RNTI %x\n", rnti);
   int16_t *ptr = &e_rx[0].r;
-  for (i = 0; i < length; i++) {
-    if ((i & 0x1f) == 0) {
-      s = lte_gold_generic(&x1, &x2, reset);
-      reset = 0;
-    }
-
-    if (((s >> (i % 32)) & 1) == 1)
+  for (int i = 0; i < length; i++) {
+    if (seq[i / 32] & (1UL << (i % 32)))
       z2[i] = -ptr[i];
     else
       z2[i] = ptr[i];
   }
-}
-
-
-/* This function compares the received DCI bits with
- * re-encoded DCI bits and returns the number of mismatched bits
- */
-static uint16_t nr_dci_false_detection(uint64_t *dci,
-                                       int16_t *soft_in,
-                                       int encoded_length,
-                                       int rnti,
-                                       int8_t messageType,
-                                       uint16_t messageLength,
-                                       uint8_t aggregation_level)
-{
-  uint32_t encoder_output[NR_MAX_DCI_SIZE_DWORD];
-  polar_encoder_fast(dci, (void *)encoder_output, rnti, 1, messageType, messageLength, aggregation_level);
-  uint8_t *enout_p = (uint8_t*)encoder_output;
-  uint16_t x = 0;
-
-  for (int i=0; i<encoded_length/8; i++) {
-    x += (enout_p[i] & 1) ^ ((soft_in[i * 8] >> 15) & 1);
-    x += ((enout_p[i] >> 1) & 1) ^ ((soft_in[i * 8 + 1] >> 15) & 1);
-    x += ((enout_p[i] >> 2) & 1) ^ ((soft_in[i * 8 + 2] >> 15) & 1);
-    x += ((enout_p[i] >> 3) & 1) ^ ((soft_in[i * 8 + 3] >> 15) & 1);
-    x += ((enout_p[i] >> 4) & 1) ^ ((soft_in[i * 8 + 4] >> 15) & 1);
-    x += ((enout_p[i] >> 5) & 1) ^ ((soft_in[i * 8 + 5] >> 15) & 1);
-    x += ((enout_p[i] >> 6) & 1) ^ ((soft_in[i * 8 + 6] >> 15) & 1);
-    x += ((enout_p[i] >> 7) & 1) ^ ((soft_in[i * 8 + 7] >> 15) & 1);
-  }
-  return x;
 }
 
 void nr_dci_decoding_procedure(PHY_VARS_NR_UE *ue,
@@ -758,7 +698,7 @@ void nr_dci_decoding_procedure(PHY_VARS_NR_UE *ue,
                             rel15->coreset.pdcch_dmrs_scrambling_id,
                             tmp_e);
 
-      uint16_t crc = polar_decoder_int16(tmp_e, dci_estimation, 1, NR_POLAR_DCI_MESSAGE_TYPE, dci_length, L);
+      const uint32_t crc = polar_decoder_int16(tmp_e, dci_estimation, 1, NR_POLAR_DCI_MESSAGE_TYPE, dci_length, L);
 
       rnti_t n_rnti = rel15->rnti;
       if (crc == n_rnti) {
@@ -771,35 +711,23 @@ void nr_dci_decoding_procedure(PHY_VARS_NR_UE *ue,
               CCEind,
               dci_length,
               *(unsigned long long *)dci_estimation);
-        uint16_t mb = nr_dci_false_detection(dci_estimation, tmp_e, L * 108, n_rnti, NR_POLAR_DCI_MESSAGE_TYPE, dci_length, L);
-        ue->dci_thres = (ue->dci_thres + mb) / 2;
-        if (mb > (ue->dci_thres + 30)) {
-          LOG_W(NR_PHY_DCI,
-                "DCI false positive. Dropping DCI index %d. Mismatched bits: %d/%d. Current DCI threshold: %d\n",
-                j,
-                mb,
-                L * 108,
-                ue->dci_thres);
-          continue;
-        } else {
-          AssertFatal(dci_ind->number_of_dcis < sizeofArray(dci_ind->dci_list), "Fix allocation\n");
-          fapi_nr_dci_indication_pdu_t *dci = dci_ind->dci_list + dci_ind->number_of_dcis;
-          *dci = (fapi_nr_dci_indication_pdu_t){
-              .rnti = n_rnti,
-              .n_CCE = CCEind,
-              .N_CCE = L,
-              .dci_format = rel15->dci_format_options[k],
-              .ss_type = rel15->ss_type_options[k],
-              .coreset_type = rel15->coreset.CoreSetType,
-          };
-          int n_rb, rb_offset;
-          get_coreset_rballoc(rel15->coreset.frequency_domain_resource, &n_rb, &rb_offset);
-          dci->cset_start = rel15->BWPStart + rb_offset;
-          dci->payloadSize = dci_length;
-          memcpy(dci->payloadBits, dci_estimation, (dci_length + 7) / 8);
-          dci_ind->number_of_dcis++;
-          break;    // If DCI is found, no need to check for remaining DCI lengths
-        }
+        AssertFatal(dci_ind->number_of_dcis < sizeofArray(dci_ind->dci_list), "Fix allocation\n");
+        fapi_nr_dci_indication_pdu_t *dci = dci_ind->dci_list + dci_ind->number_of_dcis;
+        *dci = (fapi_nr_dci_indication_pdu_t){
+            .rnti = n_rnti,
+            .n_CCE = CCEind,
+            .N_CCE = L,
+            .dci_format = rel15->dci_format_options[k],
+            .ss_type = rel15->ss_type_options[k],
+            .coreset_type = rel15->coreset.CoreSetType,
+        };
+        int n_rb, rb_offset;
+        get_coreset_rballoc(rel15->coreset.frequency_domain_resource, &n_rb, &rb_offset);
+        dci->cset_start = rel15->BWPStart + rb_offset;
+        dci->payloadSize = dci_length;
+        memcpy(dci->payloadBits, dci_estimation, (dci_length + 7) / 8);
+        dci_ind->number_of_dcis++;
+        break;    // If DCI is found, no need to check for remaining DCI lengths
       } else {
         LOG_D(NR_PHY_DCI,
               "(%i.%i) Decoded crc %x does not match rnti %x for DCI format %d\n",

@@ -366,7 +366,7 @@ int main(int n, char **v)
   if (signal(SIGINT, force_stop) == SIG_ERR) abort();
   if (signal(SIGTSTP, force_stop) == SIG_ERR) abort();
 
-  OBUF ebuf = { osize: 0, omaxsize: 0, obuf: NULL };
+  OBUF ebuf = {.osize = 0, .omaxsize = 0, .obuf = NULL};
 
   /* read messages */
   while (run) {

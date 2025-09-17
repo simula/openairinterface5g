@@ -61,9 +61,9 @@ uint8_t allowed_xlsch_re_in_dmrs_symbol(uint16_t k,
                                         uint8_t numDmrsCdmGrpsNoData,
                                         uint8_t dmrs_type);
 
-void nr_gen_ref_conj_symbols(uint32_t *in, uint32_t length, int16_t *output, uint16_t offset, int mod_order);
+void nr_gen_ref_conj_symbols(const uint32_t *in, uint32_t length, int16_t *output, uint16_t offset, int mod_order);
 int8_t get_next_dmrs_symbol_in_slot(uint16_t  ul_dmrs_symb_pos, uint8_t counter, uint8_t end_symbol);
-uint8_t get_dmrs_symbols_in_slot(uint16_t l_prime_mask,  uint16_t nb_symb);
+uint8_t get_dmrs_symbols_in_slot(uint16_t l_prime_mask,  uint16_t nb_symb, uint8_t start);
 int8_t get_valid_dmrs_idx_for_channel_est(uint16_t  dmrs_symb_pos, uint8_t counter);
 void nr_chest_time_domain_avg(NR_DL_FRAME_PARMS *frame_parms,
                               int32_t **ch_estimates,

@@ -84,8 +84,6 @@ RUs = (
   max_pdschReferenceSignalPower = -27;
   max_rxgain                    = 75;
   eNB_instances  = [0];
-  ##beamforming 1x2 matrix: 1 layer x 2 antennas
-  bf_weights = [0x00007fff, 0x0000];
   sdr_addrs = "addr0=192.168.10.2,addr1=192.168.20.2,clock_source=external,time_source=external"
   tx_subdev ="A:0 B:0"
   rx_subdev ="A:1 B:1"

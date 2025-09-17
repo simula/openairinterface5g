@@ -585,6 +585,29 @@ pipeline {
             }
           }
         }
+        stage ("SA-FHI72-CN5G") {
+          when { expression {do5Gtest} }
+          steps {
+            script {
+              triggerSlaveJob ('RAN-SA-FHI72-CN5G', 'SA-FHI72-CN5G')
+            }
+          }
+          post {
+            always {
+              script {
+                // Using a unique variable name for each test stage to avoid overwriting on a global variable
+                // due to parallel-time concurrency
+                saFHI72Status = finalizeSlaveJob('RAN-SA-FHI72-CN5G')
+              }
+            }
+            failure {
+              script {
+                currentBuild.result = 'FAILURE'
+                failingStages += saFHI72Status
+              }
+            }
+          }
+        }
         stage ("SA-OAIUE-CN5G") {
           when { expression {do5Gtest} }
           steps {

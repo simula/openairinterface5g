@@ -1,14 +1,18 @@
 services:
     oai-gnb:
-        image: oai-gnb:latest
-        privileged: true
+        image: ${REGISTRY:-oaisoftwarealliance}/${GNB_IMG:-oai-gnb}:${TAG:-develop}
         network_mode: "host"
         container_name: oai-gnb
+        cap_drop:
+            - ALL
+        cap_add:
+            - SYS_NICE
+            - IPC_LOCK
         ulimits:
           core: -1 # for core dumps
         environment:
             TZ: Europe/Paris
-            USE_ADDITIONAL_OPTIONS: --sa --tune-offset 20000000 -A 45 --log_config.global_log_options level,nocolor,time
+            USE_ADDITIONAL_OPTIONS: --sa --tune-offset 20000000 -A 90 --log_config.global_log_options level,nocolor,time
         volumes:
             - ../../conf_files/gnb.sa.band78.106prb.n310.7ds2u.conf:/opt/oai-gnb/etc/gnb.conf
         healthcheck:

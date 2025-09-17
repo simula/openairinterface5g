@@ -22,12 +22,14 @@
 #ifndef _NR_PDCP_SECURITY_NEA2_H_
 #define _NR_PDCP_SECURITY_NEA2_H_
 
-void *nr_pdcp_security_nea2_init(unsigned char *ciphering_key);
+#include "openair3/SECU/secu_defs.h"
 
-void nr_pdcp_security_nea2_cipher(void *security_context,
+stream_security_context_t *nr_pdcp_security_nea2_init(unsigned char *ciphering_key);
+
+void nr_pdcp_security_nea2_cipher(stream_security_context_t *security_context,
                                   unsigned char *buffer, int length,
                                   int bearer, int count, int direction);
 
-void nr_pdcp_security_nea2_free_security(void *security_context);
+void nr_pdcp_security_nea2_free_security(stream_security_context_t *security_context);
 
 #endif /* _NR_PDCP_SECURITY_NEA2_H_ */

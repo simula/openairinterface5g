@@ -126,7 +126,7 @@ git config user.email "jenkins@openairinterface.org"
 git config user.name "OAI Jenkins"
 
 git checkout -f $SOURCE_COMMIT_ID > checkout.txt 2>&1
-STATUS=`egrep -c "fatal: reference is not a tree" checkout.txt`
+STATUS=`grep -E -c "fatal: reference is not a tree" checkout.txt`
 rm -f checkout.txt
 if [ $STATUS -ne 0 ]
 then
@@ -137,7 +137,7 @@ fi
 
 git merge --ff $TARGET_COMMIT_ID -m "Temporary merge for CI"
 
-STATUS=`git status | egrep -c "You have unmerged paths.|fix conflicts"`
+STATUS=`git status | grep -E -c "You have unmerged paths.|fix conflicts"`
 if [ $STATUS -ne 0 ]
 then
     echo "There are merge conflicts.. Cannot perform further build tasks"

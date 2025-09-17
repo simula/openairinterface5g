@@ -1,3 +1,23 @@
+/*
+ * Licensed to the OpenAirInterface (OAI) Software Alliance under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The OpenAirInterface Software Alliance licenses this file to You under
+ * the OAI Public License, Version 1.1  (the "License"); you may not use this file
+ * except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.openairinterface.org/?page_id=698
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *-------------------------------------------------------------------------------
+ * For more information about the OpenAirInterface (OAI) Software Alliance:
+ *      contact@openairinterface.org
+ */
 
 #include <string.h>
 #include <math.h>
@@ -25,6 +45,7 @@
 #include "common/utils/load_module_shlib.h"
 #include "PHY/MODULATION/nr_modulation.h"
 #include "NR_SL-SSB-TimeAllocation-r16.h"
+#include "nr-uesoftmodem.h"
 
 void e1_bearer_context_setup(const e1ap_bearer_setup_req_t *req)
 {
@@ -54,12 +75,13 @@ double cpuf;
 void get_num_re_dmrs(nfapi_nr_ue_pusch_pdu_t *pusch_pdu, uint8_t *nb_dmrs_re_per_rb, uint16_t *number_dmrs_symbols)
 {
 }
-uint64_t downlink_frequency[1][1];
-int32_t uplink_frequency_offset[1][1];
+
+uint64_t downlink_frequency[MAX_NUM_CCs][4];
+int32_t uplink_frequency_offset[MAX_NUM_CCs][4];
 THREAD_STRUCT thread_struct;
 instance_t DUuniqInstance = 0;
 instance_t CUuniqInstance = 0;
-openair0_config_t openair0_cfg[1];
+openair0_config_t openair0_cfg[MAX_CARDS];
 
 RAN_CONTEXT_t RC;
 int oai_exit = 0;
@@ -80,14 +102,21 @@ int8_t nr_mac_rrc_data_req_ue(const module_id_t Mod_idP,
   return 0;
 }
 
-nr_bler_struct nr_bler_data[NR_NUM_MCS];
-void get_nrUE_params(void)
+nrUE_params_t nrUE_params = {0};
+
+nrUE_params_t *get_nrUE_params(void)
 {
-  return;
+  return &nrUE_params;
 }
 uint8_t check_if_ue_is_sl_syncsource()
 {
   return 0;
+}
+void nr_rrc_mac_config_req_sl_mib(module_id_t module_id,
+                                  NR_SL_SSB_TimeAllocation_r16_t *ssb_ta,
+                                  uint16_t rx_slss_id,
+                                  uint8_t *sl_mib)
+{
 }
 //////////////////////////////////////////////////////////////////////////
 static void prepare_mib_bits(uint8_t *buf, uint32_t frame_tx, uint32_t slot_tx)
@@ -178,7 +207,8 @@ static void sl_init_frame_parameters(PHY_VARS_NR_UE *UE)
   sl_fp->att_tx = 1;
   sl_fp->att_rx = 1;
   // band47 //UL freq will be set to Sidelink freq
-  sl_fp->ul_CarrierFreq = 5880000000;
+  sl_fp->sl_CarrierFreq = 5880000000;
+  sl_fp->N_RB_SL = sl_fp->N_RB_DL;
 
   sl_fp->ssb_start_subcarrier = UE->SL_UE_PHY_PARAMS.sl_config.sl_bwp_config.sl_ssb_offset_point_a;
   sl_fp->Nid_cell = UE->SL_UE_PHY_PARAMS.sl_config.sl_sync_source.rx_slss_id;
@@ -202,7 +232,7 @@ static void configure_SL_UE(PHY_VARS_NR_UE *UE, int mu, int N_RB, int ssb_offset
 
   sl_init_frame_parameters(UE);
   sl_ue_phy_init(UE);
-  init_symbol_rotation(fp);
+  perform_symbol_rotation(fp, fp->sl_CarrierFreq, fp->symbol_rotation[link_type_sl]);
   init_timeshift_rotation(fp);
   LOG_I(PHY, "Dumping Sidelink Frame Parameters\n");
   nr_dump_frame_parms(fp);
@@ -313,7 +343,13 @@ int main(int argc, char **argv)
 
   randominit(0);
 
-  while ((c = getopt(argc, argv, "c:hn:o:s:FIL:N:R:S:T:")) != -1) {
+  while ((c = getopt(argc, argv, "--:O:c:hn:o:s:FIL:N:R:S:T:")) != -1) {
+
+    /* ignore long options starting with '--', option '-O' and their arguments that are handled by configmodule */
+    /* with this opstring getopt returns 1 for non-option arguments, refer to 'man 3 getopt' */
+    if (c == 1 || c == '-' || c == 'O')
+      continue;
+
     printf("SIDELINK PSBCH SIM: handling optarg %c\n", c);
     switch (c) {
       case 'c':
