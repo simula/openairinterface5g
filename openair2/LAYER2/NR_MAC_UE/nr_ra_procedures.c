@@ -1193,7 +1193,9 @@ void nr_ra_contention_resolution_failed(NR_UE_MAC_INST_t *mac)
   ra->t_crnti = 0;
   // flush MSG3 buffer
   free_and_zero(ra->Msg3_buffer);
-  nr_mac_rrc_msg3_ind(mac->ue_id, 0, true);
+  // MSG3 with C-RNTI is a L2 procedure, we shouldn't send any indication to RRC
+  if (!mac->msg3_C_RNTI)
+    nr_mac_rrc_msg3_ind(mac->ue_id, 0, true);
   NR_PRACH_RESOURCES_t *prach_resources = &ra->prach_resources;
   prach_resources->preamble_tx_counter++;
   if (prach_resources->preamble_tx_counter == ra->preambleTransMax + 1) {

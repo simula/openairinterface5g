@@ -56,6 +56,11 @@ typedef struct {
 } nr_pdcp_entity_security_keys_and_algos_t;
 
 typedef struct {
+  uint32_t sn;
+  uint32_t hfn;
+} nr_pdcp_count_t;
+
+typedef struct {
   //nr_pdcp_entity_type_t mode;
   /* PDU stats */
   /* TX */
@@ -86,7 +91,6 @@ typedef struct {
 
   uint8_t  mode;               /* 0: PDCP AM, 1: PDCP UM, 2: PDCP TM */
 } nr_pdcp_statistics_t;
-
 
 typedef struct nr_pdcp_entity_t {
   nr_pdcp_entity_type_t type;
@@ -180,6 +184,13 @@ typedef struct nr_pdcp_entity_t {
 
   /* Keep tracks of whether the PDCP entity was suspended or not */
   bool entity_suspended;
+
+  /* PDCP Count API */
+  nr_pdcp_count_t (*get_pdcp_count_dl)(struct nr_pdcp_entity_t *entity);
+  nr_pdcp_count_t (*get_pdcp_count_ul)(struct nr_pdcp_entity_t *entity);
+  void (*set_pdcp_count_dl)(struct nr_pdcp_entity_t *entity, nr_pdcp_count_t count, int sn_size);
+  void (*set_pdcp_count_ul)(struct nr_pdcp_entity_t *entity, nr_pdcp_count_t count, int sn_size);
+
 } nr_pdcp_entity_t;
 
 nr_pdcp_entity_t *new_nr_pdcp_entity(

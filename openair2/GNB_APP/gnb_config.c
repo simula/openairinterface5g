@@ -722,6 +722,8 @@ void RCconfig_verify(configmodule_interface_t *cfg, ngran_node_t node_type)
     verify_section_notset(cfg, GNB_CONFIG_STRING_GNB_LIST ".[0]", GNB_CONFIG_STRING_AMF_IP_ADDRESS);
     verify_section_notset(cfg, NULL, CONFIG_STRING_SECURITY);
     verify_section_notset(cfg, NULL, CONFIG_STRING_NR_PDCP_LIST);
+    verify_section_notset(cfg, NULL, GNB_CONFIG_STRING_NEIGHBOUR_LIST);
+    verify_section_notset(cfg, NULL, GNB_CONFIG_STRING_MEASUREMENT_CONFIGURATION);
   } // else nothing to be checked
 
   /* other possible verifications: PNF, VNF, CU-CP, CU-UP, ...? */
@@ -1858,21 +1860,21 @@ static void fill_neighbour_cell_configuration(uint8_t gnb_idx, gNB_RRC_INST *rrc
                     GNBNEIGHBOURCELLPARAMS_DESC,
                     GNB_CONFIG_STRING_NEIGHBOUR_CELL_LIST,
                     neighbourpath);
-    LOG_D(GNB_APP, "HO LOG: For the Cell: %ld Neighbour Cell ELM NUM: %d\n", cell.nr_cell_id, NeighbourCellParamList.numelt);
+    LOG_I(GNB_APP, "Cell %ld has %d neighbours\n", cell.nr_cell_id, NeighbourCellParamList.numelt);
     if (NeighbourCellParamList.numelt < 1)
       continue;
 
     cell.neighbour_cells = malloc_or_fail(sizeof(seq_arr_t));
     seq_arr_init(cell.neighbour_cells, sizeof(nr_neighbour_cell_t));
     for (int l = 0; l < NeighbourCellParamList.numelt; ++l) {
-      nr_neighbour_cell_t neighbourCell = {0};
-      neighbourCell.gNB_ID = *(NeighbourCellParamList.paramarray[l][GNB_CONFIG_N_CELL_GNB_ID_IDX].uptr);
-      neighbourCell.nrcell_id = (uint64_t) * (NeighbourCellParamList.paramarray[l][GNB_CONFIG_N_CELL_NR_CELLID_IDX].u64ptr);
-      neighbourCell.physicalCellId = *NeighbourCellParamList.paramarray[l][GNB_CONFIG_N_CELL_PHYSICAL_ID_IDX].uptr;
-      neighbourCell.subcarrierSpacing = *NeighbourCellParamList.paramarray[l][GNB_CONFIG_N_CELL_SCS_IDX].uptr;
-      neighbourCell.band = *NeighbourCellParamList.paramarray[l][GNB_CONFIG_N_CELL_BAND_IDX].uptr;
-      neighbourCell.absoluteFrequencySSB = *NeighbourCellParamList.paramarray[l][GNB_CONFIG_N_CELL_ABS_FREQ_SSB_IDX].i64ptr;
-      neighbourCell.tac = *NeighbourCellParamList.paramarray[l][GNB_CONFIG_N_CELL_TAC_IDX].uptr;
+      nr_neighbour_cell_t n = {0};
+      n.gNB_ID = *(NeighbourCellParamList.paramarray[l][GNB_CONFIG_N_CELL_GNB_ID_IDX].uptr);
+      n.nrcell_id = (uint64_t) * (NeighbourCellParamList.paramarray[l][GNB_CONFIG_N_CELL_NR_CELLID_IDX].u64ptr);
+      n.physicalCellId = *NeighbourCellParamList.paramarray[l][GNB_CONFIG_N_CELL_PHYSICAL_ID_IDX].uptr;
+      n.subcarrierSpacing = *NeighbourCellParamList.paramarray[l][GNB_CONFIG_N_CELL_SCS_IDX].uptr;
+      n.band = *NeighbourCellParamList.paramarray[l][GNB_CONFIG_N_CELL_BAND_IDX].uptr;
+      n.absoluteFrequencySSB = *NeighbourCellParamList.paramarray[l][GNB_CONFIG_N_CELL_ABS_FREQ_SSB_IDX].i64ptr;
+      n.tac = *NeighbourCellParamList.paramarray[l][GNB_CONFIG_N_CELL_TAC_IDX].uptr;
 
       char neighbour_plmn_path[CONFIG_MAXOPTLENGTH];
       snprintf(neighbour_plmn_path,
@@ -1884,10 +1886,22 @@ static void fill_neighbour_cell_configuration(uint8_t gnb_idx, gNB_RRC_INST *rrc
                GNB_CONFIG_STRING_NEIGHBOUR_PLMN);
       GET_PARAMS(NeighbourPlmn, GNBPLMNPARAMS_DESC, neighbour_plmn_path);
 
-      neighbourCell.plmn.mcc = *NeighbourPlmn[GNB_MOBILE_COUNTRY_CODE_IDX].uptr;
-      neighbourCell.plmn.mnc = *NeighbourPlmn[GNB_MOBILE_NETWORK_CODE_IDX].uptr;
-      neighbourCell.plmn.mnc_digit_length = *NeighbourPlmn[GNB_MNC_DIGIT_LENGTH].uptr;
-      seq_arr_push_back(cell.neighbour_cells, &neighbourCell, sizeof(neighbourCell));
+      n.plmn.mcc = *NeighbourPlmn[GNB_MOBILE_COUNTRY_CODE_IDX].uptr;
+      n.plmn.mnc = *NeighbourPlmn[GNB_MOBILE_NETWORK_CODE_IDX].uptr;
+      n.plmn.mnc_digit_length = *NeighbourPlmn[GNB_MNC_DIGIT_LENGTH].uptr;
+      seq_arr_push_back(cell.neighbour_cells, &n, sizeof(n));
+      LOG_I(GNB_APP,
+            "   [%d] neighbor ID %d cellId %ld PCI %d SCS %d SSB ARFCN %u TAC %u PLMN %03u.%0*u\n",
+            l,
+            n.gNB_ID,
+            n.nrcell_id,
+            n.physicalCellId,
+            n.subcarrierSpacing,
+            n.absoluteFrequencySSB,
+            n.tac,
+            n.plmn.mcc,
+            n.plmn.mnc_digit_length,
+            n.plmn.mnc);
     }
     seq_arr_push_back(rrc->neighbour_cell_configuration, &cell, sizeof(cell));
   }

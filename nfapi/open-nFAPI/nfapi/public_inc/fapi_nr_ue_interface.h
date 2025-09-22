@@ -49,16 +49,23 @@ typedef enum {
   NFAPI_NR_FORMAT_0_1_AND_1_1,
 } nfapi_nr_dci_formats_e;
 
+typedef enum {
+  NFAPI_NR_CSI_MEAS,
+  NFAPI_NR_SS_MEAS
+} nfapi_nr_meas_type_e;
 
 typedef struct {
-  uint32_t rsrp;
-  int rsrp_dBm;
+  uint32_t gNB_index;
+  uint16_t Nid_cell;
+  nfapi_nr_meas_type_e meas_type;
+  bool is_neighboring_cell;
+  uint8_t rsrp_dBm;
   uint8_t rank_indicator;
   uint16_t i1;
   uint8_t i2;
   uint8_t cqi;
   rlm_t radiolink_monitoring;
-} fapi_nr_csirs_measurements_t;
+} fapi_nr_l1_measurements_t;
 
 typedef struct {
   /// frequency_domain_resource;
@@ -145,7 +152,7 @@ typedef struct {
     fapi_nr_pdsch_pdu_t pdsch_pdu;
     fapi_nr_ssb_pdu_t ssb_pdu;
     fapi_nr_sib_pdu_t sib_pdu;
-    fapi_nr_csirs_measurements_t csirs_measurements;
+    fapi_nr_l1_measurements_t l1_measurements;
   };
 } fapi_nr_rx_indication_body_t;
 

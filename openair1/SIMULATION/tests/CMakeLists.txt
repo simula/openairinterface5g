@@ -1,4 +1,6 @@
-define_property(TEST PROPERTY TEST_DESCRIPTION BRIEF_DOCS "A human-readable description of this test")
+define_property(TEST PROPERTY TEST_DESCRIPTION
+                BRIEF_DOCS "A human-readable description of this test"
+                FULL_DOCS "A human-readable description of this test")
 
 # Define a macro to add tests for different physical simulators
 macro(add_physim_test test_name test_description test_exec)
@@ -23,7 +25,9 @@ macro(add_physim_test test_name test_description test_exec)
   add_dependencies(tests ${test_exec})
 endmacro()
 
-define_property(TEST PROPERTY CHECK_COUNT BRIEF_DOCS "helper property to enumerate checks in environment")
+define_property(TEST PROPERTY CHECK_COUNT
+                BRIEF_DOCS "helper property to enumerate checks in environment"
+                FULL_DOCS "the property counts the number of threshold checks, used to enumerate environment variables given to analyze-timing.sh")
 function(add_timed_physim_test test_name test_description test_exec)
   # catch all the arguments past the last expected arqument and store them in the options_list
   if (NOT TARGET ${test_exec})

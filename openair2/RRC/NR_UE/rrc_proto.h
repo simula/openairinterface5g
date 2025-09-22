@@ -55,6 +55,8 @@ void nr_rrc_going_to_IDLE(NR_UE_RRC_INST_t *rrc,
 
 void handle_RRCRelease(NR_UE_RRC_INST_t *rrc);
 
+void rrc_ue_generate_measurementReport(rrcPerNB_t *rrc, instance_t ue_id);
+
 void set_rlf_sib1_timers_and_constants(NR_UE_Timers_Constants_t *tac, NR_UE_TimersAndConstants_t *ue_TimersAndConstants);
 
 /**\brief RRC UE task.
@@ -83,6 +85,7 @@ void nr_ue_rrc_timer_trigger(int module_id, int frame, int gnb_id);
 void handle_t300_expiry(NR_UE_RRC_INST_t *rrc);
 void handle_t430_expiry(NR_UE_RRC_INST_t *rrc);
 
+int get_A2_event_time_to_trigger(long time_to_trigger);
 void reset_rlf_timers_and_constants(NR_UE_Timers_Constants_t *tac);
 void set_default_timers_and_constants(NR_UE_Timers_Constants_t *tac);
 void nr_rrc_set_sib1_timers_and_constants(NR_UE_Timers_Constants_t *tac, NR_SIB1_t *sib1);

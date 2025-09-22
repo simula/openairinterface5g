@@ -38,6 +38,7 @@
 #include "openair2/LAYER2/nr_rlc/nr_rlc_ue_manager.h"
 #include "openair2/LAYER2/nr_rlc/nr_rlc_entity_am.h"
 #include "openair2/LAYER2/NR_MAC_gNB/mac_proto.h"
+#include "openair2/RRC/NR/rrc_gNB_mobility.h"
 
 #define TELNETSERVERCODE
 #include "telnetsrv.h"
@@ -196,6 +197,53 @@ int rrc_gNB_trigger_f1_ho(char *buf, int debug, telnet_printfunc_t prnt)
   return 0;
 }
 
+extern void nr_HO_N2_trigger_telnet(gNB_RRC_INST *rrc, uint32_t neighbour_pci, uint32_t rrc_ue_id);
+
+/** @brief Trigger N2 handover for UE
+ *  @param buf: Neighbour PCI, SCell PCI, RRC UE ID
+ *  @param debug: Debug flag
+ *  @param prnt: Print function
+ *  @return 0 on success, -1 on failure */
+int rrc_gNB_trigger_n2_ho(char *buf, int debug, telnet_printfunc_t prnt)
+{
+  if (!RC.nrrrc)
+    ERROR_MSG_RET("no RRC present, cannot list counts\n");
+
+  if (!buf) {
+    ERROR_MSG_RET("Please provide neighbour cell id and ue id\n");
+  } else {
+    // Parse neighbour cell PCI
+    char *token = strtok(buf, ",");
+    if (!token) {
+      ERROR_MSG_RET("Invalid input. Expected format: Neighbour PCI, ueId\n");
+    }
+    uint32_t neighbour_pci = strtol(token, NULL, 10);
+
+    // Parse ueId
+    token = strtok(NULL, ",");
+    if (!token) {
+      ERROR_MSG_RET("Missing UE ID\n");
+    }
+    uint32_t ueId = strtol(token, NULL, 10);
+
+    // Retrieve UE context
+    rrc_gNB_ue_context_t *ue_p = rrc_gNB_get_ue_context(RC.nrrrc[0], ueId);
+    if (!ue_p) {
+      ERROR_MSG_RET("UE with id %u not found\n", ueId);
+    }
+    gNB_RRC_UE_t *UE = &ue_p->ue_context;
+
+    // Trigger N2 handover
+    nr_HO_N2_trigger_telnet(RC.nrrrc[0], neighbour_pci, UE->rrc_ue_id);
+
+    // Print success message
+    prnt("RRC N2 handover triggered for UE %u with neighbour cell id %u\n",
+         ueId,
+         neighbour_pci);
+  }
+  return 0;
+}
+
 int force_ul_failure(char *buf, int debug, telnet_printfunc_t prnt)
 {
   if (!RC.nrmac)
@@ -245,6 +293,7 @@ static telnetshell_cmddef_t cicmds[] = {
     {"trigger_f1_ho", "[rrc_ue_id(int,opt)]", rrc_gNB_trigger_f1_ho},
     {"fetch_du_by_ue_id", "[rrc_ue_id(int,opt)]", fetch_du_by_ue_id},
     {"get_current_bwp", "[rnti(hex,opt)]", get_current_bwp},
+    {"trigger_n2_ho", "[neighbour_pci(uint32_t),ueId(uint32_t)]", rrc_gNB_trigger_n2_ho},
     {"", "", NULL},
 };
 

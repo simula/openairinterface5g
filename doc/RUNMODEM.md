@@ -85,10 +85,8 @@ The standalone mode is the default mode.
 
 Before tag `2024.w45`, the default mode was NSA. Thus, in the past, to run
 either the gNB or the UE in standalone mode, it was necessary to provide the
-`--sa` flag in the command line. This is not necessary anymore; if in doubt,
-you can provide `--sa` on the command line. The gNB will ignore this option if
-not relevant; the UE might complain that it does not know this option, which
-means that standalone is already active.
+`--sa` flag in the command line. This is not the case anymore. If provided
+the softmodem exits reporting that it does not know this option.
 
 The default (SA) mode does the following:
 - At the gNB:

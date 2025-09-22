@@ -65,10 +65,21 @@
 #define NGAP_PDUSESSION_SETUP_REQ(mSGpTR)              (mSGpTR)->ittiMsg.ngap_pdusession_setup_req
 #define NGAP_PDUSESSION_MODIFY_REQ(mSGpTR)              (mSGpTR)->ittiMsg.ngap_pdusession_modify_req
 #define NGAP_PAGING_IND(mSGpTR)                 (mSGpTR)->ittiMsg.ngap_paging_ind
+#define NGAP_HANDOVER_REQUIRED(mSGpTR)           (mSGpTR)->ittiMsg.ngap_handover_required
+#define NGAP_HANDOVER_FAILURE(mSGpTR) (mSGpTR)->ittiMsg.ngap_handover_failure
+#define NGAP_HANDOVER_REQUEST(mSGpTR) (mSGpTR)->ittiMsg.ngap_handover_request
+#define NGAP_HANDOVER_REQUEST_ACKNOWLEDGE(mSGpTR) (mSGpTR)->ittiMsg.ngap_handover_request_ack
+#define NGAP_HANDOVER_COMMAND(mSGpTR) (mSGpTR)->ittiMsg.ngap_handover_command
+#define NGAP_HANDOVER_NOTIFY(mSGpTR) (mSGpTR)->ittiMsg.ngap_handover_notify
+#define NGAP_HANDOVER_CANCEL(mSGpTR) (mSGpTR)->ittiMsg.ngap_handover_cancel
+#define NGAP_HANDOVER_CANCEL_ACK(mSGpTR) (mSGpTR)->ittiMsg.ngap_handover_cancel_ack
 
 #define NGAP_UE_CONTEXT_RELEASE_REQ(mSGpTR)     (mSGpTR)->ittiMsg.ngap_ue_release_req
 #define NGAP_PDUSESSION_RELEASE_COMMAND(mSGpTR)      (mSGpTR)->ittiMsg.ngap_pdusession_release_command
 #define NGAP_PDUSESSION_RELEASE_RESPONSE(mSGpTR)     (mSGpTR)->ittiMsg.ngap_pdusession_release_resp
+
+#define NGAP_UL_RAN_STATUS_TRANSFER(mSGpTR) (mSGpTR)->ittiMsg.ngap_ul_ran_status_transfer
+#define NGAP_DL_RAN_STATUS_TRANSFER(mSGpTR) (mSGpTR)->ittiMsg.ngap_dl_ran_status_transfer
 
 //-------------------------------------------------------------------------------------------//
 
@@ -226,6 +237,15 @@ typedef struct ngap_ue_identity_s {
 typedef struct ngap_mobility_restriction_s{
   plmn_id_t serving_plmn;
 }ngap_mobility_restriction_t;
+
+/* PDU Session Resource Setup Request Transfer (9.3.4.1 3GPP TS 38.413) */
+typedef struct {
+  uint8_t nb_qos;
+  pdusession_level_qos_parameter_t qos[QOSFLOW_MAX_VALUE];
+  pdu_session_type_t pdu_session_type;
+  // UPF endpoint of the NG-U (N3) transport bearer
+  gtpu_tunnel_t n3_incoming;
+} pdusession_transfer_t;
 
 typedef enum pdusession_qosflow_mapping_ind_e{
   QOSFLOW_MAPPING_INDICATION_UL = 0,
@@ -463,6 +483,244 @@ typedef struct ngap_uplink_nas_s {
   byte_array_t nas_pdu;
 } ngap_uplink_nas_t;
 
+typedef struct target_cell_id_s {
+  plmn_id_t plmn_identity;
+  uint32_t nrCellIdentity;
+} cell_id_t;
+
+typedef struct target_ran_node_id_s {
+  uint32_t targetgNBId;
+  plmn_id_t plmn_identity;
+  uint32_t tac;
+} target_ran_node_id_t;
+
+/* 3GPP TS 38.413 9.3.1.29 */
+typedef struct {
+  // QoS Flow Identifier
+  uint8_t qfi;
+} qosflow_info_t;
+
+/* 3GPP TS 38.413 9.3.1.29 */
+typedef struct {
+  // PDU Session ID
+  uint8_t pdusession_id;
+  // QoS Flow Information List
+  uint8_t nb_of_qos_flow;
+  qosflow_info_t qos_flow_info[QOSFLOW_MAX_VALUE];
+} pdusession_resource_info_t;
+
+/* 3GPP TS 38.413 9.3.1.97 */
+typedef struct {
+  // Global Cell ID
+  cell_id_t id;
+  // Cell type
+  uint8_t type;
+  // Time UE Stayed in Cell
+  long time_in_cell;
+  // Cause
+  ngap_cause_t *cause;
+} last_visited_ngran_cell_info_t;
+
+/* 3GPP TS 38.413 9.3.1.29 */
+typedef struct {
+  // RRC Container: HandoverPreparationInformation message
+  byte_array_t handoverInfo;
+  // Target Cell ID
+  cell_id_t targetCellId;
+  // PDU Session Resource Information List
+  uint16_t nb_pdu_session_resource;
+  pdusession_resource_info_t pdu_session_resource[NGAP_MAX_PDU_SESSION];
+  // UE History Information
+  last_visited_ngran_cell_info_t ue_history_info;
+} source_to_target_transparent_container_t;
+
+typedef enum {
+  HANDOVER_TYPE_INTRA5GS, // Intra5GS: NG-RAN node to NG-RAN node
+  HANDOVER_TYPE_5GSTOEPS, // 5GStoEPS: NG-RAN node to eNB
+  HANDOVER_TYPE_EPSTO5GS, // EPSto5GS: eNB to NG-RAN node
+  HANDOVER_TYPE_5GSTOUTRA, // 5GStoUTRA: NG-RAN node to UTRA
+} ho_type_t;
+
+/* 3GPP TS 38.413 9.2.3.1 */
+typedef struct {
+  // PDU Session ID
+  uint8_t pdusession_id;
+  // Handover Required Transfer
+  byte_array_t ho_required_transfer;
+} pdusession_resource_t;
+
+/* 3GPP TS 38.413 9.2.3.1 */
+typedef struct {
+  // RAN UE NGAP ID
+  uint32_t gNB_ue_ngap_id;
+  // AMF UE NGAP ID
+  uint64_t amf_ue_ngap_id;
+  // Handover Type
+  ho_type_t handoverType;
+  // Cause
+  ngap_cause_t cause;
+  // Target ID
+  target_ran_node_id_t target_gnb_id;
+  // PDU Session Resource List
+  uint8_t nb_of_pdusessions;
+  pdusession_resource_t pdusessions[NGAP_MAX_PDU_SESSION];
+  // Source to Target Transparent Container
+  source_to_target_transparent_container_t *source2target;
+} ngap_handover_required_t;
+
+/* 3GPP TS 38.413 9.2.3.6 */
+typedef struct {
+  // AMF UE NGAP ID (M)
+  uint64_t amf_ue_ngap_id;
+  // Cause (M)
+  ngap_cause_t cause;
+} ngap_handover_failure_t;
+
+typedef struct {
+  // Next-Hop NH
+  uint8_t next_hop[SECURITY_KEY_LENGTH];
+  // Next Hop Chaining Count
+  uint8_t next_hop_chain_count;
+} ngap_security_context_t;
+
+/* Handover Request (3GPP TS 38.413 9.2.3.4)
+  PDU Session Resource Setup Item */
+typedef struct {
+  // PDU Session ID
+  uint8_t pdusession_id;
+  pdu_session_type_t pdu_session_type;
+  // S-NSSAI
+  nssai_t nssai;
+  // Handover Required Transfer
+  pdusession_transfer_t pdusessionTransfer;
+} ho_request_pdusession_t;
+
+/* 3GPP TS 38.413 9.2.3.4 */
+typedef struct {
+  // AMF UE NGAP ID
+  uint64_t amf_ue_ngap_id;
+  // Handover Type
+  ho_type_t ho_type;
+  // Cause
+  ngap_cause_t cause;
+  // UE Aggregate Maximum Bit Rate
+  ngap_ambr_t ue_ambr;
+  // UE Security Capabilities
+  ngap_security_capabilities_t security_capabilities;
+  // Security Context
+  ngap_security_context_t security_context;
+  // PDU Session Resource Setup List
+  uint8_t nb_of_pdusessions;
+  ho_request_pdusession_t pduSessionResourceSetupList[NGAP_MAX_PDU_SESSION];
+  // Allowed NSSAI
+  uint8_t nb_allowed_nssais;
+  nssai_t allowed_nssai[8];
+  // Source to Target Transparent Container contents
+  uint64_t nr_cell_id;
+  byte_array_t ue_ho_prep_info;
+  byte_array_t ue_cap;
+  // Mobility Restriction List
+  ngap_mobility_restriction_t *mobility_restriction;
+  // GUAMI
+  nr_guami_t guami;
+} ngap_handover_request_t;
+
+/* 9.3.4.11 3GPP TS 38.413 */
+typedef struct {
+  // QoS Flow Setup Response List
+  uint8_t nb_of_qos_flow;
+  pdusession_associate_qosflow_t qos_setup_list[QOSFLOW_MAX_VALUE];
+  // DL NG-U UP TNL Information
+  uint32_t gtp_teid;
+  transport_layer_addr_t gNB_addr;
+} ho_request_ack_transfer_t;
+
+/* 9.2.3.5 3GPP TS 38.413 */
+typedef struct {
+  // PDU Session ID (M)
+  uint8_t pdu_session_id;
+  // Handover Request Acknowledge Transfer (M)
+  ho_request_ack_transfer_t ack_transfer;
+} pdu_session_resource_admitted_t;
+
+typedef struct {
+  // AMF UE NGAP ID
+  uint32_t gNB_ue_ngap_id;
+  // RAN UE NGAP ID
+  uint64_t amf_ue_ngap_id;
+  // PDU Session Resource Admitted List
+  pdu_session_resource_admitted_t pdusessions[NGAP_MAX_PDU_SESSION];
+  uint8_t nb_of_pdusessions;
+  // Target to Source Transparent Container
+  byte_array_t target2source;
+} ngap_handover_request_ack_t;
+
+/* 9.3.4.10 3GPP TS 38.413 */
+typedef struct {
+  // QoS Flow to be Forwarded List
+  uint8_t nb_of_qos_flow;
+  pdusession_associate_qosflow_t qos_setup_list[QOSFLOW_MAX_VALUE];
+  // UL Forwarding UP TNL Information
+  uint32_t gtp_teid;
+  transport_layer_addr_t gNB_addr;
+} ho_command_transfer_t;
+
+typedef struct {
+  // PDU Session ID (M)
+  uint8_t pdusession_id;
+  // Handover Command Transfer (M)
+  ho_command_transfer_t ho_command_transfer;
+} pdusession_resource_handover_t;
+
+typedef struct {
+  // AMF UE NGAP ID
+  uint64_t amf_ue_ngap_id;
+  // RAN UE NGAP ID
+  uint32_t gNB_ue_ngap_id;
+  // Handover Type
+  ho_type_t handoverType;
+  // PDU Session Resource Handover List
+  uint8_t nb_of_pdusessions;
+  pdusession_resource_handover_t pdu_sessions[NGAP_MAX_PDU_SESSION];
+  // Target to Source Transparent Container
+  byte_array_t handoverCommand;
+} ngap_handover_command_t;
+
+/* 9.3.1.16 3GPP TS 38.413 */
+typedef struct {
+  // NR user location information
+  target_ran_node_id_t target_ng_ran;
+  uint32_t nrCellIdentity;
+} user_location_information_t;
+
+/* 9.2.3.7 3GPP TS 38.413 */
+typedef struct {
+  // RAN UE NGAP ID
+  uint32_t gNB_ue_ngap_id;
+  // AMF UE NGAP ID
+  uint64_t amf_ue_ngap_id;
+  // User Location Information
+  user_location_information_t user_info;
+} ngap_handover_notify_t;
+
+/* 9.2.3.11 3GPP TS 38.413 */
+typedef struct {
+  // RAN UE NGAP ID
+  uint32_t gNB_ue_ngap_id;
+  // AMF UE NGAP ID
+  uint64_t amf_ue_ngap_id;
+  // Cause
+  ngap_cause_t cause;
+} ngap_handover_cancel_t;
+
+/* 9.2.3.12 3GPP TS 38.413 */
+typedef struct {
+  // RAN UE NGAP ID
+  uint32_t gNB_ue_ngap_id;
+  // AMF UE NGAP ID
+  uint64_t amf_ue_ngap_id;
+} ngap_handover_cancel_ack_t;
+
 typedef struct ngap_ue_cap_info_ind_s {
   uint32_t  gNB_ue_ngap_id;
   byte_array_t ue_radio_cap;
@@ -532,15 +790,6 @@ typedef struct ngap_downlink_nas_s {
   /* NAS pdu */
   byte_array_t nas_pdu;
 } ngap_downlink_nas_t;
-
-/* PDU Session Resource Setup Request Transfer (9.3.4.1 3GPP TS 38.413) */
-typedef struct {
-  uint8_t nb_qos;
-  pdusession_level_qos_parameter_t qos[QOSFLOW_MAX_VALUE];
-  pdu_session_type_t pdu_session_type;
-  // UPF endpoint of the NG-U (N3) transport bearer
-  gtpu_tunnel_t n3_incoming;
-} pdusession_transfer_t;
 
 /* PDU Session Resource Setup/Modify Request Item */
 typedef struct {
@@ -736,5 +985,48 @@ typedef struct ngap_pdusession_release_resp_s {
   pdusession_failed_t  pdusessions_failed[NGAP_MAX_PDU_SESSION];
 
 } ngap_pdusession_release_resp_t;
+
+/** 9.2.3.14 Uplink RAN Status Transfer (3GPP TS 38.413)
+ * COUNT value used for both UL and DL PDCP SN + HFN (12-bit or 18-bit SN) */
+
+// Indicates PDCP SN length
+typedef enum { NGAP_SN_LENGTH_12 = 0, NGAP_SN_LENGTH_18 = 1 } ngap_sn_length_t;
+
+typedef struct {
+  // PDCP Sequence Number
+  uint32_t pdcp_sn;
+  // Hyper Frame Number
+  uint32_t hfn;
+  // SN length
+  ngap_sn_length_t sn_len;
+} ngap_drb_count_value_t;
+
+// DRBs Subject to Status Transfer Item
+typedef struct {
+  // DRB ID
+  uint8_t drb_id;
+  // UL COUNT value
+  ngap_drb_count_value_t ul_count;
+  // DL COUNT value
+  ngap_drb_count_value_t dl_count;
+} ngap_drb_status_t;
+
+// RAN Status Transfer Transparent Container (9.3.1.108)
+typedef struct {
+  // Number of DRBs in the list
+  uint8_t nb_drb;
+  // DRB Status List
+  ngap_drb_status_t drb_status_list[MAX_DRBS_PER_UE];
+} ngap_ran_status_container_t;
+
+// Uplink RAN Status Transfer message (9.2.3.14)
+typedef struct {
+  // AMF UE NGAP ID (Mandatory)
+  uint64_t amf_ue_ngap_id;
+  // RAN UE NGAP ID (Mandatory)
+  uint32_t gnb_ue_ngap_id;
+  // RAN Status Transfer Transparent Container (Mandatory)
+  ngap_ran_status_container_t ran_status;
+} ngap_ran_status_transfer_t;
 
 #endif /* NGAP_MESSAGES_TYPES_H_ */

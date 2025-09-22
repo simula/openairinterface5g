@@ -37,6 +37,7 @@
 #include "PHY/phy_extern_nr_ue.h"
 #include "common/utils/LOG/log.h"
 #include "PHY/sse_intrin.h"
+#include "SCHED_NR_UE/defs.h"
 
 #define K1 ((long long int) 512)
 #define K2 ((long long int) (1024-K1))
@@ -254,6 +255,24 @@ void nr_ue_ssb_rsrp_measurements(PHY_VARS_NR_UE *ue,
         ue->measurements.ssb_rsrp_dBm[ssb_index],
         rsrp_db_per_re,
         ue->measurements.ssb_sinr_dB[ssb_index]);
+
+  // Send SS measurements to MAC
+  if (!ue->if_inst || !ue->if_inst->dl_indication)
+    return;
+
+  fapi_nr_l1_measurements_t l1_measurements = {
+    .gNB_index = proc->gNB_id,
+    .meas_type = NFAPI_NR_SS_MEAS,
+    .Nid_cell = ue->frame_parms.Nid_cell,
+    .is_neighboring_cell = false,
+  };
+  int ssb_rsrp_dBm = ue->measurements.ssb_rsrp_dBm[ssb_index];
+  l1_measurements.rsrp_dBm = BOUNDED_EVAL(16, ssb_rsrp_dBm + 157, 113); // TS 38.133 - Table 10.1.6.1-1
+  nr_downlink_indication_t dl_indication = {0};
+  fapi_nr_rx_indication_t rx_ind = {0};
+  nr_fill_dl_indication(&dl_indication, NULL, &rx_ind, proc, ue, NULL);
+  nr_fill_rx_indication(&rx_ind, FAPI_NR_MEAS_IND, ue, NULL, NULL, 1, proc, &l1_measurements, NULL);
+  ue->if_inst->dl_indication(&dl_indication);
 }
 
 // This function computes the received noise power

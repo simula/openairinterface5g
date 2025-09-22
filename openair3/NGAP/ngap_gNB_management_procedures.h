@@ -50,4 +50,6 @@ void ngap_gNB_prepare_internal_data(void);
 
 void tnl_to_bitstring(BIT_STRING_t *out, const transport_layer_addr_t in);
 
+void bitstring_to_tnl(transport_layer_addr_t *out, const BIT_STRING_t in);
+
 #endif /* NGAP_GNB_MANAGEMENT_PROCEDURES_H_ */

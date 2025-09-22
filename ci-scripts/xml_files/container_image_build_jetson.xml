@@ -21,33 +21,33 @@
 
 -->
 <testCaseList>
-	<htmlTabRef>build-tab</htmlTabRef>
-	<htmlTabName>Build Container Images for ARM</htmlTabName>
-	<htmlTabIcon>wrench</htmlTabIcon>
-	<TestCaseRequestedList>
+        <htmlTabRef>build-tab</htmlTabRef>
+        <htmlTabName>Build Container Images for ARM</htmlTabName>
+        <htmlTabIcon>wrench</htmlTabIcon>
+        <TestCaseRequestedList>
  800813
  000001
  000010
-	</TestCaseRequestedList>
-	<TestCaseExclusionList></TestCaseExclusionList>
+        </TestCaseRequestedList>
+        <TestCaseExclusionList></TestCaseExclusionList>
 
-	<testCase id="800813">
-		<class>Create_Workspace</class>
-		<desc>Create new Workspace for server 0</desc>
-		<node>gracehopper3-oai</node>
-	</testCase>
-	<testCase id="000001">
-		<class>Build_Image</class>
-		<desc>Build all Images</desc>
-		<node>gracehopper3-oai</node>
-		<kind>native_armv9</kind>
-	</testCase>
+        <testCase id="800813">
+                <class>Create_Workspace</class>
+                <desc>Create new Workspace for server 0</desc>
+                <node>jetson3-oai</node>
+        </testCase>
+        <testCase id="000001">
+                <class>Build_Image</class>
+                <desc>Build all Images</desc>
+                <node>jetson3-oai</node>
+                <kind>native_armv8</kind>
+        </testCase>
 
         <testCase id="000010">
                 <class>Push_Local_Registry</class>
                 <desc>Push Images to Local Registry</desc>
-                <node>gracehopper3-oai</node>
-                <tag_prefix>arm_</tag_prefix>
+                <node>jetson3-oai</node>
+                <tag_prefix>armv8_</tag_prefix>
         </testCase>
 
 </testCaseList>

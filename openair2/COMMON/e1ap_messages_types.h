@@ -283,6 +283,22 @@ typedef struct bearer_context_pdcp_config_s {
   bool pDCP_Reestablishment;
 } bearer_context_pdcp_config_t;
 
+/* 9.3.1.35 3GPP TS 38.463 */
+typedef struct {
+  // PDCP SN
+  uint32_t sn;
+  // HFN
+  uint32_t hfn;
+} e1_pdcp_count_t;
+
+/* 9.3.1.58 3GPP TS 38.463 */
+typedef struct {
+  // UL Count Value
+  e1_pdcp_count_t ul_count;
+  // DL Count Value
+  e1_pdcp_count_t dl_count;
+} e1_pdcp_status_info_t;
+
 typedef struct drb_to_setup_s {
   long drbId;
   bearer_context_pdcp_config_t pdcp_config;
@@ -384,6 +400,8 @@ typedef struct DRB_nGRAN_to_modify_s {
   bearer_context_pdcp_config_t *pdcp_config;
   // PDCP SN Status Request (O)
   bool pdcp_sn_status_requested;
+  // PDCP SN Status Information
+  e1_pdcp_status_info_t *pdcp_status;
   // DL UP Transport Layer Information (O) (clause 9.3.1.13, 9.3.2.1)
   int numDlUpParam;
   up_params_t DlUpParamList[E1AP_MAX_NUM_UP_PARAM];
@@ -561,9 +579,8 @@ typedef struct DRB_nGRAN_modified_s {
   // Flow Failed List (O)
   int numQosFlowFailed;
   qos_flow_failed_t qosFlowsFailed[E1AP_MAX_NUM_QOS_FLOWS];
-  // Old QoS Flow List (O)
-  int numOldQosFlow;
-  qos_flow_list_t oldQosFlows[E1AP_MAX_NUM_QOS_FLOWS];
+  // PDCP SN Status Information (0)
+  e1_pdcp_status_info_t *pdcp_status;
 } DRB_nGRAN_modified_t;
 
 typedef struct DRB_nGRAN_failed_s {

@@ -39,6 +39,9 @@
 #include <arpa/inet.h>
 #include "E1AP_ConfidentialityProtectionIndication.h"
 #include "E1AP_IntegrityProtectionIndication.h"
+#include "NR_UE-CapabilityRAT-ContainerList.h"
+#include "NR_HandoverCommand.h"
+#include "NR_HandoverCommand-IEs.h"
 #include "NGAP_CauseRadioNetwork.h"
 #include "NGAP_Dynamic5QIDescriptor.h"
 #include "NGAP_GTPTunnel.h"
@@ -49,6 +52,7 @@
 #include "NGAP_QosFlowSetupRequestItem.h"
 #include "NGAP_asn_constant.h"
 #include "NGAP_ProtocolIE-Field.h"
+#include "NGAP_CellSize.h"
 #include "NR_UE-NR-Capability.h"
 #include "NR_UERadioAccessCapabilityInformation.h"
 #include "MAC/mac.h"
@@ -82,6 +86,8 @@
 #include "rrc_messages_types.h"
 #include "s1ap_messages_types.h"
 #include "uper_encoder.h"
+#include "rrc_gNB_mobility.h"
+#include "rrc_gNB_du.h"
 
 #ifdef E2_AGENT
 #include "openair2/E2AP/RAN_FUNCTION/O-RAN/ran_func_rc_extern.h"
@@ -162,18 +168,24 @@ static nr_guami_t get_guami(const uint32_t amf_Id, const plmn_id_t plmn)
   return guami;
 }
 
+/** @brief Copy NGAP PDU Session Transfer item to RRC pdusession_t struct */
+static void cp_pdusession_transfer_to_pdusession(pdusession_t *dst, const pdusession_transfer_t *src)
+{
+  dst->nb_qos = src->nb_qos;
+  for (uint8_t i = 0; i < src->nb_qos && i < QOSFLOW_MAX_VALUE; ++i) {
+    dst->qos[i] = src->qos[i];
+  }
+  dst->pdu_session_type = src->pdu_session_type;
+  dst->n3_incoming = src->n3_incoming;
+}
+
 /** @brief Copy NGAP PDU Session Resource item to RRC pdusession_t struct */
 static void cp_pdusession_resource_item_to_pdusession(pdusession_t *dst, const pdusession_resource_item_t *src)
 {
   dst->pdusession_id = src->pdusession_id;
   dst->nas_pdu = src->nas_pdu;
-  dst->nb_qos = src->pdusessionTransfer.nb_qos;
-  for (uint8_t i = 0; i < src->pdusessionTransfer.nb_qos && i < QOSFLOW_MAX_VALUE; ++i) {
-    dst->qos[i] = src->pdusessionTransfer.qos[i];
-  }
-  dst->pdu_session_type = src->pdusessionTransfer.pdu_session_type;
-  dst->n3_incoming = src->pdusessionTransfer.n3_incoming;
   dst->nssai = src->nssai;
+  cp_pdusession_transfer_to_pdusession(dst, &src->pdusessionTransfer);
 }
 
 /**
@@ -1062,7 +1074,168 @@ int rrc_gNB_process_NGAP_UE_CONTEXT_RELEASE_REQ(MessageDef *msg_p, instance_t in
   }
 }
 
-//-----------------------------------------------------------------------------
+/** @brief Sends the NG Handover Failure from the Target NG-RAN to the AMF */
+void rrc_gNB_send_NGAP_HANDOVER_FAILURE(gNB_RRC_INST *rrc, ngap_handover_failure_t *msg)
+{
+  LOG_I(NR_RRC, "Send NG Handover Failure message (amf_ue_ngap_id %ld) with cause %d \n ", msg->amf_ue_ngap_id, msg->cause.value);
+  MessageDef *msg_p = itti_alloc_new_message(TASK_RRC_GNB, 0, NGAP_HANDOVER_FAILURE);
+  NGAP_HANDOVER_FAILURE(msg_p) = *msg;
+  itti_send_msg_to_task(TASK_NGAP, rrc->module_id, msg_p);
+}
+
+/** @brief Process NG Handover Request message (8.4.2.2 3GPP TS 38.413) */
+int rrc_gNB_process_Handover_Request(gNB_RRC_INST *rrc, instance_t instance, ngap_handover_request_t *msg)
+{
+  LOG_I(NR_RRC, "Received Handover Request (on PCI=%lu) \n", msg->nr_cell_id);
+  struct nr_rrc_du_container_t *du = get_du_by_cell_id(rrc, msg->nr_cell_id);
+  if (du == NULL) {
+    /* Cell Not Found! Return HO Request Failure*/
+    LOG_E(RRC, "Failed to process Handover Request: no DU found with PCI=%lu \n", msg->nr_cell_id);
+    ngap_handover_failure_t fail = {
+        .amf_ue_ngap_id = msg->amf_ue_ngap_id,
+        .cause.type = NGAP_CAUSE_RADIO_NETWORK,
+        .cause.value = NGAP_CAUSE_RADIO_NETWORK_RADIO_RESOURCES_NOT_AVAILABLE,
+    };
+    rrc_gNB_send_NGAP_HANDOVER_FAILURE(rrc, &fail);
+    return -1;
+  }
+
+  // Create UE context
+  sctp_assoc_t curr_assoc_id = du->assoc_id;
+  rrc_gNB_ue_context_t *ue_context_p = rrc_gNB_create_ue_context(curr_assoc_id, UINT16_MAX, rrc, UINT64_MAX, UINT32_MAX);
+  gNB_RRC_UE_t *UE = &ue_context_p->ue_context;
+
+  // allocate context for target
+  if (UE->ho_context != NULL) {
+    LOG_E(NR_RRC, "Ongoing handover for UE %d, cannot trigger new\n", UE->rrc_ue_id);
+    return -1;
+  }
+  UE->ho_context = alloc_ho_ctx(HO_CTX_TARGET);
+  UE->ho_context->target->ho_trigger = nr_rrc_trigger_n2_ho_target;
+
+  // Store IDs in UE context
+  UE->amf_ue_ngap_id = msg->amf_ue_ngap_id;
+  UE->ue_guami = msg->guami;
+  UE->ho_context->target->ue_ho_prep_info = copy_byte_array(msg->ue_ho_prep_info);
+  // store the received UE Security Capabilities in the UE context
+  FREE_AND_ZERO_BYTE_ARRAY(UE->ue_cap_buffer);
+  UE->ue_cap_buffer = copy_byte_array(msg->ue_cap);
+
+  /* store the received Security Context in the UE context
+     and take it into use as defined in TS 33.501 */
+  set_UE_security_algos(rrc, UE, &msg->security_capabilities);
+  UE->nh_ncc = msg->security_context.next_hop_chain_count;
+  memcpy(UE->nh, msg->security_context.next_hop, SECURITY_KEY_LENGTH);
+  // Reset KgNB
+  memset(UE->kgnb, 0, SECURITY_KEY_LENGTH);
+  // Derive KgNB*
+  const f1ap_served_cell_info_t *cell_info = &du->setup_req->cell[0].info;
+  uint32_t ssb_arfcn = get_ssb_arfcn(du);
+  nr_derive_key_ng_ran_star(cell_info->nr_pci, ssb_arfcn, UE->nh, UE->kgnb);
+  UE->as_security_active = true;
+  // Activate SRBs
+  activate_srb(UE, SRB1);
+  activate_srb(UE, SRB2);
+  nr_rrc_pdcp_config_security(UE, false);
+
+  // Copy PDU Session Resource Setup item to RRC struct and do PDU Session Resource Setup procedure
+  pdusession_t to_setup = {
+    .nssai = msg->pduSessionResourceSetupList->nssai,
+    .pdu_session_type = msg->pduSessionResourceSetupList->pdu_session_type ,
+    .pdusession_id = msg->pduSessionResourceSetupList->pdusession_id,
+  };
+  cp_pdusession_transfer_to_pdusession(&to_setup, &msg->pduSessionResourceSetupList->pdusessionTransfer);
+  if (!trigger_bearer_setup(rrc, UE, msg->nb_of_pdusessions, &to_setup, msg->ue_ambr.br_dl)) {
+    LOG_E(NR_RRC, "Failed to establish PDU session: handover failed\n");
+    ngap_handover_failure_t fail = {
+        .amf_ue_ngap_id = msg->amf_ue_ngap_id,
+        .cause.type = NGAP_CAUSE_RADIO_NETWORK,
+        .cause.value = NGAP_CAUSE_RADIO_NETWORK_HO_FAILURE_IN_TARGET_5GC_NGRAN_NODE_OR_TARGET_SYSTEM,
+    };
+    rrc_gNB_send_NGAP_HANDOVER_FAILURE(rrc, &fail);
+  }
+
+  return 0;
+}
+
+void rrc_gNB_free_Handover_Request(ngap_handover_request_t *msg)
+{
+  free_byte_array(msg->ue_cap);
+  free_byte_array(msg->ue_ho_prep_info);
+  free(msg->mobility_restriction);
+}
+
+/** @brief Send NG Uplink RAN Status Transfer message (8.4.6 3GPP TS 38.413)
+ * Direction: source NG-RAN node -> AMF */
+int rrc_gNB_send_NGAP_ul_ran_status_transfer(gNB_RRC_INST *rrc, gNB_RRC_UE_t *UE, const int n_to_mod, const e1_pdcp_status_info_t *pdcp_status)
+{
+  AssertFatal(UE != NULL, "UE context is NULL\n");
+
+  LOG_I(NR_RRC,
+        "Sending NGAP Uplink RAN Status Transfer (AMF_UE_NGAP_ID=%" PRIu64 ", GNB_UE_NGAP_ID=%u)\n",
+        UE->amf_ue_ngap_id,
+        UE->rrc_ue_id);
+
+  ngap_ran_status_transfer_t msg = {
+      .amf_ue_ngap_id = UE->amf_ue_ngap_id,
+      .gnb_ue_ngap_id = UE->rrc_ue_id,
+  };
+
+  // Loop through DRBs and extract COUNT values
+  for (int i = 0; i < n_to_mod; ++i) {
+    drb_t *drb = &UE->established_drbs[i];
+    if (!drb->status)
+      continue;
+
+    bool sn_length_18 = rrc->pdcp_config.drb.sn_size == 18;
+
+    ngap_drb_status_t *item = &msg.ran_status.drb_status_list[msg.ran_status.nb_drb++];
+    item->drb_id = drb->drb_id;
+
+    const e1_pdcp_count_t *ul_pdcp = &pdcp_status[i].ul_count;
+    const e1_pdcp_count_t *dl_pdcp = &pdcp_status[i].dl_count;
+
+    item->ul_count.pdcp_sn = ul_pdcp->sn;
+    item->ul_count.hfn = ul_pdcp->hfn;
+    item->ul_count.sn_len = sn_length_18 ? NGAP_SN_LENGTH_18 : NGAP_SN_LENGTH_12;
+
+    item->dl_count.pdcp_sn = dl_pdcp->sn;
+    item->dl_count.hfn = dl_pdcp->hfn;
+    item->dl_count.sn_len = sn_length_18 ? NGAP_SN_LENGTH_18 : NGAP_SN_LENGTH_12;
+  }
+
+  MessageDef *msg_p = itti_alloc_new_message(TASK_RRC_GNB, 0, NGAP_UL_RAN_STATUS_TRANSFER);
+  NGAP_UL_RAN_STATUS_TRANSFER(msg_p) = msg;
+  itti_send_msg_to_task(TASK_NGAP, rrc->module_id, msg_p);
+
+  return 0;
+}
+
+/** @brief Process NG Handover Command on Source gNB */
+void rrc_gNB_process_HandoverCommand(gNB_RRC_INST *rrc, const ngap_handover_command_t *msg)
+{
+  rrc_gNB_ue_context_t *ue_context_p = rrc_gNB_get_ue_context(rrc, msg->gNB_ue_ngap_id);
+
+  if (ue_context_p == NULL) {
+    LOG_W(NR_RRC, "Unknown UE context associated to gNB_ue_ngap_id (%u)\n", msg->gNB_ue_ngap_id);
+    return;
+  }
+  gNB_RRC_UE_t *UE = &ue_context_p->ue_context;
+
+  uint8_t buffer[NR_RRC_BUF_SIZE];
+  byte_array_t ba = {.buf = buffer, .len = sizeof(buffer)};
+  int enc = doRRCReconfiguration_from_HandoverCommand(&ba, msg->handoverCommand);
+  DevAssert(enc > 0);
+
+  rrc_gNB_trigger_reconfiguration_for_handover(rrc, UE, buffer, enc);
+  LOG_A(NR_RRC, "Send reconfiguration (HO Command) to UE %u/RNTI %04x\n", UE->rrc_ue_id, UE->rnti);
+}
+
+void rrc_gNB_free_Handover_Command(ngap_handover_command_t *msg)
+{
+  free_byte_array(msg->handoverCommand);
+}
+
 /*
 * Process the NG command NGAP_UE_CONTEXT_RELEASE_COMMAND, sent by AMF.
 * The gNB should remove all pdu session, NG context, and other context of the UE.
@@ -1170,6 +1343,88 @@ void rrc_gNB_send_NGAP_UE_CAPABILITIES_IND(gNB_RRC_INST *rrc, gNB_RRC_UE_t *UE, 
     ind->ue_radio_cap.buf = buf2;
     itti_send_msg_to_task (TASK_NGAP, rrc->module_id, msg_p);
     LOG_I(NR_RRC,"Send message to ngap: NGAP_UE_CAPABILITIES_IND\n");
+}
+
+void rrc_gNB_send_NGAP_HANDOVER_REQUEST_ACKNOWLEDGE(gNB_RRC_INST *rrc, gNB_RRC_UE_t *UE, byte_array_t ho_command)
+{
+  LOG_D(NR_RRC, "Sending Handover Request Acknowledge\n");
+
+  MessageDef *msg_p = itti_alloc_new_message(TASK_RRC_GNB, 0, NGAP_HANDOVER_REQUEST_ACKNOWLEDGE);
+  ngap_handover_request_ack_t *msg = &NGAP_HANDOVER_REQUEST_ACKNOWLEDGE(msg_p);
+  memset(msg, 0, sizeof(*msg));
+
+  // RAN UE NGAP ID
+  msg->gNB_ue_ngap_id = UE->rrc_ue_id;
+  // AMF UE NGAP ID
+  msg->amf_ue_ngap_id = UE->amf_ue_ngap_id;
+  // PDU Session Resource Admitted List
+  msg->nb_of_pdusessions = UE->nb_of_pdusessions;
+  for (int i = 0; i < UE->nb_of_pdusessions; i++) {
+    rrc_pdu_session_param_t *session = &UE->pduSession[i];
+    session->status = PDU_SESSION_STATUS_ESTABLISHED;
+    // PDU Session ID
+    msg->pdusessions[i].pdu_session_id = session->param.pdusession_id;
+    // Handover Request Acknowledge Transfer
+    ho_request_ack_transfer_t *transfer = &msg->pdusessions[i].ack_transfer;
+    transfer->gtp_teid = session->param.n3_outgoing.teid;
+    memcpy(transfer->gNB_addr.buffer, session->param.n3_outgoing.addr.buffer, session->param.n3_outgoing.addr.length);
+    transfer->gNB_addr.length = session->param.n3_outgoing.addr.length;
+    transfer->nb_of_qos_flow = session->param.nb_qos;
+    for (int q = 0; q < transfer->nb_of_qos_flow; q++) {
+      transfer->qos_setup_list[q].qfi = session->param.qos[q].qfi;
+      transfer->qos_setup_list[q].qos_flow_mapping_ind = QOSFLOW_MAPPING_INDICATION_DL;
+    }
+  }
+  // Target to Source Transparent Container
+  msg->target2source = copy_byte_array(ho_command);
+
+  itti_send_msg_to_task(TASK_NGAP, rrc->module_id, msg_p);
+}
+
+/** @brief Prepare NG Handover Notify message and inform NGAP */
+void rrc_gNB_send_NGAP_HANDOVER_NOTIFY(gNB_RRC_INST *rrc, gNB_RRC_UE_t *UE)
+{
+  LOG_I(NR_RRC, "Triggering NGAP Handover Notify\n");
+
+  MessageDef *msg_p = itti_alloc_new_message(TASK_RRC_GNB, 0, NGAP_HANDOVER_NOTIFY);
+  ngap_handover_notify_t *ho_notify = &NGAP_HANDOVER_NOTIFY(msg_p);
+  memset(ho_notify, 0, sizeof(*ho_notify));
+  nr_rrc_du_container_t *du = get_du_by_cell_id(rrc, rrc->nr_cellid);
+
+  ho_notify->gNB_ue_ngap_id = UE->rrc_ue_id;
+  ho_notify->amf_ue_ngap_id = UE->amf_ue_ngap_id;
+  ho_notify->user_info.nrCellIdentity = rrc->nr_cellid;
+  ho_notify->user_info.target_ng_ran.tac = *du->setup_req->cell->info.tac;
+  ho_notify->user_info.target_ng_ran.targetgNBId = rrc->node_id;
+  ho_notify->user_info.target_ng_ran.plmn_identity.mcc = du->setup_req->cell->info.plmn.mcc;
+  ho_notify->user_info.target_ng_ran.plmn_identity.mnc = du->setup_req->cell->info.plmn.mnc;
+  ho_notify->user_info.target_ng_ran.plmn_identity.mnc_digit_length = du->setup_req->cell->info.plmn.mnc_digit_length;
+
+  itti_send_msg_to_task(TASK_NGAP, rrc->module_id, msg_p);
+}
+
+/** @brief Prepare NG Handover Cancel (source NG-RAN) and inform NGAP (N2-based HO only)
+ *  3GPP TS 38.413 §8.4.5 (Handover Cancellation) - source NG-RAN -> AMF
+ *  3GPP TS 38.413 §9.2.3.11 (HANDOVER CANCEL)
+ *  @param rrc CU/RRC instance
+ *  @param UE UE context
+ *  @param cause cancellation cause */
+void rrc_gNB_send_NGAP_HANDOVER_CANCEL(int module_id, gNB_RRC_UE_t *UE, ngap_cause_t cause)
+{
+  DevAssert(UE != NULL);
+
+  LOG_I(NR_RRC, "Triggering NGAP Handover Cancel (gNB_ue_ngap_id=%d, amf_ue_ngap_id=%ld)\n", UE->rrc_ue_id, UE->amf_ue_ngap_id);
+
+  MessageDef *msg_p = itti_alloc_new_message(TASK_RRC_GNB, 0, NGAP_HANDOVER_CANCEL);
+  ngap_handover_cancel_t *ho_cancel = &NGAP_HANDOVER_CANCEL(msg_p);
+  memset(ho_cancel, 0, sizeof(*ho_cancel));
+
+  /* Mandatory IEs (38.413 §9.2.3.11) */
+  ho_cancel->gNB_ue_ngap_id = UE->rrc_ue_id;
+  ho_cancel->amf_ue_ngap_id = UE->amf_ue_ngap_id;
+  ho_cancel->cause = cause;
+
+  itti_send_msg_to_task(TASK_NGAP, module_id, msg_p);
 }
 
 void rrc_gNB_send_NGAP_PDUSESSION_RELEASE_RESPONSE(gNB_RRC_INST *rrc, gNB_RRC_UE_t *UE, uint8_t xid)
@@ -1294,6 +1549,122 @@ int rrc_gNB_process_PAGING_IND(MessageDef *msg_p, instance_t instance)
       } // end of mcc mnc check
     } // end of num_plmn
   } // end of tai size
+
+  return 0;
+}
+
+/** @brief Callback for NGAP Handover Required message (3GPP TS 38.413 9.2.3.1)
+ * Direction: source gNB -> AMF */
+void rrc_gNB_send_NGAP_HANDOVER_REQUIRED(gNB_RRC_INST *rrc,
+                                         gNB_RRC_UE_t *UE,
+                                         const nr_neighbour_cell_t *neighbour,
+                                         const byte_array_t hoPrepInfo)
+{
+  LOG_I(NR_RRC, "Handover Preparation: send Handover Required (target gNB ID=%d, PCI=%d)\n", neighbour->gNB_ID, neighbour->physicalCellId);
+
+  const plmn_id_t plmn = {.mcc = neighbour->plmn.mnc,
+                          .mnc = neighbour->plmn.mnc,
+                          .mnc_digit_length = neighbour->plmn.mnc_digit_length};
+
+  const target_ran_node_id_t target = {
+      .plmn_identity = plmn,
+      .tac = neighbour->tac,
+      .targetgNBId = neighbour->gNB_ID,
+  };
+
+  ngap_handover_required_t msg = {
+      .amf_ue_ngap_id = UE->amf_ue_ngap_id,
+      .gNB_ue_ngap_id = UE->rrc_ue_id,
+      .nb_of_pdusessions = UE->nb_of_pdusessions,
+      .cause.type = NGAP_CAUSE_RADIO_NETWORK,
+      .cause.value = NGAP_CAUSE_RADIO_NETWORK_HANDOVER_DESIRABLE_FOR_RADIO_REASON,
+      .handoverType = HANDOVER_TYPE_INTRA5GS,
+      .target_gnb_id = target,
+  };
+
+  cell_id_t target_cell = {
+      .nrCellIdentity = neighbour->nrcell_id,
+      .plmn_identity = plmn,
+  };
+
+  // Source to Target Transparent Container (M)
+  msg.source2target = calloc_or_fail(1, sizeof(*msg.source2target));
+  // Target Cell ID (M)
+  msg.source2target->targetCellId = target_cell;
+  // RRC Container (M)
+  msg.source2target->handoverInfo = copy_byte_array(hoPrepInfo);
+  // UE History Info (M)
+  msg.source2target->ue_history_info.cause = malloc_or_fail(sizeof(*msg.source2target->ue_history_info.cause));
+  msg.source2target->ue_history_info.cause->type = NGAP_CAUSE_RADIO_NETWORK;
+  msg.source2target->ue_history_info.cause->value = NGAP_CAUSE_RADIO_NETWORK_HANDOVER_DESIRABLE_FOR_RADIO_REASON;
+  msg.source2target->ue_history_info.type = NGAP_CellSize_small;
+  msg.source2target->ue_history_info.time_in_cell = 500; // dummy number for now
+  msg.source2target->ue_history_info.id = target_cell;
+
+  /* Fill both PDU Session Resource List IE (M) in Handover Required
+     and PDU Session Resource Information List IE (O) in the Source NG-RAN
+     Node to Target NG-RAN Node Transparent Container */
+  for (int i = 0; i < UE->nb_of_pdusessions; ++i) {
+    if (UE->pduSession[i].status == PDU_SESSION_STATUS_DONE || UE->pduSession[i].status == PDU_SESSION_STATUS_ESTABLISHED) {
+      rrc_pdu_session_param_t *pduSession = find_pduSession(UE, UE->pduSession[i].param.pdusession_id, false);
+      if (!pduSession)
+        continue;
+      // Handover Required Transfer (M)
+      uint8_t ho_required_transfer[128] = {0};
+      msg.pdusessions[i].ho_required_transfer.buf = ho_required_transfer;
+      msg.pdusessions[i].ho_required_transfer.len = sizeof(ho_required_transfer);
+      // PDU Session ID
+      msg.pdusessions[i].pdusession_id = pduSession->param.pdusession_id;
+
+      // PDU Session Resource Information List (O)
+      msg.source2target->pdu_session_resource[i].nb_of_qos_flow = pduSession->param.nb_qos;
+      for (int j = 0; j < pduSession->param.nb_qos; ++j) {
+        msg.source2target->pdu_session_resource[i].qos_flow_info[j].qfi = pduSession->param.qos[j].qfi;
+      }
+      msg.source2target->nb_pdu_session_resource++;
+    }
+  }
+
+  MessageDef *msg_p = itti_alloc_new_message(TASK_RRC_GNB, 0, NGAP_HANDOVER_REQUIRED);
+  NGAP_HANDOVER_REQUIRED(msg_p) = msg;
+  itti_send_msg_to_task(TASK_NGAP, rrc->module_id, msg_p);
+}
+
+int rrc_gNB_process_NGAP_DL_RAN_STATUS_TRANSFER(MessageDef *msg_p, instance_t instance)
+{
+  const ngap_ran_status_transfer_t *cmd = &NGAP_DL_RAN_STATUS_TRANSFER(msg_p);
+  gNB_RRC_INST *rrc = RC.nrrrc[instance];
+  rrc_gNB_ue_context_t *ue_context_p = rrc_gNB_get_ue_context(rrc, cmd->gnb_ue_ngap_id);
+
+  if (!ue_context_p) {
+    LOG_E(NR_RRC, "[gNB %ld] No UE context for gNB_ue_ngap_id %u\n", instance, cmd->gnb_ue_ngap_id);
+    return -1;
+  }
+
+  gNB_RRC_UE_t *UE = &ue_context_p->ue_context;
+  LOG_I(NR_RRC,
+        "[gNB %ld] DL RAN Status Transfer for gNB_ue_ngap_id %u AMF_UE_NGAP_ID %lu\n",
+        instance,
+        cmd->gnb_ue_ngap_id,
+        cmd->amf_ue_ngap_id);
+
+  for (int i = 0; i < cmd->ran_status.nb_drb; ++i) {
+    const ngap_drb_status_t *s = &cmd->ran_status.drb_status_list[i];
+    LOG_I(NR_RRC,
+          "DL RAN Status Transfer - DRB ID %d:\n"
+          "  UL COUNT: PDCP SN = %u, HFN = %u (%s)\n"
+          "  DL COUNT: PDCP SN = %u, HFN = %u (%s)\n",
+          s->drb_id,
+          s->ul_count.pdcp_sn,
+          s->ul_count.hfn,
+          s->ul_count.sn_len == NGAP_SN_LENGTH_18 ? "18-bit" : "12-bit",
+          s->dl_count.pdcp_sn,
+          s->dl_count.hfn,
+          s->dl_count.sn_len == NGAP_SN_LENGTH_18 ? "18-bit" : "12-bit");
+
+    // Send to PDCP layer
+    e1_send_bearer_updates(rrc, UE, 0, NULL, s);
+  }
 
   return 0;
 }

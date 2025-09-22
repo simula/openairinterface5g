@@ -304,13 +304,18 @@ class Containerize():
 		result = re.search('build_cross_arm64', self.imageKind)
 		if result is not None:
 			self.dockerfileprefix = '.ubuntu.cross-arm64'
-		result = re.search('native_arm', self.imageKind)
+		result = re.search('native_armv9', self.imageKind)
 		if result is not None:
 			imageNames.append(('oai-gnb', 'gNB', 'oai-gnb', ''))
 			imageNames.append(('ran-build-fhi72', 'build.fhi72.native_arm', 'ran-build-fhi72', ''))
 			imageNames.append(('oai-nr-cuup', 'nr-cuup', 'oai-nr-cuup', ''))
 			imageNames.append(('oai-nr-ue', 'nrUE', 'oai-nr-ue', ''))
 			imageNames.append(('oai-gnb-aerial', 'gNB.aerial', 'oai-gnb-aerial', ''))
+		result = re.search('native_armv8', self.imageKind)
+		if result is not None:
+			imageNames.append(('oai-gnb', 'gNB', 'oai-gnb', ''))
+			imageNames.append(('oai-nr-cuup', 'nr-cuup', 'oai-nr-cuup', ''))
+			imageNames.append(('oai-nr-ue', 'nrUE', 'oai-nr-ue', ''))
 		
 		cmd.cd(lSourcePath)
 		# if asterix, copy the entitlement and subscription manager configurations

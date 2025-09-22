@@ -62,3 +62,7 @@ MESSAGE_DEF(NR_RRC_MAC_SBCCH_DATA_IND,    MESSAGE_PRIORITY_MED_PLUS, NRRrcMacSBc
 
 // Message to GNB_APP to update SIB19 satellite position information
 MESSAGE_DEF(GNB_SAT_POSITION_UPDATE, MESSAGE_PRIORITY_MED, gnb_sat_position_update_t, gnb_sat_position_update)
+
+// nrUE
+MESSAGE_DEF(NR_RRC_MAC_MEAS_DATA_IND,    MESSAGE_PRIORITY_MED_PLUS, NRRrcMacMeasDataInd,           nr_rrc_mac_meas_data_ind)
+

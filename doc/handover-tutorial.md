@@ -207,6 +207,7 @@ neighbour_list = (
         physical_cellId = 1;
         absoluteFrequencySSB = 643296;
         subcarrierSpacing = 1; #30 KHz
+        band = 78;
         plmn = { mcc = 001; mnc = 01; mnc_length = 2};
         tracking_area_code = 1;
       }
@@ -221,6 +222,7 @@ neighbour_list = (
         physical_cellId = 0;
         absoluteFrequencySSB = 643296;
         subcarrierSpacing = 1; #30 KHz
+        band = 78;
         plmn = { mcc = 001; mnc = 01; mnc_length = 2};
         tracking_area_code = 1;
       }
@@ -339,4 +341,148 @@ while true; do
   echo ci trigger_f1_ho | nc -N 127.0.0.1 9090 && echo
   sleep 15
 done
+```
+
+# N2 Handover
+
+## Run the setup
+
+An N2 handover involves the transfer of a UE from one gNB to another via the 5G core network. Unlike F1 handover, where the CU handles the process internally between its DUs, N2 handover requires signaling through the AMF, making it a core-network-based handover.
+
+We assume:
+
+* Two independent gNBs connected to the same 5GC via N2 interface.
+* A UE initially connected to gNB-PCI0, which will be handed over to gNB-PCI1.
+* Handover is triggered by either by decision based measurement event (e.g. A3) or telnet command.
+
+## Steps to run N2 handover with OAI UE
+
+1. Similarly to F1 handover, UE does not support any measurement reporting and handover is triggered by
+telnet command. Therefore, ensure that both gNBs and UE are built with telnet support:
+
+```sh
+./build_oai --ninja --nrUE --gNB --build-lib telnetsrv
+```
+
+Run the 5G Core Network if not already running. See [OAI CN5G tutorial](./NR_SA_Tutorial_OAI_CN5G.md).
+
+2. Start the source gNB (gNB-PCI0) e.g.
+
+```sh
+sudo ./nr-softmodem -O ../../../targets/PROJECTS/GENERIC-NR-5GC/CONF/gnb.sa.band78.fr1.106PRB.pci0.rfsim.conf --telnetsrv --telnetsrv.shrmod ci --gNBs.[0].min_rxtxtime 6 --rfsim --rfsimulator.serveraddr 127.0.0.1
+```
+
+3. Start the UE e.g.
+
+```sh
+sudo ./nr-uesoftmodem -r 106 --numerology 1 --band 78 -C 3619200000 --rfsim --uicc0.imsi 001010000000001 -O ../../../ci-scripts/conf_files/nrue.uicc.conf --rfsimulator.serveraddr server
+```
+
+Ensure the UE successfully registers with the network.
+
+4. Start the target gNB (gNB PCI1) e.g.
+
+```sh
+sudo ./nr-softmodem -O ../../../targets/PROJECTS/GENERIC-NR-5GC/CONF/gnb.sa.band78.fr1.106PRB.pci1.rfsim.conf --sa --rfsim --telnetsrv --telnetsrv.shrmod ci --gNBs.[0].min_rxtxtime 6 --rfsimulator.serveraddr 127.0.0.1
+```
+
+5. Trigger the N2 handover, e.g.
+
+From gNB-PCI0, trigger handover on target gNB with PCI 1 for UE ID 1:
+
+```sh
+echo ci trigger_n2_ho 1,1 | nc 127.0.0.1 9090 && echo
+```
+where the input parameters correspond to the PCI of the neighbor call and the RRC ID of the UE.
+
+This will initiate the N2 handover on the source gNB.
+
+## Neighbour list and measurement configuration
+
+Make sure the configuration file contains a neighbour list and measurement configuration, e.g. [neighbour-config-rfsim.conf](../../ci-scripts/conf_files/neighbour-config.conf). This configuration can also be present in a different file and included in the gNB configuration file with `@include "neighbour-config-rfsim.conf"`.
+
+For each gNB there is a `neighbour_cell_configuration` linked to its serving cell ID.
+
+The measurement configuration is based on A2 and A3 measurement events in 5G NR. These events are used by the UE to report radio conditions to the gNB. The A2 Measurement Event indicates that the serving cell’s signal quality has degraded below a defined threshold and the UE shall initiate measurement of neighboring cells. The A3 Measurement Event indicates that a neighboring cell’s signal quality is better than that of the serving cell by a certain offset and the UE shall trigger handover to a stronger neighboring cell
+
+This is an example with comments on how to use the configuration file:
+
+```
+############################################################
+#  gNB-to-gNB neighbour list + measurement configuration   #
+#  for the 2-cell rfsim setup (gNB_ID 0xe00 & 0xb00)       #
+############################################################
+
+neighbour_list = (
+  ##########################################################
+  #  Entry USED BY gNB_ID = 0xe00  (nr_cellid = 12345678L) #
+  ##########################################################
+  {
+    nr_cellid = 12345678L;                      #  Serving cell of gNB 0xe00
+    neighbour_cell_configuration = (
+      {
+        gNB_ID              = 0xb00;
+        nr_cellid           = 720898;           #  Cell served by gNB 0xb00
+        physical_cellId     = 1;
+        absoluteFrequencySSB= 621312;
+        subcarrierSpacing   = 1;                # 30 kHz
+        band                = 78;
+        plmn                = { mcc = 208; mnc = 99; mnc_length = 2 };
+        tracking_area_code  = 1;
+      }
+    );
+  },
+
+  ##########################################################
+  #  Entry USED BY gNB_ID = 0xb00  (nr_cellid = 720898)    #
+  ##########################################################
+  {
+    nr_cellid = 720898;                           #  Serving cell of gNB 0xb00
+    neighbour_cell_configuration = (
+      {
+        gNB_ID              = 0xe00;
+        nr_cellid           = 12345678L;          #  Cell served by gNB 0xe00
+        physical_cellId     = 0;
+        absoluteFrequencySSB= 641280;
+        subcarrierSpacing   = 1;                  # 30 kHz
+        band                = 78;
+        plmn                = { mcc = 208; mnc = 99; mnc_length = 2 };
+        tracking_area_code  = 1;
+      }
+    );
+  }
+);
+
+############################################################
+#  Common NR measurement-event configuration               #
+############################################################
+
+nr_measurement_configuration = {
+  Periodical = {
+    enable                     = 1;
+    includeBeamMeasurements    = 1;
+    maxNrofRS_IndexesToReport  = 4;
+  };
+
+  A2 = {
+    enable        = 1;
+    threshold     = 60;
+    timeToTrigger = 1;
+  };
+
+  A3 = (
+    {
+      cell_id        = 720898;     # neighbour of gNB 0xe00
+      offset         = 10;
+      hysteresis     = 0;
+      timeToTrigger  = 1;
+    },
+    {
+      cell_id        = 12345678;   # neighbour of gNB 0xb00
+      offset         = 5;
+      hysteresis     = 1;
+      timeToTrigger  = 2;
+    }
+  );
+};
 ```

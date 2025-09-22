@@ -81,6 +81,7 @@ typedef struct ngap_gNB_ue_context_s {
 void ngap_store_ue_context(const ngap_gNB_ue_context_t *ue_desc_p);
 
 ngap_gNB_ue_context_t *ngap_get_ue_context(uint32_t gNB_ue_ngap_id);
+ngap_gNB_ue_context_t *ngap_get_ue_context_from_amf_ue_ngap_id(uint32_t amf_ue_ngap_id);
 ngap_gNB_ue_context_t *ngap_detach_ue_context(uint32_t gNB_ue_ngap_id);
 
 #endif /* NGAP_GNB_UE_CONTEXT_H_ */

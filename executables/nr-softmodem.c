@@ -713,6 +713,11 @@ int main( int argc, char **argv ) {
 
   // wait for end of program
   printf("TYPE <CTRL-C> TO TERMINATE\n");
+  // Sleep a while before checking all parameters have been used
+  // Some are used directly in external threads, asynchronously
+  sleep(2);
+  config_check_unknown_cmdlineopt(uniqCfg, CONFIG_CHECKALLSECTIONS);
+
   itti_wait_tasks_end(NULL);
   printf("Returned from ITTI signal handler\n");
 

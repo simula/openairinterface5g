@@ -210,7 +210,7 @@ sequenceDiagram
   end
 ```
 
-## Handover
+## Inter-DU Handover (F1)
 
 The basic handover (HO) structure is as follows. In order to support various
 handover "message passing implementation" (F1AP, NGAP, XnAP), RRC employs
@@ -264,6 +264,94 @@ sequenceDiagram
   sdu->>cucp: F1AP UE Context Release Complete
   Note over ue,tdu: UE active on target DU
 ```
+## Inter-gNB Handover (N2)
+
+This is an inter-NG-RAN procedure. The N2 handover specification is defined in the following documents:
+
+* 3GPP TS 23.502, 4.9.1.3 Inter NG-RAN node N2 based handover:
+  - Outlines detailed handover signaling flows for N2-based handovers.
+  - Covers both intra-system (between 5G gNBs) and inter-system (between 5G and LTE eNBs) handovers.
+* 3GPP TS 38.300, section 9 Mobility and State Transitions:
+  - describes mobility procedures at the NG-RAN level, depending on the RRC state.
+* 3GPP TS 38.413 (NGAP), section 8.4 UE Mobility Management Procedures:
+  - Specifies the signaling procedures over the N2 interface.
+  - Includes messages like Handover Request, Handover Command, and Handover Preparation.
+* 3GPP TS 38.331 (RRC): details the UE-level RRC procedures involved during handovers
+
+### End-to-end flow
+
+```mermaid
+sequenceDiagram
+  participant ue as UE
+  participant sdu as source DU
+  participant scucp as source CU-CP
+  participant scuup as source CU-UP
+  participant tdu as target DU
+  participant tcucp as target CU-CP
+  participant tcuup as target CU-UP
+  participant amf as AMF
+
+  Note over ue,sdu: UE active on source DU
+  alt HO triggered through A3 event
+    ue->>sdu: RRC Measurement Report
+    sdu->>scucp: F1AP UL RRC Msg Transfer (RRC Measurement Report)
+    Note over scucp: Handover decision (A3 event trigger)
+  else Manual Trigger
+    Note over scucp: Handover decision (e.g., telnet)
+  end
+  Note over scucp: nr_rrc_trigger_n2_ho() ("on source CU")
+  scucp->>amf: HANDOVER REQUIRED
+  amf->>tcucp: HANDOVER REQUEST
+  Note over tcucp: rrc_gNB_process_Handover_Request
+  Note over tcucp: trigger_bearer_setup
+  tcucp->>tcuup: Bearer Context Setup Request
+  tcuup->>tcucp: Bearer Context Setup Response
+  Note over tcucp: rrc_gNB_process_e1_bearer_context_setup_resp
+  Note over tcucp: nr_rrc_trigger_n2_ho_target() ("on target CU")
+  Note over tcucp: nr_initiate_handover()
+  tcucp->>tdu: F1AP UE Context Setup Req
+  Note over tdu: Create UE context
+  tdu->>tcucp: F1AP UE Context Setup Resp (incl. CellGroupConfig)
+  Note over tcucp: rrc_CU_process_ue_context_setup_response() ("on target CU")
+  Note over tcucp: e1_send_bearer_updates()
+  tcucp->>tcuup: E1AP Bearer Context Modification Req
+  tcuup->>tcucp: E1AP Bearer Context Modification Resp
+  tcucp-->>tcucp: callback: ho_req_ack()
+  Note over tcucp: nr_rrc_n2_ho_acknowledge() ("on target CU")
+  tcucp->>amf: HANDOVER REQUEST ACKNOWLEDGE (data forwarding info)
+  amf->>scucp: HANDOVER COMMAND
+  scucp->>sdu: F1AP UE Context Modification Req (RRC Reconfiguration)
+  sdu->>ue: RRC Reconfiguration
+  sdu->>scucp: F1AP UE Context Modification Resp
+  Note over sdu: Stop scheduling UE
+  Note over scucp: rrc_CU_process_ue_context_modification_response()
+  Note over scucp: e1_send_bearer_updates()
+  scucp->>scuup: E1 Bearer Context Modification Req (PDCP Status Request)
+  scuup->>scucp: E1 Bearer Context Modification Resp (PDCP Status Info)
+  scucp->>amf: NG Uplink RAN Status Transfer
+  amf->>tcucp: NG Downlink RAN Status Transfer
+  tcucp->>tcuup: E1 Bearer Context Modification Req (PDCP Status Info)
+  tcuup->>tcucp: E1 Bearer Context Modification Resp
+  Note over ue: UE attachment to target DU
+  Note over ue,tdu: RA (Msg1 + Msg2)
+  ue->>tdu: RRC Reconfiguration Complete
+  tdu->>tcucp: F1AP UL RRC Msg Transfer (RRC Reconfiguration Complete)
+  tcucp-->>tcucp: callback: ho_success()
+  Note over tcucp: nr_rrc_n2_ho_complete() ("on target CU")
+  Note over tcucp: handle_rrcReconfigurationComplete() ("on target CU")
+  tcucp->>amf: HANDOVER NOTIFY
+  amf->>scucp: UE Context Release Command
+  note over scucp: ngap_gNB_handle_ue_context_release_command
+  note over scucp: rrc_gNB_process_NGAP_UE_CONTEXT_RELEASE_COMMAND
+  scucp->>scuup: E1 Bearer Context Release Command
+  scuup->>scucp: E1 Bearer Context Release Complete
+  Note over scucp: rrc_gNB_generate_RRCRelease
+  scucp->>sdu: F1 UE Context Release Command
+  sdu->>scucp: F1 UE Context Release Complete
+  note over scucp: rrc_CU_process_ue_context_release_complete
+  note over scucp: rrc_remove_ue
+  Note over ue,tdu: UE active on target DU
+```
 
 # Structures
 
@@ -308,7 +396,8 @@ corresponding CU.
 
 `nr_ho_source_cu_t` contains notably a function pointer `ho_cancel` for
 handover cancel.  `nr_ho_target_cu_t` contains function pointers `ho_req_ack`
-for handover request acknowledge and `ho_success` for handover success.  As can
+for handover request acknowledge, `ho_success` for handover success,
+`ho_failure` for handover failure (N2 only).
 be seen in the sequence diagram above, either the "target CU" or "source CU"
 needs to do an operation, and a "switch" from target to source CU is done using
 these function pointers. For instance, in F1, the handover request acknowledge

@@ -23,6 +23,7 @@
 
 #include <stdint.h>
 #include "common/utils/ds/byte_array.h"
+#include "nr_rrc_defs.h"
 
 /* forward declarations */
 typedef struct gNB_RRC_INST_s gNB_RRC_INST;
@@ -32,6 +33,8 @@ typedef struct nr_rrc_du_container_t nr_rrc_du_container_t;
 typedef struct NR_CellGroupConfig NR_CellGroupConfig_t;
 
 typedef void (*ho_cancel_t)(gNB_RRC_INST *rrc, gNB_RRC_UE_t *ue);
+typedef int (*ho_status_transfer_t)(gNB_RRC_INST *rrc, gNB_RRC_UE_t *UE, const int n_to_mod, const e1_pdcp_status_info_t *pdcp_status);
+
 typedef struct nr_ho_source_cu {
   /// pointer to the (source) DU structure
   const nr_rrc_du_container_t *du;
@@ -47,11 +50,16 @@ typedef struct nr_ho_source_cu {
   /// function pointer to announce the handover cancellation, e.g.,
   /// reestablishment
   ho_cancel_t ho_cancel;
+  /// status transfer
+  ho_status_transfer_t ho_status_transfer;
 } nr_ho_source_cu_t;
 
 /* acknowledgement of handover request. buf+len is the RRC Reconfiguration */
 typedef void (*ho_req_ack_t)(gNB_RRC_INST *rrc, gNB_RRC_UE_t *ue);
 typedef void (*ho_success_t)(gNB_RRC_INST *rrc, gNB_RRC_UE_t *ue);
+typedef void (*ho_failure_t)(gNB_RRC_INST *rrc, uint32_t gnb_ue_id, ngap_handover_failure_t *msg);
+typedef void (*ho_trigger_t)(gNB_RRC_INST *rrc, gNB_RRC_UE_t *ue);
+
 typedef struct nr_ho_target_cu {
   /// pointer to the (target) DU structure
   const nr_rrc_du_container_t *du;
@@ -61,10 +69,16 @@ typedef struct nr_ho_target_cu {
   uint32_t du_ue_id;
   /// new (target) RNTI (as for du_ue_id)
   rnti_t new_rnti;
+  /// Handover Preparation Buffer
+  byte_array_t ue_ho_prep_info;
+  /// function pointer to trigger handover on target gNB
+  ho_trigger_t ho_trigger;
   /// function pointer to announce handover request acknowledgment
   ho_req_ack_t ho_req_ack;
   /// function pointer to announce handover success
   ho_success_t ho_success;
+  /// function pointer to announce the handover failure
+  ho_failure_t ho_failure;
 } nr_ho_target_cu_t;
 
 typedef struct nr_handover_context_s {
@@ -72,7 +86,20 @@ typedef struct nr_handover_context_s {
   nr_ho_target_cu_t *target;
 } nr_handover_context_t;
 
+typedef enum { HO_CTX_BOTH, HO_CTX_SOURCE, HO_CTX_TARGET } ho_ctx_type_t;
+nr_handover_context_t *alloc_ho_ctx(ho_ctx_type_t type);
+
 void nr_rrc_trigger_f1_ho(gNB_RRC_INST *rrc, gNB_RRC_UE_t *ue, nr_rrc_du_container_t *source_du, nr_rrc_du_container_t *target_du);
 void nr_rrc_finalize_ho(gNB_RRC_UE_t *ue);
+void nr_rrc_n2_ho_failure(gNB_RRC_INST *rrc, uint32_t gnb_ue_id, ngap_handover_failure_t *msg);
+
+void nr_rrc_trigger_n2_ho(gNB_RRC_INST *rrc,
+                          gNB_RRC_UE_t *ue,
+                          int serving_pci,
+                          const nr_neighbour_cell_t *neighbour_config);
+
+void rrc_gNB_trigger_reconfiguration_for_handover(gNB_RRC_INST *rrc, gNB_RRC_UE_t *ue, uint8_t *rrc_reconf, int rrc_reconf_len);
+
+void nr_rrc_trigger_n2_ho_target(gNB_RRC_INST *rrc, gNB_RRC_UE_t *ue);
 
 #endif /* RRC_GNB_MOBILITY_H_ */

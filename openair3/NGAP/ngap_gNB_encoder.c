@@ -52,7 +52,10 @@ static inline int ngap_gNB_encode_initiating(NGAP_NGAP_PDU_t *pdu, uint8_t **buf
                                       NGAP_ProcedureCode_id_NASNonDeliveryIndication,
                                       NGAP_ProcedureCode_id_UEContextReleaseRequest,
                                       NGAP_ProcedureCode_id_PathSwitchRequest,
-                                      NGAP_ProcedureCode_id_PDUSessionResourceModifyIndication};
+                                      NGAP_ProcedureCode_id_PDUSessionResourceModifyIndication,
+                                      NGAP_ProcedureCode_id_UplinkRANStatusTransfer,
+                                      NGAP_ProcedureCode_id_HandoverPreparation,
+                                      NGAP_ProcedureCode_id_HandoverNotification};
   int i;
   for (i = 0; i < sizeofArray(tmp); i++)
     if (pdu->choice.initiatingMessage->procedureCode == tmp[i])
@@ -76,7 +79,8 @@ static inline int ngap_gNB_encode_successfull_outcome(NGAP_NGAP_PDU_t *pdu, uint
                                       NGAP_ProcedureCode_id_UEContextRelease,
                                       NGAP_ProcedureCode_id_PDUSessionResourceSetup,
                                       NGAP_ProcedureCode_id_PDUSessionResourceModify,
-                                      NGAP_ProcedureCode_id_PDUSessionResourceRelease};
+                                      NGAP_ProcedureCode_id_PDUSessionResourceRelease,
+                                      NGAP_ProcedureCode_id_HandoverResourceAllocation};
   int i;
   for (i = 0; i < sizeofArray(tmp); i++)
     if (pdu->choice.successfulOutcome->procedureCode == tmp[i])
@@ -97,8 +101,17 @@ static inline int ngap_gNB_encode_unsuccessfull_outcome(NGAP_NGAP_PDU_t *pdu, ui
 {
   DevAssert(pdu != NULL);
 
-  if (pdu->choice.unsuccessfulOutcome->procedureCode != NGAP_ProcedureCode_id_InitialContextSetup) {
-    NGAP_DEBUG("Unknown procedure ID (%d) for unsuccessfull outcome message\n", (int)pdu->choice.unsuccessfulOutcome->procedureCode);
+  const NGAP_ProcedureCode_t id[] = {NGAP_ProcedureCode_id_InitialContextSetup, NGAP_ProcedureCode_id_HandoverResourceAllocation};
+
+  int i;
+  for (i = 0; i < sizeofArray(id); i++) {
+    if (pdu->choice.unsuccessfulOutcome->procedureCode == id[i]) {
+      break;
+    }
+  }
+
+  if (i == sizeofArray(id)) {
+    NGAP_WARN("Unknown procedure ID (%ld) for successful outcome message\n", pdu->choice.successfulOutcome->procedureCode);
     return -1;
   }
 

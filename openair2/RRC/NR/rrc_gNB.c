@@ -98,6 +98,7 @@
 #include "NR_DL-DCCH-Message.h"
 #include "ds/byte_array.h"
 #include "alg/find.h"
+#include "NR_HandoverCommand.h"
 
 #ifdef E2_AGENT
 #include "openair2/E2AP/RAN_FUNCTION/O-RAN/ran_func_rc_extern.h"
@@ -307,7 +308,7 @@ unsigned int rrc_gNB_get_next_transaction_identifier(module_id_t gnb_mod_idP)
   * for the radio bearer changes, with some expections for SRB1 (i.e. when resuming
   * an RRC connection, or at the first reconfiguration after RRC connection
   * reestablishment in NR, do not re-establish PDCP) */
-static NR_SRB_ToAddModList_t *createSRBlist(gNB_RRC_UE_t *ue, uint8_t reestablish)
+NR_SRB_ToAddModList_t *createSRBlist(gNB_RRC_UE_t *ue, uint8_t reestablish)
 {
   if (!ue->Srb[SRB1].Active) {
     LOG_E(NR_RRC, "Call SRB list while SRB1 doesn't exist\n");
@@ -328,7 +329,7 @@ static NR_SRB_ToAddModList_t *createSRBlist(gNB_RRC_UE_t *ue, uint8_t reestablis
   return list;
 }
 
-static NR_DRB_ToAddModList_t *createDRBlist(gNB_RRC_UE_t *ue, bool reestablish)
+NR_DRB_ToAddModList_t *createDRBlist(gNB_RRC_UE_t *ue, bool reestablish)
 {
   NR_DRB_ToAddMod_t *DRB_config = NULL;
   NR_DRB_ToAddModList_t *DRB_configList = CALLOC(sizeof(*DRB_configList), 1);
@@ -349,12 +350,12 @@ static NR_DRB_ToAddModList_t *createDRBlist(gNB_RRC_UE_t *ue, bool reestablish)
   return DRB_configList;
 }
 
-static void freeSRBlist(NR_SRB_ToAddModList_t *l)
+void freeSRBlist(NR_SRB_ToAddModList_t *l)
 {
   ASN_STRUCT_FREE(asn_DEF_NR_SRB_ToAddModList, l);
 }
 
-static void activate_srb(gNB_RRC_UE_t *UE, int srb_id)
+void activate_srb(gNB_RRC_UE_t *UE, int srb_id)
 {
   AssertFatal(srb_id == 1 || srb_id == 2, "handling only SRB 1 or 2\n");
   if (UE->Srb[srb_id].Active == 1) {
@@ -1383,6 +1384,7 @@ static void process_Event_Based_Measurement_Report(gNB_RRC_INST *rrc,
   int servingCellRSRP = 0;
   int neighbourCellRSRP = 0;
   int scell_pci = -1;
+  int best_rsrp = -10000;
 
   switch (event_triggered->eventId.present) {
     case NR_EventTriggerConfig__eventId_PR_eventA2:
@@ -1443,14 +1445,20 @@ static void process_Event_Based_Measurement_Report(gNB_RRC_INST *rrc,
           // No F1 connection but static neighbour configuration is available
           const nr_a3_event_t *a3_event_configuration = get_a3_configuration(rrc, neighbour->physicalCellId);
           // Additional check - This part can be modified according to additional cell specific Handover Margin
+          // a3-Offset: The actual value is field value * 0.5 dB.
           if (a3_event_configuration
-              && ((a3_event_configuration->a3_offset + a3_event_configuration->hysteresis)
+              && ((a3_event_configuration->a3_offset * 0.5 + a3_event_configuration->hysteresis)
                   < (neighbourCellRSRP - servingCellRSRP))) {
+            if (neighbourCellRSRP > best_rsrp) {
+              // UE can send multiple neighbour cells A3 event report in 1 Meas Report. So, we need to find the best neighbour
+              best_rsrp = neighbourCellRSRP;
+              LOG_I(NR_RRC, "HO LOG: Serving Cell RSRP: %d - Best Neighbor RSRP: %d ! Trigger N2 HO\n", servingCellRSRP, best_rsrp);
+              nr_rrc_trigger_n2_ho(rrc, ue, scell_pci, neighbour);
+            }
             LOG_D(NR_RRC, "HO LOG: Trigger N2 HO for the neighbour gnb: %u cell: %lu\n", neighbour->gNB_ID, neighbour->nrcell_id);
           }
         } else if (neigh_cell && neighbour) {
           /* we know the cell and are connected to the DU! */
-          gNB_RRC_INST *rrc = RC.nrrrc[0];
           nr_rrc_du_container_t *source_du = get_du_by_cell_id(rrc, serving_cell->nr_cellid);
           DevAssert(source_du);
           nr_rrc_du_container_t *target_du = get_du_by_cell_id(rrc, neigh_cell->nr_cellid);
@@ -1459,7 +1467,6 @@ static void process_Event_Based_Measurement_Report(gNB_RRC_INST *rrc,
           LOG_W(NR_RRC, "UE %d: received A3 event for stronger neighbor PCI %d, but no such neighbour in configuration\n", ue->rrc_ue_id, neighbour_pci);
         }
       }
-
     } break;
     default:
       LOG_D(NR_RRC, "NR_EventTriggerConfig__eventId_PR_NOTHING or Other event report\n");
@@ -1600,21 +1607,14 @@ static void handle_ueCapabilityInformation(gNB_RRC_INST *rrc, gNB_RRC_UE_t *UE, 
           UE->UE_Capability_nr = 0;
         }
 
-        asn_dec_rval_t dec_rval = uper_decode(NULL,
-                                              &asn_DEF_NR_UE_NR_Capability,
-                                              (void **)&UE->UE_Capability_nr,
-                                              ue_cap_container->ue_CapabilityRAT_Container.buf,
-                                              ue_cap_container->ue_CapabilityRAT_Container.size,
-                                              0,
-                                              0);
-        if (LOG_DEBUGFLAG(DEBUG_ASN1)) {
-          xer_fprint(stdout, &asn_DEF_NR_UE_NR_Capability, UE->UE_Capability_nr);
+        UE->UE_Capability_nr = decode_nr_ue_capability(UE->rnti, ue_CapabilityRAT_ContainerList);
+        if (!UE->UE_Capability_nr) {
+          LOG_E(NR_RRC, "UE %d: NR capability decoding failed\n", UE->rrc_ue_id);
+          return;
         }
 
-        if ((dec_rval.code != RC_OK) && (dec_rval.consumed == 0)) {
-          LOG_E(NR_RRC, "UE %d: Failed to decode nr UE capabilities (%zu bytes)\n", UE->rrc_ue_id, dec_rval.consumed);
-          ASN_STRUCT_FREE(asn_DEF_NR_UE_NR_Capability, UE->UE_Capability_nr);
-          UE->UE_Capability_nr = 0;
+        if (LOG_DEBUGFLAG(DEBUG_ASN1)) {
+          xer_fprint(stdout, &asn_DEF_NR_UE_NR_Capability, UE->UE_Capability_nr);
         }
 
         const NR_RedCapParameters_r17_t *redcap_p = get_redcapparam_r17(UE->UE_Capability_nr);
@@ -2076,9 +2076,28 @@ static void store_du_f1u_tunnel(const f1ap_drb_setup_t *drbs, int n, gNB_RRC_UE_
   }
 }
 
-/* \brief use list of DRBs and send the corresponding bearer update message via
- * E1 to the CU of this UE. Also updates TEID info internally */
-static void e1_send_bearer_updates(gNB_RRC_INST *rrc, gNB_RRC_UE_t *UE, int n, f1ap_drb_setup_t *drbs)
+static void fill_e1_bearer_modif_pdcp_status(gNB_RRC_UE_t *UE,
+                                             DRB_nGRAN_to_mod_t *drb_to_mod,
+                                             const int drb_id,
+                                             const bool um_on_default_drb,
+                                             const ngap_drb_status_t *drb_status)
+{
+  DevAssert(drb_status);
+  drb_to_mod->id = drb_id;
+  drb_to_mod->pdcp_sn_status_requested = false;
+  // PDCP SN Status Information
+  drb_to_mod->pdcp_config = calloc_or_fail(1, sizeof(*drb_to_mod->pdcp_config));
+  set_bearer_context_pdcp_config(drb_to_mod->pdcp_config, get_drb(UE, drb_id), um_on_default_drb);
+  drb_to_mod->pdcp_status = calloc_or_fail(1, sizeof(*drb_to_mod->pdcp_status));
+  drb_to_mod->pdcp_status->dl_count.hfn = drb_status->dl_count.hfn;
+  drb_to_mod->pdcp_status->dl_count.sn = drb_status->dl_count.pdcp_sn;
+  drb_to_mod->pdcp_status->ul_count.hfn = drb_status->ul_count.hfn;
+  drb_to_mod->pdcp_status->ul_count.sn = drb_status->ul_count.pdcp_sn;
+}
+
+/** @brief Fill and send Bearer Context Modification Request with:
+ * (1) from F1 UE Context DRB to setup list, or (2) with PDCP Status Request */
+void e1_send_bearer_updates(gNB_RRC_INST *rrc, gNB_RRC_UE_t *UE, int n, f1ap_drb_setup_t *drbs, const ngap_drb_status_t *drb_status)
 {
   // Quit bearer updates if no CU-UP is associated
   if (!is_cuup_associated(rrc)) {
@@ -2091,20 +2110,37 @@ static void e1_send_bearer_updates(gNB_RRC_INST *rrc, gNB_RRC_UE_t *UE, int n, f
     .gNB_cu_up_ue_id = UE->rrc_ue_id,
   };
 
-  for (int i = 0; i < n; i++) {
-    const f1ap_drb_setup_t *drb_f1 = &drbs[i];
-    rrc_pdu_session_param_t *pdu_ue = find_pduSession_from_drbId(UE, drb_f1->id);
-    if (pdu_ue == NULL) {
-      LOG_E(RRC, "UE %d: UE Context Modif Response: no PDU session for DRB ID %d\n", UE->rrc_ue_id, drb_f1->id);
-      continue;
+  bool is_inter_cu_ho = UE->ho_context && UE->ho_context->source && !UE->ho_context->target;
+  for (int i = 0; i < MAX_DRBS_PER_UE; i++) {
+    int drb_id = i + 1;
+    DRB_nGRAN_to_mod_t drb_to_mod = {0};
+    if (n > 0) {
+      /* DRBs to Setup in F1 UE Context Modifcation Response */
+      if (i == n)
+        break;
+      const f1ap_drb_setup_t *drb_f1 = &drbs[i];
+      drb_id = drb_f1->id;
+      fill_e1_bearer_modif(&drb_to_mod, drb_f1);
+    } else if (is_inter_cu_ho) {
+      /* On-going handover: send PDCP Status Request */
+      if (UE->established_drbs[i].status == DRB_INACTIVE)
+        continue;
+      drb_to_mod.id = drb_id;
+      // PDCP SN Status Request
+      drb_to_mod.pdcp_sn_status_requested = true;
+      LOG_I(NR_RRC, "PDCP Status requested (drb_id=%d)\n", drb_id);
+    } else if (drb_status) {
+      /* On-going handover: send PDCP Status */
+      fill_e1_bearer_modif_pdcp_status(UE, &drb_to_mod, drb_id, rrc->configuration.um_on_default_drb, drb_status);
     }
-    pdu_session_to_mod_t *pdu_e1 = find_or_next_pdu_session(&req, pdu_ue->param.pdusession_id);
-    DevAssert(pdu_e1 != NULL);
-    pdu_e1->sessionId = pdu_ue->param.pdusession_id;
-    DRB_nGRAN_to_mod_t *drb_e1 = &pdu_e1->DRBnGRanModList[pdu_e1->numDRB2Modify];
-    /* Fill E1 bearer context modification */
-    fill_e1_bearer_modif(drb_e1, drb_f1);
-    pdu_e1->numDRB2Modify += 1;
+    rrc_pdu_session_param_t *pdu = find_pduSession_from_drbId(UE, drb_id);
+    if (!pdu)
+      continue;
+    pdu_session_to_mod_t *to_mod = find_or_next_pdu_session(&req, pdu->param.pdusession_id);
+    DevAssert(to_mod);
+    to_mod->sessionId = pdu->param.pdusession_id;
+    // Fill E1 DRB to Modify item
+    to_mod->DRBnGRanModList[to_mod->numDRB2Modify++] = drb_to_mod;
   }
   DevAssert(req.numPDUSessionsMod > 0);
   DevAssert(req.numPDUSessions == 0);
@@ -2169,7 +2205,7 @@ static void rrc_CU_process_ue_context_setup_response(MessageDef *msg_p, instance
     AssertFatal(UE->Srb[1].Active && UE->Srb[2].Active, "SRBs 1 and 2 must be active during DRB Establishment");
     store_du_f1u_tunnel(resp->drbs, resp->drbs_len, UE);
     if (num_drb == 0)
-      e1_send_bearer_updates(rrc, UE, resp->drbs_len, resp->drbs);
+      e1_send_bearer_updates(rrc, UE, resp->drbs_len, resp->drbs, NULL);
     else
       cuup_notify_reestablishment(rrc, UE);
   }
@@ -2300,9 +2336,10 @@ static void rrc_CU_process_ue_context_modification_response(MessageDef *msg_p, i
   }
   gNB_RRC_UE_t *UE = &ue_context_p->ue_context;
 
-  if (resp->drbs_len > 0) {
+  bool is_inter_cu_ho = UE->ho_context && UE->ho_context->source && !UE->ho_context->target;
+  if (resp->drbs_len > 0 || is_inter_cu_ho) {
     store_du_f1u_tunnel(resp->drbs, resp->drbs_len, UE);
-    e1_send_bearer_updates(rrc, UE, resp->drbs_len, resp->drbs);
+    e1_send_bearer_updates(rrc, UE, resp->drbs_len, resp->drbs, NULL);
   }
 
   if (resp->du_to_cu_rrc_info) {
@@ -2550,6 +2587,13 @@ void rrc_gNB_process_e1_bearer_context_setup_resp(e1ap_bearer_setup_resp_t *resp
     }
   }
 
+  // If HO Preparation Info is stored, N2 handover is ongoing
+  if (UE->ho_context) {
+    LOG_I(NR_RRC, "Received Bearer Context Setup Response for UE %d with valid HO Context\n", UE->rrc_ue_id);
+    UE->ho_context->target->ho_trigger(rrc, UE);
+    return;
+  }
+
   if (!UE->f1_ue_context_active)
     rrc_gNB_generate_UeContextSetupRequest(rrc, ue_context_p, resp);
   else
@@ -2578,10 +2622,23 @@ void rrc_gNB_process_e1_bearer_context_modif_resp(const e1ap_bearer_modif_resp_t
     return;
   }
 
-  // there is not really anything to do here as of now
+  int n_drb_mod = 0;
+  e1_pdcp_status_info_t pdcp_status[MAX_DRBS_PER_UE] = {0};
   for (int i = 0; i < resp->numPDUSessionsMod; ++i) {
     const pdu_session_modif_t *pdu = &resp->pduSessionMod[i];
     LOG_I(RRC, "UE %d: PDU session ID %ld modified %d bearers\n", resp->gNB_cu_cp_ue_id, pdu->id, pdu->numDRBModified);
+    for (int  j = 0; j < pdu->numDRBModified; j++) {
+      // Trigger UL RAN Status Transfer
+      if (pdu->DRBnGRanModList[j].pdcp_status) {
+        pdcp_status[n_drb_mod++] = *pdu->DRBnGRanModList[j].pdcp_status;
+      }
+    }
+  }
+  if (n_drb_mod) {
+    LOG_I(NR_RRC, "UE %d: received PDU Status Info - send UL RAN Status Transfer\n", resp->gNB_cu_cp_ue_id);
+    gNB_RRC_UE_t *ue = &ue_context_p->ue_context;
+    if (ue->ho_context && ue->ho_context->source)
+      ue->ho_context->source->ho_status_transfer(rrc, ue, n_drb_mod, pdcp_status);
   }
 }
 
@@ -2819,6 +2876,10 @@ void *rrc_gnb_task(void *args_p) {
         rrc_gNB_process_NGAP_PDUSESSION_RELEASE_COMMAND(msg_p, instance);
         break;
 
+      case NGAP_DL_RAN_STATUS_TRANSFER:
+        rrc_gNB_process_NGAP_DL_RAN_STATUS_TRANSFER(msg_p, instance);
+        break;
+
       /* Messages from F1AP task */
       case F1AP_SETUP_REQ:
         AssertFatal(!NODE_IS_DU(RC.nrrrc[instance]->node_type), "should not receive F1AP_SETUP_REQUEST in DU!\n");
@@ -2936,6 +2997,16 @@ void *rrc_gnb_task(void *args_p) {
 
       case NGAP_PAGING_IND:
         rrc_gNB_process_PAGING_IND(msg_p, instance);
+        break;
+
+      case NGAP_HANDOVER_REQUEST:
+        rrc_gNB_process_Handover_Request(RC.nrrrc[instance], instance, &NGAP_HANDOVER_REQUEST(msg_p));
+        rrc_gNB_free_Handover_Request(&NGAP_HANDOVER_REQUEST(msg_p)); // Free transfered NG message
+        break;
+
+      case NGAP_HANDOVER_COMMAND:
+        rrc_gNB_process_HandoverCommand(RC.nrrrc[instance], &NGAP_HANDOVER_COMMAND(msg_p));
+        rrc_gNB_free_Handover_Command(&NGAP_HANDOVER_COMMAND(msg_p)); // Free transfered NG message
         break;
 
       default:

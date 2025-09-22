@@ -979,18 +979,24 @@ void nr_ue_csi_rs_procedures(PHY_VARS_NR_UE *ue,
   }
 
   // Send CSI measurements to MAC
-  fapi_nr_csirs_measurements_t csirs_measurements;
-  csirs_measurements.rsrp = rsrp;
-  csirs_measurements.rsrp_dBm = rsrp_dBm;
-  csirs_measurements.rank_indicator = rank_indicator;
-  csirs_measurements.i1 = *i1;
-  csirs_measurements.i2 = *i2;
-  csirs_measurements.cqi = cqi;
-  csirs_measurements.radiolink_monitoring = RLM_no_monitoring; // TODO do be activated in case of RLM based on CSI-RS
+  if (!ue->if_inst || !ue->if_inst->dl_indication)
+    return;
+
+  fapi_nr_l1_measurements_t l1_measurements = {
+    .gNB_index = proc->gNB_id,
+    .meas_type = NFAPI_NR_CSI_MEAS,
+    .Nid_cell = frame_parms->Nid_cell,
+    .is_neighboring_cell = false,
+    .rsrp_dBm = BOUNDED_EVAL(16, rsrp_dBm + 157, 113), // TS 38.133 - Table 10.1.6.1-1
+    .rank_indicator = rank_indicator,
+    .i1 = *i1,
+    .i2 = *i2,
+    .cqi = cqi,
+    .radiolink_monitoring = RLM_no_monitoring, // TODO do be activated in case of RLM based on CSI-RS
+  };
   nr_downlink_indication_t dl_indication;
   fapi_nr_rx_indication_t rx_ind = {0};
   nr_fill_dl_indication(&dl_indication, NULL, &rx_ind, proc, ue, NULL);
-  nr_fill_rx_indication(&rx_ind, FAPI_NR_CSIRS_IND, ue, NULL, NULL, 1, proc, (void *)&csirs_measurements, NULL);
-  if (ue->if_inst && ue->if_inst->dl_indication)
-    ue->if_inst->dl_indication(&dl_indication);
+  nr_fill_rx_indication(&rx_ind, FAPI_NR_MEAS_IND, ue, NULL, NULL, 1, proc, (void *)&l1_measurements, NULL);
+  ue->if_inst->dl_indication(&dl_indication);
 }

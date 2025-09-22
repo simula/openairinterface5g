@@ -363,6 +363,7 @@ add_library(ngap
   ${NGAP_DIR}/ngap_gNB.c
   ${NGAP_DIR}/ngap_common.c
   ${NGAP_DIR}/ngap_gNB_context_management_procedures.c
+  ${NGAP_DIR}/ngap_gNB_mobility_management.c
   ${NGAP_DIR}/ngap_gNB_decoder.c
   ${NGAP_DIR}/ngap_gNB_encoder.c
   ${NGAP_DIR}/ngap_gNB_handlers.c

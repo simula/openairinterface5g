@@ -42,8 +42,7 @@
 #include "openair2/E2AP/RAN_FUNCTION/O-RAN/ran_func_rc_extern.h"
 #endif
 
-typedef enum { HO_CTX_BOTH, HO_CTX_SOURCE, HO_CTX_TARGET } ho_ctx_type_t;
-static nr_handover_context_t *alloc_ho_ctx(ho_ctx_type_t type)
+nr_handover_context_t *alloc_ho_ctx(ho_ctx_type_t type)
 {
   nr_handover_context_t *ho_ctx = calloc_or_fail(1, sizeof(*ho_ctx));
   if (type == HO_CTX_SOURCE || type == HO_CTX_BOTH) {
@@ -58,6 +57,8 @@ static nr_handover_context_t *alloc_ho_ctx(ho_ctx_type_t type)
 static void free_ho_ctx(nr_handover_context_t *ho_ctx)
 {
   free(ho_ctx->source);
+  if (ho_ctx->target)
+    FREE_AND_ZERO_BYTE_ARRAY(ho_ctx->target->ue_ho_prep_info);
   free(ho_ctx->target);
   free(ho_ctx);
 }
@@ -121,18 +122,16 @@ static void nr_initiate_handover(const gNB_RRC_INST *rrc,
                                  byte_array_t *ho_prep_info,
                                  ho_req_ack_t ack,
                                  ho_success_t success,
-                                 ho_cancel_t cancel)
+                                 ho_cancel_t cancel,
+                                 ho_failure_t failure)
 {
   DevAssert(rrc != NULL);
   DevAssert(ue != NULL);
   DevAssert(target_du != NULL);
   // source_du might be NULL -> inter-CU handover
   DevAssert(ho_prep_info->buf != NULL && ho_prep_info->len > 0);
+  DevAssert(ue->ho_context);
 
-  if (ue->ho_context != NULL) {
-    LOG_E(NR_RRC, "handover for UE %u ongoing, cannot trigger new\n", ue->rrc_ue_id);
-    return;
-  }
   // if any reconfiguration is ongoing, abort handover request
   for (int i = 0; i < NR_RRC_TRANSACTION_IDENTIFIER_NUMBER; ++i) {
     if (ue->xids[i] != RRC_ACTION_NONE) {
@@ -141,15 +140,13 @@ static void nr_initiate_handover(const gNB_RRC_INST *rrc,
     }
   }
 
-  // if we know the source DU (F1 handover), allocate the context for it,
-  // otherwise only for the target DU (N2, Xn)
-  ho_ctx_type_t ctx_type = source_du != NULL ? HO_CTX_BOTH : HO_CTX_TARGET;
-  nr_handover_context_t *ho_ctx = alloc_ho_ctx(ctx_type);
+  nr_handover_context_t *ho_ctx = ue->ho_context;
   ho_ctx->target->du = target_du;
   // we will know target->{du_ue_id,new_rnti} once we have UE ctxt setup
   // response
   ho_ctx->target->ho_req_ack = ack;
   ho_ctx->target->ho_success = success;
+  ho_ctx->target->ho_failure = failure;
 
   const f1_ue_data_t ue_data = cu_get_f1_ue_data(ue->rrc_ue_id);
   if (source_du != NULL) {
@@ -164,7 +161,7 @@ static void nr_initiate_handover(const gNB_RRC_INST *rrc,
     int result = asn_copy(&asn_DEF_NR_CellGroupConfig, (void **)&ho_ctx->source->old_cellGroupConfig, ue->masterCellGroup);
     AssertFatal(result == 0, "error during asn_copy() of CellGroupConfig\n");
   }
-  ue->ho_context = ho_ctx;
+
   LOG_A(NR_RRC,
         "Handover triggered for UE %u/RNTI %04x towards DU %ld/assoc_id %d/PCI %d\n",
         ue->rrc_ue_id,
@@ -222,27 +219,12 @@ static void nr_initiate_handover(const gNB_RRC_INST *rrc,
   free_ue_context_setup_req(&ue_context_setup_req);
 }
 
-/*
-void nr_rrc_trigger_n2_ho(gNB_RRC_INST *rrc, int nr_cgi, uint8_t *ho_prep_info, uint32_t *ho_prep_len, void *pdu_session)
-{
-  // call from outside (via NGAP message), with the request for handover for a
-  // (any) UE. This handler should, in order:
-  //
-  // 1. look up the target DU =du= via get_du_by_cell_id(nr_cgi)
-  //    (and reject the request if it can't find the DU)
-  // 2. create a context for a new UE =UE=, based on pdu_session information
-  // 3. call nr_initiate_handover(rrc, UE, NULL, du, ho_prep_info, ho_prep_len);
-  //
-  // after success of the DU, send the result via =success_ptr= to the source
-  // CU.
-}
-*/
-
 typedef struct deliver_ue_ctxt_modification_data_t {
   gNB_RRC_INST *rrc;
   f1ap_ue_context_mod_req_t *modification_req;
   sctp_assoc_t assoc_id;
 } deliver_ue_ctxt_modification_data_t;
+
 static void rrc_deliver_ue_ctxt_modif_req(void *deliver_pdu_data, ue_id_t ue_id, int srb_id, char *buf, int size, int sdu_id)
 {
   DevAssert(deliver_pdu_data != NULL);
@@ -251,7 +233,8 @@ static void rrc_deliver_ue_ctxt_modif_req(void *deliver_pdu_data, ue_id_t ue_id,
   data->modification_req->rrc_container = &ba;
   data->rrc->mac_rrc.ue_context_modification_request(data->assoc_id, data->modification_req);
 }
-static void rrc_gNB_trigger_reconfiguration_for_handover(gNB_RRC_INST *rrc, gNB_RRC_UE_t *ue, uint8_t *rrc_reconf, int rrc_reconf_len)
+
+void rrc_gNB_trigger_reconfiguration_for_handover(gNB_RRC_INST *rrc, gNB_RRC_UE_t *ue, uint8_t *rrc_reconf, int rrc_reconf_len)
 {
   f1_ue_data_t ue_data = cu_get_f1_ue_data(ue->rrc_ue_id);
 
@@ -355,6 +338,13 @@ void nr_rrc_trigger_f1_ho(gNB_RRC_INST *rrc, gNB_RRC_UE_t *ue, nr_rrc_du_contain
   uint8_t buf[NR_RRC_BUF_SIZE];
   int size = do_NR_HandoverPreparationInformation(ue->ue_cap_buffer.buf, ue->ue_cap_buffer.len, buf, sizeof buf);
 
+  // Allocate handover context (both CU and DU)
+  if (ue->ho_context != NULL) {
+    LOG_E(NR_RRC, "Ongoing handover for UE %d, cannot trigger new\n", ue->rrc_ue_id);
+    return;
+  }
+  ue->ho_context = alloc_ho_ctx(HO_CTX_BOTH);
+
   // corresponds to a "handover request", 38.300 Sec 9.3.2.3
   // see also 38.413 Sec 9.3.1.29 for information on source-CU to target-CU
   // information (Source NG-RAN Node to Target NG-RAN Node Transparent Container)
@@ -365,7 +355,7 @@ void nr_rrc_trigger_f1_ho(gNB_RRC_INST *rrc, gNB_RRC_UE_t *ue, nr_rrc_du_contain
   ho_success_t success = nr_rrc_f1_ho_complete;
   ho_cancel_t cancel = nr_rrc_cancel_f1_ho;
   byte_array_t hpi = {.buf = buf, .len = size};
-  nr_initiate_handover(rrc, ue, source_du, target_du, &hpi, ack, success, cancel);
+  nr_initiate_handover(rrc, ue, source_du, target_du, &hpi, ack, success, cancel, NULL);
 }
 
 void nr_rrc_finalize_ho(gNB_RRC_UE_t *ue)
@@ -398,4 +388,225 @@ void nr_HO_F1_trigger_telnet(gNB_RRC_INST *rrc, uint32_t rrc_ue_id)
   }
 
   nr_rrc_trigger_f1_ho(rrc, ue, source_du, target_du);
+}
+
+/** @brief Generate the HandoverPreparationInformation to be carried
+ * in the RRC Container (9.3.1.29 of 3GPP TS 38.413) of the Source
+ * NG-RAN Node to Target NG-RAN Node Transparent Container IE */
+static byte_array_t rrc_gNB_generate_HandoverPreparationInformation(gNB_RRC_INST *rrc, gNB_RRC_UE_t *ue, int serving_pci)
+{
+  nr_rrc_reconfig_param_t params = get_RRCReconfiguration_params(rrc, ue, 0, false);
+  params.ue_cap = ue->ue_cap_buffer;
+
+  byte_array_t hoPrepInfo = get_HandoverPreparationInformation(&params, serving_pci);
+  free_RRCReconfiguration_params(params);
+
+  if (hoPrepInfo.len < 0) {
+    LOG_E(NR_RRC, "HandoverPreparationInformation generation failed for UE %d\n", ue->rrc_ue_id);
+    return hoPrepInfo;
+  }
+
+  LOG_D(NR_RRC, "HO LOG: Handover Preparation for UE %lu Encoded (%zd bytes)\n", ue->amf_ue_ngap_id, hoPrepInfo.len);
+
+  return hoPrepInfo;
+}
+
+static byte_array_t rrc_gNB_encode_HandoverCommand(gNB_RRC_UE_t *UE, gNB_RRC_INST *rrc)
+{
+  DevAssert(UE->ho_context);
+  DevAssert(UE->ho_context->target);
+
+  NR_SecurityConfig_t *sec = calloc_or_fail(1, sizeof(*sec));
+  sec->keyToUse = calloc_or_fail(1, sizeof(*sec->keyToUse));
+  *sec->keyToUse = NR_SecurityConfig__keyToUse_master;
+  sec->securityAlgorithmConfig = calloc_or_fail(1, sizeof(*sec->securityAlgorithmConfig));
+  struct NR_SecurityAlgorithmConfig *alg = sec->securityAlgorithmConfig;
+  alg->cipheringAlgorithm = UE->ciphering_algorithm;
+  alg->integrityProtAlgorithm = calloc_or_fail(1, sizeof(*alg->integrityProtAlgorithm));
+  *alg->integrityProtAlgorithm = UE->integrity_algorithm;
+
+  // Mark source gNB's measurement configuration for removal in UE->measConfig
+  if (UE->ho_context->target->ue_ho_prep_info.len) {
+    fill_removal_lists_from_source_measConfig(UE->measConfig, UE->ho_context->target->ue_ho_prep_info);
+  }
+
+  /* 3GPP TS 38.331 RadioBearerConfig: re-establish PDCP whenever
+  the security key used for this radio bearer changes, e.g. for SRB2
+  when receiving reconfiguration with sync [...]. Similarly, for DRBs
+  PDCP re-establishment is necessary with derivation of new UP keys */
+  nr_rrc_reconfig_param_t params = get_RRCReconfiguration_params(rrc, UE, (1 << 1) | (1 << 2), true);
+  UE->xids[params.transaction_id] = RRC_DEDICATED_RECONF;
+
+  params.security_config = sec;
+  params.masterKeyUpdate = true;
+  params.nextHopChainingCount = UE->nh_ncc;
+  byte_array_t out = get_HandoverCommandMessage(&params);
+
+  // Free remove lists in UE->measConfig
+  ASN_STRUCT_FREE(asn_DEF_NR_MeasIdToRemoveList, UE->measConfig->measIdToRemoveList);
+  ASN_STRUCT_FREE(asn_DEF_NR_ReportConfigToRemoveList, UE->measConfig->reportConfigToRemoveList);
+  ASN_STRUCT_FREE(asn_DEF_NR_MeasObjectToRemoveList, UE->measConfig->measObjectToRemoveList);
+
+  free_RRCReconfiguration_params(params);
+  return out;
+}
+
+/** @brief This callback is used by the target gNB
+ *         to trigger the Handover Request Acknowledge towards the AMF */
+static void nr_rrc_n2_ho_acknowledge(gNB_RRC_INST *rrc, gNB_RRC_UE_t *UE)
+{
+  AssertFatal(cu_exists_f1_ue_data(UE->rrc_ue_id), "No CU found for rrc_ue_id %d\n", UE->rrc_ue_id);
+
+  f1_ue_data_t previous_data = cu_get_f1_ue_data(UE->rrc_ue_id);
+  /* this is the callback for N2 handover after F1 UE context setup response in
+   * the handover case. Check that there was no associated DU, then set it */
+  AssertFatal(previous_data.secondary_ue == -1, "there was already a DU present\n");
+  previous_data.secondary_ue = UE->ho_context->target->du_ue_id;
+  bool success = cu_update_f1_ue_data(UE->rrc_ue_id, &previous_data);
+  DevAssert(success);
+  LOG_I(NR_RRC, "Updated CU F1AP Context for UE %d, DU Id : %u\n", UE->rrc_ue_id, UE->ho_context->target->du_ue_id);
+
+  byte_array_t hoCommand = rrc_gNB_encode_HandoverCommand(UE, rrc);
+  if (hoCommand.len < 0) {
+    LOG_E(NR_RRC, "ASN1 message encoding failed: failed to generate Handover Command Message\n");
+    ngap_handover_failure_t fail = {.amf_ue_ngap_id = UE->amf_ue_ngap_id,
+                                    .cause.type = NGAP_CAUSE_RADIO_NETWORK,
+                                    .cause.value = NGAP_CAUSE_RADIO_NETWORK_HO_FAILURE_IN_TARGET_5GC_NGRAN_NODE_OR_TARGET_SYSTEM};
+    UE->ho_context->target->ho_failure(rrc, UE->rrc_ue_id, &fail);
+    return;
+  } else {
+    LOG_D(NR_RRC, "HO LOG: Handover Command for UE %u Encoded (%ld bytes)\n", UE->rrc_ue_id, hoCommand.len);
+  }
+
+  rrc_gNB_send_NGAP_HANDOVER_REQUEST_ACKNOWLEDGE(rrc, UE, hoCommand);
+  free_byte_array(hoCommand);
+}
+
+/** @brief This callback is used by the target gNB
+ *         to trigger the Handover Notify towards the AMF */
+static void nr_rrc_n2_ho_complete(gNB_RRC_INST *rrc, gNB_RRC_UE_t *UE)
+{
+  rrc_gNB_send_NGAP_HANDOVER_NOTIFY(rrc, UE);
+}
+
+/** @brief This callback is used by the source gNB to inform the AMF
+ *         about the cancellation of an ongoing handover */
+static void nr_rrc_n2_ho_cancel(gNB_RRC_INST *rrc, gNB_RRC_UE_t *UE)
+{
+  DevAssert(UE->ho_context);
+  DevAssert(UE->ho_context->source);
+  ngap_cause_t cause = {.type = NGAP_CAUSE_RADIO_NETWORK, .value = NGAP_CAUSE_RADIO_NETWORK_HANDOVER_CANCELLED};
+  rrc_gNB_send_NGAP_HANDOVER_CANCEL(rrc->module_id, UE, cause);
+}
+
+/** @brief Callback function to trigger NG Handover Failure on the target gNB, to inform the AMF
+ * that the preparation of resources has failed (e.g. unsatisfied criteria, gNB is already loaded).
+ * This message represents an Unsuccessful Outcome of the Handover Resource Allocation */
+void nr_rrc_n2_ho_failure(gNB_RRC_INST *rrc, uint32_t gnb_ue_id, ngap_handover_failure_t *msg)
+{
+  LOG_I(NR_RRC, "Triggering N2 Handover Failure\n");
+  rrc_gNB_send_NGAP_HANDOVER_FAILURE(rrc, msg);
+  LOG_I(NR_RRC, "Send UE Context Release for gnb_ue_id %d\n", gnb_ue_id);
+  rrc_gNB_ue_context_t *ue_context_p = rrc_gNB_get_ue_context(rrc, gnb_ue_id);
+  rrc_gNB_send_NGAP_UE_CONTEXT_RELEASE_REQ(rrc->module_id, ue_context_p, msg->cause);
+  return;
+}
+
+/** @brief Trigger N2 Handover on the target gNB:
+ *         1) set up callbacks
+ *         2) initiate N2 handover on target NG-RAN, which triggers the set up
+ *            of HO context and UE Context Setup procedures */
+void nr_rrc_trigger_n2_ho_target(gNB_RRC_INST *rrc, gNB_RRC_UE_t *ue)
+{
+  ho_req_ack_t ack = nr_rrc_n2_ho_acknowledge;
+  ho_success_t success = nr_rrc_n2_ho_complete;
+  ho_failure_t failure = nr_rrc_n2_ho_failure;
+
+  const nr_rrc_du_container_t *target_du = get_du_for_ue(rrc, ue->rrc_ue_id);
+  nr_initiate_handover(rrc, ue, NULL, target_du, &ue->ho_context->target->ue_ho_prep_info, ack, success, NULL, failure);
+  FREE_AND_ZERO_BYTE_ARRAY(ue->ho_context->target->ue_ho_prep_info);
+
+  NR_UE_NR_Capability_t *ue_cap = get_ue_nr_capability(ue->rnti, ue->ue_cap_buffer.buf, ue->ue_cap_buffer.len);
+  ue->UE_Capability_nr = ue_cap;
+  ue->UE_Capability_size = ue->ue_cap_buffer.len;
+
+}
+
+/** @brief Trigger N2 handover on source gNB:
+ *         1) Prepare RRC Container with HandoverPreparationInformation message
+ *         2) send NGAP Handover Required message */
+void nr_rrc_trigger_n2_ho(gNB_RRC_INST *rrc,
+                          gNB_RRC_UE_t *ue,
+                          int serving_pci,
+                          const nr_neighbour_cell_t *neighbour_config)
+{
+  byte_array_t hoPrepInfo = rrc_gNB_generate_HandoverPreparationInformation(rrc, ue, serving_pci);
+  if (hoPrepInfo.len < 0) {
+    free_byte_array(hoPrepInfo);
+    LOG_E(NR_RRC, "Failed to trigger N2 handover on source gNB for UE %x\n", ue->rrc_ue_id);
+    return;
+  }
+
+  // allocate context for source
+  if (ue->ho_context != NULL) {
+    LOG_E(NR_RRC, "Ongoing handover for UE %d, cannot trigger new\n", ue->rrc_ue_id);
+    return;
+  }
+
+  ue->ho_context = alloc_ho_ctx(HO_CTX_SOURCE);
+  ue->ho_context->source->du = get_du_for_ue(rrc, ue->rrc_ue_id);
+  ue->ho_context->source->ho_status_transfer = rrc_gNB_send_NGAP_ul_ran_status_transfer;
+  ue->ho_context->source->ho_cancel = nr_rrc_n2_ho_cancel;
+
+  rrc_gNB_send_NGAP_HANDOVER_REQUIRED(rrc, ue, neighbour_config, hoPrepInfo);
+  free_byte_array(hoPrepInfo);
+}
+
+extern const nr_neighbour_cell_t *get_neighbour_cell_by_pci(const neighbour_cell_configuration_t *cell, int pci);
+extern const neighbour_cell_configuration_t *get_neighbour_cell_config(const gNB_RRC_INST *rrc, int cell_id);
+
+void nr_HO_N2_trigger_telnet(gNB_RRC_INST *rrc, uint32_t neighbour_pci, uint32_t rrc_ue_id)
+{
+  rrc_gNB_ue_context_t *ue_context_p = rrc_gNB_get_ue_context(rrc, rrc_ue_id);
+  if (ue_context_p == NULL) {
+    LOG_E(NR_RRC, "N2 HO trigger failed for UE %d: cannot find UE context\n", rrc_ue_id);
+    return;
+  }
+  gNB_RRC_UE_t *UE = &ue_context_p->ue_context;
+
+  struct nr_rrc_du_container_t *du = get_du_for_ue(rrc, rrc_ue_id);
+  if (du == NULL) {
+    LOG_E(NR_RRC, "N2 HO trigger failed for UE %d: Unknown DU\n", rrc_ue_id);
+    return;
+  }
+  uint16_t scell_pci = du->setup_req->cell[0].info.nr_pci;
+
+  // Simulate handover on the same cell (testing purposes)
+  if (neighbour_pci == scell_pci) {
+    LOG_I(NR_RRC, "UE %d: trigger handover on the same cell PCI=%d\n", rrc_ue_id, neighbour_pci);
+    nr_neighbour_cell_t neighbourConfig = {
+        .isIntraFrequencyNeighbour = true,
+        .gNB_ID = du->setup_req->gNB_DU_id,
+        .nrcell_id = du->setup_req->cell[0].info.nr_cellid,
+        .physicalCellId = du->setup_req->cell[0].info.nr_pci,
+        .plmn = du->setup_req->cell[0].info.plmn,
+        .subcarrierSpacing = du->setup_req->cell[0].info.tdd.tbw.scs,
+    };
+    nr_rrc_trigger_n2_ho(rrc, UE, neighbour_pci, &neighbourConfig);
+    return;
+  }
+
+  const f1ap_served_cell_info_t *scell_du = get_cell_information_by_phycellId(scell_pci);
+  DevAssert(scell_du);
+  LOG_I(NR_RRC, "UE %d: triggered N2 HO, source PCI=%d to target PCI=%d\n", rrc_ue_id, scell_pci, neighbour_pci);
+
+  const neighbour_cell_configuration_t *cell = get_neighbour_cell_config(rrc, scell_du->nr_cellid);
+  const nr_neighbour_cell_t *neighbour = get_neighbour_cell_by_pci(cell, neighbour_pci);
+
+  if (neighbour == NULL) {
+    LOG_E(NR_RRC, "N2 HO trigger failed for UE %d: could not find neighbour cell with PCI=%d\n", rrc_ue_id, neighbour_pci);
+    return;
+  }
+
+  nr_rrc_trigger_n2_ho(rrc, UE, scell_du->nr_pci, neighbour);
 }

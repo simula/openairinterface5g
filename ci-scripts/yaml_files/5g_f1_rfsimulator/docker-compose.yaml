@@ -100,7 +100,6 @@ services:
             - SYS_NICE
         environment: 
             USE_ADDITIONAL_OPTIONS: --log_config.global_log_options level,nocolor,time
-                                    --rfsimulator.options chanmod
                                     --gNBs.[0].remote_s_address 0.0.0.0
                                     --telnetsrv --telnetsrv.listenaddr 192.168.71.150
                                     --telnetsrv.shrmod ci
@@ -111,6 +110,7 @@ services:
             public_net:
                 ipv4_address: 192.168.71.150
         volumes:
+          - ../../conf_files/neighbour-config.conf:/opt/oai-gnb/etc/neighbour-config.conf
           - ../../conf_files/gnb-cu.sa.band78.106prb.conf:/opt/oai-gnb/etc/gnb.conf
         healthcheck:
             test: /bin/bash -c "pgrep nr-softmodem"

@@ -291,6 +291,32 @@ void e1_bearer_context_modif(const e1ap_bearer_mod_req_t *req)
                                 &security_parameters);
       }
 
+      // PDCP Status Information requested
+      if (to_modif->pdcp_sn_status_requested) {
+        modified->pdcp_status = malloc_or_fail(sizeof(*modified->pdcp_status));
+        nr_pdcp_count_t dl_count = {0};
+        nr_pdcp_count_t ul_count = {0};
+        nr_pdcp_get_drb_count_values(req->gNB_cu_cp_ue_id, to_modif->id, &ul_count, &dl_count);
+        modified->pdcp_status->dl_count.hfn = dl_count.hfn;
+        modified->pdcp_status->dl_count.sn = dl_count.sn;
+        modified->pdcp_status->ul_count.hfn = ul_count.hfn;
+        modified->pdcp_status->ul_count.sn = ul_count.sn;
+      }
+
+      // PDCP Status received (from source CU-UP)
+      if (to_modif->pdcp_status) {
+        DevAssert(to_modif->pdcp_config);
+        DevAssert(to_modif->pdcp_config->pDCP_SN_Size_DL == to_modif->pdcp_config->pDCP_SN_Size_UL);
+        bool is_sn_len_18 = to_modif->pdcp_config->pDCP_SN_Size_DL == NR_PDCP_Config__drb__pdcp_SN_SizeDL_len18bits;
+        nr_pdcp_count_t dl_count = { .hfn = to_modif->pdcp_status->dl_count.hfn, .sn = to_modif->pdcp_status->dl_count.sn};
+        nr_pdcp_count_t ul_count = { .hfn = to_modif->pdcp_status->ul_count.hfn, .sn = to_modif->pdcp_status->ul_count.sn};
+        nr_pdcp_count_update(req->gNB_cu_cp_ue_id,
+                             to_modif->id,
+                             dl_count,
+                             ul_count,
+                             is_sn_len_18 ? LONG_SN_SIZE : SHORT_SN_SIZE);
+      }
+
       if (f1inst < 0) // no F1-U?
         continue; // nothing to do
 
@@ -300,6 +326,7 @@ void e1_bearer_context_modif(const e1ap_bearer_mod_req_t *req)
         in_addr_t addr = to_modif->DlUpParamList[k].tl_info.tlAddress;
         GtpuUpdateTunnelOutgoingAddressAndTeid(f1inst, req->gNB_cu_cp_ue_id, to_modif->id, addr, to_modif->DlUpParamList[k].tl_info.teId);
       }
+
     }
   }
 

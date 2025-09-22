@@ -3461,11 +3461,10 @@ void nr_measgap_scheduling(gNB_MAC_INST *nr_mac, frame_t frame, sub_frame_t slot
       continue;
 
     NR_timer_t *t = &UE->UE_sched_ctrl.transm_interrupt;
-    interrupt_followup_action_t a = nr_timer_is_active(t) ? UE->interrupt_action : FOLLOW_INSYNC;
     // start a timer to stop scheduling UE during MeasGap, or extend timer for
     // duration of measGap with existing follow-up action
     if (!nr_timer_is_active(t) || nr_timer_remaining_time(t) < mgc->mgl_slots) {
-      nr_mac_interrupt_ue_transmission(nr_mac, UE, a, mgc->mgl_slots);
+      nr_mac_interrupt_ue_transmission(nr_mac, UE, mgc->mgl_slots);
     }
   }
 }
@@ -3549,7 +3548,7 @@ int nr_mac_get_reconfig_delay_slots(NR_SubcarrierSpacing_t scs)
   return (delay_ms << scs) + sl_ahead;
 }
 
-int nr_mac_interrupt_ue_transmission(gNB_MAC_INST *mac, NR_UE_info_t *UE, interrupt_followup_action_t action, int slots)
+int nr_mac_interrupt_ue_transmission(gNB_MAC_INST *mac, NR_UE_info_t *UE, int slots)
 {
   DevAssert(mac != NULL);
   DevAssert(UE != NULL);
@@ -3557,7 +3556,6 @@ int nr_mac_interrupt_ue_transmission(gNB_MAC_INST *mac, NR_UE_info_t *UE, interr
 
   nr_timer_setup(&UE->UE_sched_ctrl.transm_interrupt, slots, 1);
   nr_timer_start(&UE->UE_sched_ctrl.transm_interrupt);
-  UE->interrupt_action = action;
 
   // it might happen that timing advance command should be sent during the UE
   // inactivity time. To prevent this, set a variable as if we would have just
@@ -3565,14 +3563,27 @@ int nr_mac_interrupt_ue_transmission(gNB_MAC_INST *mac, NR_UE_info_t *UE, interr
   // frames, after the inactivity of the UE.
   UE->UE_sched_ctrl.ta_frame = (mac->frame - 1 + 1024) % 1024;
 
-  LOG_D(NR_MAC, "UE %04x: Interrupt UE transmission (%d slots) action %d\n", UE->rnti, slots, UE->interrupt_action);
+  LOG_D(NR_MAC, "UE %04x: Interrupt UE transmission (%d slots)\n", UE->rnti, slots);
   return 0;
+}
+
+static void nr_mac_ue_transmission_timeout(gNB_MAC_INST *mac, NR_UE_info_t *UE, int slots)
+{
+  DevAssert(mac != NULL);
+  DevAssert(UE != NULL);
+  NR_SCHED_ENSURE_LOCKED(&mac->sched_lock);
+
+  nr_timer_setup(&UE->UE_sched_ctrl.transm_timeout, slots, 1);
+  nr_timer_start(&UE->UE_sched_ctrl.transm_timeout);
+
+  LOG_I(NR_MAC, "UE %04x: Timeout for UE transmission (%d slots)\n", UE->rnti, slots);
+  return;
 }
 
 int nr_transmission_action_indicator_stop(gNB_MAC_INST *mac, NR_UE_info_t *UE_info)
 {
   int delay = nr_mac_get_reconfig_delay_slots(UE_info->current_DL_BWP.scs);
-  nr_mac_interrupt_ue_transmission(mac, UE_info, FOLLOW_OUTOFSYNC, delay);
+  nr_mac_ue_transmission_timeout(mac, UE_info, delay);
   LOG_I(NR_MAC, "gNB-DU received the TransmissionActionIndicator with Stop value for UE %04x\n", UE_info->rnti);
   return 0;
 }
@@ -3641,9 +3652,11 @@ void nr_mac_update_timers(module_id_t module_id, frame_t frame, slot_t slot)
     if (nr_timer_tick(&sched_ctrl->transm_interrupt)) {
       /* expired */
       nr_timer_stop(&sched_ctrl->transm_interrupt);
-      if (UE->interrupt_action == FOLLOW_OUTOFSYNC)
-        nr_mac_trigger_ul_failure(sched_ctrl, UE->current_DL_BWP.scs);
-      /* else: default FOLLOW_INSYNC: nothing to do (UE is now active again) */
+    }
+    if (nr_timer_tick(&sched_ctrl->transm_timeout)) {
+      nr_timer_stop(&sched_ctrl->transm_timeout);
+      LOG_W(NR_MAC, "UE %04x UL failure after transmission timeout\n", UE->rnti);
+      nr_mac_trigger_ul_failure(sched_ctrl, UE->current_DL_BWP.scs);
     }
   }
 }

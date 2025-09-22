@@ -113,7 +113,7 @@ information on how the images are built.
 - [RAN-Ubuntu18-Image-Builder](https://jenkins-oai.eurecom.fr/job/RAN-Ubuntu18-Image-Builder/)
   ~BUILD-ONLY ~4G-LTE ~5G-NR ~nrUE
   - run formatting check from `ci-scripts/docker/Dockerfile.formatting.ubuntu`
-  - obelix: Ubuntu 22 image build using docker (Note: builds U22 images while pipeline is named U18!)
+  - obelix: Ubuntu image build using docker (Note: builds Ubuntu images of newer version while pipeline is named U18!)
   - base image from `Dockerfile.base.ubuntu`
   - build image from `Dockerfile.build.ubuntu`, followed by
     - target image from `Dockerfile.eNB.ubuntu`
@@ -128,13 +128,21 @@ information on how the images are built.
   - build unit tests from `ci-scripts/docker/Dockerfile.unittest.ubuntu`, and run them
 - [RAN-Ubuntu-ARM-Image-Builder](https://jenkins-oai.eurecom.fr/job/RAN-Ubuntu-ARM-Image-Builder/)
   ~BUILD-ONLY ~4G-LTE ~5G-NR
-  - gracehopper3-oai: ARM Ubuntu 22 image build using docker
+  - gracehopper3-oai: ARM Ubuntu image build using docker
   - base image from `Dockerfile.base.ubuntu`
   - build image from `Dockerfile.build.ubuntu`, followed by
     - target image from `Dockerfile.gNB.ubuntu`
     - target image from `Dockerfile.nr-cuup.ubuntu`
     - target image from `Dockerfile.nrUE.ubuntu`
     - target image from `Dockerfile.gNB.aerial.ubuntu`
+- [RAN-Ubuntu-Jetson-Image-Builder](https://jenkins-oai.eurecom.fr/job/RAN-Ubuntu-Jetson-Image-Builder/)
+  ~BUILD-ONLY ~4G-LTE ~5G-NR
+  - jetson3-oai: ARMv8 Ubuntu image build using docker
+  - base image from `Dockerfile.base.ubuntu`
+  - build image from `Dockerfile.build.ubuntu`, followed by
+    - target image from `Dockerfile.gNB.ubuntu`
+    - target image from `Dockerfile.nr-cuup.ubuntu`
+    - target image from `Dockerfile.nrUE.ubuntu`
 
 #### Image Test pipelines
 

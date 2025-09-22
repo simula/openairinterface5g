@@ -122,6 +122,36 @@ void nr_rrc_SI_timers(NR_UE_RRC_SI_INFO *SInfo)
   }
 }
 
+void handle_meas_timers(NR_UE_RRC_INST_t *rrc)
+{
+  for (int i = 0; i < NB_CNX_UE; i++) {
+    rrcPerNB_t *nb = &rrc->perNB[i];
+    l3_measurements_t *l3_measurements = &nb->l3_measurements;
+
+    bool ta2_expired = nr_timer_tick(&l3_measurements->TA2);
+    if (ta2_expired && l3_measurements->trigger_quantity > 0) {
+      rrc_ue_generate_measurementReport(nb, rrc->ue_id);
+      l3_measurements->reports_sent = 1;
+
+      if (l3_measurements->reports_sent < l3_measurements->max_reports) {
+        nr_timer_setup(&l3_measurements->periodic_report_timer, l3_measurements->report_interval_ms, 10);
+        nr_timer_start(&l3_measurements->periodic_report_timer);
+      }
+    }
+
+    bool periodic_expired = nr_timer_tick(&l3_measurements->periodic_report_timer);
+    if (periodic_expired && l3_measurements->reports_sent < l3_measurements->max_reports) {
+      rrc_ue_generate_measurementReport(nb, rrc->ue_id);
+      l3_measurements->reports_sent++;
+
+      if (l3_measurements->reports_sent < l3_measurements->max_reports) {
+        nr_timer_setup(&l3_measurements->periodic_report_timer, l3_measurements->report_interval_ms, 10);
+        nr_timer_start(&l3_measurements->periodic_report_timer);
+      }
+    }
+  }
+}
+
 void nr_rrc_handle_timers(NR_UE_RRC_INST_t *rrc)
 {
   NR_UE_Timers_Constants_t *timers = &rrc->timers_and_constants;
@@ -185,6 +215,8 @@ void nr_rrc_handle_timers(NR_UE_RRC_INST_t *rrc)
     // Spec 38.331 Section 5.2.2.6
     handle_t430_expiry(rrc);
   }
+
+  handle_meas_timers(rrc);
 }
 
 int nr_rrc_get_T304(long t304)
@@ -629,4 +661,44 @@ void reset_rlf_timers_and_constants(NR_UE_Timers_Constants_t *tac)
   // reset the counters N310 and N311
   tac->N310_cnt = 0;
   tac->N311_cnt = 0;
+}
+
+int get_A2_event_time_to_trigger(long time_to_trigger)
+{
+  switch (time_to_trigger) {
+    case NR_TimeToTrigger_ms0:
+      return 0;
+    case NR_TimeToTrigger_ms40:
+      return 40;
+    case NR_TimeToTrigger_ms64:
+      return 64;
+    case NR_TimeToTrigger_ms80:
+      return 80;
+    case NR_TimeToTrigger_ms100:
+      return 100;
+    case NR_TimeToTrigger_ms128:
+      return 128;
+    case NR_TimeToTrigger_ms160:
+      return 160;
+    case NR_TimeToTrigger_ms256:
+      return 256;
+    case NR_TimeToTrigger_ms320:
+      return 320;
+    case NR_TimeToTrigger_ms480:
+      return 480;
+    case NR_TimeToTrigger_ms512:
+      return 512;
+    case NR_TimeToTrigger_ms640:
+      return 640;
+    case NR_TimeToTrigger_ms1024:
+      return 1024;
+    case NR_TimeToTrigger_ms1280:
+      return 1280;
+    case NR_TimeToTrigger_ms2560:
+      return 2560;
+    case NR_TimeToTrigger_ms5120:
+      return 5120;
+    default:
+      AssertFatal(false, "Invalid TimeToTrigger %ld\n", time_to_trigger);
+  }
 }

@@ -200,3 +200,11 @@ void tnl_to_bitstring(BIT_STRING_t *out, const transport_layer_addr_t in)
     out->bits_unused = 0;
   }
 }
+
+void bitstring_to_tnl(transport_layer_addr_t *out, const BIT_STRING_t in)
+{
+  if (in.size) {
+    memcpy(out->buffer, in.buf, in.size);
+    out->length = in.size;
+  }
+}

@@ -360,6 +360,39 @@ static E1AP_UP_Parameters_t encode_dl_up_parameters(const int numUpParam, const 
   return out;
 }
 
+/** @brief PDCP SN Status Information (9.3.1.58 3GPP TS 38.463) */
+static E1AP_PDCP_SN_Status_Information_t encode_pdcp_status_info(const e1_pdcp_status_info_t *in)
+{
+  E1AP_PDCP_SN_Status_Information_t pdcp = {0};
+  pdcp.pdcpStatusTransfer_DL.hFN = in->dl_count.hfn;
+  pdcp.pdcpStatusTransfer_DL.pDCP_SN = in->dl_count.sn;
+  pdcp.pdcpStatusTransfer_UL.countValue.hFN = in->ul_count.hfn;
+  pdcp.pdcpStatusTransfer_UL.countValue.pDCP_SN = in->ul_count.sn;
+  return pdcp;
+}
+
+/** @brief PDCP SN Status Information (9.3.1.58 3GPP TS 38.463) */
+static e1_pdcp_status_info_t decode_pdcp_status_info(const E1AP_PDCP_SN_Status_Information_t* in)
+{
+  e1_pdcp_status_info_t out = {0};
+  const E1AP_PDCP_Count_t *dl = &in->pdcpStatusTransfer_DL;
+  const E1AP_PDCP_Count_t *ul = &in->pdcpStatusTransfer_UL.countValue;
+  out.dl_count.hfn = dl->hFN;
+  out.dl_count.sn = dl->pDCP_SN;
+  out.ul_count.hfn = ul->hFN;
+  out.ul_count.sn = ul->pDCP_SN;
+  return out;
+}
+
+static bool eq_pdcp_info(const e1_pdcp_status_info_t *a, const e1_pdcp_status_info_t *b)
+{
+  _E1_EQ_CHECK_INT(a->dl_count.hfn, b->dl_count.hfn);
+  _E1_EQ_CHECK_INT(a->dl_count.sn, b->dl_count.sn);
+  _E1_EQ_CHECK_INT(a->ul_count.hfn, b->ul_count.hfn);
+  _E1_EQ_CHECK_INT(a->ul_count.sn, b->ul_count.sn);
+  return true;
+}
+
 /**
  * @brief Equality check for DRB_nGRAN_to_setup_t
  */
@@ -1409,6 +1442,11 @@ static E1AP_PDU_Session_Resource_To_Modify_Item_t e1_encode_pdu_session_to_mod_i
       asn1cCalloc(drb2Mod->pDCP_SN_Status_Request, pDCP_SN_Status_Request);
       *pDCP_SN_Status_Request = E1AP_PDCP_SN_Status_Request_requested;
     }
+    // PDCP Status Information (O)
+    if (j->pdcp_status) {
+      asn1cCalloc(drb2Mod->pdcp_SN_Status_Information, pdcp);
+      *pdcp = encode_pdcp_status_info(j->pdcp_status);
+    }
     // DL UP TNL parameters (O)
     if (j->numDlUpParam > 0) {
       asn1cCalloc(drb2Mod->dL_UP_Parameters, DL_UP_Param_List);
@@ -1658,7 +1696,7 @@ static bool e1_decode_pdu_session_to_mod_item(pdu_session_to_mod_t *out, const E
     drb->id = drb2Mod->dRB_ID;
     // PDCP Config (O)
     if (drb2Mod->pDCP_Configuration) {
-      drb->pdcp_config = malloc_or_fail(sizeof(*drb->pdcp_config));
+      drb->pdcp_config = calloc_or_fail(1, sizeof(*drb->pdcp_config));
       CHECK_E1AP_DEC(e1_decode_pdcp_config(drb->pdcp_config, drb2Mod->pDCP_Configuration));
     }
     // SDAP Config (O)
@@ -1667,8 +1705,13 @@ static bool e1_decode_pdu_session_to_mod_item(pdu_session_to_mod_t *out, const E
       CHECK_E1AP_DEC(e1_decode_sdap_config(drb->sdap_config, drb2Mod->sDAP_Configuration));
     }
     // PDCP SN Status Request (O)
-    if (drb2Mod->pDCP_SN_Status_Request) {
+    if (drb2Mod->pDCP_SN_Status_Request && *drb2Mod->pDCP_SN_Status_Request == E1AP_PDCP_SN_Status_Request_requested) {
       drb->pdcp_sn_status_requested = true;
+    }
+    // PDCP SN Status Information (O)
+    if (drb2Mod->pdcp_SN_Status_Information) {
+      drb->pdcp_status = malloc_or_fail(sizeof(*drb->pdcp_status));
+      *drb->pdcp_status = decode_pdcp_status_info(drb2Mod->pdcp_SN_Status_Information);
     }
     // DL UP TNL parameters (O)
     if (drb2Mod->dL_UP_Parameters) {
@@ -1843,6 +1886,7 @@ static DRB_nGRAN_to_mod_t cp_drb_to_mod_item(const DRB_nGRAN_to_mod_t *msg)
   cp = *msg;
   _E1_CP_OPTIONAL_IE(&cp, msg, sdap_config);
   _E1_CP_OPTIONAL_IE(&cp, msg, pdcp_config);
+  _E1_CP_OPTIONAL_IE(&cp, msg, pdcp_status);
   return cp;
 }
 
@@ -1904,12 +1948,15 @@ static bool eq_drb_to_mod(const DRB_nGRAN_to_mod_t *a, const DRB_nGRAN_to_mod_t 
   _E1_EQ_CHECK_INT(a->numDlUpParam, b->numDlUpParam);
   for (int i = 0; i < a->numDlUpParam; i++) {
     _E1_EQ_CHECK_INT(a->DlUpParamList[i].cell_group_id, b->DlUpParamList[i].cell_group_id);
-    eq_up_tl_info(&a->DlUpParamList[i].tl_info, &b->DlUpParamList[i].tl_info);
+    result &= eq_up_tl_info(&a->DlUpParamList[i].tl_info, &b->DlUpParamList[i].tl_info);
   }
   if (a->pdcp_config && b->pdcp_config)
     result &= eq_pdcp_config(a->pdcp_config, b->pdcp_config);
   if (a->sdap_config && b->sdap_config)
     result &= eq_sdap_config(a->sdap_config, b->sdap_config);
+  _E1_EQ_CHECK_OPTIONAL_PTR(a, b, pdcp_status);
+  if (a->pdcp_status && b->pdcp_status)
+    result &= eq_pdcp_info(a->pdcp_status, b->pdcp_status);
   return result;
 }
 
@@ -1984,6 +2031,7 @@ static void free_drb_to_mod_item(const DRB_nGRAN_to_mod_t *msg)
 {
   free(msg->pdcp_config);
   free(msg->sdap_config);
+  free(msg->pdcp_status);
 }
 
 /* Free PDU Session to modify item */
@@ -2111,6 +2159,13 @@ struct E1AP_E1AP_PDU *encode_E1_bearer_context_mod_response(const e1ap_bearer_mo
           asn1cSequenceAdd(drb_mod->flow_Failed_List->list, E1AP_QoS_Flow_Failed_Item_t, fail);
           encode_qos_flow_failed_item(fail, &drb->qosFlowsFailed[q]);
         }
+
+        // PDCP Status Information (O)
+        if (drb->pdcp_status) {
+          asn1cCalloc(drb_mod->pDCP_SN_Status_Information, pdcp);
+          *pdcp = encode_pdcp_status_info(drb->pdcp_status);
+        }
+
         // UL UP Parameters (O)
         if (drb->numUpParam)
           drb_mod->uL_UP_Transport_Parameters = calloc_or_fail(1, sizeof(*drb_mod->uL_UP_Transport_Parameters));
@@ -2310,6 +2365,11 @@ bool decode_E1_bearer_context_mod_response(e1ap_bearer_modif_resp_t *out, const 
                   drbMod->qosFlowsFailed[i] = decode_qos_flow_failed_item(drbIE->flow_Failed_List->list.array[i]);
                 }
               }
+              // PDCP Status Info (O)
+              if (drbIE->pDCP_SN_Status_Information) {
+                drbMod->pdcp_status = malloc_or_fail(sizeof(*drbMod->pdcp_status));
+                *drbMod->pdcp_status = decode_pdcp_status_info(drbIE->pDCP_SN_Status_Information);
+              }
             }
           }
           // DRB Failed to Mod list
@@ -2347,8 +2407,12 @@ e1ap_bearer_modif_resp_t cp_bearer_context_mod_response(const e1ap_bearer_modif_
   // Shallow copy
   cp = *msg;
   // Deep copy PDU sessions modified items
-  for (int i = 0; i < msg->numPDUSessionsMod; i++)
+  for (int i = 0; i < msg->numPDUSessionsMod; i++) {
     cp.pduSessionMod[i] = cp_pdu_session_mod_item(&msg->pduSessionMod[i]);
+    for (int j = 0; j < msg->pduSessionMod[i].numDRBModified; j++) {
+      _E1_CP_OPTIONAL_IE(&cp.pduSessionMod[i].DRBnGRanModList[j], &msg->pduSessionMod[i].DRBnGRanModList[j], pdcp_status);
+    }
+  }
   return cp;
 }
 
@@ -2358,6 +2422,8 @@ e1ap_bearer_modif_resp_t cp_bearer_context_mod_response(const e1ap_bearer_modif_
 bool eq_bearer_context_mod_response(const e1ap_bearer_modif_resp_t *a, const e1ap_bearer_modif_resp_t *b)
 {
   if (!a || !b) return false; // Null-check both inputs
+
+  bool result = true;
 
   // Basic members
   _E1_EQ_CHECK_INT(a->gNB_cu_cp_ue_id, b->gNB_cu_cp_ue_id);
@@ -2375,7 +2441,7 @@ bool eq_bearer_context_mod_response(const e1ap_bearer_modif_resp_t *a, const e1a
 
     _E1_EQ_CHECK_OPTIONAL_PTR(pduA, pduB, ng_DL_UP_TL_info);
     if (pduA->ng_DL_UP_TL_info && pduB->ng_DL_UP_TL_info)
-      eq_up_tl_info(pduA->ng_DL_UP_TL_info, pduB->ng_DL_UP_TL_info);
+      result &= eq_up_tl_info(pduA->ng_DL_UP_TL_info, pduB->ng_DL_UP_TL_info);
 
     // DRB Modified List
     _E1_EQ_CHECK_INT(pduA->numDRBModified, pduB->numDRBModified);
@@ -2386,6 +2452,10 @@ bool eq_bearer_context_mod_response(const e1ap_bearer_modif_resp_t *a, const e1a
       _E1_EQ_CHECK_INT(drbModA->numQosFlowSetup, drbModB->numQosFlowSetup);
       for (int j = 0; j < drbModA->numQosFlowSetup; j++) {
         _E1_EQ_CHECK_LONG(drbModA->qosFlows[j].qfi, drbModB->qosFlows[j].qfi);
+      }
+      _E1_EQ_CHECK_OPTIONAL_PTR(drbModA, drbModB, pdcp_status);
+      if (drbModA->pdcp_status && drbModB->pdcp_status) {
+        result &= eq_pdcp_info(drbModA->pdcp_status, drbModA->pdcp_status);
       }
     }
 
@@ -2420,7 +2490,7 @@ bool eq_bearer_context_mod_response(const e1ap_bearer_modif_resp_t *a, const e1a
 
   }
 
-  return true;
+  return result;
 }
 
 /**
@@ -2432,6 +2502,9 @@ void free_e1ap_context_mod_response(const e1ap_bearer_modif_resp_t *msg)
     free(msg->pduSessionMod[i].confidentialityProtectionIndication);
     free(msg->pduSessionMod[i].integrityProtectionIndication);
     free(msg->pduSessionMod[i].ng_DL_UP_TL_info);
+    for (int j = 0; j < msg->pduSessionMod[i].numDRBModified; j++) {
+      free(msg->pduSessionMod[i].DRBnGRanModList[j].pdcp_status);
+    }
   }
 }
 

@@ -44,7 +44,9 @@
 #include "ngap_common.h"
 #include "ngap_gNB_decoder.h"
 #include "ngap_gNB_defs.h"
+#include "ngap_gNB_nnsf.h"
 #include "ngap_gNB_management_procedures.h"
+#include "ngap_gNB_mobility_management.h"
 #include "ngap_gNB_nas_procedures.h"
 #include "ngap_gNB_trace.h"
 #include "ngap_gNB_ue_context.h"
@@ -693,97 +695,40 @@ static int ngap_gNB_handle_error_indication(sctp_assoc_t assoc_id, uint32_t stre
   return 0;
 }
 
-static void *decode_pdusession_transfer(const asn_TYPE_descriptor_t *td, const OCTET_STRING_t buf)
+/** @brief Handler for NGAP Handover Request message (AMF -> target NG-RAN)
+ *        Decode the NGAP message and transfer to RRC */
+static int ngap_gNB_handle_handover_request(sctp_assoc_t assoc_id, uint32_t stream, NGAP_NGAP_PDU_t *pdu)
 {
-  void *decoded = NULL;
-  asn_codec_ctx_t ctx = {.max_stack_size = 100 * 1000};
-  asn_dec_rval_t rval = aper_decode(&ctx, td, &decoded, buf.buf, buf.size, 0, 0);
-  if (rval.code != RC_OK) {
-    NGAP_ERROR("Decoding failed for %s\n", td->name);
-    return NULL;
-  }
-  return decoded;
-}
+  DevAssert(pdu != NULL);
 
-static pdusession_level_qos_parameter_t fill_qos(uint8_t qfi, const NGAP_QosFlowLevelQosParameters_t *params)
-{
-  pdusession_level_qos_parameter_t out = {0};
-  // QFI
-  out.qfi = qfi;
-  AssertFatal(params != NULL, "QoS parameters are NULL\n");
-  // QosCharacteristics
-  const NGAP_QosCharacteristics_t *qosChar = &params->qosCharacteristics;
-  AssertFatal(qosChar != NULL, "QoS characteristics are NULL\n");
-  if (qosChar->present == NGAP_QosCharacteristics_PR_nonDynamic5QI) {
-    AssertFatal(qosChar->choice.nonDynamic5QI != NULL, "nonDynamic5QI is NULL\n");
-    out.fiveQI_type = NON_DYNAMIC;
-    out.fiveQI = qosChar->choice.nonDynamic5QI->fiveQI;
-  } else if (qosChar->present == NGAP_QosCharacteristics_PR_dynamic5QI) {
-    AssertFatal(qosChar->choice.dynamic5QI != NULL, "dynamic5QI is NULL\n");
-    out.fiveQI_type = DYNAMIC;
-    out.fiveQI = *qosChar->choice.dynamic5QI->fiveQI;
-  } else {
-    AssertFatal(0, "Unsupported QoS Characteristics present value: %d\n", qosChar->present);
-  }
-  // Allocation and Retention Priority
-  const NGAP_AllocationAndRetentionPriority_t *arp = &params->allocationAndRetentionPriority;
-  out.allocation_retention_priority.priority_level = arp->priorityLevelARP;
-  out.allocation_retention_priority.pre_emp_capability = arp->pre_emptionCapability;
-  out.allocation_retention_priority.pre_emp_vulnerability = arp->pre_emptionVulnerability;
-
-  return out;
-}
-
-static gtpu_tunnel_t decode_TNLInformation(const NGAP_GTPTunnel_t *gTPTunnel_p)
-{
-  gtpu_tunnel_t out = {0};
-  // Transport layer address
-  memcpy(out.addr.buffer, gTPTunnel_p->transportLayerAddress.buf, gTPTunnel_p->transportLayerAddress.size);
-  out.addr.length = gTPTunnel_p->transportLayerAddress.size - gTPTunnel_p->transportLayerAddress.bits_unused;
-  // GTP tunnel endpoint ID
-  OCTET_STRING_TO_INT32(&gTPTunnel_p->gTP_TEID, out.teid);
-  return out;
-}
-
-/** @brief Decode PDU Session Resource Setup Request Transfer (9.3.4.1 3GPP TS 38.413) */
-static bool decodePDUSessionResourceSetup(pdusession_transfer_t *out, const OCTET_STRING_t in)
-{
-  void *decoded = decode_pdusession_transfer(&asn_DEF_NGAP_PDUSessionResourceSetupRequestTransfer, in);
-  if (!decoded) {
-    LOG_E(NR_RRC, "Failed to decode PDUSessionResourceSetupRequestTransfer\n");
-    return false;
+  ngap_gNB_amf_data_t *amf_desc_p = ngap_gNB_get_AMF(NULL, assoc_id, 0);
+  if (amf_desc_p == NULL) {
+    NGAP_ERROR("Received Handover Request for non existing AMF context\n");
+    return -1;
   }
 
-  NGAP_PDUSessionResourceSetupRequestTransfer_t *pdusessionTransfer = (NGAP_PDUSessionResourceSetupRequestTransfer_t *)decoded;
-  for (int i = 0; i < pdusessionTransfer->protocolIEs.list.count; i++) {
-    NGAP_PDUSessionResourceSetupRequestTransferIEs_t *pdusessionTransfer_ies = pdusessionTransfer->protocolIEs.list.array[i];
-    switch (pdusessionTransfer_ies->id) {
-      // UL NG-U UP TNL Information (Mandatory)
-      case NGAP_ProtocolIE_ID_id_UL_NGU_UP_TNLInformation:
-        out->n3_incoming = decode_TNLInformation(pdusessionTransfer_ies->value.choice.UPTransportLayerInformation.choice.gTPTunnel);
-        break;
+  MessageDef *message_p = itti_alloc_new_message(TASK_NGAP, 0, NGAP_HANDOVER_REQUEST);
+  ngap_handover_request_t *msg = &NGAP_HANDOVER_REQUEST(message_p);
+  memset(msg, 0, sizeof(*msg));
 
-      // PDU Session Type (Mandatory)
-      case NGAP_ProtocolIE_ID_id_PDUSessionType:
-        out->pdu_session_type = pdusessionTransfer_ies->value.choice.PDUSessionType;
-        break;
-
-      // QoS Flow Setup Request List (Mandatory)
-      case NGAP_ProtocolIE_ID_id_QosFlowSetupRequestList:
-        out->nb_qos = pdusessionTransfer_ies->value.choice.QosFlowSetupRequestList.list.count;
-        for (int i = 0; i < out->nb_qos; i++) {
-          NGAP_QosFlowSetupRequestItem_t *item = pdusessionTransfer_ies->value.choice.QosFlowSetupRequestList.list.array[i];
-          out->qos[i] = fill_qos(item->qosFlowIdentifier, &item->qosFlowLevelQosParameters);
-        }
-        break;
-
-      default:
-        LOG_D(NR_RRC, "Unhandled optional IE %ld\n", pdusessionTransfer_ies->id);
-    }
+  if (decode_ng_handover_request(msg, pdu) < 0) {
+    NGAP_ERROR("Failed to decode NG Handover Request\n");
+    ngap_handover_failure_t fail = {
+        .amf_ue_ngap_id = msg->amf_ue_ngap_id,
+        .cause.type = NGAP_CAUSE_RADIO_NETWORK,
+        .cause.value = NGAP_CAUSE_RADIO_NETWORK_HO_FAILURE_IN_TARGET_5GC_NGRAN_NODE_OR_TARGET_SYSTEM,
+    };
+    NGAP_INFO("Send NG Handover Failure message (amf_ue_ngap_id %ld) with cause %d \n ", fail.amf_ue_ngap_id, fail.cause.value);
+    MessageDef *msg_p = itti_alloc_new_message(TASK_NGAP, 0, NGAP_HANDOVER_FAILURE);
+    NGAP_HANDOVER_FAILURE(msg_p) = fail;
+    itti_send_msg_to_task(TASK_NGAP, amf_desc_p->ngap_gNB_instance->instance, msg_p);
+    return -1;
   }
-  ASN_STRUCT_FREE(asn_DEF_NGAP_PDUSessionResourceSetupRequestTransfer, pdusessionTransfer);
 
-  return true;
+  NGAP_INFO("Received NG Handover Request from AMF %s (ID=%lu)\n", amf_desc_p->amf_name, msg->amf_ue_ngap_id);
+  itti_send_msg_to_task(TASK_RRC_GNB, amf_desc_p->ngap_gNB_instance->instance, message_p);
+
+  return 0;
 }
 
 static int ngap_gNB_handle_initial_context_request(sctp_assoc_t assoc_id, uint32_t stream, NGAP_NGAP_PDU_t *pdu)
@@ -1048,6 +993,100 @@ static int ngap_gNB_handle_pdusession_setup_request(sctp_assoc_t assoc_id, uint3
     }
   }
   itti_send_msg_to_task(TASK_RRC_GNB, ue_desc_p->gNB_instance->instance, message_p);
+
+  return 0;
+}
+
+/** @brief Handler for the NG Handover Command
+ *         AMF -> source NG-RAN */
+static int ngap_gNB_handle_handover_command(sctp_assoc_t assoc_id, uint32_t stream, NGAP_NGAP_PDU_t *pdu)
+{
+  NGAP_INFO("Received NG Handover Command\n");
+  ngap_gNB_amf_data_t *amf_desc_p = NULL;
+  DevAssert(pdu != NULL);
+
+  if ((amf_desc_p = ngap_gNB_get_AMF(NULL, assoc_id, 0)) == NULL) {
+    NGAP_ERROR(
+        "[SCTP %u] Received Handover Command for non "
+        "existing AMF context\n",
+        assoc_id);
+    return -1;
+  }
+
+  MessageDef *message_p = itti_alloc_new_message(TASK_NGAP, 0, NGAP_HANDOVER_COMMAND);
+  ngap_handover_command_t *msg = &NGAP_HANDOVER_COMMAND(message_p);
+  memset(msg, 0, sizeof(*msg));
+  if (decode_ng_handover_command(msg, pdu) < 0) {
+    NGAP_ERROR("Failed to decode NG Handover Command");
+    free_ng_handover_command(msg);
+    itti_free(TASK_NGAP, message_p);
+    return -1;
+  }
+
+  ngap_gNB_ue_context_t *ue_desc_p = ngap_get_ue_context(msg->gNB_ue_ngap_id);
+  if (!ue_desc_p) {
+    NGAP_ERROR(
+        "[SCTP %u] Received HO Command Msg for non existing UE context (gNB_ue_ngap_id %d) \n",
+        assoc_id,
+        msg->gNB_ue_ngap_id);
+    free_ng_handover_command(msg);
+    itti_free(TASK_NGAP, message_p);
+    return -1;
+  }
+
+  ue_desc_p->rx_stream = stream;
+
+  if (ue_desc_p->amf_ue_ngap_id != msg->amf_ue_ngap_id) {
+    NGAP_ERROR("UE context amf_ue_ngap_id is different form that of the message (%ld != %ld)",
+               ue_desc_p->amf_ue_ngap_id,
+               msg->amf_ue_ngap_id);
+    free_ng_handover_command(msg);
+    itti_free(TASK_NGAP, message_p);
+    return -1;
+  }
+
+  NGAP_DEBUG("Handover Command is parsed with a size of: %ld. Sending to RRC GNB!\n", msg->handoverCommand.len);
+  itti_send_msg_to_task(TASK_RRC_GNB, amf_desc_p->ngap_gNB_instance->instance, message_p);
+
+  return 0;
+}
+
+/** @brief Handler for NG Handover Cancel Acknowledge */
+static int ngap_gNB_handle_handover_cancel_ack(sctp_assoc_t assoc_id, uint32_t stream, NGAP_NGAP_PDU_t *pdu)
+{
+  NGAP_INFO("Received NG Handover Cancel Acknowledge\n");
+  ngap_gNB_amf_data_t *amf_desc_p = NULL;
+  DevAssert(pdu != NULL);
+
+  amf_desc_p = ngap_gNB_get_AMF(NULL, assoc_id, 0);
+  if (amf_desc_p == NULL) {
+    NGAP_ERROR("[SCTP %u] Received Handover Cancel Ack for non-existing AMF context\n", assoc_id);
+    return -1;
+  }
+
+  MessageDef *message_p = itti_alloc_new_message(TASK_NGAP, 0, NGAP_HANDOVER_CANCEL_ACK);
+  ngap_handover_cancel_ack_t *msg = &NGAP_HANDOVER_CANCEL_ACK(message_p);
+
+  if (decode_ng_handover_cancel_ack(msg, pdu) < 0) {
+    NGAP_ERROR("Failed to decode NG Handover Cancel Acknowledge\n");
+    itti_free(TASK_NGAP, message_p);
+    return -1;
+  }
+
+  ngap_gNB_ue_context_t *ue_desc_p = ngap_get_ue_context(msg->gNB_ue_ngap_id);
+  if (!ue_desc_p) {
+    NGAP_ERROR("[SCTP %u] Handover Cancel Ack for unknown UE context (gNB_ue_ngap_id %d)\n", assoc_id, msg->gNB_ue_ngap_id);
+    itti_free(TASK_NGAP, message_p);
+    return -1;
+  }
+
+  if (ue_desc_p->amf_ue_ngap_id != msg->amf_ue_ngap_id) {
+    NGAP_WARN("AMF UE NGAP ID mismatch in HO Cancel Ack (ctx %ld != msg %ld)", ue_desc_p->amf_ue_ngap_id, msg->amf_ue_ngap_id);
+  }
+
+  ue_desc_p->rx_stream = stream;
+
+  // cancel was already handled at RRC level, do not forward
 
   return 0;
 }
@@ -1379,6 +1418,100 @@ static int ngap_gNB_handle_ng_ENDC_pdusession_modification_confirm(sctp_assoc_t 
 	return 0;
 }
 
+static int ngap_gNB_handle_dl_ran_status_transfer(sctp_assoc_t assoc_id, uint32_t stream, NGAP_NGAP_PDU_t *pdu)
+{
+  DevAssert(pdu != NULL);
+
+  NGAP_DownlinkRANStatusTransfer_t *container = &pdu->choice.initiatingMessage->value.choice.DownlinkRANStatusTransfer;
+  NGAP_DownlinkRANStatusTransferIEs_t *ie = NULL;
+
+  ngap_gNB_amf_data_t *amf_desc_p = ngap_gNB_get_AMF(NULL, assoc_id, 0);
+  if (!amf_desc_p) {
+    NGAP_ERROR("[SCTP %u] Received DL RAN Status Transfer for unknown AMF\n", assoc_id);
+    return -1;
+  }
+
+  // AMF UE NGAP ID
+  uint64_t amf_ue_ngap_id = 0;
+  NGAP_FIND_PROTOCOLIE_BY_ID(NGAP_DownlinkRANStatusTransferIEs_t, ie, container, NGAP_ProtocolIE_ID_id_AMF_UE_NGAP_ID, true);
+  asn_INTEGER2ulong(&ie->value.choice.AMF_UE_NGAP_ID, &amf_ue_ngap_id);
+
+  // RAN UE NGAP ID
+  NGAP_FIND_PROTOCOLIE_BY_ID(NGAP_DownlinkRANStatusTransferIEs_t, ie, container, NGAP_ProtocolIE_ID_id_RAN_UE_NGAP_ID, true);
+  NGAP_RAN_UE_NGAP_ID_t gnb_ue_ngap_id = ie->value.choice.RAN_UE_NGAP_ID;
+
+  ngap_gNB_ue_context_t *ue_desc_p = ngap_get_ue_context(gnb_ue_ngap_id);
+  if (!ue_desc_p) {
+    NGAP_ERROR("No UE context for gNB_ue_ngap_id %lu\n", gnb_ue_ngap_id);
+    return -1;
+  }
+
+  ue_desc_p->rx_stream = stream;
+  if (ue_desc_p->amf_ue_ngap_id != amf_ue_ngap_id)
+    NGAP_WARN("UE context mismatch: amf_ue_ngap_id (%lu != %lu)\n", ue_desc_p->amf_ue_ngap_id, amf_ue_ngap_id);
+
+  // Transparent container
+  NGAP_FIND_PROTOCOLIE_BY_ID(NGAP_DownlinkRANStatusTransferIEs_t,
+                             ie,
+                             container,
+                             NGAP_ProtocolIE_ID_id_RANStatusTransfer_TransparentContainer,
+                             true);
+  NGAP_RANStatusTransfer_TransparentContainer_t *tcont = &ie->value.choice.RANStatusTransfer_TransparentContainer;
+
+  MessageDef *message_p = itti_alloc_new_message(TASK_NGAP, 0, NGAP_DL_RAN_STATUS_TRANSFER);
+  ngap_ran_status_transfer_t *msg = &NGAP_DL_RAN_STATUS_TRANSFER(message_p);
+  memset(msg, 0, sizeof(*msg));
+
+  msg->amf_ue_ngap_id = amf_ue_ngap_id;
+  msg->gnb_ue_ngap_id = gnb_ue_ngap_id;
+
+  int nb = tcont->dRBsSubjectToStatusTransferList.list.count;
+  for (int i = 0; i < nb; ++i) {
+    NGAP_DRBsSubjectToStatusTransferItem_t *item = tcont->dRBsSubjectToStatusTransferList.list.array[i];
+    ngap_drb_status_t *s = &msg->ran_status.drb_status_list[i];
+    s->drb_id = item->dRB_ID;
+
+    // UL COUNT
+    switch (item->dRBStatusUL.present) {
+      case NGAP_DRBStatusUL_PR_dRBStatusUL18:
+        s->ul_count.sn_len = NGAP_SN_LENGTH_18;
+        s->ul_count.pdcp_sn = item->dRBStatusUL.choice.dRBStatusUL18->uL_COUNTValue.pDCP_SN18;
+        s->ul_count.hfn = item->dRBStatusUL.choice.dRBStatusUL18->uL_COUNTValue.hFN_PDCP_SN18;
+        break;
+      case NGAP_DRBStatusUL_PR_dRBStatusUL12:
+        s->ul_count.sn_len = NGAP_SN_LENGTH_12;
+        s->ul_count.pdcp_sn = item->dRBStatusUL.choice.dRBStatusUL12->uL_COUNTValue.pDCP_SN12;
+        s->ul_count.hfn = item->dRBStatusUL.choice.dRBStatusUL12->uL_COUNTValue.hFN_PDCP_SN12;
+        break;
+      default:
+        NGAP_ERROR("Unknown dRBStatusUL.present=%d\n", item->dRBStatusUL.present);
+        break;
+    }
+
+    // DL COUNT
+    switch (item->dRBStatusDL.present) {
+      case NGAP_DRBStatusDL_PR_dRBStatusDL18:
+        s->dl_count.sn_len = NGAP_SN_LENGTH_18;
+        s->dl_count.pdcp_sn = item->dRBStatusDL.choice.dRBStatusDL18->dL_COUNTValue.pDCP_SN18;
+        s->dl_count.hfn = item->dRBStatusDL.choice.dRBStatusDL18->dL_COUNTValue.hFN_PDCP_SN18;
+        break;
+      case NGAP_DRBStatusDL_PR_dRBStatusDL12:
+        s->dl_count.sn_len = NGAP_SN_LENGTH_12;
+        s->dl_count.pdcp_sn = item->dRBStatusDL.choice.dRBStatusDL12->dL_COUNTValue.pDCP_SN12;
+        s->dl_count.hfn = item->dRBStatusDL.choice.dRBStatusDL12->dL_COUNTValue.hFN_PDCP_SN12;
+        break;
+      default:
+        NGAP_ERROR("Unknown dRBStatusDL.present=%d\n", item->dRBStatusDL.present);
+        break;
+    }
+
+    msg->ran_status.nb_drb++;
+  }
+
+  itti_send_msg_to_task(TASK_RRC_GNB, ue_desc_p->gNB_instance->instance, message_p);
+  return 0;
+}
+
 /* Handlers matrix. Only gNB related procedure present here */
 const ngap_message_decoded_callback ngap_messages_callback[][3] = {
     {0, 0, 0}, /* AMFConfigurationUpdate */
@@ -1388,13 +1521,13 @@ const ngap_message_decoded_callback ngap_messages_callback[][3] = {
     {ngap_gNB_handle_nas_downlink, 0, 0}, /* DownlinkNASTransport */
     {0, 0, 0}, /* DownlinkNonUEAssociatedNRPPaTransport */
     {0, 0, 0}, /* DownlinkRANConfigurationTransfer */
-    {0, 0, 0}, /* DownlinkRANStatusTransfer */
+    {ngap_gNB_handle_dl_ran_status_transfer, 0, 0}, /* DownlinkRANStatusTransfer */
     {0, 0, 0}, /* DownlinkUEAssociatedNRPPaTransport */
     {ngap_gNB_handle_error_indication, 0, 0}, /* ErrorIndication */
-    {0, 0, 0}, /* HandoverCancel */
+    {0, ngap_gNB_handle_handover_cancel_ack, 0}, /* HandoverCancel */
     {0, 0, 0}, /* HandoverNotification */
-    {0, 0, 0}, /* HandoverPreparation */
-    {0, 0, 0}, /* HandoverResourceAllocation */
+    {0, ngap_gNB_handle_handover_command, 0}, /* HandoverPreparation */
+    {ngap_gNB_handle_handover_request, 0, 0}, /* HandoverResourceAllocation */
     {ngap_gNB_handle_initial_context_request, 0, 0}, /* InitialContextSetup */
     {0, 0, 0}, /* InitialUEMessage */
     {0, 0, 0}, /* LocationReportingControl */

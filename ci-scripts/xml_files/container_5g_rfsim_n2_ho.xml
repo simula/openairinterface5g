@@ -1,0 +1,207 @@
+<!--
+
+ Licensed to the OpenAirInterface (OAI) Software Alliance under one or more
+ contributor license agreements.  See the NOTICE file distributed with
+ this work for additional information regarding copyright ownership.
+ The OpenAirInterface Software Alliance licenses this file to You under
+ the OAI Public License, Version 1.1  (the "License"); you may not use this file
+ except in compliance with the License.
+ You may obtain a copy of the License at
+
+      http://www.openairinterface.org/?page_id=698
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+
+ For more information about the OpenAirInterface (OAI) Software Alliance:
+      contact@openairinterface.org
+
+-->
+<testCaseList>
+        <htmlTabRef>rfsim-5gnr-f1-n2-ho</htmlTabRef>
+        <htmlTabName>F1 SA TDD N2 Handover</htmlTabName>
+        <htmlTabIcon>wrench</htmlTabIcon>
+        <TestCaseRequestedList>
+ 111111
+ 800813
+ 000001
+ 000002
+ 000003
+ 020001
+ 020002
+ 030001
+ 030002
+ 000004
+ 040001
+ 050001
+ 020001
+ 020002
+ 050002
+ 030001
+ 030002
+ 050003
+ 020001
+ 020002
+ 050004
+ 050001
+ 020001
+ 020002
+ 050002
+ 100001
+ 222222
+        </TestCaseRequestedList>
+        <TestCaseExclusionList></TestCaseExclusionList>
+
+        <testCase id="111111">
+                <class>Pull_Local_Registry</class>
+                <desc>Pull Images from Local Registry</desc>
+                <svr_id>0</svr_id>
+                <images>oai-gnb-asan oai-nr-cuup-asan oai-nr-ue-asan</images>
+        </testCase>
+
+        <testCase id="800813">
+                <class>Create_Workspace</class>
+                <desc>Create new Workspace</desc>
+                <eNB_instance>0</eNB_instance>
+                <eNB_serverId>0</eNB_serverId>
+        </testCase>
+
+        <testCase id="000001">
+                <class>Deploy_Object</class>
+                <desc>Deploy OAI 5G CoreNetwork</desc>
+                <yaml_path>ci-scripts/yaml_files/5g_rfsimulator_n2_ho</yaml_path>
+                <services>mysql oai-amf oai-smf oai-upf oai-ext-dn</services>
+                <eNB_instance>0</eNB_instance>
+                <eNB_serverId>0</eNB_serverId>
+        </testCase>
+
+        <testCase id="000002">
+                <class>Deploy_Object</class>
+                <desc>Deploy OAI 5G CU-CP/CU-UP/DU 0 + UE RFsim SA</desc>
+                <yaml_path>ci-scripts/yaml_files/5g_rfsimulator_n2_ho</yaml_path>
+                <services>oai-cucp-0 oai-cuup-0 oai-du-0 oai-nr-ue</services>
+                <eNB_instance>0</eNB_instance>
+                <eNB_serverId>0</eNB_serverId>
+        </testCase>
+
+        <testCase id="000003">
+                <class>Attach_UE</class>
+                <desc>Attach OAI UE (Wait for IP)</desc>
+                <id>rfsim5g_ue</id>
+                <nodes>acamas</nodes>
+        </testCase>
+
+        <testCase id="000004">
+                <class>Deploy_Object</class>
+                <desc>Deploy OAI 5G CU-CP/CU-UP/DU 1 RFsim SA</desc>
+                <yaml_path>ci-scripts/yaml_files/5g_rfsimulator_n2_ho</yaml_path>
+                <services>oai-cucp-1 oai-cuup-1 oai-du-1</services>
+                <eNB_instance>0</eNB_instance>
+                <eNB_serverId>0</eNB_serverId>
+        </testCase>
+
+        <testCase id="020001">
+                <class>Ping</class>
+                <desc>Ping NR-UE from ext-dn</desc>
+                <id>rfsim5g_ext_dn</id>
+                <nodes>acamas</nodes>
+                <svr_id>rfsim5g_ue</svr_id>
+                <svr_node>acamas</svr_node>
+                <ping_args>-c 100 -i 0.25</ping_args>
+                <ping_packetloss_threshold>5</ping_packetloss_threshold>
+        </testCase>
+
+        <testCase id="020002">
+                <class>Ping</class>
+                <desc>Ping ext-dn from NR-UE</desc>
+                <id>rfsim5g_ue</id>
+                <nodes>acamas</nodes>
+                <svr_id>rfsim5g_ext_dn</svr_id>
+                <svr_node>acamas</svr_node>
+                <ping_args>-c 100 -i 0.25</ping_args>
+                <ping_packetloss_threshold>10</ping_packetloss_threshold>
+        </testCase>
+
+        <testCase id="030001">
+                <class>Iperf</class>
+                <desc>Iperf (DL/10Mbps/UDP)(30 sec)</desc>
+                <iperf_args>-u -b 3M -t 20 -R</iperf_args>
+                <id>rfsim5g_ue</id>
+                <nodes>acamas</nodes>
+                <svr_id>rfsim5g_ext_dn</svr_id>
+                <svr_node>acamas</svr_node>
+                <iperf_packetloss_threshold>5</iperf_packetloss_threshold>
+                <iperf_bitrate_threshold>90</iperf_bitrate_threshold>
+        </testCase>
+
+        <testCase id="030002">
+                <class>Iperf</class>
+                <desc>Iperf (UL/4Mbps/UDP)(30 sec)</desc>
+                <iperf_args>-u -b 1M -t 20</iperf_args>
+                <id>rfsim5g_ue</id>
+                <nodes>acamas</nodes>
+                <svr_id>rfsim5g_ext_dn</svr_id>
+                <svr_node>acamas</svr_node>
+                <iperf_packetloss_threshold>5</iperf_packetloss_threshold>
+                <iperf_bitrate_threshold>90</iperf_bitrate_threshold>
+        </testCase>
+
+        <testCase id="040001">
+                <class>IdleSleep</class>
+                <desc>Sleep</desc>
+                <idle_sleep_time_in_sec>5</idle_sleep_time_in_sec>
+        </testCase>
+
+        <testCase id="050001">
+                <class>Custom_Command</class>
+                <desc>Trigger N2 Handover</desc>
+                <node>acamas</node>
+                <command>echo ci trigger_n2_ho 1,1 | ncat 192.168.71.150 9090</command>
+                <command_fail>yes</command_fail>
+        </testCase>
+
+        <testCase id="050002">
+                <class>Custom_Command</class>
+                <desc>UE (1) connected to DU-PCI 1?</desc>
+                <node>acamas</node>
+                <command>echo ci fetch_du_by_ue_id 1 | ncat 192.168.71.180 9090 | grep "1234"</command>
+        </testCase>
+
+        <testCase id="050003">
+                <class>Custom_Command</class>
+                <desc>Trigger N2 Handover</desc>
+                <node>acamas</node>
+                <command>echo ci trigger_n2_ho 0,1 | ncat 192.168.71.180 9090</command>
+                <command_fail>yes</command_fail>
+        </testCase>
+
+        <testCase id="050004">
+                <class>Custom_Command</class>
+                <desc>UE (1) connected to DU-PCI 0?</desc>
+                <node>acamas</node>
+                <command>echo ci fetch_du_by_ue_id 1 | ncat 192.168.71.150 9090 | grep "3584"</command>
+        </testCase>
+
+        <testCase id="100001">
+                <class>Undeploy_Object</class>
+                <always_exec>true</always_exec>
+                <desc>Undeploy all OAI 5G stack</desc>
+                <yaml_path>ci-scripts/yaml_files/5g_rfsimulator_n2_ho</yaml_path>
+                <eNB_instance>0</eNB_instance>
+                <eNB_serverId>0</eNB_serverId>
+                <d_retx_th>10,100,100,100</d_retx_th>
+                <u_retx_th>10,100,100,100</u_retx_th>
+        </testCase>
+
+        <testCase id="222222">
+                <class>Clean_Test_Server_Images</class>
+                <always_exec>true</always_exec>
+                <desc>Clean Test Images on Test Server</desc>
+                <svr_id>0</svr_id>
+                <images>oai-gnb-asan oai-nr-cuup-asan oai-nr-ue-asan</images>
+        </testCase>
+
+</testCaseList>

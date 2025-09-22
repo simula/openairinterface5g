@@ -489,19 +489,42 @@ void ue_dci_configuration(NR_UE_MAC_INST_t *mac, fapi_nr_dl_config_request_t *dl
       config_dci_pdu(mac, dl_config, rnti_type, slot, ra_SS);
     }
   } else if (mac->state == UE_CONNECTED) {
+    /*
+      In RRC Connected state, the UE monitors for fallback DCI with C-RNTI in common and UE-specific SS.
+      First the UE check all UE specific SS. If no fallback DCI is configured, it configures one of following
+      common SS with the shown priority
+      1. RA SS
+      2. Other SI SS
+      3. Paging SS
+      4. SIB1 SS
+
+      There is a possibility that gNB could configure multiple UE-specific SS for fallback DCI or/and common SS,
+      and in a given slot more than one SS become active. For the moment, we assume such configuration wouldn't happen
+      and hence don't handle it for the sake of implementation simplicity.
+    */
+    bool configured_fallback_dci = false;
     for (int i = 0; i < pdcch_config->list_SS.count; i++) {
       NR_SearchSpace_t *ss = pdcch_config->list_SS.array[i];
-      if (is_ss_monitor_occasion(frame, slot, slots_per_frame, ss))
+      if (is_ss_monitor_occasion(frame, slot, slots_per_frame, ss)) {
         config_dci_pdu(mac, dl_config, TYPE_C_RNTI_, slot, ss);
+        configured_fallback_dci |= (ss->searchSpaceType->present == NR_SearchSpace__searchSpaceType_PR_common);
+      }
     }
-    const NR_SearchSpace_t *ra_SS = get_common_search_space(mac, pdcch_config->ra_SS_id);
-    if (pdcch_config->list_SS.count == 0 && ra_SS) {
-      // If the UE has not been provided a Type3-PDCCH CSS set or a USS set and
-      // the UE has received a C-RNTI and has been provided a Type1-PDCCH CSS set,
-      // the UE monitors PDCCH candidates for DCI format 0_0 and DCI format 1_0
-      // with CRC scrambled by the C-RNTI in the Type1-PDCCH CSS set
-      if (is_ss_monitor_occasion(frame, slot, slots_per_frame, ra_SS))
-        config_dci_pdu(mac, dl_config, TYPE_C_RNTI_, slot, ra_SS);
+    const NR_SearchSpace_t *css = NULL;
+    if (!configured_fallback_dci) {
+#define CSS_VALID_CUR_SLOT(CSS) \
+  ((CSS > -1) && is_ss_monitor_occasion(frame, slot, slots_per_frame, get_common_search_space(mac, CSS)))
+      if (CSS_VALID_CUR_SLOT(pdcch_config->ra_SS_id))
+        css = get_common_search_space(mac, pdcch_config->ra_SS_id);
+      else if (CSS_VALID_CUR_SLOT(pdcch_config->otherSI_SS_id))
+        css = get_common_search_space(mac, pdcch_config->otherSI_SS_id);
+      else if (CSS_VALID_CUR_SLOT(pdcch_config->paging_SS_id))
+        css = get_common_search_space(mac, pdcch_config->paging_SS_id);
+#undef CSS_VALID_CUR_SLOT
+      else
+        css = mac->search_space_zero;
+      AssertFatal(css, "Atleast one CSS should be present in connected state\n");
+      config_dci_pdu(mac, dl_config, TYPE_C_RNTI_, slot, css);
     }
   }
 }

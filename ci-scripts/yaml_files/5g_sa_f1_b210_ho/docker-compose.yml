@@ -7,7 +7,7 @@ services:
         ulimits:
           core: -1 # for core dumps
         environment:
-            USE_ADDITIONAL_OPTIONS: --telnetsrv --telnetsrv.listenport 9090 --telnetsrv.shrmod ci --sa
+            USE_ADDITIONAL_OPTIONS: --telnetsrv --telnetsrv.listenport 9090 --telnetsrv.shrmod ci
                                     --log_config.global_log_options level,nocolor,utc_time,line_num,function
         volumes:
             - ../../conf_files/gnb-cu.sa.f1.ho.conf:/opt/oai-gnb/etc/gnb.conf
@@ -37,7 +37,7 @@ services:
           core: -1 # for core dumps
         environment:
             USE_B2XX: 'yes'
-            USE_ADDITIONAL_OPTIONS: --RUs.[0].sdr_addrs serial=30AD30F --sa
+            USE_ADDITIONAL_OPTIONS: --RUs.[0].sdr_addrs serial=30AD30F
                                     --telnetsrv --telnetsrv.listenport 9091 --telnetsrv.shrmod ci
                                     --log_config.global_log_options level,nocolor,utc_time,line_num,function
         devices:
@@ -69,7 +69,7 @@ services:
           core: -1 # for core dumps
         environment:
             USE_B2XX: 'yes'
-            USE_ADDITIONAL_OPTIONS: --RUs.[0].sdr_addrs serial=31F8010 --sa
+            USE_ADDITIONAL_OPTIONS: --RUs.[0].sdr_addrs serial=31F8010
                                     --telnetsrv --telnetsrv.listenport 9091 --telnetsrv.shrmod ci
                                     --log_config.global_log_options level,nocolor,utc_time,line_num,function
         devices:

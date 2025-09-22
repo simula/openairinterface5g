@@ -186,8 +186,8 @@ void nr_fill_rx_indication(fapi_nr_rx_indication_t *rx_ind,
         rx->ssb_pdu.decoded_pdu = false;
       }
     } break;
-    case FAPI_NR_CSIRS_IND:
-      memcpy(&rx->csirs_measurements, typeSpecific, sizeof(fapi_nr_csirs_measurements_t));
+    case FAPI_NR_MEAS_IND:
+      memcpy(&rx->l1_measurements, typeSpecific, sizeof(fapi_nr_l1_measurements_t));
       break;
     default:
     break;
